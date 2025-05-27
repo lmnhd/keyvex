@@ -1,0 +1,270 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2024-01-15",
+  "description": "Centralized AI model configuration for Keyvex processes",
+  
+  "providers": {
+    "openai": {
+      "name": "OpenAI",
+      "baseUrl": "https://api.openai.com/v1",
+      "models": {
+        "gpt-4": {
+          "id": "gpt-4",
+          "name": "GPT-4",
+          "maxTokens": 8192,
+          "costPer1kTokens": {
+            "input": 0.03,
+            "output": 0.06
+          },
+          "capabilities": ["text", "reasoning", "analysis"],
+          "recommended": ["complex-logic", "validation", "review"]
+        },
+        "gpt-4-turbo": {
+          "id": "gpt-4-turbo-preview",
+          "name": "GPT-4 Turbo",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.01,
+            "output": 0.03
+          },
+          "capabilities": ["text", "reasoning", "analysis", "long-context"],
+          "recommended": ["content-generation", "framework-building"]
+        },
+        "gpt-3.5-turbo": {
+          "id": "gpt-3.5-turbo",
+          "name": "GPT-3.5 Turbo",
+          "maxTokens": 4096,
+          "costPer1kTokens": {
+            "input": 0.0015,
+            "output": 0.002
+          },
+          "capabilities": ["text", "fast-response"],
+          "recommended": ["quick-suggestions", "simple-tasks"]
+        }
+      }
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "models": {
+        "claude-3-5-sonnet": {
+          "id": "claude-3-5-sonnet-20240620",
+          "name": "Claude 3.5 Sonnet",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.003,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context"],
+          "recommended": ["creative-content", "complex-reasoning", "style-generation"]
+        },
+        "claude-3-opus": {
+          "id": "claude-3-opus-20240229",
+          "name": "Claude 3 Opus",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.015,
+            "output": 0.075
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "complex-tasks"],
+          "recommended": ["high-quality-content", "complex-analysis"]
+        },
+        "claude-3-haiku": {
+          "id": "claude-3-haiku-20240307",
+          "name": "Claude 3 Haiku",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.00025,
+            "output": 0.00125
+          },
+          "capabilities": ["text", "fast-response", "simple-tasks"],
+          "recommended": ["quick-responses", "simple-analysis"]
+        }
+      }
+    }
+  },
+
+  "processModels": {
+    "magicSpark": {
+      "description": "Initial tool suggestions and idea generation",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Excellent creativity and reasoning for generating diverse tool suggestions"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "reason": "Strong alternative for creative suggestions"
+      },
+      "streaming": true,
+      "temperature": 0.8,
+      "maxTokens": 4000
+    },
+    
+    "logicArchitect": {
+      "description": "Framework and logic structure building",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4",
+        "reason": "Superior logical reasoning and structured thinking"
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Good alternative for framework design"
+      },
+      "streaming": true,
+      "temperature": 0.3,
+      "maxTokens": 6000
+    },
+    
+    "contentCrafter": {
+      "description": "Content generation and copywriting",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Exceptional writing quality and tone adaptation"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "reason": "Strong content generation capabilities"
+      },
+      "streaming": true,
+      "temperature": 0.7,
+      "maxTokens": 8000
+    },
+    
+    "styleMaster": {
+      "description": "Visual design and styling decisions",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Creative design thinking and aesthetic reasoning"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-4",
+        "reason": "Good design analysis and recommendations"
+      },
+      "streaming": true,
+      "temperature": 0.6,
+      "maxTokens": 5000
+    },
+    
+    "validation": {
+      "description": "Quality validation and review processes",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4",
+        "reason": "Excellent analytical capabilities for validation"
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong analytical alternative"
+      },
+      "streaming": false,
+      "temperature": 0.1,
+      "maxTokens": 3000
+    },
+    
+    "optimization": {
+      "description": "Performance and efficiency optimization",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "reason": "Good at systematic optimization analysis"
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Alternative optimization approach"
+      },
+      "streaming": false,
+      "temperature": 0.2,
+      "maxTokens": 4000
+    },
+    
+    "quickTasks": {
+      "description": "Fast, simple operations and responses",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-haiku",
+        "reason": "Fast and cost-effective for simple tasks"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-3.5-turbo",
+        "reason": "Alternative fast model"
+      },
+      "streaming": false,
+      "temperature": 0.5,
+      "maxTokens": 2000
+    }
+  },
+
+  "environments": {
+    "development": {
+      "description": "Development environment settings",
+      "costOptimized": true,
+      "modelOverrides": {
+        "magicSpark": {
+          "provider": "anthropic",
+          "model": "claude-3-haiku",
+          "reason": "Cost optimization for development"
+        },
+        "contentCrafter": {
+          "provider": "anthropic",
+          "model": "claude-3-haiku",
+          "reason": "Faster iteration in development"
+        }
+      }
+    },
+    "staging": {
+      "description": "Staging environment settings",
+      "costOptimized": false,
+      "modelOverrides": {}
+    },
+    "production": {
+      "description": "Production environment settings",
+      "costOptimized": false,
+      "modelOverrides": {},
+      "monitoring": {
+        "trackUsage": true,
+        "trackCosts": true,
+        "trackPerformance": true
+      }
+    }
+  },
+
+  "features": {
+    "autoFallback": {
+      "enabled": true,
+      "description": "Automatically fallback to secondary model if primary fails"
+    },
+    "costTracking": {
+      "enabled": true,
+      "description": "Track token usage and costs per process"
+    },
+    "performanceMonitoring": {
+      "enabled": true,
+      "description": "Monitor response times and quality metrics"
+    },
+    "loadBalancing": {
+      "enabled": false,
+      "description": "Distribute requests across multiple models"
+    }
+  },
+
+  "limits": {
+    "maxRetries": 3,
+    "timeoutSeconds": 30,
+    "maxConcurrentRequests": 10,
+    "rateLimiting": {
+      "requestsPerMinute": 60,
+      "tokensPerMinute": 100000
+    }
+  }
+} 

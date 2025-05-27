@@ -10,17 +10,7 @@ export default function SignInPage() {
             Sign in to continue building amazing interactive tools
           </p>
         </div>
-        <SignIn 
-          appearance={{
-            elements: {
-              card: "bg-card border border-border shadow-lg",
-              headerTitle: "text-foreground",
-              headerSubtitle: "text-muted-foreground",
-              formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90",
-              footerActionLink: "text-primary hover:text-primary/90",
-            },
-          }}
-        />
+        <SignIn />
       </div>
     </div>
   )

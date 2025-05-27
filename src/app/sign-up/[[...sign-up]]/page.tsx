@@ -10,17 +10,7 @@ export default function SignUpPage() {
             Create your account and start building interactive tools with AI
           </p>
         </div>
-        <SignUp 
-          appearance={{
-            elements: {
-              card: "bg-card border border-border shadow-lg",
-              headerTitle: "text-foreground",
-              headerSubtitle: "text-muted-foreground",
-              formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90",
-              footerActionLink: "text-primary hover:text-primary/90",
-            },
-          }}
-        />
+        <SignUp />
       </div>
     </div>
   )

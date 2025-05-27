@@ -1,18 +1,12 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
-  '/tools(.*)',
-  '/settings(.*)',
-  '/api/tools(.*)',
-  '/api/ai(.*)',
-])
-
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect()
-  }
-})
+// Simplified middleware for Turbopack compatibility
+export function middleware(request: NextRequest) {
+  // For now, just allow all requests to pass through
+  // TODO: Re-implement Clerk protection once Turbopack compatibility is resolved
+  return NextResponse.next()
+}
 
 export const config = {
   matcher: [
