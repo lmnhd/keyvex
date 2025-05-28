@@ -30,6 +30,17 @@
           "capabilities": ["text", "reasoning", "analysis", "long-context"],
           "recommended": ["content-generation", "framework-building"]
         },
+        "gpt-4-vision": {
+          "id": "gpt-4-vision-preview",
+          "name": "GPT-4 Vision",
+          "maxTokens": 4096,
+          "costPer1kTokens": {
+            "input": 0.01,
+            "output": 0.03
+          },
+          "capabilities": ["text", "vision", "analysis", "reasoning", "image-understanding"],
+          "recommended": ["image-analysis", "brand-extraction", "visual-design", "logo-analysis"]
+        },
         "gpt-3.5-turbo": {
           "id": "gpt-3.5-turbo",
           "name": "GPT-3.5 Turbo",
@@ -55,8 +66,8 @@
             "input": 0.003,
             "output": 0.015
           },
-          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context"],
-          "recommended": ["creative-content", "complex-reasoning", "style-generation"]
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision"],
+          "recommended": ["creative-content", "complex-reasoning", "style-generation", "visual-analysis"]
         },
         "claude-3-opus": {
           "id": "claude-3-opus-20240229",
@@ -66,8 +77,8 @@
             "input": 0.015,
             "output": 0.075
           },
-          "capabilities": ["text", "reasoning", "analysis", "creativity", "complex-tasks"],
-          "recommended": ["high-quality-content", "complex-analysis"]
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "complex-tasks", "vision"],
+          "recommended": ["high-quality-content", "complex-analysis", "detailed-visual-analysis"]
         },
         "claude-3-haiku": {
           "id": "claude-3-haiku-20240307",
@@ -77,8 +88,8 @@
             "input": 0.00025,
             "output": 0.00125
           },
-          "capabilities": ["text", "fast-response", "simple-tasks"],
-          "recommended": ["quick-responses", "simple-analysis"]
+          "capabilities": ["text", "fast-response", "simple-tasks", "vision"],
+          "recommended": ["quick-responses", "simple-analysis", "basic-visual-analysis"]
         }
       }
     }
@@ -100,6 +111,23 @@
       "streaming": true,
       "temperature": 0.8,
       "maxTokens": 4000
+    },
+    
+    "brandAnalyzer": {
+      "description": "Visual brand analysis and extraction from logos, images, and brand assets",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Excellent vision capabilities and creative analysis for brand intelligence"
+      },
+      "fallback": {
+        "provider": "openai", 
+        "model": "gpt-4-vision",
+        "reason": "Strong vision capabilities for detailed brand analysis and color extraction"
+      },
+      "streaming": true,
+      "temperature": 0.4,
+      "maxTokens": 3000
     },
     
     "logicArchitect": {

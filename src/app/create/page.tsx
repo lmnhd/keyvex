@@ -8,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, ArrowRight, Save, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Eye, Brain, X } from 'lucide-react';
 import { MagicSpark } from '@/components/ai/magic-spark';
 import { LogicArchitect } from '@/components/ai/logic-architect';
+import { AgentConnection } from '@/components/ai/agent-connection';
 import { useAISessionStore } from '@/lib/stores/ai-session';
 import { AIStep } from '@/lib/types/ai';
 
@@ -51,6 +52,9 @@ export default function CreateToolPage() {
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAgentConnection, setShowAgentConnection] = useState(true);
+  const [brandAnalysis, setBrandAnalysis] = useState<any>(null);
+  const [useMockData, setUseMockData] = useState(false);
 
   const {
     currentSession,
@@ -102,6 +106,27 @@ export default function CreateToolPage() {
   const handlePreview = () => {
     // TODO: Implement preview functionality
     console.log('Opening preview...');
+  };
+
+  const handleAgentConnectionToggle = () => {
+    setShowAgentConnection(!showAgentConnection);
+  };
+
+  const handleAnalysisComplete = (analysis: any) => {
+    console.log('Brand analysis completed:', analysis);
+    setBrandAnalysis(analysis);
+    // TODO: Apply brand analysis to current tool creation
+  };
+
+  const handleToolSuggestion = (suggestion: any) => {
+    console.log('Tool suggestion from agent:', suggestion);
+    // TODO: Apply suggestion to current session
+    setShowAgentConnection(false); // Close agent connection after suggestion
+  };
+
+  const handleAgentStateChange = (state: any) => {
+    console.log('Agent state changed:', state);
+    // TODO: Sync agent state with main creation flow
   };
 
   const renderCurrentStep = () => {
@@ -230,6 +255,17 @@ export default function CreateToolPage() {
             <p className="text-muted-foreground">
               Build engaging calculators, quizzes, and assessments with AI assistance
             </p>
+            {brandAnalysis && (
+              <div className="flex items-center gap-2 mt-2">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                  <Brain className="h-3 w-3 mr-1" />
+                  Brand Analysis Available
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  Style: {brandAnalysis.style} • Colors: {brandAnalysis.colors?.length || 0}
+                </span>
+              </div>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -240,6 +276,22 @@ export default function CreateToolPage() {
             <Button variant="outline" onClick={handlePreview}>
               <Eye className="mr-2 h-4 w-4" />
               Preview
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setUseMockData(!useMockData)}
+              className={useMockData ? "bg-yellow-50 border-yellow-200 text-yellow-700" : "bg-green-50 border-green-200 text-green-700"}
+            >
+              {useMockData ? 'Mock AI' : 'Real AI'}
+            </Button>
+            <Button 
+              variant={showAgentConnection ? "default" : "outline"}
+              onClick={handleAgentConnectionToggle}
+              className={showAgentConnection ? "bg-blue-600 text-white" : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"}
+            >
+              <Brain className="mr-2 h-4 w-4" />
+              {showAgentConnection ? 'Close Agent' : 'Brand Agent'}
             </Button>
           </div>
         </div>
@@ -304,6 +356,46 @@ export default function CreateToolPage() {
             <div className="text-sm text-destructive">
               {error}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Agent Connection */}
+      {showAgentConnection && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-blue-600" />
+                  Brand Intelligence Agent
+                </CardTitle>
+                <CardDescription>
+                  Get AI assistance with brand analysis and tool suggestions
+                </CardDescription>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleAgentConnectionToggle}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-2">
+            <AgentConnection
+              title="Brand Intelligence Assistant"
+              description="Get personalized tool suggestions based on your brand"
+              height="500px"
+              showSessionState={false}
+              useMockData={useMockData}
+              onAnalysisComplete={handleAnalysisComplete}
+              onToolSuggestion={handleToolSuggestion}
+              onStateChange={handleAgentStateChange}
+              className="w-full"
+            />
           </CardContent>
         </Card>
       )}

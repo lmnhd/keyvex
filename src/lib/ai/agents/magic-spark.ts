@@ -7,7 +7,13 @@ import { MAGIC_SPARK_PROMPTS } from '@/lib/prompts/magic-spark';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { getPrimaryModel, getFallbackModel } from '../models/model-config';
-import { debugLog } from '../../auth/debug';
+
+// Simple debug logging for client-side use
+const debugLog = (message: string, data?: any): void => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🔧 DEBUG: ${message}`, data || '');
+  }
+};
 
 // Zod schemas for structured outputs
 const toolSuggestionSchema = z.object({
@@ -32,6 +38,73 @@ const suggestionArraySchema = z.object({
     averageComplexity: z.string(),
     recommendedNext: z.string()
   })
+});
+
+// Enhanced schemas for visual brand analysis
+const brandAnalysisSchema = z.object({
+  colors: z.array(z.object({
+    hex: z.string(),
+    name: z.string(),
+    usage: z.enum(['primary', 'secondary', 'accent', 'neutral']),
+    confidence: z.number().min(0).max(1)
+  })),
+  personality: z.array(z.string()),
+  style: z.enum(['modern', 'classic', 'minimalist', 'bold', 'playful', 'professional', 'elegant', 'corporate']),
+  typography: z.object({
+    suggestedFonts: z.array(z.string()),
+    style: z.enum(['serif', 'sans-serif', 'script', 'display', 'monospace'])
+  }),
+  recommendations: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  designElements: z.object({
+    logoType: z.enum(['wordmark', 'symbol', 'combination', 'emblem', 'abstract']).optional(),
+    complexity: z.enum(['simple', 'moderate', 'complex']),
+    industry: z.string().optional()
+  }).optional()
+});
+
+// Schema for conversational responses with dynamic UI components
+const visualConversationalResponseSchema = z.object({
+  narrative: z.string(),
+  thinking: z.string().optional(),
+  
+  visualAnalysis: z.object({
+    hasImage: z.boolean(),
+    imageType: z.enum(['logo', 'screenshot', 'mockup', 'reference']).optional(),
+    extractedColors: z.array(z.object({
+      hex: z.string(),
+      name: z.string(),
+      usage: z.enum(['primary', 'secondary', 'accent', 'neutral'])
+    })).optional(),
+    brandPersonality: z.array(z.string()).optional(),
+    designStyle: z.enum(['modern', 'classic', 'minimalist', 'bold', 'playful', 'professional']).optional(),
+    typography: z.object({
+      suggestedFonts: z.array(z.string()),
+      style: z.enum(['serif', 'sans-serif', 'script', 'display'])
+    }).optional()
+  }).optional(),
+  
+  components: z.array(z.object({
+    type: z.enum(['FileUpload', 'ColorPalette', 'FontSelector', 'StylePreview', 'BrandForm', 'ToolSuggestions']),
+    id: z.string(),
+    props: z.record(z.any()),
+    priority: z.enum(['immediate', 'next', 'optional']),
+    dependencies: z.array(z.string()).optional()
+  })).optional(),
+  
+  state: z.object({
+    phase: z.enum(['discovery', 'analysis', 'refinement', 'generation']),
+    waitingFor: z.array(z.string()).optional(),
+    canProceed: z.boolean(),
+    confidence: z.number().min(0).max(1),
+    nextAction: z.string().optional()
+  }),
+  
+  suggestions: z.array(z.object({
+    action: z.string(),
+    reason: z.string(),
+    priority: z.enum(['high', 'medium', 'low'])
+  })).optional()
 });
 
 const frameworkInputSchema = z.object({
@@ -72,13 +145,16 @@ const feasibilitySchema = z.object({
 export class MagicSparkAgent {
   private model: any;
   private fallbackModel: any;
+  private visionModel: any;
   private config: any;
   private fallbackConfig: any;
+  private visionConfig: any;
   
   constructor() {
     // Get model configuration from centralized config
     const primaryModel = getPrimaryModel('magicSpark');
     const fallbackModel = getFallbackModel('magicSpark');
+    const visionModel = getPrimaryModel('brandAnalyzer');
     
     if (!primaryModel) {
       throw new Error('No primary model configuration found for Magic Spark');
@@ -86,6 +162,7 @@ export class MagicSparkAgent {
     
     this.config = primaryModel;
     this.fallbackConfig = fallbackModel;
+    this.visionConfig = visionModel;
     
     // Initialize primary model
     this.model = this.createModelInstance(primaryModel.provider, primaryModel.modelInfo.id);
@@ -95,9 +172,15 @@ export class MagicSparkAgent {
       this.fallbackModel = this.createModelInstance(fallbackModel.provider, fallbackModel.modelInfo.id);
     }
     
+    // Initialize vision model if available
+    if (visionModel) {
+      this.visionModel = this.createModelInstance(visionModel.provider, visionModel.modelInfo.id);
+    }
+    
     debugLog('Magic Spark Agent initialized', {
       primary: `${primaryModel.provider}/${primaryModel.model}`,
-      fallback: fallbackModel ? `${fallbackModel.provider}/${fallbackModel.model}` : 'none'
+      fallback: fallbackModel ? `${fallbackModel.provider}/${fallbackModel.model}` : 'none',
+      vision: visionModel ? `${visionModel.provider}/${visionModel.model}` : 'none'
     });
   }
   
@@ -110,6 +193,278 @@ export class MagicSparkAgent {
       default:
         throw new Error(`Unsupported provider: ${provider}`);
     }
+  }
+
+  /**
+   * Analyze uploaded brand assets (logo, images, etc.) using vision models
+   */
+  async analyzeBrandAssets(
+    imageData: string, // base64 encoded image
+    imageType: 'logo' | 'screenshot' | 'reference' = 'logo',
+    context?: {
+      businessType?: string;
+      targetAudience?: string;
+      industry?: string;
+    }
+  ): Promise<{
+    colors: Array<{hex: string; name: string; usage: string; confidence: number}>;
+    personality: string[];
+    style: string;
+    typography: {suggestedFonts: string[]; style: string};
+    recommendations: string[];
+    confidence: number;
+    designElements?: any;
+  }> {
+    
+    if (!this.visionModel) {
+      throw new Error('No vision model available for brand analysis');
+    }
+    
+    try {
+      const prompt = `Analyze this ${imageType} and extract comprehensive brand intelligence:
+      
+      Context: ${context ? JSON.stringify(context) : 'No additional context provided'}
+      
+      Please provide detailed analysis of:
+      1. Color palette - Extract 3-6 main colors with accurate hex codes and descriptive names
+      2. Brand personality traits - 3-5 adjectives that describe the brand's character
+      3. Design style - Overall aesthetic approach (modern, classic, minimalist, etc.)
+      4. Typography recommendations - Suggest fonts that would complement this brand
+      5. Strategic recommendations - How this brand should approach digital tool creation
+      
+      Focus on actionable insights for creating professional business tools that align with this brand identity.
+      Be specific about colors (provide exact hex codes) and concrete about personality traits.`;
+      
+      debugLog('Analyzing brand assets with vision model', { 
+        model: `${this.visionConfig.provider}/${this.visionConfig.model}`,
+        imageType,
+        hasContext: !!context
+      });
+
+      const { object } = await generateObject({
+        model: this.visionModel,
+        schema: brandAnalysisSchema,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { 
+                type: 'image', 
+                image: imageData
+              }
+            ]
+          }
+        ],
+        temperature: this.visionConfig.config.temperature || 0.4,
+        maxRetries: 2
+      });
+
+      return {
+        colors: object.colors,
+        personality: object.personality,
+        style: object.style,
+        typography: object.typography,
+        recommendations: object.recommendations,
+        confidence: object.confidence,
+        designElements: object.designElements
+      };
+
+    } catch (error) {
+      console.error('Error analyzing brand assets:', error);
+      
+      // Fallback to text-based analysis if vision fails
+      if (this.fallbackModel && this.fallbackConfig) {
+        debugLog('Vision analysis failed, attempting text-based fallback', { 
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        
+        return {
+          colors: [
+            { hex: '#2563eb', name: 'Primary Blue', usage: 'primary', confidence: 0.5 },
+            { hex: '#64748b', name: 'Neutral Gray', usage: 'secondary', confidence: 0.5 }
+          ],
+          personality: ['professional', 'trustworthy', 'modern'],
+          style: 'professional',
+          typography: { suggestedFonts: ['Inter', 'Roboto'], style: 'sans-serif' },
+          recommendations: ['Focus on clean, professional design', 'Use consistent color scheme'],
+          confidence: 0.3
+        };
+      }
+      
+      throw new Error(`Failed to analyze brand assets: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Stream conversational brand discovery with dynamic UI generation
+   */
+  async streamBrandDiscovery(
+    userInput: string,
+    uploadedAssets?: Array<{
+      type: 'logo' | 'screenshot' | 'reference';
+      data: string; // base64
+      filename: string;
+    }>,
+    context?: {
+      businessType?: string;
+      previousAnalysis?: any;
+      sessionHistory?: any[];
+    },
+    callbacks?: {
+      onNarrative?: (text: string) => void;
+      onComponent?: (component: any) => void;
+      onAnalysis?: (analysis: any) => void;
+      onStateUpdate?: (state: any) => void;
+      onComplete?: (result: any) => void;
+      onError?: (error: Error) => void;
+    }
+  ): Promise<void> {
+    
+    try {
+      let visualAnalysis = null;
+      
+      // If assets uploaded, analyze them first
+      if (uploadedAssets && uploadedAssets.length > 0) {
+        debugLog('Analyzing uploaded brand assets', { 
+          assetCount: uploadedAssets.length,
+          types: uploadedAssets.map(a => a.type)
+        });
+        
+        for (const asset of uploadedAssets) {
+          try {
+            const analysis = await this.analyzeBrandAssets(
+              asset.data, 
+              asset.type, 
+              context
+            );
+            visualAnalysis = analysis;
+            callbacks?.onAnalysis?.(analysis);
+            
+            debugLog('Brand analysis completed', { 
+              colors: analysis.colors.length,
+              style: analysis.style,
+              confidence: analysis.confidence
+            });
+          } catch (error) {
+            console.error(`Failed to analyze asset ${asset.filename}:`, error);
+            callbacks?.onError?.(new Error(`Failed to analyze ${asset.filename}`));
+          }
+        }
+      }
+      
+      // Build context-aware prompt
+      const contextPrompt = this.buildBrandDiscoveryPrompt(
+        userInput, 
+        visualAnalysis, 
+        context
+      );
+      
+      debugLog('Starting brand discovery stream', {
+        hasVisualAnalysis: !!visualAnalysis,
+        userInputLength: userInput.length
+      });
+      
+      // Stream conversational response with dynamic components
+      const { partialObjectStream } = streamObject({
+        model: this.model,
+        schema: visualConversationalResponseSchema,
+        prompt: contextPrompt,
+        temperature: this.config.config.temperature || 0.7,
+        maxRetries: 2
+      });
+      
+      for await (const partial of partialObjectStream) {
+        // Stream narrative text
+        if (partial.narrative) {
+          callbacks?.onNarrative?.(partial.narrative);
+        }
+        
+        // Generate components as they become available
+        if (partial.components) {
+          partial.components.forEach(component => {
+            callbacks?.onComponent?.(component);
+          });
+        }
+        
+        // Update state
+        if (partial.state) {
+          callbacks?.onStateUpdate?.(partial.state);
+        }
+        
+        // Handle suggestions
+        if (partial.suggestions) {
+          // Could trigger additional UI updates
+        }
+      }
+      
+      callbacks?.onComplete?.({
+        visualAnalysis,
+        userInput,
+        context
+      });
+      
+    } catch (error) {
+      console.error('Error in brand discovery stream:', error);
+      const err = new Error(`Brand discovery failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      callbacks?.onError?.(err);
+    }
+  }
+  
+  private buildBrandDiscoveryPrompt(
+    userInput: string, 
+    visualAnalysis: any, 
+    context: any
+  ): string {
+    return `You are a brand intelligence AI helping create interactive business tools. You combine conversational guidance with dynamic UI component generation.
+
+User Input: "${userInput}"
+
+${visualAnalysis ? `
+VISUAL ANALYSIS RESULTS:
+- Colors: ${visualAnalysis.colors?.map((c: any) => `${c.name} (${c.hex})`).join(', ')}
+- Style: ${visualAnalysis.style}
+- Personality: ${visualAnalysis.personality?.join(', ')}
+- Typography: ${visualAnalysis.typography?.style} fonts like ${visualAnalysis.typography?.suggestedFonts?.join(', ')}
+- Confidence: ${Math.round((visualAnalysis.confidence || 0) * 100)}%
+- Recommendations: ${visualAnalysis.recommendations?.join('; ')}
+` : 'No visual assets provided yet.'}
+
+${context ? `
+CONTEXT:
+- Business Type: ${context.businessType || 'Not specified'}
+- Previous Analysis: ${context.previousAnalysis ? 'Available' : 'None'}
+- Session History: ${context.sessionHistory?.length || 0} previous interactions
+` : ''}
+
+YOUR TASK:
+1. Provide a conversational response that acknowledges their input naturally
+2. If you have visual analysis, incorporate those insights seamlessly into the conversation
+3. Generate appropriate UI components based on what information you need next
+4. Guide them toward creating an effective business tool that matches their brand
+5. Be proactive about gathering the right information through smart component generation
+
+COMPONENT GENERATION GUIDELINES:
+- FileUpload: When you need visual assets (logos, screenshots, references)
+- ColorPalette: When showing extracted colors or suggesting brand colors
+- BrandForm: When you need structured brand information (industry, audience, values)
+- StylePreview: When demonstrating how their brand could look in a tool
+- ToolSuggestions: When ready to suggest specific tool types based on their brand
+
+CONVERSATION STYLE:
+- Be enthusiastic and knowledgeable about branding and business tools
+- Reference specific visual elements when available (colors, style, personality)
+- Ask smart follow-up questions that help refine tool suggestions
+- Show expertise in both design and business strategy
+- Make the user feel confident about their brand and excited about creating tools
+
+RESPONSE STRUCTURE:
+- narrative: Natural, engaging conversation that flows from their input
+- components: Smart UI components that gather needed information
+- state: Current phase and what you're waiting for to proceed
+- suggestions: Optional proactive suggestions for next steps
+
+Remember: You're not just analyzing - you're having a strategic conversation about creating business tools that perfectly represent their brand.`;
   }
 
   /**
