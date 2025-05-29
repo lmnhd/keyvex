@@ -80,7 +80,7 @@ export class AIOrchestrator {
 
   constructor(provider: 'openai' | 'anthropic' = 'anthropic') {
     this.provider = provider;
-    this.magicSpark = new MagicSparkAgent(provider);
+    this.magicSpark = new MagicSparkAgent();
     this.logicArchitect = new LogicArchitectAgent(provider);
     this.contentCrafter = new ContentCrafterAgent(provider);
     this.styleMaster = new StyleMasterAgent(provider);
@@ -547,7 +547,7 @@ export class AIOrchestrator {
    */
   switchProvider(provider: 'openai' | 'anthropic'): void {
     this.provider = provider;
-    this.magicSpark = new MagicSparkAgent(provider);
+    this.magicSpark = new MagicSparkAgent();
     this.logicArchitect = new LogicArchitectAgent(provider);
     this.contentCrafter = new ContentCrafterAgent(provider);
     this.styleMaster = new StyleMasterAgent(provider);

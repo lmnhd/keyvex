@@ -24,6 +24,7 @@ import {
 
 // Import model configuration and admin utilities
 import modelConfig from '@/lib/ai/models/model-config';
+import { AdminBehaviorDashboard } from '@/components/ai/behavior-dashboard';
 
 interface CostMetrics {
   totalCost: number;
@@ -435,11 +436,12 @@ export default function AdminDashboard() {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="costs" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="costs">Cost Analysis</TabsTrigger>
               <TabsTrigger value="usage">Usage Metrics</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>
               <TabsTrigger value="alerts">Alerts</TabsTrigger>
+              <TabsTrigger value="behavior">User Behavior</TabsTrigger>
             </TabsList>
 
             {/* Cost Analysis Tab */}
@@ -703,6 +705,11 @@ export default function AdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Behavior Tab */}
+            <TabsContent value="behavior" className="space-y-6">
+              <AdminBehaviorDashboard />
             </TabsContent>
           </Tabs>
         </div>

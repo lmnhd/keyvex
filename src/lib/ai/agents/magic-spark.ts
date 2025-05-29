@@ -1,5 +1,4 @@
 // Magic Spark Agent for initial tool suggestions (10-15 seconds)
-
 import { generateObject, streamObject } from 'ai';
 import { z } from 'zod';
 import { ToolSuggestion, FrameworkInput } from '@/lib/types/ai';
