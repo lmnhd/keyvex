@@ -8,6 +8,8 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, debugLog } from '@/lib/auth/debug';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { getBehaviorTracker } from '@/lib/ai/behavior-tracker';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { TEST_UI_ASSISTANT_PROMPT, TEST_COMMANDS, createAdaptivePrompt } from '@/lib/prompts/test-ui-prompt';
 
 // Request schema for UI flow testing
 const uiTestRequestSchema = z.object({
@@ -17,7 +19,8 @@ const uiTestRequestSchema = z.object({
   currentStep: z.number().optional(),
   command: z.string().optional(), // For testing specific commands
   provider: z.enum(['openai', 'anthropic']).optional(),
-  model: z.string().optional()
+  model: z.string().optional(),
+  productToolDefinition: z.any().optional() // Current tool definition for context
 });
 
 // Response schema for UI components
@@ -33,7 +36,7 @@ const uiComponentResponseSchema = z.object({
     'multiPart',
     'fileUpload'
   ]),
-  id: z.string(),
+  id: z.string().optional(),
   options: z.array(z.object({
     value: z.string(),
     label: z.string(),
@@ -58,183 +61,283 @@ const uiComponentResponseSchema = z.object({
     suggestions: z.array(z.string()).optional(),
     allowCustom: z.boolean().optional()
   })).optional(),
-  reasoning: z.string().optional()
+  reasoning: z.string().optional(),
+  shouldCreateTool: z.boolean().optional(), // Signal to call tool creation agent
+  toolCreationContext: z.object({
+    userIntent: z.string(),
+    targetAudience: z.string().optional(),
+    industry: z.string().optional(),
+    toolType: z.string().optional(),
+    features: z.array(z.string()).optional(),
+    businessDescription: z.string().optional(),
+    updateType: z.enum(['color', 'title', 'description', 'features', 'components', 'general']).optional()
+  }).optional()
 });
 
-// Test command handlers
-const TEST_COMMANDS = {
-  'send-multi-input': () => ({
-    message: "Let's gather some key information about your business. I'll ask you a few quick questions:",
-    inputType: 'multiPart' as const,
-    id: 'test-multi-sequence',
-    questions: [
-      {
-        id: 'business-name',
-        question: "What's your business name?",
-        inputType: 'textarea',
-        placeholder: 'Enter your business name...',
-        suggestions: ['Acme Corp', 'Digital Solutions Inc', 'Consulting Pro']
+// ============================================================================
+// PRODUCT TOOL GENERATION & UPDATE FUNCTIONS
+// ============================================================================
+
+// Generate a new ProductToolDefinition or update an existing one
+async function generateOrUpdateProductTool(
+  userInput: string,
+  context: any,
+  existingDefinition?: ProductToolDefinition | null,
+  updateType: string = 'general'
+): Promise<ProductToolDefinition | null> {
+  try {
+    console.log('🤖 Generating/updating ProductTool:', { 
+      userInput, 
+      updateType, 
+      hasExisting: !!existingDefinition 
+    });
+
+    // Simulate AI processing time
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Use existing definition as base or create new
+    const baseDefinition = existingDefinition || createBaseToolDefinition();
+
+    // Generate updated tool definition based on input and update type
+    const updatedDefinition: ProductToolDefinition = {
+      ...baseDefinition,
+      version: existingDefinition ? `${parseFloat(existingDefinition.version) + 0.1}` : '1.0.0',
+      updatedAt: Date.now(),
+      
+      metadata: {
+        ...baseDefinition.metadata,
+        title: determineTitle(userInput, context, existingDefinition),
+        description: determineDescription(userInput, context, existingDefinition),
+        targetAudience: context.targetAudience || existingDefinition?.metadata?.targetAudience || 'Business professionals',
+        industry: context.industry || existingDefinition?.metadata?.industry || 'General',
+        features: determineFeatures(userInput, context, existingDefinition)
       },
-      {
-        id: 'industry-type',
-        question: "What industry are you in?",
-        inputType: 'select',
-        options: [
-          { value: 'tech', label: 'Technology' },
-          { value: 'healthcare', label: 'Healthcare' },
-          { value: 'finance', label: 'Finance' },
-          { value: 'consulting', label: 'Consulting' },
-          { value: 'ecommerce', label: 'E-commerce' }
-        ],
-        allowCustom: true
-      },
-      {
-        id: 'team-size',
-        question: "How large is your team?",
-        inputType: 'yesNoMaybe',
-        options: [
-          { value: 'small', label: 'Small (1-10)' },
-          { value: 'medium', label: 'Medium (11-50)' },
-          { value: 'large', label: 'Large (50+)' }
-        ]
-      },
-      {
-        id: 'main-goals',
-        question: "What are your main business goals? (Select up to 3)",
-        inputType: 'multiSelect',
-        options: [
-          { value: 'growth', label: 'Business Growth' },
-          { value: 'efficiency', label: 'Operational Efficiency' },
-          { value: 'customer', label: 'Customer Satisfaction' },
-          { value: 'revenue', label: 'Revenue Increase' },
-          { value: 'automation', label: 'Process Automation' }
-        ],
-        maxSelections: 3
+      
+      styling: {
+        ...baseDefinition.styling,
+        colors: determineColors(userInput, context, existingDefinition, updateType)
       }
-    ],
-    reasoning: 'Testing multi-part question sequence with different input types'
-  }),
+    };
 
-  'send-image-upload': () => ({
-    message: "Perfect! Let's analyze your brand assets. Please upload your logo, website screenshot, or any brand materials you have:",
-    inputType: 'fileUpload' as const,
-    id: 'test-brand-upload',
-    acceptedFileTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'],
-    maxFileSize: '5MB',
-    placeholder: 'Upload your logo, website screenshot, or brand materials',
-    reasoning: 'Testing file upload component for brand analysis'
-  }),
+    console.log('✅ Generated/updated ProductTool:', updatedDefinition.metadata.title);
+    return updatedDefinition;
 
-  'send-color-picker': () => ({
-    message: "Great! Now let's choose colors that represent your brand perfectly:",
-    inputType: 'colorSelect' as const,
-    id: 'test-color-selection',
-    options: [
-      { value: 'professional-blue', label: 'Professional Blue', colors: ['#2563eb', '#1e40af'] },
-      { value: 'growth-green', label: 'Growth Green', colors: ['#059669', '#047857'] },
-      { value: 'creative-purple', label: 'Creative Purple', colors: ['#7c3aed', '#5b21b6'] },
-      { value: 'energy-orange', label: 'Energy Orange', colors: ['#ea580c', '#c2410c'] },
-      { value: 'trust-teal', label: 'Trust Teal', colors: ['#0891b2', '#0e7490'] }
-    ],
-    allowCustom: true,
-    reasoning: 'Testing color selection with custom color picker integration'
-  }),
-
-  'send-feature-selection': () => ({
-    message: "Excellent! Which features would make your tool most valuable? (Choose up to 4)",
-    inputType: 'multiSelect' as const,
-    id: 'test-feature-selection',
-    options: [
-      { value: 'analytics', label: 'Advanced Analytics' },
-      { value: 'export', label: 'PDF Export' },
-      { value: 'integration', label: 'CRM Integration' },
-      { value: 'sharing', label: 'Social Sharing' },
-      { value: 'automation', label: 'Email Automation' },
-      { value: 'customization', label: 'Custom Branding' }
-    ],
-    maxSelections: 4,
-    reasoning: 'Testing multi-select with reasonable limits'
-  }),
-
-  'send-text-input': () => ({
-    message: "What should we call your new business tool?",
-    inputType: 'text' as const,
-    id: 'test-tool-naming',
-    placeholder: 'e.g., "ROI Calculator for Marketing Campaigns"',
-    suggestions: [
-      'Business ROI Calculator',
-      'Marketing Effectiveness Tool',
-      'Cost-Benefit Analyzer',
-      'Investment Calculator'
-    ],
-    reasoning: 'Testing text input with helpful suggestions'
-  }),
-
-  'send-description-input': () => ({
-    message: "Tell me more about what this tool should help your customers achieve:",
-    inputType: 'textarea' as const,
-    id: 'test-tool-description',
-    placeholder: 'Describe the main problem this tool solves, who will use it, and what results they should get...',
-    reasoning: 'Testing textarea for detailed descriptions'
-  })
-};
-
-// AI assistant prompt for natural responses
-const UI_TEST_ASSISTANT_PROMPT = `You are a UI/UX Testing Assistant for a business tool creation platform. Your job is to:
-
-1. Analyze user input and conversation context
-2. Generate realistic, helpful responses that test different UI components
-3. Provide natural conversation flow that feels like working with a real AI assistant
-4. Test various input types and component combinations
-5. Maintain enthusiasm and guide users through tool creation
-
-Available input components to test:
-- select: Dropdown with options (single choice)
-- multiSelect: Multiple checkboxes (for features, capabilities)
-- colorSelect: Color palette selection with custom picker
-- yesNoMaybe: Simple radio buttons (2-3 options max)
-- text: Single-line input with suggestion chips
-- textarea: Multi-line text for descriptions
-- multiPart: Sequential question flow (3-5 questions)
-- fileUpload: File/image upload for brand assets
-
-Special test commands you should recognize (only these exact phrases):
-- "send a test multi-input" → Use multiPart component
-- "send a test image-upload" → Use fileUpload component  
-- "send a test color-picker" → Use colorSelect component
-- "send a test feature-selection" → Use multiSelect component
-
-IMPORTANT: For any other requests (like "12 colors", "show me colors", "color options"), generate NATURAL responses, not test commands!
-
-COLOR SELECTION GUIDELINES:
-When users ask for colors (e.g., "12 colors", "show me color options", "what colors work for my business"):
-- Generate a colorSelect component with the requested number of colors (or 6-8 if not specified)
-- Create contextually relevant color names based on their business/industry
-- Use meaningful labels like "Healthcare Blue", "Tech Innovation Purple", "Financial Trust Navy"
-- Provide proper hex color pairs [primary, secondary] for each option
-- Always set allowCustom: true
-
-Example color generation for healthcare business:
-{
-  "inputType": "colorSelect",
-  "options": [
-    { "value": "medical-blue", "label": "Medical Blue", "colors": ["#0ea5e9", "#0284c7"] },
-    { "value": "healing-green", "label": "Healing Green", "colors": ["#22c55e", "#16a34a"] },
-    { "value": "trust-navy", "label": "Trust Navy", "colors": ["#1e40af", "#1d4ed8"] },
-    { "value": "care-teal", "label": "Care Teal", "colors": ["#14b8a6", "#0d9488"] },
-    { "value": "wellness-purple", "label": "Wellness Purple", "colors": ["#8b5cf6", "#7c3aed"] },
-    { "value": "calm-gray", "label": "Calm Gray", "colors": ["#64748b", "#475569"] }
-  ],
-  "allowCustom": true
+  } catch (error) {
+    console.error('❌ Error generating/updating ProductTool:', error);
+    return null;
+  }
 }
 
-For each response, provide:
-1. Natural, engaging message text
-2. Appropriate input component type
-3. Realistic options/suggestions
-4. Clear reasoning for component choice
+// Helper functions for tool generation
+function createBaseToolDefinition(): ProductToolDefinition {
+  return {
+    id: `tool_${Date.now()}`,
+    slug: 'ai-generated-tool',
+    version: '1.0.0',
+    status: 'draft',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    createdBy: 'ai-agent',
+    
+    metadata: {
+      title: 'Business Calculator',
+      description: 'AI-generated business tool',
+      shortDescription: 'AI-generated business tool',
+      type: 'calculator',
+      category: 'ai-generated',
+      targetAudience: 'Business professionals',
+      industry: 'General',
+      tags: ['ai-generated', 'dynamic', 'calculator'],
+      estimatedCompletionTime: 3,
+      difficultyLevel: 'beginner',
+      features: ['Real-time calculations'],
+      icon: { type: 'lucide', value: 'Calculator' }
+    },
+    
+    layout: {
+      type: 'single-page',
+      structure: {
+        container: { maxWidth: '2xl', padding: 'p-6', alignment: 'center' },
+        sections: [{ id: 'main', type: 'content', layout: 'vertical', order: 1 }],
+        flow: { type: 'linear' }
+      },
+      responsive: { breakpoints: { sm: 'responsive', md: 'responsive', lg: 'responsive', xl: 'responsive' } }
+    },
+    
+    components: [
+      {
+        id: 'input1',
+        type: 'currency-input',
+        sectionId: 'main',
+        order: 1,
+        props: {
+          label: 'Initial Investment',
+          placeholder: 'Enter amount',
+          helperText: 'The amount you invested',
+          required: true
+        },
+        validation: {
+          componentId: 'input1',
+          rules: [{ type: 'required', message: 'Required' }, { type: 'min', value: 0 }]
+        }
+      },
+      {
+        id: 'input2',
+        type: 'currency-input',
+        sectionId: 'main',
+        order: 2,
+        props: {
+          label: 'Current Value',
+          placeholder: 'Enter current value',
+          helperText: 'Current value of investment',
+          required: true
+        },
+        validation: {
+          componentId: 'input2',
+          rules: [{ type: 'required', message: 'Required' }, { type: 'min', value: 0 }]
+        }
+      },
+      {
+        id: 'result',
+        type: 'calculation-display',
+        sectionId: 'main',
+        order: 3,
+        props: {
+          label: 'ROI Result',
+          format: { type: 'percentage', decimals: 2 },
+          formula: '((input2 - input1) / input1) * 100',
+          dependencies: ['input1', 'input2']
+        }
+      }
+    ],
+    
+    styling: {
+      theme: { name: 'default', mode: 'light', borderRadius: 'md', shadows: 'sm', effects: {} },
+      colors: {
+        primary: '#3b82f6',
+        secondary: '#1e40af',
+        background: '#ffffff',
+        surface: '#f9fafb',
+        text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+        border: '#e5e7eb',
+        success: '#10b981',
+        warning: '#f59e0b',
+        error: '#ef4444',
+        info: '#3b82f6'
+      },
+      typography: {
+        fontFamily: { primary: 'Inter, sans-serif' },
+        scale: { xs: '0.75rem', sm: '0.875rem', base: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '1.875rem', '4xl': '2.25rem' },
+        weights: { normal: 400, medium: 500, semibold: 600, bold: 700 }
+      },
+      spacing: { scale: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem' } }
+    },
+    
+    logic: {
+      calculations: [{
+        id: 'main_calc',
+        name: 'Main Calculation',
+        formula: '((input2 - input1) / input1) * 100',
+        dependencies: ['input1', 'input2'],
+        outputComponentId: 'result',
+        triggers: [{ event: 'change', debounce: 300 }],
+        format: { type: 'percentage', decimals: 2 }
+      }],
+      conditions: [],
+      actions: [],
+      formulas: []
+    },
+    
+    validation: { components: [], global: [] },
+    analytics: { enabled: true, trackingEvents: [] }
+  };
+}
 
-Always maintain a helpful, enthusiastic tone and make the interaction feel smooth and professional.`;
+function determineTitle(userInput: string, context: any, existing?: ProductToolDefinition | null): string {
+  if (existing?.metadata?.title) return existing.metadata.title;
+  
+  if (userInput.toLowerCase().includes('roi')) return 'ROI Calculator';
+  if (userInput.toLowerCase().includes('savings')) return 'Cost Savings Calculator';
+  if (userInput.toLowerCase().includes('pricing')) return 'Pricing Calculator';
+  if (userInput.toLowerCase().includes('lead')) return 'Lead Qualifier Calculator';
+  
+  return context.toolName || 'Business Calculator';
+}
+
+function determineDescription(userInput: string, context: any, existing?: ProductToolDefinition | null): string {
+  if (existing?.metadata?.description) return existing.metadata.description;
+  return context.description || `AI-generated calculator based on: "${userInput}"`;
+}
+
+function determineFeatures(userInput: string, context: any, existing?: ProductToolDefinition | null): string[] {
+  if (existing?.metadata?.features) return existing.metadata.features;
+  
+  const features = ['Real-time calculations', 'Professional results'];
+  if (context.features) features.push(...context.features);
+  return features;
+}
+
+function determineColors(userInput: string, context: any, existing?: ProductToolDefinition | null, updateType?: string) {
+  const defaultColors = {
+    primary: '#3b82f6',
+    secondary: '#1e40af',
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+    border: '#e5e7eb',
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444',
+    info: '#3b82f6'
+  };
+
+  // If we have existing colors and this isn't a color update, preserve them
+  if (existing?.styling?.colors && updateType !== 'color') {
+    return existing.styling.colors;
+  }
+
+  // Handle context colors (from user selection)
+  if (context.customColors && context.customColors.length >= 2) {
+    return {
+      ...defaultColors,
+      primary: context.customColors[0],
+      secondary: context.customColors[1]
+    };
+  }
+
+  // Handle existing colors
+  if (existing?.styling?.colors) {
+    return existing.styling.colors;
+  }
+
+  return defaultColors;
+}
+
+// Helper functions to extract data from collected answers
+function extractColorsFromAnswers(answers: Record<string, string>): string[] | undefined {
+  // Look for color-related answers
+  for (const [key, value] of Object.entries(answers)) {
+    if (key.toLowerCase().includes('color') || key.toLowerCase().includes('scheme')) {
+      // If it's a custom color value, try to extract the colors
+      if (value.includes(',')) {
+        return value.split(',').map(c => c.trim());
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractFeaturesFromAnswers(answers: Record<string, string>): string[] | undefined {
+  // Look for feature-related answers
+  for (const [key, value] of Object.entries(answers)) {
+    if (key.toLowerCase().includes('feature') || key.toLowerCase().includes('capability')) {
+      if (value.includes(',')) {
+        return value.split(',').map(f => f.trim()).filter(Boolean);
+      }
+    }
+  }
+  return undefined;
+}
 
 // Mock AI response generator that adapts based on user behavior profile
 function generateAdaptiveAIResponse(
@@ -265,7 +368,12 @@ function generateAdaptiveAIResponse(
   const lowerInput = userInput.toLowerCase();
   
   // Enhanced test commands with adaptive behavior
-  if (lowerInput.includes('send a test multi-input') || lowerInput.includes('test multi-input')) {
+  if (lowerInput.includes('send a test multi-input') || 
+      lowerInput.includes('test multi-input') ||
+      lowerInput.includes('multi-question') ||
+      lowerInput.includes('multiple questions') ||
+      lowerInput.includes('several questions') ||
+      lowerInput.includes('ask me questions')) {
     const questionTypes = suggestions.preferQuickMode 
       ? ['select', 'yesNoMaybe'] // Quick input types for fast users
       : ['textarea', 'select']; // More detailed inputs for deliberate users
@@ -488,7 +596,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = uiTestRequestSchema.parse(body);
-    const { userInput, conversationHistory, collectedAnswers, currentStep } = validatedData;
+    const { 
+      userInput, 
+      conversationHistory, 
+      collectedAnswers, 
+      currentStep,
+      productToolDefinition
+    } = validatedData;
 
     console.log('🔧 Test UI API called with input:', userInput);
     console.log('🔧 Conversation history length:', conversationHistory?.length || 0);
@@ -523,7 +637,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Get model configuration
       const primaryModel = getPrimaryModel('testUI');
-      const model = primaryModel ? createModelInstance(primaryModel.provider, primaryModel.modelInfo.id) : openai('gpt-4');
+      const model = primaryModel ? createModelInstance(primaryModel.provider, primaryModel.modelInfo.id) : openai('gpt-4o');
 
       // Create adaptive prompt based on user profile
       const adaptivePrompt = createAdaptivePrompt(userInput, userProfile, conversationHistory || [], collectedAnswers || {});
@@ -543,19 +657,59 @@ export async function POST(request: NextRequest) {
       } catch (aiError) {
         console.error('❌ AI generation failed:', aiError);
         
-        // Fallback to adaptive mock response
-        response = generateAdaptiveAIResponse(
-          userInput, 
-          userProfile,
-          conversationHistory || [], 
-          collectedAnswers || {}
-        );
+        // Simple fallback
+        response = {
+          id: 'fallback-response',
+          message: "I encountered an issue, but let's continue. What would you like to work on?",
+          inputType: 'textarea' as const,
+          placeholder: 'Tell me what you\'d like to focus on...'
+        };
       }
     }
 
     // Simulate processing time based on user profile (shorter for users who prefer quick mode)
     const processingTime = userProfile && userProfile.averageResponseTime < 5000 ? 500 : 1200;
     await new Promise(resolve => setTimeout(resolve, processingTime));
+
+    // VALIDATION: Fix colorSelect options that don't have colors array
+    if (response.inputType === 'colorSelect' && response.options) {
+      response.options = response.options.map((option: any) => {
+        if (!option.colors || !Array.isArray(option.colors) || option.colors.length !== 2) {
+          console.log('🔧 Fixing colorSelect option missing colors array:', option.value);
+          
+          // Map common color names to hex values
+          const colorMap: Record<string, string[]> = {
+            'blue': ['#3b82f6', '#2563eb'],
+            'professional-blue': ['#2563eb', '#1e40af'],
+            'green': ['#10b981', '#059669'],
+            'modern-green': ['#059669', '#047857'],
+            'red': ['#ef4444', '#dc2626'],
+            'vibrant-red': ['#dc2626', '#b91c1c'],
+            'orange': ['#f97316', '#ea580c'],
+            'warm-orange': ['#ea580c', '#c2410c'],
+            'purple': ['#8b5cf6', '#7c3aed'],
+            'elegant-purple': ['#7c3aed', '#5b21b6'],
+            'yellow': ['#eab308', '#ca8a04'],
+            'pink': ['#ec4899', '#db2777'],
+            'gray': ['#6b7280', '#4b5563'],
+            'teal': ['#14b8a6', '#0d9488'],
+            'indigo': ['#6366f1', '#4f46e5']
+          };
+          
+          // Try to match color name
+          const colorKey = option.value.toLowerCase();
+          if (colorMap[colorKey]) {
+            option.colors = colorMap[colorKey];
+          } else {
+            // Default fallback colors
+            option.colors = ['#3b82f6', '#2563eb'];
+          }
+          
+          console.log('🔧 Fixed colorSelect option:', option);
+        }
+        return option;
+      });
+    }
 
     const result = {
       success: true,
@@ -611,54 +765,8 @@ function createModelInstance(provider: string, modelId: string) {
     case 'anthropic':
       return anthropic(modelId);
     default:
-      return openai('gpt-4');
+      return openai('gpt-4o');
   }
-}
-
-// Helper function to create adaptive prompts
-function createAdaptivePrompt(
-  userInput: string,
-  userProfile: any,
-  conversationHistory: any[],
-  collectedAnswers: any
-): string {
-  const suggestions = userProfile ? {
-    preferQuickMode: (userProfile.averageResponseTime || 10000) < 5000 && !userProfile.likelyToEditAnswers,
-    showAdvancedOptions: (userProfile.explorationTendency || 0) > 0.5,
-    recommendedComplexity: userProfile.preferredComplexity || 'medium',
-    preferredInputTypes: userProfile.preferredInputTypes || ['select', 'textarea']
-  } : {
-    preferQuickMode: false,
-    showAdvancedOptions: false,
-    recommendedComplexity: 'medium',
-    preferredInputTypes: ['select', 'textarea']
-  };
-
-  const basePrompt = `${UI_TEST_ASSISTANT_PROMPT}
-
-ADAPTIVE BEHAVIOR INSTRUCTIONS:
-Based on user's interaction patterns, adapt your responses:
-
-User Profile Summary:
-- Quick Mode Preference: ${suggestions.preferQuickMode ? 'YES - Keep responses concise and efficient' : 'NO - Detailed explanations welcome'}
-- Advanced Options: ${suggestions.showAdvancedOptions ? 'YES - Show comprehensive options' : 'NO - Keep options simple'}
-- Complexity Level: ${suggestions.recommendedComplexity.toUpperCase()} - adjust question depth accordingly
-- Preferred Input Types: ${suggestions.preferredInputTypes.join(', ')} - favor these when possible
-
-Response Guidelines:
-1. If user prefers quick mode: Use simple language, fewer options, streamlined flows
-2. If user likes advanced options: Show comprehensive choices, detailed explanations
-3. Choose input components that match their preferred interaction style
-4. Adjust complexity level based on their historical preferences
-
-Current Context:
-- User Input: "${userInput}"
-- Conversation History: ${conversationHistory.length} previous exchanges
-- Collected Data: ${Object.keys(collectedAnswers).length} answers so far
-
-Generate an appropriate UI component response that matches this user's behavior patterns.`;
-
-  return basePrompt;
 }
 
 export async function GET(request: NextRequest) {

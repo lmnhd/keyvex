@@ -108,11 +108,101 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  History
+  History,
+  Zap,
+  CheckCircle,
+  Upload
 } from 'lucide-react';
 import { CanvasTool } from '@/components/tool-creator/canvas-tool';
 import { InputHistory } from '@/components/tool-creator/input-history';
 import { initBehaviorTracker, getBehaviorTracker } from '@/lib/ai/behavior-tracker';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+
+// Local Storage Utilities for Development
+const LOGIC_STORAGE_KEY = 'keyvex_logic_architect_results';
+const TOOLS_STORAGE_KEY = 'keyvex_created_tools';
+
+interface SavedLogicResult {
+  id: string;
+  timestamp: number;
+  date: string;
+  toolType: string;
+  targetAudience: string;
+  industry?: string;
+  result: any;
+}
+
+interface SavedTool {
+  id: string;
+  timestamp: number;
+  date: string;
+  title: string;
+  tool: ProductToolDefinition;
+}
+
+const saveLogicResult = (toolType: string, targetAudience: string, industry: string | undefined, result: any) => {
+  try {
+    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
+    const existing: SavedLogicResult[] = saved ? JSON.parse(saved) : [];
+    
+    const newResult: SavedLogicResult = {
+      id: `logic_${Date.now()}`,
+      timestamp: Date.now(),
+      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+      toolType,
+      targetAudience,
+      industry,
+      result
+    };
+    
+    existing.unshift(newResult); // Add to beginning
+    localStorage.setItem(LOGIC_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
+    console.log('💾 Saved logic result to localStorage:', newResult.id);
+  } catch (error) {
+    console.error('Failed to save logic result:', error);
+  }
+};
+
+const saveCreatedTool = (tool: ProductToolDefinition) => {
+  try {
+    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
+    const existing: SavedTool[] = saved ? JSON.parse(saved) : [];
+    
+    const newTool: SavedTool = {
+      id: `tool_${Date.now()}`,
+      timestamp: Date.now(),
+      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+      title: tool.metadata.title,
+      tool
+    };
+    
+    existing.unshift(newTool); // Add to beginning
+    localStorage.setItem(TOOLS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
+    console.log('💾 Saved created tool to localStorage:', newTool.id);
+  } catch (error) {
+    console.error('Failed to save created tool:', error);
+  }
+};
+
+const getSavedLogicResults = (): SavedLogicResult[] => {
+  try {
+    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('Failed to load logic results:', error);
+    return [];
+  }
+};
+
+const getSavedTools = (): SavedTool[] => {
+  try {
+    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch (error) {
+    console.error('Failed to load saved tools:', error);
+    return [];
+  }
+};
 
 // Mock workflow for testing different input types and transitions
 const mockWorkflow = [
@@ -1545,6 +1635,27 @@ export default function TestUIPage() {
     outputFormat: ['percentage']
   });
 
+  // AI-generated Product Tool Definition state
+  const [productToolDefinition, setProductToolDefinition] = useState<ProductToolDefinition | null>(null);
+  const [isGeneratingTool, setIsGeneratingTool] = useState(false);
+  
+  // NEW: Brainstorming streaming state
+  const [isBrainstorming, setIsBrainstorming] = useState(false);
+  const [brainstormingThoughts, setBrainstormingThoughts] = useState<Array<{
+    type: 'partial' | 'complete' | 'error';
+    data: any;
+    timestamp: number;
+    message?: string; // Add optional message property for error types
+  }>>([]);
+  const [latestBrainstormingResult, setLatestBrainstormingResult] = useState<any>(null);
+  const [showBrainstormingPanel, setShowBrainstormingPanel] = useState(false);
+  
+  // NEW: Local storage state for saved logic results and tools
+  const [savedLogicResults, setSavedLogicResults] = useState<SavedLogicResult[]>([]);
+  const [savedTools, setSavedTools] = useState<SavedTool[]>([]);
+  const [showLogicSelect, setShowLogicSelect] = useState(false);
+  const [showToolsSelect, setShowToolsSelect] = useState(false);
+
   // Initialize dark mode based on system preference
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -2123,6 +2234,13 @@ export default function TestUIPage() {
       if (result.success && result.response) {
         console.log('🔧 AI API response received:', result.response);
         
+        // Check if AI wants to create a tool - use enhanced brainstorming workflow
+        if (result.response.toolCreationContext) {
+          console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
+          const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext);
+          return; // Exit early since tool creation handles its own flow
+        }
+        
         const aiQuestion = {
           id: result.response.id || 'ai-freeform-response',
           message: result.response.message,
@@ -2185,6 +2303,13 @@ export default function TestUIPage() {
       const result = await handleStreamingAIRequest(requestBody);
 
       if (result.success && result.response) {
+        // Check if AI wants to create a tool - use enhanced brainstorming workflow
+        if (result.response.toolCreationContext) {
+          console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
+          const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext);
+          return; // Exit early since tool creation handles its own flow
+        }
+        
         const aiQuestion = {
           id: result.response.id || 'ai-freeform-response',
           message: result.response.message,
@@ -2422,12 +2547,200 @@ export default function TestUIPage() {
     
   }, []);
 
+  // Initialize localStorage data
+  useEffect(() => {
+    setSavedLogicResults(getSavedLogicResults());
+    setSavedTools(getSavedTools());
+  }, []);
+
   // Track when a question becomes active (user starts responding)
   useEffect(() => {
     if (currentQuestion || isInMultiPart) {
       setResponseStartTime(Date.now());
     }
   }, [currentQuestion, isInMultiPart, multiPartIndex]);
+
+  // NEW: Enhanced Tool Creation Functions for Logic Architect Integration
+  const callToolCreationAgent = async (context: any, productToolDefinition?: ProductToolDefinition) => {
+    console.log('🛠️ Calling Tool Creation Agent...');
+    setIsGeneratingTool(true);
+    
+    try {
+      const response = await fetch('/api/ai/create-tool', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userIntent: context.userIntent || 'Create a business calculator',
+          context: {
+            targetAudience: context.targetAudience || 'business professionals',
+            industry: context.industry || '',
+            toolType: context.toolType || 'calculator',
+            features: context.features || [],
+            businessDescription: context.businessDescription || '',
+            colors: context.colors || [],
+            collectedAnswers: context.collectedAnswers || {},
+            brandAnalysis: context.brandAnalysis,
+            conversationHistory: context.conversationHistory || [],
+            selectedWorkflow: context.selectedWorkflow || [],
+            uploadedFiles: context.uploadedFiles || [],
+            brainstormingResult: context.brainstormingResult || latestBrainstormingResult,
+            logicArchitectInsights: context.logicArchitectInsights || latestBrainstormingResult
+          },
+          existingTool: productToolDefinition,
+          updateType: context.updateType || 'general'
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success && result.tool) {
+        console.log('✅ Tool Creation Agent completed successfully');
+        setProductToolDefinition(result.tool);
+        
+        // Save to localStorage for development
+        saveCreatedTool(result.tool);
+        
+        // Update saved tools list
+        setSavedTools(getSavedTools());
+        
+        return result.tool;
+      } else {
+        throw new Error(result.message || 'Tool creation failed');
+      }
+    } catch (error) {
+      console.error('❌ Tool Creation Agent error:', error);
+      throw error;
+    } finally {
+      setIsGeneratingTool(false);
+    }
+  };
+
+  const createToolWithBrainstorming = async (context: any) => {
+    console.log('🧠 Starting tool creation with brainstorming...');
+    
+    try {
+      // Show brainstorming panel
+      setShowBrainstormingPanel(true);
+      setIsBrainstorming(true);
+      setBrainstormingThoughts([]);
+      setLastAIMessage('🧠 Let me brainstorm some creative ideas for your tool...');
+      
+      // Step 1: Logic Architect Brainstorming with Streaming
+      const brainstormingResponse = await fetch('/api/ai/logic-architect/brainstorm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          toolType: context.toolType || 'calculator',
+          targetAudience: context.targetAudience || 'business professionals', 
+          industry: context.industry || '',
+          businessDescription: context.businessDescription || '',
+          availableData: {
+            collectedAnswers: context.collectedAnswers || {},
+            features: context.features || [],
+            colors: context.colors || [],
+            brandAnalysis: context.brandAnalysis,
+            uploadedFiles: context.uploadedFiles,
+            conversationHistory: context.conversationHistory
+          }
+        }),
+      });
+
+      // Handle streaming brainstorming response
+      if (brainstormingResponse.headers.get('content-type')?.includes('text/event-stream')) {
+        const reader = brainstormingResponse.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        if (!reader) throw new Error('No brainstorming reader available');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                // Add thought to panel
+                setBrainstormingThoughts(prev => [...prev, {
+                  type: data.type,
+                  data: data.data,
+                  timestamp: Date.now()
+                }]);
+                
+                if (data.type === 'complete') {
+                  console.log('🧠 Logic Architect brainstorming complete:', data.data);
+                  setLatestBrainstormingResult(data.data);
+                  
+                  // Save logic result to localStorage
+                  saveLogicResult(
+                    context.toolType || 'calculator',
+                    context.targetAudience || 'business professionals',
+                    context.industry,
+                    data.data
+                  );
+                  
+                  // Update saved logic results list
+                  setSavedLogicResults(getSavedLogicResults());
+                  
+                  // Update context with brainstorming results
+                  context.brainstormingResult = data.data;
+                  context.logicArchitectInsights = data.data;
+                  break;
+                }
+              } catch (parseError) {
+                console.warn('Failed to parse brainstorming data:', line);
+              }
+            }
+          }
+        }
+      } else {
+        // Non-streaming fallback
+        const brainstormingData = await brainstormingResponse.json();
+        if (brainstormingData.success) {
+          setLatestBrainstormingResult(brainstormingData.result);
+          context.brainstormingResult = brainstormingData.result;
+          context.logicArchitectInsights = brainstormingData.result;
+          
+          // Save logic result
+          saveLogicResult(
+            context.toolType || 'calculator',
+            context.targetAudience || 'business professionals',
+            context.industry,
+            brainstormingData.result
+          );
+          setSavedLogicResults(getSavedLogicResults());
+        }
+      }
+      
+      setIsBrainstorming(false);
+      setLastAIMessage('✨ Great! I\'ve got some amazing ideas. Now let me create your tool...');
+      
+      // Step 2: Call Tool Creation Agent with enriched context
+      setLastAIMessage('🛠️ Creating your tool with the brainstormed ideas...');
+      const tool = await callToolCreationAgent(context);
+      
+      setLastAIMessage(`🎉 Your "${tool.metadata.title}" is ready! Check out the preview and let me know if you'd like any adjustments.`);
+      
+      return tool;
+      
+    } catch (error) {
+      console.error('❌ Tool creation with brainstorming failed:', error);
+      setIsBrainstorming(false);
+      setIsGeneratingTool(false);
+      setLastAIMessage(`Sorry, there was an error creating your tool: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  };
 
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -2593,6 +2906,89 @@ export default function TestUIPage() {
                     >
                       <Palette className="h-4 w-4" />
                       Test Color Picker
+                    </button>
+                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
+                    <div className="px-4 py-2">
+                      <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        NEW: Tool Creation & Logic Architect
+                      </span>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setShowOptionsMenu(false);
+                        try {
+                          const testContext = {
+                            userIntent: 'Create a marketing ROI calculator',
+                            toolType: 'calculator',
+                            targetAudience: 'small business owners',
+                            industry: 'marketing',
+                            businessDescription: 'Help businesses track their marketing investment returns'
+                          };
+                          await createToolWithBrainstorming(testContext);
+                        } catch (error) {
+                          console.error('Test brainstorming failed:', error);
+                        }
+                      }}
+                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
+                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <Brain className="h-4 w-4" />
+                      Test Logic Architect Brainstorming
+                    </button>
+                    <button
+                      onClick={async () => {
+                        setShowOptionsMenu(false);
+                        try {
+                          const testContext = {
+                            userIntent: 'Create a business assessment tool',
+                            toolType: 'assessment',
+                            targetAudience: 'entrepreneurs',
+                            industry: 'general business',
+                            features: ['scoring', 'recommendations', 'export'],
+                            businessDescription: 'Comprehensive business readiness assessment'
+                          };
+                          await callToolCreationAgent(testContext);
+                        } catch (error) {
+                          console.error('Test tool creation failed:', error);
+                        }
+                      }}
+                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
+                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <Zap className="h-4 w-4" />
+                      Test Tool Creation Agent
+                    </button>
+                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
+                    <div className="px-4 py-2">
+                      <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Saved Data Management
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        setShowLogicSelect(true);
+                      }}
+                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
+                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <History className="h-4 w-4" />
+                      View Saved Logic Results ({savedLogicResults.length})
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowOptionsMenu(false);
+                        setShowToolsSelect(true);
+                      }}
+                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
+                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      <Calculator className="h-4 w-4" />
+                      View Saved Tools ({savedTools.length})
                     </button>
                   </div>
                 </div>
@@ -2940,6 +3336,268 @@ export default function TestUIPage() {
       <div className="z-40">
         {/* Add your behavior learning dashboard component here */}
       </div>
+
+      {/* NEW: Brainstorming Panel */}
+      {showBrainstormingPanel && (
+        <div className={`fixed top-4 right-4 w-80 max-h-96 rounded-xl shadow-2xl border z-50 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-300'
+        }`}>
+          <div className={`flex items-center justify-between p-4 border-b ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-50' : 'text-gray-900'
+            }`}>
+              🧠 Logic Architect
+            </h3>
+            <button
+              onClick={() => setShowBrainstormingPanel(false)}
+              className={`p-1 rounded hover:bg-gray-100 ${
+                isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+              }`}
+              aria-label="Close brainstorming panel"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <div className="p-4 overflow-y-auto max-h-80">
+            {isBrainstorming && (
+              <div className={`mb-4 text-center ${
+                isDarkMode ? 'text-yellow-300' : 'text-yellow-600'
+              }`}>
+                <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                <p className="text-sm font-medium">Brainstorming ideas...</p>
+              </div>
+            )}
+            
+            {brainstormingThoughts.length === 0 && !isBrainstorming ? (
+              <div className={`text-center ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No brainstorming session yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {brainstormingThoughts.map((thought, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg border ${
+                      thought.type === 'error' 
+                        ? isDarkMode 
+                          ? 'border-red-600 bg-red-900/20' 
+                          : 'border-red-300 bg-red-50'
+                        : thought.type === 'complete'
+                        ? isDarkMode 
+                          ? 'border-green-600 bg-green-900/20' 
+                          : 'border-green-300 bg-green-50'
+                        : isDarkMode 
+                          ? 'border-gray-600 bg-gray-700/30' 
+                          : 'border-gray-200 bg-gray-50'
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="mt-1">
+                        {thought.type === 'error' ? (
+                          <X className="h-4 w-4 text-red-500" />
+                        ) : thought.type === 'complete' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full bg-blue-500 animate-pulse" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-sm ${
+                          isDarkMode ? 'text-gray-200' : 'text-gray-700'
+                        }`}>
+                          {thought.type === 'error' && thought.message 
+                            ? thought.message 
+                            : typeof thought.data === 'string' 
+                              ? thought.data 
+                              : JSON.stringify(thought.data, null, 2)
+                          }
+                        </p>
+                        <p className={`text-xs mt-1 ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {new Date(thought.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Saved Logic Results Panel */}
+      {showLogicSelect && (
+        <div className={`fixed top-4 right-4 w-80 max-h-96 rounded-xl shadow-2xl border z-50 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-300'
+        }`}>
+          <div className={`flex items-center justify-between p-4 border-b ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-50' : 'text-gray-900'
+            }`}>
+              💾 Saved Logic Results
+            </h3>
+            <button
+              onClick={() => setShowLogicSelect(false)}
+              className={`p-1 rounded hover:bg-gray-100 ${
+                isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+              }`}
+              aria-label="Close saved logic results panel"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <div className="p-4 overflow-y-auto max-h-80">
+            {savedLogicResults.length === 0 ? (
+              <div className={`text-center ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No saved logic results yet</p>
+                <p className="text-xs mt-1">Test the Logic Architect to see results here</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {savedLogicResults.map((result) => (
+                  <div
+                    key={result.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      isDarkMode 
+                        ? 'border-gray-600 bg-gray-700/30 hover:bg-gray-700/50' 
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => {
+                      console.log('Loading saved logic result:', result);
+                      setLatestBrainstormingResult(result.result);
+                      setShowLogicSelect(false);
+                    }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className={`text-sm font-medium ${
+                          isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                        }`}>
+                          {result.toolType} for {result.targetAudience}
+                        </h4>
+                        {result.industry && (
+                          <p className={`text-xs ${
+                            isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          }`}>
+                            Industry: {result.industry}
+                          </p>
+                        )}
+                        <p className={`text-xs ${
+                          isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                        }`}>
+                          {result.date}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        Load
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Saved Tools Panel */}
+      {showToolsSelect && (
+        <div className={`fixed top-4 right-4 w-80 max-h-96 rounded-xl shadow-2xl border z-50 ${
+          isDarkMode 
+            ? 'bg-gray-800 border-gray-600' 
+            : 'bg-white border-gray-300'
+        }`}>
+          <div className={`flex items-center justify-between p-4 border-b ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-200'
+          }`}>
+            <h3 className={`text-lg font-semibold ${
+              isDarkMode ? 'text-gray-50' : 'text-gray-900'
+            }`}>
+              🛠️ Saved Tools
+            </h3>
+            <button
+              onClick={() => setShowToolsSelect(false)}
+              className={`p-1 rounded hover:bg-gray-100 ${
+                isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+              }`}
+              aria-label="Close saved tools panel"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          
+          <div className="p-4 overflow-y-auto max-h-80">
+            {savedTools.length === 0 ? (
+              <div className={`text-center ${
+                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No saved tools yet</p>
+                <p className="text-xs mt-1">Create tools to see them saved here</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {savedTools.map((savedTool) => (
+                  <div
+                    key={savedTool.id}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      isDarkMode 
+                        ? 'border-gray-600 bg-gray-700/30 hover:bg-gray-700/50' 
+                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                    }`}
+                    onClick={() => {
+                      console.log('Loading saved tool:', savedTool.tool);
+                      setProductToolDefinition(savedTool.tool);
+                      setShowToolsSelect(false);
+                    }}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className={`text-sm font-medium ${
+                          isDarkMode ? 'text-gray-200' : 'text-gray-800'
+                        }`}>
+                          {savedTool.title}
+                        </h4>
+                        <p className={`text-xs ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          {savedTool.tool.metadata.description?.slice(0, 60)}...
+                        </p>
+                        <p className={`text-xs ${
+                          isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                        }`}>
+                          {savedTool.date}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        Load
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

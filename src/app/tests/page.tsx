@@ -75,7 +75,7 @@ const TEST_PAGES = [
     icon: FileText,
     category: 'Admin',
     status: 'active'
-  }
+  },
 ];
 
 const CATEGORIES = ['All', 'API', 'UI', 'AI', 'Admin'];

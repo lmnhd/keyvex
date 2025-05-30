@@ -51,6 +51,17 @@
           },
           "capabilities": ["text", "fast-response"],
           "recommended": ["quick-suggestions", "simple-tasks"]
+        },
+        "gpt-4o": {
+          "id": "gpt-4o",
+          "name": "GPT-4o",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.005,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal"],
+          "recommended": ["tool-generation", "complex-reasoning", "conversation-management"]
         }
       }
     },
@@ -230,6 +241,40 @@
       "streaming": false,
       "temperature": 0.5,
       "maxTokens": 2000
+    },
+    
+    "testUI": {
+      "description": "Conversation management and UI testing agent",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "reason": "Advanced reasoning and conversation flow management with multimodal capabilities"
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong conversational abilities and reasoning"
+      },
+      "streaming": true,
+      "temperature": 0.7,
+      "maxTokens": 4000
+    },
+    
+    "toolCreator": {
+      "description": "Specialized tool generation and ProductToolDefinition creation",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "reason": "Excellent structured output generation and complex schema handling"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "reason": "Strong alternative for structured tool generation"
+      },
+      "streaming": false,
+      "temperature": 0.7,
+      "maxTokens": 6000
     }
   },
 

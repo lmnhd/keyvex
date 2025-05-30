@@ -5,6 +5,47 @@ import { z } from 'zod';
 import { FrameworkInput, LogicStructure, Question, ResultCategory } from '@/lib/types/ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
+import { generateLogicBrainstorming } from '@/lib/prompts/logic-architect-prompt';
+
+// Schema for brainstorming output
+const logicBrainstormingSchema = z.object({
+  coreWConcept: z.string(),
+  keyCalculations: z.array(z.object({
+    name: z.string(),
+    formula: z.string(),
+    description: z.string(),
+    variables: z.array(z.string())
+  })),
+  interactionFlow: z.array(z.object({
+    step: z.number(),
+    title: z.string(),
+    description: z.string(),
+    userAction: z.string(),
+    engagementHook: z.string().optional()
+  })),
+  valueProposition: z.string(),
+  leadCaptureStrategy: z.object({
+    timing: z.string(),
+    method: z.string(),
+    incentive: z.string()
+  }),
+  creativeEnhancements: z.array(z.string()),
+  suggestedInputs: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    type: z.string(),
+    required: z.boolean(),
+    description: z.string()
+  })),
+  calculationLogic: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    formula: z.string(),
+    dependencies: z.array(z.string()),
+    outputFormat: z.string(),
+    engagementMoment: z.string().optional()
+  }))
+});
 
 // Simplified schemas that match the existing interfaces
 const logicStructureSchema = z.object({
@@ -410,6 +451,84 @@ Return a JSON array of formula objects.`;
 
     } catch (error) {
       const err = new Error(`Framework streaming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      onError?.(err);
+    }
+  }
+
+  /**
+   * Brainstorm creative tool logic with high temperature for maximum creativity
+   */
+  async brainstormToolLogic(
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string,
+    availableData: any
+  ): Promise<any> {
+    try {
+      const prompt = generateLogicBrainstorming(
+        toolType,
+        targetAudience,
+        industry,
+        businessContext,
+        availableData
+      );
+
+      console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 200) + '...');
+
+      const { object } = await generateObject({
+        model: this.model,
+        schema: logicBrainstormingSchema,
+        prompt,
+        temperature: 0.9, // Maximum creativity
+        maxRetries: 2
+      });
+
+      console.log('✅ Logic Architect brainstorming complete:', object.coreWConcept);
+      return object;
+
+    } catch (error) {
+      console.error('❌ Logic brainstorming failed:', error);
+      throw new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Stream brainstorming for real-time feedback
+   */
+  async brainstormToolLogicStream(
+    toolType: string,
+    targetAudience: string, 
+    industry: string,
+    businessContext: string,
+    availableData: any,
+    onPartialLogic?: (partial: any) => void,
+    onComplete?: (logic: any) => void,
+    onError?: (error: Error) => void
+  ): Promise<void> {
+    try {
+      const prompt = generateLogicBrainstorming(
+        toolType,
+        targetAudience,
+        industry, 
+        businessContext,
+        availableData
+      );
+
+      const { partialObjectStream } = streamObject({
+        model: this.model,
+        schema: logicBrainstormingSchema,
+        prompt,
+        temperature: 0.9, // Maximum creativity
+        onError: onError ? (event) => onError(new Error(String(event.error))) : undefined
+      });
+
+      for await (const partialObject of partialObjectStream) {
+        onPartialLogic?.(partialObject);
+      }
+
+    } catch (error) {
+      const err = new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       onError?.(err);
     }
   }
