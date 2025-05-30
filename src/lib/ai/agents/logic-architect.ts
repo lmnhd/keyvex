@@ -484,13 +484,91 @@ Return a JSON array of formula objects.`;
         maxRetries: 2
       });
 
-      console.log('✅ Logic Architect brainstorming complete:', object.coreWConcept);
-      return object;
+      // POST-PROCESSING: Fix any string arrays that should be actual arrays
+      const processedObject = this.postProcessBrainstormingResult(object);
+
+      console.log('✅ Logic Architect brainstorming complete:', processedObject.coreWConcept);
+      return processedObject;
 
     } catch (error) {
       console.error('❌ Logic brainstorming failed:', error);
       throw new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Post-process brainstorming results to handle schema validation issues
+   */
+  private postProcessBrainstormingResult(object: any): any {
+    const result = { ...object };
+
+    // Fix creativeEnhancements if it's a string representation of an array
+    if (typeof result.creativeEnhancements === 'string') {
+      try {
+        const parsed = JSON.parse(result.creativeEnhancements);
+        if (Array.isArray(parsed)) {
+          result.creativeEnhancements = parsed;
+          console.log('🔧 Fixed creativeEnhancements from string to array');
+        }
+      } catch (e) {
+        // If parsing fails, try to extract array-like content from string
+        const stringContent = result.creativeEnhancements;
+        if (stringContent.includes('[') && stringContent.includes(']')) {
+          try {
+            // Extract content between brackets and split by lines
+            const arrayContent = stringContent
+              .replace(/^\s*\[\s*/, '')  // Remove opening bracket
+              .replace(/\s*\]\s*$/, '')  // Remove closing bracket
+              .split('\n')
+              .map((line: string) => line.trim())
+              .filter((line: string) => line.length > 0)
+              .map((line: string) => {
+                // Remove quotes and leading/trailing punctuation
+                return line
+                  .replace(/^["'`]*/, '')
+                  .replace(/["'`]*[,]*$/, '')
+                  .trim();
+              })
+              .filter((item: string) => item.length > 0);
+            
+            if (arrayContent.length > 0) {
+              result.creativeEnhancements = arrayContent;
+              console.log('🔧 Extracted creativeEnhancements from string format');
+            }
+          } catch (e2) {
+            console.warn('⚠️ Could not parse creativeEnhancements, using fallback');
+            result.creativeEnhancements = ['Creative enhancement ideas will be added'];
+          }
+        } else {
+          // Fallback: convert single string to array
+          result.creativeEnhancements = [result.creativeEnhancements];
+          console.log('🔧 Converted single creativeEnhancements string to array');
+        }
+      }
+    }
+
+    // Ensure all required arrays are arrays
+    if (!Array.isArray(result.creativeEnhancements)) {
+      result.creativeEnhancements = [];
+    }
+
+    if (!Array.isArray(result.keyCalculations)) {
+      result.keyCalculations = [];
+    }
+
+    if (!Array.isArray(result.interactionFlow)) {
+      result.interactionFlow = [];
+    }
+
+    if (!Array.isArray(result.suggestedInputs)) {
+      result.suggestedInputs = [];
+    }
+
+    if (!Array.isArray(result.calculationLogic)) {
+      result.calculationLogic = [];
+    }
+
+    return result;
   }
 
   /**

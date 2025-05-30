@@ -73,43 +73,61 @@ CREATIVE LOGIC PATTERNS:
 - Industry benchmark positioning
 - "Companies like yours typically see..." patterns
 
-RESPONSE STRUCTURE:
-When brainstorming, provide:
+REQUIRED JSON RESPONSE FORMAT:
+You must return a valid JSON object with this EXACT structure:
 
-1. **CORE CONCEPT** - One sentence describing the innovative approach
-2. **KEY CALCULATIONS** - 3-5 primary formulas/logic flows with creative elements  
-3. **INTERACTION FLOW** - Step-by-step user journey with engagement hooks
-4. **VALUE PROPOSITION** - Why users will complete this tool and share their info
-5. **LEAD CAPTURE STRATEGY** - Natural points to collect contact information
-6. **CREATIVE ENHANCEMENTS** - Unexpected features that differentiate this tool
+{
+  "coreWConcept": "string",
+  "keyCalculations": [
+    {
+      "name": "string",
+      "formula": "string", 
+      "description": "string",
+      "variables": ["string1", "string2"]
+    }
+  ],
+  "interactionFlow": [
+    {
+      "step": 1,
+      "title": "string",
+      "description": "string", 
+      "userAction": "string",
+      "engagementHook": "string"
+    }
+  ],
+  "valueProposition": "string",
+  "leadCaptureStrategy": {
+    "timing": "string",
+    "method": "string", 
+    "incentive": "string"
+  },
+  "creativeEnhancements": [
+    "Enhancement idea 1",
+    "Enhancement idea 2", 
+    "Enhancement idea 3"
+  ],
+  "suggestedInputs": [
+    {
+      "id": "string",
+      "label": "string",
+      "type": "string",
+      "required": true/false,
+      "description": "string"
+    }
+  ],
+  "calculationLogic": [
+    {
+      "id": "string",
+      "name": "string", 
+      "formula": "string",
+      "dependencies": ["string1", "string2"],
+      "outputFormat": "string",
+      "engagementMoment": "string"
+    }
+  ]
+}
 
-EXAMPLE BRAINSTORMING OUTPUT:
-
-**CORE CONCEPT:** "Marketing ROI Reality Check" - Exposes hidden costs and reveals optimization opportunities
-
-**KEY CALCULATIONS:**
-- True Marketing ROI = (Revenue - Hidden Costs) / Total Investment
-- Efficiency Score = Results per Dollar / Industry Benchmark  
-- Optimization Potential = Identified Waste × Time to Fix
-- Growth Multiplier = Current ROI × Proposed Improvements
-
-**INTERACTION FLOW:**
-1. Hook: "Most businesses miscalculate marketing ROI by 40%"
-2. Basic inputs: Budget, revenue, timeframe
-3. Surprise twist: "Now let's uncover hidden costs..."
-4. Advanced inputs: Time costs, opportunity costs, tool costs
-5. Results revelation: True ROI vs. perceived ROI
-6. Optimization roadmap: Specific improvement opportunities
-
-**VALUE PROPOSITION:** Users discover money they're leaving on the table + get actionable improvement plan
-
-**LEAD CAPTURE:** "Get your personalized optimization roadmap emailed to you"
-
-**CREATIVE ENHANCEMENTS:**
-- Industry-specific hidden cost libraries
-- ROI improvement timeline with milestone alerts  
-- Anonymous peer comparison dashboard
-- "What if" scenario modeling
+CRITICAL: The "creativeEnhancements" field MUST be an array of strings, NOT a JSON string representation of an array.
 
 CONSTRAINTS & GUIDELINES:
 - Keep calculations business-relevant and credible
@@ -149,5 +167,5 @@ Based on the information above (whether minimal or detailed), brainstorm an inno
 
 Be creative, fill in logical gaps, and suggest unexpected but valuable calculations that create "aha moments" for users.
 
-RESPOND WITH YOUR COMPLETE BRAINSTORMING OUTPUT:`;
+RESPOND WITH THE COMPLETE JSON OBJECT FOLLOWING THE EXACT FORMAT SPECIFIED ABOVE:`;
 }; 
