@@ -3195,32 +3195,31 @@ export default function TestUIPage() {
                         </span>
                       </div>
                       
-                      {/* See Full Form Button */}
-                      <button
-                        onClick={() => {
-                          // Initialize full form with current answers
-                          const currentAnswers = { ...multiPartAnswers };
-                          if (currentInput.trim()) {
-                            currentAnswers[multiPartQuestions[multiPartIndex]?.id] = currentInput;
-                          }
-                          console.log('🔧 Opening full form with answers:', currentAnswers);
-                          console.log('🔧 multiPartAnswers state:', multiPartAnswers);
-                          console.log('🔧 Current input:', currentInput);
-                          console.log('🔧 Current question ID:', multiPartQuestions[multiPartIndex]?.id);
-                          setFullFormAnswers(currentAnswers);
-                          setShowFullFormPopup(true);
-                        }}
-                        className={`text-xs underline hover:no-underline transition-all duration-200 ${
-                          isDarkMode ? 'text-yellow-300 hover:text-yellow-200' : 'text-yellow-600 hover:text-yellow-700'
-                        }`}
-                      >
-                        see full form
-                      </button>
-                    </div>
-                    
-                    {/* Iterator Chat Button - "speak freely" */}
-                    <div className="mt-3 pt-3 border-t border-yellow-400/30 flex-shrink-0 transition-all duration-300 ease-in-out">
-                      <div className="flex justify-center">
+                      {/* Buttons side by side */}
+                      <div className="flex items-center gap-3">
+                        {/* See Full Form Button */}
+                        <button
+                          onClick={() => {
+                            // Initialize full form with current answers
+                            const currentAnswers = { ...multiPartAnswers };
+                            if (currentInput.trim()) {
+                              currentAnswers[multiPartQuestions[multiPartIndex]?.id] = currentInput;
+                            }
+                            console.log('🔧 Opening full form with answers:', currentAnswers);
+                            console.log('🔧 multiPartAnswers state:', multiPartAnswers);
+                            console.log('🔧 Current input:', currentInput);
+                            console.log('🔧 Current question ID:', multiPartQuestions[multiPartIndex]?.id);
+                            setFullFormAnswers(currentAnswers);
+                            setShowFullFormPopup(true);
+                          }}
+                          className={`text-xs underline hover:no-underline transition-all duration-200 ${
+                            isDarkMode ? 'text-yellow-300 hover:text-yellow-200' : 'text-yellow-600 hover:text-yellow-700'
+                          }`}
+                        >
+                          see full form
+                        </button>
+                        
+                        {/* Speak Freely Button */}
                         <button
                           onClick={handleSwitchToChat}
                           disabled={isLoading}
@@ -3234,6 +3233,8 @@ export default function TestUIPage() {
                           speak freely
                         </button>
                       </div>
+                    </div>
+                    
                     </div>
                   </div>
                 </div>
