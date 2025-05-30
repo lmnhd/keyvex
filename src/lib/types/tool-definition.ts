@@ -116,7 +116,7 @@ export type ComponentType =
   // Display Components
   | 'heading' | 'text' | 'metric-display' | 'calculation-display' 
   | 'currency-display' | 'percentage-display' | 'progress-bar' | 'badge'
-  | 'card' | 'divider' | 'icon'
+  | 'card' | 'divider' | 'icon' | 'score-display' | 'recommendation'
   
   // Interactive Components
   | 'button' | 'export-button' | 'submit-button' | 'reset-button'

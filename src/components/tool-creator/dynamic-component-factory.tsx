@@ -861,6 +861,8 @@ const COMPONENT_RENDERERS: Record<ComponentType, React.ComponentType<ComponentRe
   'card': CardComponent,
   'divider': DividerComponent,
   'icon': IconComponent,
+  'score-display': CalculationDisplayComponent,         // Uses CustomDisplay for scores
+  'recommendation': TextComponent,                      // Uses TextComponent for recommendations
   
   // Interactive Components
   'button': ButtonComponent,
