@@ -3217,6 +3217,24 @@ export default function TestUIPage() {
                         see full form
                       </button>
                     </div>
+                    
+                    {/* Iterator Chat Button - "speak freely" */}
+                    <div className="mt-3 pt-3 border-t border-yellow-400/30 flex-shrink-0 transition-all duration-300 ease-in-out">
+                      <div className="flex justify-center">
+                        <button
+                          onClick={handleSwitchToChat}
+                          disabled={isLoading}
+                          className={`text-xs px-3 py-1 rounded-full transition-all flex items-center gap-1 ${
+                            isDarkMode 
+                              ? 'text-lime-400 hover:text-gray-200 hover:bg-gray-700/50' 
+                              : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100/50'
+                          } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          speak freely
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
