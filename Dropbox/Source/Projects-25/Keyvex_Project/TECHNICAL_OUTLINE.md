@@ -4,6 +4,77 @@
 
 Keyvex is an AI-powered platform that enables independent consultants, coaches, and B2B service providers to create interactive lead magnets (calculators, quizzes, assessments) through AI co-creation. The platform emphasizes real-time streaming AI interactions while managing Vercel timeout constraints through a hybrid architecture approach, enhanced with comprehensive user behavior learning for personalized AI experiences.
 
+## ✅ **MAJOR ACHIEVEMENTS: Complete Prompt Separation & XML Structuring**
+
+**Recent Major Updates (January 2025):**
+
+### **Complete AI Prompt Separation Architecture** ✅ COMPLETED
+- **✅ CONSOLIDATED PROMPTS**: All AI prompts moved from API routes to dedicated `/lib/prompts/` files
+- **✅ XML-STRUCTURED PROMPTS**: Enhanced prompts with structured XML format for better AI processing
+- **✅ DYNAMIC BUILDERS**: Created sophisticated prompt builder functions for contextual prompt generation
+- **✅ CLEAN API SEPARATION**: API routes now focus purely on request handling with zero inline prompt content
+- **✅ GRID LAYOUT MANDATES**: Enforced sophisticated grid-based layouts eliminating outdated vertical form stacking
+
+### **Prompt Architecture Achievements**
+
+**Main Tool Creation Prompt** (`/lib/prompts/tool-creation-prompt.ts`):
+```typescript
+export const TOOL_CREATION_PROMPT = `...`; // Comprehensive XML-structured core prompt
+
+// Dynamic prompt builders for API integration
+export function buildCompleteSystemPrompt(logicBrainstorming?: any): string
+export function buildBrainstormingIntegration(logicBrainstorming: any): string  
+export function buildToolCreationUserPrompt(userIntent, context, existingTool?, updateType?): string
+```
+
+**Key Features:**
+- **Grid Layout Enforcement**: Mandatory 2-3 column input sections, dashboard-style results displays
+- **XML Structured Sections**: `<purpose>`, `<instructions>`, `<component-types>`, `<layout-requirements>`, `<output-requirements>`
+- **Logic Architect Integration**: Dynamic brainstorming result processing with structured XML tags
+- **Context Processing**: Sophisticated user conversation, brand analysis, and file upload handling
+- **Component Validation**: Complete schema validation preventing malformed AI outputs
+
+**API Route Transformation** (`/app/api/ai/create-tool/route.ts`):
+```typescript
+// BEFORE: Mixed prompt content with server logic (200+ lines of inline prompts)
+const systemPrompt = `${TOOL_CREATION_PROMPT}...` // + 200 lines of inline XML
+
+// AFTER: Clean separation with builder functions (3 lines)
+const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
+const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
+```
+
+### **Grid Layout Revolution**
+**Problem Solved**: AI was generating "90's web forms" with vertical stacking
+**Solution Implemented**: Comprehensive grid-based layout requirements
+
+**Grid Layout Mandates:**
+- 🚨 **FORBIDDEN**: Single column vertical stacking, contact form layouts
+- ✅ **REQUIRED**: 2-3 column input grids, dashboard-style results, horizontal grouping
+- ✅ **HIERARCHY**: container → section → grid organization
+- ✅ **EXAMPLES**: ROI calculators with multi-column inputs and results dashboards
+
+**Layout Examples Enforced:**
+```xml
+<roi-calculator>
+    INPUT SECTION (grid: "1fr 1fr"):
+    ├── currency-input (Initial Investment)
+    └── currency-input (Monthly Revenue)
+    
+    RESULTS SECTION (grid: "1fr 1fr 1fr"):
+    ├── metric-display (ROI Percentage)
+    ├── currency-display (Net Profit)  
+    └── calculation-display (Payback Period)
+</roi-calculator>
+```
+
+### **XML Prompt Structuring Benefits**
+- **Better AI Processing**: Structured sections improve AI comprehension and compliance
+- **Systematic Validation**: XML tags enable better component and layout validation
+- **Dynamic Integration**: Clean separation of static rules from dynamic context
+- **Maintenance**: Changes to prompt logic happen in one dedicated file
+- **Reusability**: Core prompts can be used by multiple agents
+
 ## Core Architecture Strategy
 
 ### 1. Hybrid Vercel + AWS Architecture
@@ -61,7 +132,7 @@ Lambda: advanced-analytics      # Deep data analysis and insights
 
 **Agent Communication Pattern:**
 - **Conversation Agent**: Handles UI flow, signals when specialized work needed
-- **Specialized Agents**: Handle specific tasks with proper validation
+- **Specialized Agents**: Handle specific tasks with proper validation using clean prompt separation
 - **Lambda Workers**: Background processing for complex multi-step operations
 - **Frontend Integration**: Seamless handoffs between agents with real-time updates
 
@@ -277,13 +348,16 @@ KEYVEX_PROJECT/
 
 ### Agent Separation Strategy
 
-**Philosophy**: Single responsibility per agent with clean separation of concerns. Each agent is optimized for specific tasks rather than trying to handle everything in one monolithic system.
+**Philosophy**: Single responsibility per agent with clean separation of concerns and complete prompt separation. Each agent is optimized for specific tasks with all prompting logic centralized in dedicated files rather than mixed with server code.
 
 **Key Principles**:
+- **Complete Prompt Separation**: All AI prompts moved to `/lib/prompts/` with dynamic builder functions
+- **XML-Structured Prompts**: Enhanced prompt organization for better AI processing
 - **No Over-Engineering**: Removed all algorithmic helper functions and keyword detection
 - **AI Intelligence First**: Let AI models make decisions without programmatic intervention
 - **Structured Validation**: Use proper schema validation for complex outputs
 - **Scalable Pattern**: Easily add new specialized agents following the same pattern
+- **Grid Layout Enforcement**: All tools use sophisticated dashboard-style layouts
 
 ### Primary Agent Types
 
@@ -292,6 +366,7 @@ KEYVEX_PROJECT/
 **Responsibility**: ONLY conversation management and user experience
 **Timeout Risk**: Low (single LLM call for conversation)
 **Implementation**: Vercel API Route with streaming
+**Prompts**: Uses consolidated prompts from `/lib/prompts/conversation-prompt.ts`
 
 ```typescript
 // Conversation Agent Response Schema
@@ -319,37 +394,53 @@ interface ConversationResponse {
 - Provides rich context for specialized agents
 - Handles UI component selection (select, multiSelect, colorSelect, etc.)
 
-#### 2. Tool Creation Agent (`/api/ai/create-tool/`)
+#### 2. Tool Creation Agent (`/api/ai/create-tool/`) ✅ FULLY REFACTORED
 **Purpose**: Generate and modify ProductToolDefinitions with proper validation
-**Responsibility**: ONLY tool architecture and generation
+**Responsibility**: ONLY tool architecture and generation with grid-based layouts
 **Timeout Risk**: Medium (structured output with validation)
 **Implementation**: Vercel API Route with GPT-4o and structured output
+**Prompts**: Uses consolidated prompts from `/lib/prompts/tool-creation-prompt.ts`
 
 ```typescript
-// Tool Creation Agent with Structured Output
+// Clean API Route with Prompt Separation
 export async function POST(request: NextRequest) {
-  const result = await generateObject({
-    model: openai('gpt-4o'),
+  // STEP 1: Logic Architect Brainstorming
+  let logicBrainstorming = await getOrCreateBrainstorming(context);
+  
+  // STEP 2: Get model configuration
+  const model = getPrimaryModel('toolCreator');
+  
+  // STEP 3: Build prompts using consolidated builder functions ✅ NEW
+  const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
+  const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
+  
+  // STEP 4: Generate tool with structured output validation
+  const { object: productTool } = await generateObject({
+    model: modelInstance,
     schema: productToolDefinitionSchema,  // Full Zod validation
-    prompt: TOOL_CREATION_PROMPT,
-    temperature: 0.7,
-    maxRetries: 3
+    system: systemPrompt,
+    prompt: userPrompt,
+    temperature: 0.3,
+    maxRetries: 2
   });
   
-  return {
-    success: true,
-    tool: result.object,              // Fully validated ProductToolDefinition
-    validationPassed: true
-  };
+  return { success: true, tool: productTool };
 }
 ```
 
 **Key Features**:
-- Complete ProductToolDefinition schema validation
-- Specialized prompts for tool architecture
-- Handles complex business logic and calculations
-- Professional styling and component arrangement
-- Support for tool updates and modifications
+- ✅ **Complete Prompt Separation**: Zero inline prompt content in API route
+- ✅ **XML-Structured Prompts**: Enhanced prompt organization and AI processing
+- ✅ **Grid Layout Enforcement**: Mandatory 2-3 column layouts, dashboard-style results
+- ✅ **Dynamic Context Integration**: Logic Architect results, user conversation, brand analysis
+- ✅ **Component Validation**: Full schema validation preventing malformed outputs
+- ✅ **Professional Quality**: Business-grade styling and realistic calculations
+
+**Grid Layout Achievements**:
+- 🚨 **Eliminated**: Vertical form stacking, amateur-looking layouts
+- ✅ **Enforced**: Horizontal input grouping, multi-column results dashboards
+- ✅ **Mandated**: container → section → grid hierarchy
+- ✅ **Implemented**: ROI calculators, assessment tools with sophisticated layouts
 
 #### 3. Future Specialized Agents (Following Same Pattern)
 
@@ -357,21 +448,24 @@ export async function POST(request: NextRequest) {
 - **Purpose**: Generate marketing copy, descriptions, and user-facing content
 - **Signals**: `shouldGenerateContent: true` from conversation agent
 - **Output**: Structured content objects with validation
+- **Prompts**: Centralized in `/lib/prompts/content-crafter-prompt.ts`
 
 **Style Customization Agent** (`/api/ai/style-master/`):
 - **Purpose**: Advanced styling, theming, and brand customization
 - **Signals**: `shouldCustomizeStyle: true` from conversation agent
 - **Output**: Complete styling configurations with color theory
+- **Prompts**: Centralized in `/lib/prompts/style-master-prompt.ts`
 
 **Analytics Agent** (`/api/ai/analytics-processor/`):
 - **Purpose**: Data analysis, insights, and performance recommendations
 - **Signals**: `shouldAnalyzeData: true` from conversation agent
 - **Output**: Actionable insights and optimization suggestions
+- **Prompts**: Centralized in `/lib/prompts/analytics-prompt.ts`
 
 ### Agent Communication Flow
 
 ```typescript
-// 1. User Input → Conversation Agent
+// 1. User Input → Conversation Agent (using centralized prompts)
 const conversationResult = await fetch('/api/ai/test-ui', {
   method: 'POST',
   body: JSON.stringify({ userInput: "create an ROI calculator" })
@@ -388,7 +482,7 @@ const conversationResult = await fetch('/api/ai/test-ui', {
   }
 }
 
-// 3. Frontend Detects Signal → Calls Tool Creation Agent
+// 3. Frontend Detects Signal → Calls Tool Creation Agent (with separated prompts)
 const toolResult = await fetch('/api/ai/create-tool', {
   method: 'POST',
   body: JSON.stringify({
@@ -397,10 +491,10 @@ const toolResult = await fetch('/api/ai/create-tool', {
   })
 });
 
-// 4. Tool Creation Agent Response
+// 4. Tool Creation Agent Response (using buildCompleteSystemPrompt())
 {
   success: true,
-  tool: { /* Complete ProductToolDefinition */ },
+  tool: { /* Complete ProductToolDefinition with grid layouts */ },
   validationPassed: true
 }
 
@@ -408,7 +502,26 @@ const toolResult = await fetch('/api/ai/create-tool', {
 setProductToolDefinition(toolResult.tool);
 ```
 
-### Benefits of Agent Separation
+### Benefits of Agent Separation with Prompt Consolidation
+
+**Complete Prompt Separation**:
+- ✅ **Maintainability**: All prompt changes happen in dedicated files
+- ✅ **Reusability**: Core prompts can be used by multiple agents
+- ✅ **Testing**: Prompt logic can be unit tested independently
+- ✅ **Versioning**: Easy to track prompt evolution and A/B test
+- ✅ **Clean Code**: API routes focus purely on request handling
+
+**XML-Structured Prompts**:
+- ✅ **Better AI Processing**: Structured sections improve AI comprehension
+- ✅ **Systematic Validation**: XML tags enable better compliance checking
+- ✅ **Dynamic Integration**: Clean separation of static rules from dynamic context
+- ✅ **Component Validation**: Enhanced validation with structured error handling
+
+**Grid Layout Revolution**:
+- ✅ **Professional Tools**: Eliminated outdated vertical form stacking
+- ✅ **Modern Layouts**: Dashboard-style organization with multi-column sections
+- ✅ **Space Efficiency**: Horizontal grouping maximizes screen real estate
+- ✅ **User Experience**: Sophisticated, business-grade tool presentation
 
 **Single Responsibility**:
 - Each agent optimized for specific tasks
@@ -444,8 +557,8 @@ setProductToolDefinition(toolResult.tool);
 
 **Tool Creation Agent** (15-25 seconds):
 - Structured output generation with validation
-- Complex tool architecture decisions
-- Comprehensive schema validation
+- Complex tool architecture decisions using consolidated prompts
+- Comprehensive schema validation with grid layout enforcement
 
 **Future Complex Agents** (25+ seconds):
 - Lambda offload for operations exceeding Vercel limits
@@ -455,34 +568,47 @@ setProductToolDefinition(toolResult.tool);
 ### Development Pattern for New Agents
 
 ```typescript
-// 1. Define Agent Schema
+// 1. Create Dedicated Prompt File ✅ NEW PATTERN
+// /lib/prompts/new-agent-prompt.ts
+export const NEW_AGENT_PROMPT = `
+<purpose>
+  You are a specialized [AgentType] AI. Your ONLY job is to [specific responsibility].
+</purpose>
+
+<instructions>
+  [XML-structured instructions]
+</instructions>
+`;
+
+export function buildNewAgentSystemPrompt(context?: any): string {
+  return `${NEW_AGENT_PROMPT}\n\n${buildContextSection(context)}`;
+}
+
+// 2. Define Agent Schema
 const agentOutputSchema = z.object({
   // Define expected output structure
 });
 
-// 2. Create Specialized Prompt
-const AGENT_PROMPT = `
-You are a specialized [AgentType] AI. Your ONLY job is to [specific responsibility].
-[Detailed instructions for this agent type]
-`;
-
-// 3. Implement API Route
+// 3. Implement Clean API Route
 export async function POST(request: NextRequest) {
   // Validate input
+  // Build prompts using centralized functions ✅
+  const systemPrompt = buildNewAgentSystemPrompt(context);
+  
   // Call AI model with structured output
   // Return validated result
 }
 
 // 4. Add Signal Detection to Conversation Agent
-// shouldCallAgentType: true
-// agentTypeContext: { /* context for specialized agent */ }
+// shouldCallNewAgent: true
+// newAgentContext: { /* context for specialized agent */ }
 
 // 5. Update Frontend to Handle New Agent
 // Detect signal and call specialized agent
 // Update UI based on agent response
 ```
 
-This architecture ensures each agent excels at its specific responsibility while maintaining clean separation of concerns and optimal user experience.
+This architecture ensures each agent excels at its specific responsibility while maintaining clean separation of concerns, complete prompt separation, and optimal user experience with sophisticated grid-based tool generation.
 
 ### User Behavior Learning System
 
@@ -970,11 +1096,20 @@ interface ModelConfigItem extends KeyvexTableItem {
 - ✅ **Real-time Updates**: Frontend seamlessly handles agent handoffs and canvas updates
 - ✅ **Scalable Pattern**: Established pattern for future specialized agents
 
+**✅ MAJOR MILESTONE: Complete Prompt Separation & XML Structuring (January 2025)**
+- ✅ **Consolidated All Prompts**: Moved all AI prompts from API routes to dedicated `/lib/prompts/` files
+- ✅ **XML-Structured Prompts**: Enhanced prompts with structured XML format for better AI processing
+- ✅ **Dynamic Prompt Builders**: Created sophisticated builder functions for contextual prompt generation
+- ✅ **Clean API Separation**: API routes now focus purely on request handling with zero inline content
+- ✅ **Grid Layout Revolution**: Eliminated vertical form stacking, enforced dashboard-style layouts
+- ✅ **Enhanced Component Validation**: Improved schema validation with structured error handling
+
 **Testing Infrastructure:**
 - ✅ Set up admin dashboard with basic monitoring
 - ✅ Create comprehensive test UI with mock and real AI modes
 - ✅ Implement debug logging and error tracking
 - ✅ Test agent separation with real tool generation workflows
+- ✅ Validate grid layout enforcement and professional tool generation
 
 ### Phase 2: User Experience & Refinement (Weeks 4-6)
 **Enhanced User Experience:**
