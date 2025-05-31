@@ -1,0 +1,149 @@
+
+Okay, let's outline a vision for the TenantArmor UI. This will serve as a guide for the UI developer, detailing the layout, design philosophy, and user flow.
+
+## TenantArmor: UI/UX Vision Document
+
+**1. Introduction & Core Philosophy**
+
+TenantArmor aims to empower tenants by providing accessible and understandable legal-tech services. The UI should reflect this mission by being:
+
+*   **Trustworthy & Professional:** Users are often in vulnerable situations. The design must inspire confidence.
+*   **Clear & Intuitive:** Easy to navigate, with straightforward language. Avoid legal jargon where possible, or explain it clearly.
+*   **Accessible:** Adhere to accessibility best practices (WCAG AA as a target).
+*   **Empathetic:** The design and tone should be supportive and reassuring.
+*   **Modern & Clean:** A contemporary aesthetic that is easy on the eyes and promotes usability.
+
+**2. Overall Application Structure**
+
+We'll structure the application with a public-facing landing page and a secure, user-specific dashboard area.
+
+**2.1. Landing Page**
+
+*   **Purpose:** Introduce TenantArmor, explain its value proposition, build trust, and encourage sign-ups.
+*   **Key Sections:**
+    *   **Hero Section:**
+        *   Headline: Clear, benefit-driven (e.g., "Understand Your Lease. Protect Your Rights.")
+        *   Sub-headline: Briefly explains what TenantArmor does.
+        *   Visual: A professional, reassuring image or abstract graphic.
+        *   Primary Call to Action (CTA): "Get Started Free" or "Sign Up".
+    *   **How It Works:** A simple, 3-4 step visual explanation of the process for each core service.
+    *   **Services Overview:**
+        *   Dedicated cards/sections for "Lease Analysis" and "Eviction Help," each with a brief description and a secondary CTA to learn more or sign up.
+    *   **Benefits/Features:** Highlight key advantages (e.g., AI-powered insights, secure document handling, quick turnaround).
+    *   **Testimonials/Social Proof (Future):** Placeholder for user quotes or trust badges.
+    *   **Footer:** Links to About Us, Contact, Privacy Policy, Terms of Service.
+*   **Navigation:** Simple top navigation (e.g., Services, How it Works, Pricing (if applicable), Login, Sign Up).
+
+**2.2. User Authentication (Sign Up / Login)**
+
+*   **Process:** Standard email/password registration and login. Consider OAuth options (Google, etc.) for ease of use.
+*   **Design:** Clean, focused forms. Clear error messaging. Links for password reset.
+*   **Onboarding (Minimal Viable):** After first sign-up, a brief welcome message and direction to the dashboard. (Future: guided tour or preference setup).
+
+**2.3. Main Dashboard**
+
+*   **Purpose:** The user's central hub after logging in. Provides an overview and quick access to services and past activity.
+*   **Layout:**
+    *   **Persistent Sidebar Navigation:** Clear links to:
+        *   Dashboard (Overview)
+        *   Lease Analysis
+        *   Eviction Help
+        *   My Account/Profile
+        *   Help/Support
+        *   Logout
+    *   **Main Content Area:**
+        *   **Welcome Message:** Personalized greeting.
+        *   **Quick Actions:** Prominent buttons/cards for "Analyze a New Lease" and "Get Eviction Help."
+        *   **Recent Activity (Lease Analysis):** A list or cards showing the status of recent lease uploads (e.g., "Processing," "Analysis Ready," "Error"). Clicking an item would take to its detailed view.
+        *   **Notifications/Alerts (Future):** For important updates or required actions.
+
+**3. Core Services: UI & User Flow**
+
+Our two main services, Lease Analysis and Eviction Help, will have distinct sections accessible from the dashboard, but share a consistent design language.
+
+**3.1. Lease Analysis Service**
+
+*   **Initiation:**
+    *   A clear "Upload Your Lease" page.
+    *   **File Uploader:** Prominent drag-and-drop area and a traditional file selection button.
+        *   Accepted formats: PDF (clearly stated).
+        *   Size limits: Clearly communicated.
+    *   **Input Fields (Optional/Contextual):**
+        *   Property Address (for context, if useful for future features).
+        *   Lease Start/End Dates (if user knows them, can help with summaries).
+    *   **Consent/Acknowledgement:** Checkbox for "I understand this is not legal advice and I agree to the Terms of Service."
+    *   **Progress Indication:** Visual feedback during upload and initial processing (e.g., progress bar, spinner).
+*   **Processing View:**
+    *   Once uploaded, the user might be taken to a "Processing your lease..." page, or this could be a state within their "Lease Analysis History" list on the dashboard.
+    *   Indicates that the AI is working. Estimated time if possible (e.g., "Usually takes 2-5 minutes").
+*   **Results Presentation:**
+    *   **Dedicated Results Page per Lease:**
+        *   **Header:** Document name/identifier, upload date, status.
+        *   **Download Original:** Button to download the originally uploaded PDF.
+        *   **Key Insights Summary:** At the top, a bulleted or card-based summary of critical findings (e.g., non-standard clauses, potential red flags, rent details, notice periods). Each insight could be expandable for more detail.
+        *   **Extracted Text View:** A section displaying the full extracted text from the PDF. This is useful for user verification and for us during debugging/testing. This could be in a scrollable pane or a separate tab on the results page. The `extracted_text_output.txt` content you set up can be shown here.
+        *   **Clause-by-Clause Breakdown (Future Enhancement):** A more structured view where the document is broken down by identified clauses, with AI summaries or flags for each.
+        *   **Search within Document:** Ability to search the extracted text.
+        *   **Call to Action:** "Print Analysis," "Download Summary PDF," "Report an Issue with Analysis."
+*   **History View:**
+    *   A paginated list of all leases analyzed by the user.
+    *   Columns: Document Name, Upload Date, Status, Quick Actions (View Analysis, Re-Analyze (if applicable), Delete).
+
+**3.2. Eviction Help Service**
+
+*   **Nature of Service:** This service is more informational and guidance-based initially, potentially evolving to more interactive tools. It's distinct from the automated lease analysis.
+*   **Landing/Entry Point:**
+    *   A page explaining the types of eviction-related support TenantArmor offers (e.g., understanding your rights, steps to take, document templates, links to local legal aid).
+    *   Emphasize that this is informational and not a substitute for legal counsel.
+*   **User Flow (Potential Initial Version):**
+    *   **Guided Questionnaire:**
+        *   "Tell us about your situation."
+        *   A series of questions to understand the user's specific circumstances (e.g., "Have you received a formal eviction notice?", "What is the reason stated for eviction?", "What state/jurisdiction are you in?").
+        *   Based on answers, provide tailored information, checklists, and resource links.
+    *   **Information Hub:**
+        *   Categorized articles and FAQs on tenant rights, eviction processes, and common issues.
+        *   Searchable.
+    *   **Document Templates (Future):**
+        *   Templates for common tenant responses or letters (e.g., letter to landlord about repairs, response to an eviction notice).
+        *   Clear disclaimers about using templates and the need for customization/legal review.
+*   **Separation from Lease Analysis:**
+    *   While both are under the "TenantArmor" umbrella and accessible from the main dashboard navigation, their primary interfaces and workflows will be distinct. Lease Analysis is document-centric and automated. Eviction Help is information/guidance-centric, potentially more interactive through questionnaires.
+    *   Cross-linking where relevant (e.g., if a lease analysis flags a problematic eviction clause, a link to the Eviction Help section could be provided).
+
+**4. Navigation**
+
+*   **Primary (Authenticated Area):** A persistent vertical sidebar on the left for main sections (Dashboard, Lease Analysis, Eviction Help, Account, etc.). This provides clear, consistent access.
+*   **Secondary (Within Sections):** Tabs or sub-menus for navigation within complex sections (e.g., in Lease Analysis results, tabs for "Summary," "Full Text," "Clauses").
+*   **Breadcrumbs:** Useful for deeply nested content, especially in the Eviction Help section.
+
+**5. Design Aesthetics & Branding**
+
+*   **Color Palette:**
+    *   Primary: A reassuring and professional color (e.g., a calm blue or a trustworthy green).
+    *   Secondary: Accent colors for CTAs and highlights (e.g., a slightly brighter, actionable shade of the primary, or a complementary color).
+    *   Neutrals: Grays, off-whites for backgrounds and text.
+*   **Typography:** Clean, legible sans-serif fonts. Ensure good contrast for readability.
+*   **Iconography:** Use icons sparingly and purposefully to aid navigation and comprehension. Keep them consistent in style.
+*   **Imagery:** Professional, high-quality stock photos or custom illustrations that convey trust, support, and clarity. Avoid overly "corporate" or "cold" imagery.
+*   **Overall Feel:** Approachable, supportive, secure, and modern.
+
+**6. Key UI Components (Examples)**
+
+*   **File Uploaders:** Large, clear drop zones with alternative browse buttons.
+*   **Progress Indicators:** Bars, spinners for uploads, processing.
+*   **Cards:** For displaying summaries, service options, recent activity.
+*   **Forms:** Well-structured, with clear labels, placeholders, and validation messages.
+*   **Modals/Pop-ups:** For confirmations, alerts, or focused tasks (use sparingly).
+*   **Tables:** For displaying lists of analyses, etc., with sorting and filtering.
+*   **Accordions/Expandable Sections:** For revealing more detailed information without cluttering the page.
+*   **Notifications:** Toasts or banners for success messages, errors, or important information.
+
+**7. Future Considerations**
+
+*   **User Profile Management:** Update email, password, notification preferences.
+*   **Mobile Responsiveness:** Design should be adaptive for use on tablets and smartphones.
+*   **Enhanced Onboarding:** Guided tours, feature highlighting for new users.
+*   **Collaboration/Sharing (Advanced):** Securely sharing analysis results with a lawyer or advisor.
+*   **Integration with Legal Aid Services:** Direct referrals or information.
+
+This vision provides a comprehensive starting point. The UI developer should use this as a foundation, focusing on user-centric design principles and iterating based on feedback and testing. The key is to create an experience that tenants find easy to use, understand, and trust.

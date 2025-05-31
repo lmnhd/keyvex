@@ -1,0 +1,35 @@
+{
+  "courtInstructions": "File your response at the Justice Court in [county] County. In Texas, you typically have until 11 AM on the Monday following the return date listed on the citation to file your answer. The filing fee is around $54 but can be waived if you qualify for indigent status. File a written answer form and request a trial. You may also file counterclaims for habitability issues or improper charges.",
+  "legalAidContacts": [
+    {
+      "name": "Texas RioGrande Legal Aid",
+      "phone": "(956) 447-4800",
+      "url": "https://www.trla.org/",
+      "notes": "Free legal services for low-income Texans statewide"
+    },
+    {
+      "name": "Lone Star Legal Aid",
+      "phone": "(713) 652-0077",
+      "url": "https://www.lonestarlegal.org/",
+      "notes": "Free civil legal services in Houston and surrounding areas"
+    },
+    {
+      "name": "Legal Aid of Northwest Texas",
+      "phone": "(214) 748-1234",
+      "url": "https://www.lanwt.org/",
+      "notes": "Free legal assistance in Dallas-Fort Worth and North Texas"
+    },
+    {
+      "name": "Texas Advocacy Project",
+      "phone": "(512) 476-5377",
+      "url": "https://www.texasadvocacyproject.org/",
+      "notes": "Legal assistance including housing issues statewide"
+    },
+    {
+      "name": "Austin Tenants' Council",
+      "phone": "(512) 474-1961",
+      "url": "https://www.housing-rights.org/",
+      "notes": "Tenant rights education and advocacy in Austin area"
+    }
+  ]
+} 

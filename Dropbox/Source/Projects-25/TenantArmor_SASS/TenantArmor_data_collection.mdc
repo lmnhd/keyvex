@@ -1,0 +1,816 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# TenantArmor Data Collection System Documentation
+
+## Table of Contents
+1. [Overview](mdc:#overview)
+2. [Architecture](mdc:#architecture)
+3. [Data Collection Interfaces](mdc:#interfaces)
+4. [Data Sources](mdc:#data-sources)
+5. [Usage Patterns](mdc:#usage-patterns)
+6. [Batch Processing](mdc:#batch-processing)
+7. [AI Enhancement](mdc:#ai-enhancement)
+8. [Configuration](mdc:#configuration)
+9. [Deployment](mdc:#deployment)
+10. [Best Practices](mdc:#best-practices)
+11. [Troubleshooting](mdc:#troubleshooting)
+12. [API Reference](mdc:#api-reference)
+
+## Overview {#overview}
+
+The TenantArmor Data Collection System is a comprehensive, scalable solution for acquiring legal templates, case data, and resources from various authoritative sources. It's designed to enhance the eviction response service with verified, up-to-date legal content.
+
+### Key Features
+- **Multi-Source Support**: HUD, Court Records, State Bar, Legal Aid, Custom sources
+- **Batch Processing**: Efficient handling of large-scale data collection tasks
+- **AI Enhancement**: OpenAI integration for content analysis and quality scoring
+- **Rate Limiting**: Respectful concurrency controls for external APIs
+- **Validation Pipeline**: Multi-stage data quality assurance
+- **Template Integration**: Seamless updates to the eviction response system
+
+### Use Cases
+- Collecting official legal forms from state bar associations
+- Scraping verified templates from legal aid organizations
+- Gathering HUD fair housing guidelines and resources
+- Extracting court procedural information
+- Acquiring case law and precedent data
+
+## Architecture {#architecture}
+
+### System Components
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   SQS Queue     │───▶│   Lambda        │───▶│   DynamoDB      │
+│ Data Collection │    │ AI Processing   │    │ Results Storage │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Data Sources    │
+                       │ - HUD           │
+                       │ - Court Records │
+                       │ - State Bar     │
+                       │ - Legal Aid     │
+                       │ - Custom APIs   │
+                       └─────────────────┘
+```
+
+### Processing Flow
+
+1. **Request Creation**: Data collection requests are created and batched
+2. **Queue Processing**: SQS triggers Lambda with batch requests
+3. **Source Routing**: Lambda routes requests to appropriate data source handlers
+4. **Data Extraction**: Source-specific processors collect and parse content
+5. **AI Enhancement**: Optional OpenAI processing for quality scoring and analysis
+6. **Validation**: Multi-stage validation ensures data quality
+7. **Storage**: Results stored in DynamoDB with S3 backup for large datasets
+
+## Data Collection Interfaces {#interfaces}
+
+### Core Data Structures
+
+#### DataCollectionRequest
+Primary interface for defining data collection tasks.
+
+```typescript
+interface DataCollectionRequest {
+  requestId: string;                    // Unique identifier for tracking
+  dataSource: DataSourceType;          // Target data source
+  sourceUrl?: string;                   // Optional specific URL
+  sourceMetadata?: Record<string, any>; // Source-specific metadata
+  collectionType: CollectionType;       // Type of data to collect
+  targetParameters?: TargetParameters;  // Filtering and search criteria
+  processingInstructions?: ProcessingInstructions; // How to process the data
+}
+
+type DataSourceType = 'HUD' | 'COURT_RECORDS' | 'STATE_BAR' | 'LEGAL_AID' | 'CUSTOM';
+type CollectionType = 'LEGAL_TEMPLATES' | 'CASE_DATA' | 'RESOURCE_DIRECTORY' | 'FORMS' | 'STATUTES';
+```
+
+#### TargetParameters
+Defines what data to collect and filter criteria.
+
+```typescript
+interface TargetParameters {
+  states?: string[];           // Target states (e.g., ['CA', 'NY', 'TX'])
+  categories?: string[];       // Content categories to focus on
+  dateRange?: {               // Date range for time-sensitive data
+    start: string;            // YYYY-MM-DD format
+    end: string;
+  };
+  searchTerms?: string[];     // Keywords for content filtering
+}
+```
+
+#### ProcessingInstructions
+Controls how collected data is processed and enhanced.
+
+```typescript
+interface ProcessingInstructions {
+  extractionMode: 'FULL_TEXT' | 'STRUCTURED_DATA' | 'METADATA_ONLY';
+  outputFormat: 'JSON' | 'MARKDOWN' | 'RAW_TEXT';
+  aiProcessing?: boolean;     // Enable AI enhancement
+  validationRules?: string[]; // Custom validation rules
+}
+```
+
+#### CollectedDataItem
+Represents a single piece of collected data.
+
+```typescript
+interface CollectedDataItem {
+  itemId: string;            // Unique identifier
+  sourceType: string;        // Source classification
+  sourceUrl: string;         // Origin URL
+  title?: string;            // Document/content title
+  content: string;           // Extracted content
+  metadata: Record<string, any>; // Additional metadata
+  extractedAt: string;       // ISO timestamp
+  qualityScore?: number;     // AI-generated quality score (0-1)
+  validationStatus?: ValidationStatus;
+}
+
+type ValidationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'NEEDS_REVIEW';
+```
+
+## Data Sources {#data-sources}
+
+### HUD (Department of Housing and Urban Development)
+**Purpose**: Federal housing guidelines, fair housing resources, tenant rights information
+
+**Concurrency Limit**: 2 requests (respectful to government APIs)
+
+**Typical URLs**:
+- `https://www.hud.gov/program_offices/fair_housing_equal_opp`
+- `https://www.hud.gov/states/[state_code]/renting`
+
+**Example Request**:
+```typescript
+{
+  requestId: "hud_fair_housing_2024",
+  dataSource: "HUD",
+  collectionType: "LEGAL_TEMPLATES",
+  targetParameters: {
+    states: ["CA", "NY", "TX"],
+    categories: ["fair_housing", "discrimination", "accessibility"]
+  }
+}
+```
+
+### COURT_RECORDS
+**Purpose**: Court procedures, forms, case precedents, filing requirements
+
+**Concurrency Limit**: 1 request (very conservative for court systems)
+
+**Integration Points**:
+- PACER (federal courts)
+- State court websites
+- Local superior court systems
+
+**Example Request**:
+```typescript
+{
+  requestId: "ca_superior_court_procedures",
+  dataSource: "COURT_RECORDS",
+  collectionType: "FORMS",
+  targetParameters: {
+    states: ["CA"],
+    categories: ["unlawful_detainer", "filing_procedures"]
+  }
+}
+```
+
+### STATE_BAR
+**Purpose**: Official legal forms, attorney guidance, legal aid directories
+
+**Concurrency Limit**: 3 requests (moderate for professional sites)
+
+**Example Sources**:
+- California State Bar: `https://www.calbar.ca.gov/Public/Free-Legal-Information`
+- New York State Bar: `https://www.nysba.org/public-resources/`
+- Texas State Bar: `https://www.texasbar.com/AM/Template.cfm?Section=Free_Legal_Information`
+
+**Example Request**:
+```typescript
+{
+  requestId: "ny_state_bar_tenant_forms",
+  dataSource: "STATE_BAR",
+  collectionType: "FORMS",
+  targetParameters: {
+    states: ["NY"],
+    categories: ["tenant_rights", "eviction_defense"]
+  }
+}
+```
+
+### LEGAL_AID
+**Purpose**: Verified tenant response templates, self-help resources, legal aid contacts
+
+**Concurrency Limit**: 3 requests (respectful to non-profit organizations)
+
+**Example Sources**:
+- Legal Aid Foundation of Los Angeles: `https://www.lafla.org/self-help/`
+- Texas RioGrande Legal Aid: `https://www.trla.org/self-help-library`
+- Legal Services NYC: `https://www.legalservicesnyc.org/self-help`
+
+**Example Request**:
+```typescript
+{
+  requestId: "lafla_eviction_templates",
+  dataSource: "LEGAL_AID",
+  collectionType: "LEGAL_TEMPLATES",
+  targetParameters: {
+    states: ["CA"],
+    categories: ["eviction_response", "tenant_defenses"],
+    searchTerms: ["answer to unlawful detainer"]
+  }
+}
+```
+
+### CUSTOM
+**Purpose**: Any other legal resource websites, legal publishers, specialized databases
+
+**Concurrency Limit**: 2 requests (conservative default)
+
+**Example Sources**:
+- Nolo Legal Encyclopedia
+- Justia Legal Resources
+- State-specific tenant rights organizations
+
+**Example Request**:
+```typescript
+{
+  requestId: "nolo_tenant_resources",
+  dataSource: "CUSTOM",
+  sourceUrl: "https://www.nolo.com/legal-encyclopedia/landlord-tenant-law",
+  collectionType: "LEGAL_TEMPLATES",
+  sourceMetadata: {
+    siteType: "legal_publisher",
+    credibilityScore: 0.95
+  }
+}
+```
+
+## Usage Patterns {#usage-patterns}
+
+### 1. Single Source Collection
+For collecting from one specific source:
+
+```typescript
+const singleRequest: DataCollectionRequest[] = [{
+  requestId: "ca_state_bar_single",
+  dataSource: "STATE_BAR",
+  sourceUrl: "https://www.calbar.ca.gov/Public/Free-Legal-Information",
+  collectionType: "FORMS",
+  targetParameters: {
+    states: ["CA"],
+    categories: ["unlawful_detainer"]
+  },
+  processingInstructions: {
+    extractionMode: "FULL_TEXT",
+    outputFormat: "MARKDOWN",
+    aiProcessing: true
+  }
+}];
+```
+
+### 2. Multi-State Template Collection
+For collecting similar content across multiple states:
+
+```typescript
+const multiStateRequests: DataCollectionRequest[] = [
+  {
+    requestId: "west_coast_eviction_forms",
+    dataSource: "STATE_BAR",
+    collectionType: "FORMS",
+    targetParameters: {
+      states: ["CA", "OR", "WA"],
+      categories: ["eviction", "unlawful_detainer", "tenant_response"]
+    }
+  }
+];
+```
+
+### 3. Comprehensive Legal Resource Sweep
+For collecting all available resources for a specific legal area:
+
+```typescript
+const comprehensiveRequests: DataCollectionRequest[] = [
+  // HUD federal resources
+  {
+    requestId: "federal_fair_housing",
+    dataSource: "HUD",
+    collectionType: "LEGAL_TEMPLATES",
+    targetParameters: {
+      categories: ["fair_housing", "discrimination"]
+    }
+  },
+  // State-specific forms
+  {
+    requestId: "state_eviction_forms",
+    dataSource: "STATE_BAR",
+    collectionType: "FORMS",
+    targetParameters: {
+      states: ["CA", "NY", "TX", "FL"],
+      categories: ["eviction", "tenant_defense"]
+    }
+  },
+  // Legal aid templates
+  {
+    requestId: "legal_aid_templates",
+    dataSource: "LEGAL_AID",
+    collectionType: "LEGAL_TEMPLATES",
+    targetParameters: {
+      states: ["CA", "NY", "TX", "FL"],
+      categories: ["eviction_response"]
+    }
+  }
+];
+```
+
+## Batch Processing {#batch-processing}
+
+### SQS Message Format
+Data collection batches are triggered via SQS messages:
+
+```json
+{
+  "dataCollectionBatch": true,
+  "batchId": "data_collection_20241215_001",
+  "dataCollectionRequests": [
+    {
+      "requestId": "request_1",
+      "dataSource": "HUD",
+      "collectionType": "LEGAL_TEMPLATES",
+      "targetParameters": {
+        "states": ["CA", "NY"],
+        "categories": ["fair_housing"]
+      },
+      "processingInstructions": {
+        "extractionMode": "FULL_TEXT",
+        "outputFormat": "MARKDOWN",
+        "aiProcessing": true
+      }
+    }
+  ]
+}
+```
+
+### Lambda Processing Flow
+
+1. **Detection**: Lambda detects `dataCollectionBatch: true`
+2. **Routing**: Calls `handleDataCollectionBatch()`
+3. **Grouping**: Requests grouped by data source for optimization
+4. **Concurrency Control**: Source-specific rate limiting applied
+5. **Processing**: Each request processed through appropriate handler
+6. **Enhancement**: Optional AI processing for quality scoring
+7. **Validation**: Data validated against specified rules
+8. **Storage**: Results stored with comprehensive metadata
+
+### Result Storage
+
+Results are stored in DynamoDB with the following structure:
+
+```typescript
+{
+  analysisId: `data_collection_batch_${batchId}`,
+  batchType: 'DATA_COLLECTION',
+  status: 'COMPLETED',
+  batchSummary: {
+    batchId: string,
+    totalRequests: number,
+    successfulRequests: number,
+    failedRequests: number,
+    totalItemsCollected: number,
+    processingTimeMs: number,
+    sourceTypes: Record<string, number>,
+    averageQualityScore?: number,
+    completedAt: string,
+    resultsLocation: string // S3 path for detailed results
+  },
+  lastUpdatedTimestamp: string
+}
+```
+
+## AI Enhancement {#ai-enhancement}
+
+### When AI Processing is Enabled
+
+When `processingInstructions.aiProcessing = true`, the system provides:
+
+#### 1. Content Analysis
+- Extracts key legal concepts and terminology
+- Identifies relevant statutes and case law references
+- Categorizes content by legal domain and jurisdiction
+
+#### 2. Quality Scoring
+- Assigns quality scores (0-1) based on:
+  - Content completeness
+  - Legal accuracy indicators
+  - Source credibility
+  - Recency of information
+
+#### 3. Template Extraction
+- Identifies reusable template patterns
+- Extracts fillable form fields
+- Recognizes standard legal language structures
+
+#### 4. Cross-Reference Validation
+- Links related content across different sources
+- Identifies conflicting information
+- Flags outdated or superseded content
+
+### AI Processing Configuration
+
+```typescript
+{
+  processingInstructions: {
+    extractionMode: "FULL_TEXT",
+    outputFormat: "MARKDOWN",
+    aiProcessing: true,
+    validationRules: [
+      "legal_accuracy",
+      "template_completeness",
+      "jurisdiction_validity",
+      "content_freshness"
+    ]
+  }
+}
+```
+
+## Configuration {#configuration}
+
+### Environment Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DYNAMODB_LEASE_ANALYSES_TABLE` | DynamoDB table for results | `TenantArmorStack-AnalysesTable` |
+| `OPENAI_API_KEY_SECRET_NAME` | AWS Secrets Manager key name | `tenant-armor/openai-key` |
+| `AWS_REGION` | AWS region for resources | `us-west-2` |
+| `DATA_COLLECTION_S3_BUCKET` | S3 bucket for large result sets | `tenant-armor-data-collection` |
+
+### Concurrency Limits
+
+Default concurrency limits by source type (configurable):
+
+```typescript
+const CONCURRENCY_LIMITS = {
+  HUD: 2,              // Government APIs - be respectful
+  COURT_RECORDS: 1,    // Court systems - very conservative
+  STATE_BAR: 3,        // Professional sites - moderate
+  LEGAL_AID: 3,        // Non-profit sites - moderate
+  CUSTOM: 2            // Unknown sites - conservative default
+};
+```
+
+### Rate Limiting
+
+- **Inter-chunk delay**: 1 second between request chunks
+- **Request timeout**: 30 seconds per individual request
+- **Batch timeout**: 15 minutes for entire batch
+- **Retry policy**: 3 attempts with exponential backoff
+
+## Deployment {#deployment}
+
+### Prerequisites
+
+1. **AWS Infrastructure**:
+   - Lambda function with appropriate IAM roles
+   - SQS queue for batch processing
+   - DynamoDB table for results storage
+   - S3 bucket for large datasets
+   - Secrets Manager for API keys
+
+2. **Dependencies**:
+   - OpenAI API key configured in Secrets Manager
+   - PromptManager class initialized
+   - Network access to target data sources
+
+### Deployment Steps
+
+1. **Deploy Lambda Code**:
+   ```bash
+   cd aws-infra
+   npm run build
+   cdk deploy
+   ```
+
+2. **Configure Environment Variables**:
+   ```typescript
+   // In CDK stack
+   const lambda = new Function(this, 'AIProcessingLambda', {
+     environment: {
+       DYNAMODB_LEASE_ANALYSES_TABLE: analysesTable.tableName,
+       OPENAI_API_KEY_SECRET_NAME: openaiSecret.secretName,
+       DATA_COLLECTION_S3_BUCKET: dataBucket.bucketName
+     }
+   });
+   ```
+
+3. **Set Up Monitoring**:
+   - CloudWatch logs for Lambda execution
+   - CloudWatch metrics for batch processing performance
+   - Alarms for failed data collection attempts
+
+### Testing Deployment
+
+```bash
+# Test single data collection request
+aws sqs send-message \
+  --queue-url "https://sqs.us-west-2.amazonaws.com/123456789/ai-processing-queue" \
+  --message-body '{
+    "dataCollectionBatch": true,
+    "batchId": "test_batch_001",
+    "dataCollectionRequests": [{
+      "requestId": "test_hud_request",
+      "dataSource": "HUD",
+      "collectionType": "LEGAL_TEMPLATES",
+      "targetParameters": {"states": ["CA"]},
+      "processingInstructions": {"extractionMode": "METADATA_ONLY"}
+    }]
+  }'
+```
+
+## Best Practices {#best-practices}
+
+### Data Collection Strategy
+
+1. **Start Small**: Begin with metadata-only collection to understand source structure
+2. **Progressive Enhancement**: Add AI processing after validating basic collection
+3. **State Prioritization**: Focus on high-volume states (CA, NY, TX, FL) first
+4. **Source Verification**: Always validate collected content with legal experts
+
+### Performance Optimization
+
+1. **Batch Size**: Keep batches under 20 requests for optimal Lambda performance
+2. **Source Grouping**: Group requests by source type in the same batch
+3. **Caching**: Implement caching for frequently accessed templates
+4. **Parallel Processing**: Use appropriate concurrency limits for each source
+
+### Content Quality
+
+1. **Validation Rules**: Always specify validation rules for legal content
+2. **Source Metadata**: Include comprehensive source attribution
+3. **Version Control**: Track template versions and update dates
+4. **Legal Review**: Establish human review workflow for AI-processed content
+
+### Error Handling
+
+1. **Graceful Degradation**: Continue processing other requests if one fails
+2. **Detailed Logging**: Include comprehensive error context
+3. **Retry Logic**: Implement appropriate retry strategies for different failure types
+4. **Monitoring**: Set up alerts for unusual failure patterns
+
+## Troubleshooting {#troubleshooting}
+
+### Common Issues
+
+#### 1. High Failure Rate for Specific Source
+**Symptoms**: Many requests failing for one data source
+**Possible Causes**:
+- Source website structure changed
+- Rate limiting triggered
+- Network connectivity issues
+- Authentication problems
+
+**Solutions**:
+- Check source website manually
+- Reduce concurrency limit
+- Implement exponential backoff
+- Update authentication credentials
+
+#### 2. AI Processing Failures
+**Symptoms**: `aiProcessing: true` requests consistently failing
+**Possible Causes**:
+- OpenAI API key issues
+- Content too large for processing
+- Invalid prompt configuration
+- Rate limit exceeded
+
+**Solutions**:
+- Verify OpenAI API key in Secrets Manager
+- Implement content chunking for large documents
+- Review and update prompt templates
+- Monitor OpenAI usage limits
+
+#### 3. Low Quality Scores
+**Symptoms**: Collected content receiving low AI quality scores
+**Possible Causes**:
+- Source content is outdated
+- Extraction capturing irrelevant information
+- Validation rules too strict
+- Source not authoritative
+
+**Solutions**:
+- Update target parameters to be more specific
+- Refine extraction mode (STRUCTURED_DATA vs FULL_TEXT)
+- Adjust validation rules
+- Re-evaluate source credibility
+
+#### 4. Batch Processing Timeouts
+**Symptoms**: Batches failing due to Lambda timeout
+**Possible Causes**:
+- Batch size too large
+- Individual requests taking too long
+- External source response delays
+- AI processing bottlenecks
+
+**Solutions**:
+- Reduce batch size
+- Implement request timeouts
+- Optimize source-specific processors
+- Disable AI processing for large batches
+
+### Debugging Tools
+
+#### CloudWatch Logs
+Monitor Lambda execution with structured logging:
+```
+(Data Collection) Starting batch data collection for 5 requests
+(Data Collection) Processing HUD data source for request: hud_fair_housing_2024
+(Data Collection) Request completed: hud_fair_housing_2024 (3 items)
+```
+
+#### DynamoDB Queries
+Check batch results:
+```sql
+-- Get batch summary
+SELECT * FROM TenantArmorStack-AnalysesTable 
+WHERE analysisId = 'data_collection_batch_20241215_001'
+
+-- Check for failed requests
+SELECT * FROM TenantArmorStack-AnalysesTable 
+WHERE batchType = 'DATA_COLLECTION' AND status = 'FAILED'
+```
+
+#### CloudWatch Metrics
+Monitor key performance indicators:
+- `DataCollectionRequests` (total requests processed)
+- `DataCollectionErrors` (failed requests)
+- `SourceResponseTime` (by source type)
+- `AIProcessingTime` (AI enhancement duration)
+
+## API Reference {#api-reference}
+
+### Main Functions
+
+#### `processBatchDataCollection()`
+Primary function for processing data collection batches.
+
+```typescript
+async function processBatchDataCollection(
+  requests: DataCollectionRequest[],
+  openaiClient?: OpenAI,
+  promptManager?: PromptManager
+): Promise<DataCollectionResults>
+```
+
+**Parameters**:
+- `requests`: Array of data collection requests
+- `openaiClient`: Optional OpenAI client for AI processing
+- `promptManager`: Optional prompt manager for template processing
+
+**Returns**: `DataCollectionResults` with success/failure details and metrics
+
+#### `handleDataCollectionBatch()`
+Lambda handler for processing SQS batch messages.
+
+```typescript
+async function handleDataCollectionBatch(
+  dataCollectionRequests: DataCollectionRequest[], 
+  batchId: string
+): Promise<void>
+```
+
+**Parameters**:
+- `dataCollectionRequests`: Array of requests from SQS message
+- `batchId`: Unique identifier for the batch
+
+### Source-Specific Processors
+
+#### `processHudDataSource()`
+```typescript
+async function processHudDataSource(
+  request: DataCollectionRequest
+): Promise<{
+  collectedItems: CollectedDataItem[];
+  sourceMetrics: SourceMetrics;
+}>
+```
+
+#### `processStateBarSource()`
+```typescript
+async function processStateBarSource(
+  request: DataCollectionRequest
+): Promise<{
+  collectedItems: CollectedDataItem[];
+  sourceMetrics: SourceMetrics;
+}>
+```
+
+#### `processLegalAidSource()`
+```typescript
+async function processLegalAidSource(
+  request: DataCollectionRequest
+): Promise<{
+  collectedItems: CollectedDataItem[];
+  sourceMetrics: SourceMetrics;
+}>
+```
+
+#### `processCourtRecordsSource()`
+```typescript
+async function processCourtRecordsSource(
+  request: DataCollectionRequest
+): Promise<{
+  collectedItems: CollectedDataItem[];
+  sourceMetrics: SourceMetrics;
+}>
+```
+
+#### `processCustomDataSource()`
+```typescript
+async function processCustomDataSource(
+  request: DataCollectionRequest
+): Promise<{
+  collectedItems: CollectedDataItem[];
+  sourceMetrics: SourceMetrics;
+}>
+```
+
+### Utility Functions
+
+#### `enhanceDataWithAI()`
+```typescript
+async function enhanceDataWithAI(
+  items: CollectedDataItem[],
+  request: DataCollectionRequest,
+  openaiClient: OpenAI,
+  promptManager: PromptManager
+): Promise<CollectedDataItem[]>
+```
+
+#### `validateCollectedData()`
+```typescript
+async function validateCollectedData(
+  items: CollectedDataItem[],
+  validationRules: string[]
+): Promise<CollectedDataItem[]>
+```
+
+#### `getSourceConcurrencyLimit()`
+```typescript
+function getSourceConcurrencyLimit(sourceType: string): number
+```
+
+### Integration Points
+
+#### Template System Integration
+Collected templates automatically integrate with the existing eviction response system:
+
+```typescript
+// Templates are stored in DynamoDB with this structure
+{
+  promptType: `${state}_${reason}_response`, // e.g., "CA_non-payment_response"
+  content: string,                          // Collected template content
+  metadata: {
+    source: string,                         // Original source URL
+    extractedAt: string,                    // Collection timestamp
+    qualityScore?: number,                  // AI quality assessment
+    validationStatus: ValidationStatus,    // Validation result
+    legalReview?: {                        // Human review metadata
+      reviewedBy: string,
+      reviewedAt: string,
+      approved: boolean,
+      notes?: string
+    }
+  }
+}
+```
+
+#### Monitoring Integration
+The system provides comprehensive metrics for monitoring:
+
+```typescript
+interface BatchMetrics {
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  totalItemsCollected: number;
+  processingTimeMs: number;
+  sourceTypes: Record<string, number>;
+  averageQualityScore?: number;
+}
+```
+
+These metrics are logged to CloudWatch and stored in DynamoDB for analysis and alerting.
+
+---
+
+This documentation provides a comprehensive guide to the TenantArmor Data Collection System. For additional support or to report issues, please refer to the project's issue tracking system or contact the development team.
+
+

@@ -1,0 +1,1 @@
+Placeholder for TX eviction response template source. 

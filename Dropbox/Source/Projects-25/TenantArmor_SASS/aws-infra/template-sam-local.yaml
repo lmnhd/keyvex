@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  SAM Local template for developing the PdfProcessorFunction.
+  Points directly to the source code for local builds and invocation.
+
+Resources:
+  PdfProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: PdfProcessorFunctionLocal # Give it a slightly different name for clarity
+      Handler: index.handler # From your tenant-armor-stack.ts and assuming index.py
+      Runtime: python3.12 # Match your CDK definition
+      CodeUri: lambda-fns/pdf-processor/ # Path relative to this template file
+      Architectures:
+        - arm64 # Match your CDK definition
+      Environment: # Add environment variables your Lambda expects
+        Variables:
+          LEASE_ANALYSES_TABLE_NAME: "LeaseAnalysesTableLocal" # Placeholder
+          NEXTJS_API_ENDPOINT_FOR_LAMBDA: "http://localhost:8000/api/some_endpoint" # Placeholder
+          # Add any other environment variables defined in your CDK stack
+      Timeout: 60 # Match your CDK definition or adjust for local
+      MemorySize: 512 # Match your CDK definition
+
+# You can add other resources here if needed for local testing, like a dummy S3 event source
+# Example (uncomment and adjust if you want sam local generate-event s3 to work with this template):
+# Events:
+#   S3Event:
+#     Type: S3
+#     Properties:
+#       Bucket: !Ref LocalTestBucket
+#       Events: s3:ObjectCreated:*
+
+# LocalTestBucket:
+#   Type: AWS::S3::Bucket
+#   Properties:
+#     BucketName: my-local-test-bucket-for-sam 

@@ -1,0 +1,124 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# TenantArmor: UI/UX Vision Document
+
+**1. Introduction & Core Philosophy**
+
+TenantArmor aims to empower tenants by providing accessible and understandable legal-tech services. The UI should reflect this mission by being:
+
+*   **Trustworthy & Professional:** Users are often in vulnerable situations. The design must inspire confidence.
+*   **Clear & Intuitive:** Easy to navigate, with straightforward language. Avoid legal jargon where possible, or explain it clearly.
+*   **Accessible:** Adhere to accessibility best practices (WCAG AA as a target).
+*   **Empathetic:** The design and tone should be supportive and reassuring.
+*   **Modern & Clean:** A contemporary aesthetic that is easy on the eyes and promotes usability.
+
+**2. Overall Application Structure**
+
+The application will feature a public-facing landing page and a secure, user-specific dashboard area.
+
+**2.1. Landing Page**
+
+*   **Purpose:** Introduce TenantArmor, explain its value proposition, build trust, and encourage sign-ups.
+*   **Key Sections:**
+    *   Hero Section (Headline, Sub-headline, Visual, Primary CTA: "Get Started Free" or "Sign Up").
+    *   How It Works (Simple 3-4 step visual explanation for each core service).
+    *   Services Overview (Dedicated cards/sections for "Lease Analysis" and "Eviction Help").
+    *   Benefits/Features.
+    *   Testimonials/Social Proof (Future).
+    *   Footer (About Us, Contact, Privacy Policy, Terms of Service).
+*   **Navigation:** Top navigation (Services, How it Works, Pricing (if applicable), Login, Sign Up).
+
+**2.2. User Authentication (Sign Up / Login)**
+
+*   Standard email/password and OAuth options (Google).
+*   Clean forms, clear error messaging, password reset.
+*   Minimal viable onboarding: Welcome message, direction to dashboard.
+
+**2.3. Main Dashboard**
+
+*   **Purpose:** User's central hub. Overview and quick access to services and activity.
+*   **Layout:**
+    *   **Persistent Sidebar Navigation:** Dashboard (Overview), Lease Analysis, Eviction Help, My Account/Profile, Help/Support, Logout.
+    *   **Main Content Area:** Welcome Message, Quick Actions ("Analyze a New Lease," "Get Eviction Help"), Recent Activity (Lease Analysis), Notifications/Alerts (Future).
+
+**3. Core Services: UI & User Flow**
+
+Services will have distinct sections but share a consistent design language.
+
+**3.1. Lease Analysis Service**
+
+*   **Initiation:** "Upload Your Lease" page.
+    *   Drag-and-drop file uploader (PDF only, size limits communicated).
+    *   Optional input fields (Property Address, Lease Dates).
+    *   Consent/Acknowledgement checkbox.
+    *   Progress indication for upload/processing.
+*   **Processing View:** "Processing your lease..." page or status within history.
+*   **Results Presentation (Dedicated Page per Lease):**
+    *   Header (Document name, upload date, status).
+    *   Download Original PDF button.
+    *   Key Insights Summary (expandable bulleted/card-based critical findings).
+    *   Extracted Text View (scrollable pane or tab, to display content from `extracted_text_output.txt` for local testing).
+    *   Clause-by-Clause Breakdown (Future).
+    *   Search within Document.
+    *   CTAs: "Print Analysis," "Download Summary PDF," "Report an Issue."
+*   **History View:** Paginated list of analyzed leases (Document Name, Upload Date, Status, Actions).
+
+**3.2. Eviction Help Service**
+
+*   **Nature:** Informational and guidance-based, distinct from automated lease analysis.
+*   **Landing/Entry Point:** Explains support types (understanding rights, steps, templates, legal aid links). Emphasize it's not legal counsel.
+*   **User Flow (Initial):**
+    *   Guided Questionnaire ("Tell us about your situation") for tailored info, checklists, resource links.
+    *   Information Hub (Categorized articles, FAQs, searchable).
+    *   Document Templates (Future, with disclaimers).
+*   **Separation:** Distinct sections, distinct primary interfaces, but cross-linked where relevant.
+
+**4. Navigation**
+
+*   **Primary (Authenticated):** Persistent left vertical sidebar.
+*   **Secondary (Within Sections):** Tabs or sub-menus.
+*   **Breadcrumbs:** For deep content, especially Eviction Help.
+
+**5. Design Aesthetics & Branding**
+
+*   **Color Palette:** Primary (calm blue/trustworthy green), Secondary (accents for CTAs), Neutrals (grays, off-whites).
+*   **Typography:** Clean, legible sans-serif fonts, good contrast.
+*   **Iconography:** Sparingly, purposefully, consistent style.
+*   **Imagery:** Professional, supportive, high-quality. Avoid cold/corporate.
+    *   **Unsplash Integration:** Utilize the Unsplash API to source high-quality and diverse imagery for the application (e.g., for blog posts, section backgrounds if appropriate, user profile pictures).
+    *   All images sourced via Unsplash must adhere to Unsplash's licensing and attribution requirements.
+    *   Imagery should align with the brand's core values: trustworthy, clear, empathetic, modern.
+*   **Overall Feel:** Approachable, supportive, secure, modern.
+
+**6. Key UI Components**
+
+File Uploaders, Progress Indicators, Cards, Forms, Modals, Tables, Accordions, Notifications.
+*   **Image Selection & Display:**
+    *   **UnsplashImagePicker Component:** A standardized component will be developed for searching and selecting images from Unsplash.
+    *   This component should provide a user-friendly search interface and display results clearly.
+    *   It must handle image selection and ensure that attribution data (photographer name, Unsplash link) is captured and displayed as per Unsplash guidelines.
+    *   The selected image and its attribution information should be easily integratable into various parts of the application.
+
+**7. Future Considerations**
+
+User Profile Management, Mobile Responsiveness, Enhanced Onboarding, Collaboration/Sharing, Legal Aid Integration.
+
+This rule is based on the UI/UX vision detailed in the conversation. It should guide UI development for the TenantArmor project, which is being built with Next.js.
+The two main services, Lease Analysis (focusing on PDF processing, with outputs like `extracted_text_output.txt` for testing) and Eviction Help, should be distinct yet cohesive parts of the application.
+A dashboard will serve as the central hub for authenticated users.
+The public landing page will be the initial entry point for new users.
+
+**8. Unsplash Integration Technical Details**
+
+*   **API Key Management:** The Unsplash API Access Key must be stored securely as an environment variable and accessed only server-side (e.g., via Next.js API routes) to prevent exposure on the client-side.
+*   **Attribution:** As per Unsplash API guidelines:
+    *   Credit the photographer by name with a link to their Unsplash profile.
+    *   Indicate the photo was sourced from Unsplash with a link.
+    *   Trigger the download tracking endpoint when a photo is used/downloaded.
+*   **Component Implementation:** The `UnsplashImagePicker` component will encapsulate the logic for searching, displaying, selecting, and handling attribution for Unsplash images.
+*   **API Routes:** Next.js API routes will be used to proxy requests to the Unsplash API, allowing for secure key management and server-side processing.
+*   **README:** For detailed setup, usage, and troubleshooting, refer to the `src/lib/unsplash-readme.md` file. This document provides comprehensive instructions for developers working with the Unsplash integration.
+

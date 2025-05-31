@@ -1,0 +1,62 @@
+{
+  "version": "41.0.0",
+  "files": {
+    "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6": {
+      "displayName": "TenantArmorStack/Custom::S3AutoDeleteObjectsCustomResourceProvider Code",
+      "source": {
+        "path": "asset.faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "9a335fd3da6bd091c8a93bf62a07537bf58842ff733038cef6c35b4b249ae682": {
+      "displayName": "ProcessUploadedLeaseLambda/Code",
+      "source": {
+        "path": "asset.9a335fd3da6bd091c8a93bf62a07537bf58842ff733038cef6c35b4b249ae682.zip",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "9a335fd3da6bd091c8a93bf62a07537bf58842ff733038cef6c35b4b249ae682.zip",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "dc4430861521e73f963e4d6344e751b5a658d7df42fe7845eb01da14db184265": {
+      "displayName": "AILeaseProcessingLambda/Code",
+      "source": {
+        "path": "asset.dc4430861521e73f963e4d6344e751b5a658d7df42fe7845eb01da14db184265.zip",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "dc4430861521e73f963e4d6344e751b5a658d7df42fe7845eb01da14db184265.zip",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "b9265c6c87d3f9af9e9338dedfd5c24b69e1ccfdeca4e725fc94ddb01fd61e44": {
+      "displayName": "TenantArmorStack Template",
+      "source": {
+        "path": "TenantArmorStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "b9265c6c87d3f9af9e9338dedfd5c24b69e1ccfdeca4e725fc94ddb01fd61e44.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

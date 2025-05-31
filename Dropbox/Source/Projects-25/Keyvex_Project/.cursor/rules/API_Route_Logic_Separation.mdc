@@ -1,0 +1,72 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# API Route Logic Separation
+
+## Core Principle
+
+**Always separate core business logic from Next.js API route handlers** to enable easy import into Lambda functions.
+
+## Pattern to Follow
+
+### ✅ Correct Pattern
+
+```typescript
+// keyvex_app/src/app/api/ai/magic-spark/core-logic.ts
+export async function magicSparkProcessor(context: AIProcessingContext) {
+  // Core AI processing logic here
+  return result;
+}
+
+// keyvex_app/src/app/api/ai/magic-spark/route.ts
+import { magicSparkProcessor } from './core-logic';
+
+export async function POST(request: Request) {
+  // Handle Vercel-specific logic (request parsing, auth, etc.)
+  const result = await magicSparkProcessor(context);
+  return Response.json(result);
+}
+```
+
+### ❌ Avoid This Pattern
+
+```typescript
+// keyvex_app/src/app/api/ai/magic-spark/route.ts
+export async function POST(request: Request) {
+  // DON'T put core logic directly in the route handler
+  const aiResult = await openai.chat.completions.create({...});
+  const processedData = await processAIResponse(aiResult);
+  return Response.json(processedData);
+}
+```
+
+## Why This Matters
+
+1. **Lambda Reusability**: Core logic can be imported directly into AWS Lambda functions
+2. **Code Sharing**: Same logic works in both Vercel and AWS environments
+3. **Testing**: Core logic can be unit tested independently
+4. **Maintenance**: Business logic changes only need to happen in one place
+
+## File Naming Convention
+
+- **Core Logic**: `core-logic.ts` (contains pure business logic)
+- **Route Handler**: `route.ts` (contains Next.js-specific handling)
+
+## What Goes Where
+
+### Core Logic File (`core-logic.ts`)
+- AI processing logic
+- Business rule implementations
+- Data transformations
+- Database operations
+- External API calls
+
+### Route Handler File (`route.ts`)
+- Request parsing and validation
+- Authentication checks
+- Response formatting
+- Error handling for HTTP context
+- Vercel-specific optimizations
+

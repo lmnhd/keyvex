@@ -1,0 +1,83 @@
+[tenantName]
+[tenantAddress]
+[City], [State] [zipCode]
+[tenantPhone]
+[tenantEmail]
+
+[Date]
+
+[landlordName]
+[landlordAddress]
+[City], [State] [zipCode]
+
+RE: Response to Notice to Quit
+    Property Address: [propertyAddress]
+    Notice Date: [noticeDate]
+
+Dear [landlordName],
+
+I am writing in response to the Notice to Quit dated [noticeDate] that I received regarding the above-referenced property.
+
+PAYMENT DISPUTE AND LEGAL DEFENSES
+
+I hereby dispute this eviction notice on the following grounds under Texas Property Code and applicable tenant protection laws:
+
+1. **IMPROPER NOTICE DEFECTS**
+   The notice you served contains legal defects that make it invalid under Texas Property Code Section 24.005:
+   - [Check if applicable: The notice period is incorrect - must be at least 3 days]
+   - [Check if applicable: The amount demanded is incorrect or includes illegal fees]
+   - [Check if applicable: The notice was not properly served according to Texas Rules of Civil Procedure]
+   - [Check if applicable: Notice fails to comply with lease terms regarding notice procedures]
+
+2. **RENT PAYMENT RECORDS**
+   My rent payment history shows:
+   - Last rent payment: $[lastPaymentAmount] on [lastPaymentDate]
+   - Payment method: [paymentMethod]
+   - Current rent amount: $[monthlyRent] per month
+
+3. **CONDITION OF PREMISES**
+   The property has the following habitability issues that affect my obligation to pay rent under Texas Property Code Section 92.056:
+   - [List any habitability issues if applicable]
+   - Lack of essential utilities or services
+   - Health and safety violations
+   - Failure to make requested repairs affecting habitability
+
+4. **RETALIATORY EVICTION PROTECTION**
+   [If applicable] This eviction appears to be in retaliation for [specific tenant action], which is prohibited under Texas Property Code Section 92.331.
+
+5. **IMPROPER FEES AND CHARGES**
+   The amount demanded includes:
+   - [If applicable] Late fees that exceed lease terms or are unreasonable under Texas law
+   - [If applicable] Utilities or charges not properly allocated under lease agreement
+   - [If applicable] Other charges that are not properly documented or legal
+
+6. **RENTAL ASSISTANCE**
+   [If applicable] I have applied for emergency rental assistance and am seeking resolution through available assistance programs.
+
+DEMAND FOR CURE AND COMPLIANCE
+
+If there are legitimate amounts owed, I am willing to discuss a reasonable payment plan. However, I maintain that this eviction notice is legally defective and demand that you:
+
+1. Withdraw this improper notice immediately
+2. Provide proper accounting of any amounts claimed to be owed with documentation
+3. Allow reasonable time for payment arrangements if legitimate amounts are due
+4. Provide receipts for all claimed charges and fees
+
+NOTICE OF INTENT TO DEFEND
+
+Please be advised that if you proceed with this forcible detainer action, I intend to vigorously defend my rights in Justice Court. Texas law provides tenant protections, and improper eviction attempts can result in damages to landlords.
+
+Texas Property Code Section 92.0081 requires specific procedures for eviction, and failure to follow proper notice and procedures can invalidate the eviction process.
+
+I request that you contact me immediately to resolve this matter without the need for litigation.
+
+Sincerely,
+
+[tenantName]
+[tenantSignature]
+
+Date: [Date]
+
+---
+
+IMPORTANT: This letter should be sent certified mail, return receipt requested, and copies should be retained for your records. In Texas, consider consulting with a tenant rights attorney or legal aid organization immediately. You have the right to appear in court and present your defenses. 

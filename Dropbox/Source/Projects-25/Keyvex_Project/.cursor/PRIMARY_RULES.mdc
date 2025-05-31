@@ -1,0 +1,296 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Keyvex Project Development Rules
+
+## Core Architecture Principles
+
+### Vercel-First with AWS Database Strategy
+- Use DynamoDB as primary database for all application data (managed via CDK)
+- Use AWS ElastiCache Redis for caching (managed via CDK)
+- Use AWS SQS for background job processing (managed via CDK)
+- All AWS infrastructure defined in CDK stacks
+- No Prisma/PostgreSQL - DynamoDB for easier management
+- Vercel for frontend and API routes, AWS for data and background processing
+
+### AI Logic Separation
+- ALWAYS separate AI logic from other server processing
+- Keep all AI agent modules in dedicated `/src/lib/ai/` directory
+- Use modular design: Logic Architect, Style Master, Content Crafter as separate modules
+- AI orchestration should be in `/src/lib/orchestration/` 
+
+### Prompt Management
+- Keep ALL prompts separate from main logic in `/src/lib/prompts/` directory
+- Use TypeScript modules for prompt definitions (see REFERENCE_CODE/prompts/ patterns)
+- Never hardcode prompts in component or API route files
+- Organize prompts by agent type: logic-architect.ts, style-master.ts, content-crafter.ts
+
+### Database Design
+- ALWAYS add generic metadata objects to DynamoDB items for overlooked/late-added types and properties
+- Use flexible DynamoDB item structure with metadata fields
+- Example: `metadata: Record<string, any>` field on all major entities
+- Include version fields for schema evolution
+- Use single-table design patterns for DynamoDB efficiency
+- Design partition keys and sort keys for optimal query patterns
+
+### CDK Infrastructure Management
+- ALL infrastructure defined in CDK stacks (no manual AWS console work)
+- Separate stacks for different concerns: database, compute, networking, monitoring
+- Use CDK best practices: constructs, proper IAM roles, environment-specific configs
+- Version all infrastructure changes through CDK
+- Use CDK for database migrations and schema management
+
+### Vercel Timeout Management
+- Break down AI operations into granular, streamable API routes
+- Each API route should handle ONE discrete AI task (max 30-45 seconds)
+- Use Vercel AI SDK for streaming responses to maintain UI responsiveness
+- Implement state management between granular calls using DynamoDB
+- Plan for Lambda offloading for truly long-running processes
+
+### Error Handling & Logging
+- Use centralized logging system (see REFERENCE_CODE/logger.ts pattern)
+- Implement WebSocket-based real-time logging for development
+- Log all AI interactions with metadata for debugging
+- Include timeout detection and graceful degradation
+- Use AWS CloudWatch for production logging and monitoring
+
+## Development Workflow
+
+### Never Auto-Start Services
+- DON'T start dev server automatically - user will always run dev server
+- DON'T auto-install dependencies without explicit user request
+- DON'T push to git without user request
+- DON'T deploy CDK stacks without explicit user request
+
+### Code Organization
+- Use TypeScript for all files
+- Implement proper type definitions in `/src/lib/types/`
+- Follow Next.js 14 App Router patterns
+- Use server components where appropriate, client components for interactivity
+
+### State Management
+- Use Zustand for global state management
+- Implement proper state persistence for AI co-creation sessions in DynamoDB
+- Use React Query/TanStack Query for server state management
+- Maintain conversation state between granular AI API calls in DynamoDB
+
+## AI Implementation Patterns
+
+### Agent Architecture
+- Implement agents as composable modules, not monolithic functions
+- Use dependency injection for AI model providers (OpenAI, Anthropic)
+- Implement retry logic with exponential backoff
+- Use structured outputs with Zod validation
+
+### Streaming Implementation
+- Use Vercel AI SDK's streaming capabilities
+- Implement proper error boundaries for streaming failures
+- Provide fallback to polling if streaming fails
+- Show loading states during AI processing
+
+### Tool Integration
+- Separate tool definitions from tool implementations
+- Use LangChain for complex tool orchestration
+- Implement tool result validation with Zod schemas
+- Cache tool results in ElastiCache where appropriate
+
+## Security & Authentication
+
+### Clerk Integration
+- Use Clerk for authentication and user management
+- Implement proper middleware for protected routes
+- Use Clerk's organization features for team functionality
+- Secure API routes with proper authentication checks
+
+### API Security
+- Validate all inputs with Zod schemas
+- Implement rate limiting on AI endpoints
+- Use environment variables for all API keys
+- Never expose AI provider keys to client-side
+- Use AWS Secrets Manager for sensitive configuration (managed via CDK)
+
+## Database Patterns
+
+### DynamoDB Usage (Primary Database)
+- ALL application data: users, tools, leads, analytics, AI sessions
+- Single-table design with proper partition/sort key strategy
+- High-performance read/write operations
+- Built-in scaling and managed infrastructure
+- Point-in-time recovery and backups via CDK configuration
+- Use GSIs (Global Secondary Indexes) for different query patterns
+
+### ElastiCache Redis Usage
+- Application-level caching
+- Session caching for performance
+- Rate limiting counters
+- Temporary computation results
+- Cache frequently accessed DynamoDB queries
+
+### SQS Usage
+- Background job processing for long-running AI operations
+- Decoupling of AI processing from API responses
+- Dead letter queues for failed operations
+- Integration with Lambda for async processing
+
+## UI/UX Patterns
+
+### ShadCN Integration
+- Use ShadCN components as base, customize for Keyvex branding
+- Implement proper loading states for AI operations
+- Use toast notifications for user feedback
+- Implement proper error states with retry options
+
+### Real-time Updates
+- Use WebSocket connections for real-time AI progress updates
+- Implement proper connection management and reconnection logic
+- Show typing indicators during AI processing
+- Provide cancel functionality for long-running operations
+
+## Testing & Quality
+
+### Code Quality
+- Use ESLint and Prettier with strict configurations
+- Implement proper TypeScript strict mode
+- Use Zod for runtime type validation
+- Write unit tests for AI agent modules
+
+### Performance
+- Implement proper caching strategies (ElastiCache Redis)
+- Use React.memo and useMemo for expensive computations
+- Optimize bundle size with proper code splitting
+- Monitor and log performance metrics
+
+## Integration Patterns
+
+### Stripe Integration
+- Implement subscription-based billing
+- Use Stripe webhooks for subscription events
+- Implement proper trial period handling
+- Use Stripe Customer Portal for subscription management
+
+### Third-party APIs
+- Implement proper error handling for external API failures
+- Use circuit breaker pattern for unreliable services
+- Cache API responses in ElastiCache where appropriate
+- Implement proper retry logic with backoff
+
+## File Naming & Structure
+
+### Directory Structure
+```
+keyvex_app/
+├── src/
+│   ├── app/                    # Next.js App Router
+│   ├── components/             # React components
+│   │   ├── ui/                # ShadCN components
+│   │   ├── ai/                # AI-specific components
+│   │   └── tools/             # Tool-specific components
+│   ├── lib/
+│   │   ├── ai/                # AI agent modules
+│   │   ├── prompts/           # All AI prompts
+│   │   ├── orchestration/     # AI orchestration logic
+│   │   ├── types/             # TypeScript definitions
+│   │   ├── utils/             # Utility functions
+│   │   ├── db/                # Database utilities (DynamoDB & Redis)
+│   │   └── integrations/      # Third-party integrations
+│   └── styles/                # Global styles
+
+aws_infra/
+├── lib/
+│   ├── database-stack.ts      # DynamoDB + ElastiCache + SQS
+│   ├── compute-stack.ts       # Lambda functions
+│   ├── api-stack.ts           # API Gateway + WebSocket
+│   ├── monitoring-stack.ts    # CloudWatch + Alarms
+│   └── security-stack.ts      # IAM roles + Secrets Manager
+├── lambda/                    # Lambda function code
+└── cdk.json
+```
+
+### Naming Conventions
+- Use kebab-case for file names
+- Use PascalCase for component names
+- Use camelCase for function and variable names
+- Prefix AI agent files with agent- (agent-logic-architect.ts)
+- Prefix prompt files with prompts- (prompts-logic-architect.ts)
+- Prefix CDK stacks with purpose (database-stack.ts, compute-stack.ts)
+
+## Environment & Configuration
+
+### Environment Variables
+- Use .env.local for local development
+- Use AWS Secrets Manager for production secrets (managed via CDK)
+- Implement proper environment validation with Zod
+- Never commit sensitive environment variables
+- Use different configs for development/staging/production
+
+### Configuration Management
+- Use CDK for infrastructure configuration
+- Implement feature flags for gradual rollouts
+- Use environment-specific configurations
+- Validate configuration at startup
+
+## Deployment & Infrastructure
+
+### CDK Deployment
+- Use CDK for ALL AWS infrastructure
+- Implement proper stack dependencies
+- Use CDK best practices for cross-stack references
+- Implement proper rollback strategies
+- Use CDK for database schema migrations
+
+### Vercel Deployment
+- Use Vercel for Next.js application hosting only
+- Connect to AWS databases via environment variables
+- Implement proper environment variable management
+- Use Vercel Analytics and Speed Insights
+
+### Database Management
+- Use CDK for DynamoDB table creation, indexing, and GSI setup
+- Use CDK for ElastiCache Redis cluster setup
+- Use CDK for SQS queue creation and configuration
+- Implement automated backups and point-in-time recovery via CDK
+- Use DynamoDB single-table design patterns for efficiency
+
+## Debugging & Development
+
+### Local Development
+- Use proper TypeScript configuration for strict checking
+- Implement hot reloading for AI prompt changes
+- Use proper source maps for debugging
+- Implement comprehensive logging for AI operations
+- Use local AWS credentials for development database access
+
+### Production Debugging
+- Implement proper error tracking (AWS CloudWatch + Sentry)
+- Use structured logging for better searchability
+- Implement health checks for all services
+- Monitor AI operation success rates and latencies
+- Use AWS X-Ray for distributed tracing
+
+## CDK Best Practices
+
+### Stack Organization
+- Separate stacks by concern (database, compute, networking)
+- Use proper stack dependencies and cross-references
+- Implement environment-specific configurations
+- Use CDK constructs for reusable components
+
+### Security
+- Implement least-privilege IAM roles
+- Use AWS Secrets Manager for sensitive data
+- Enable encryption at rest and in transit
+- Implement proper VPC and security group configurations
+
+### Monitoring
+- Set up CloudWatch alarms for all critical metrics
+- Implement proper logging and log retention policies
+- Use AWS Config for compliance monitoring
+- Set up cost monitoring and budgets
+
+## TODO Comments
+- NEVER remove TODO comments - they track important future work
+- Add context to TODO comments explaining the issue
+- Use consistent TODO format: `// TODO: [PRIORITY] Description`
+- Review TODOs regularly during development cycles 

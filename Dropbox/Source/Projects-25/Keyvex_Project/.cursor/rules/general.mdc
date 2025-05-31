@@ -1,0 +1,32 @@
+---
+ description: General Important Rules
+ alwaysApply: true
+---
+
+# Project Rules
+
+## scratchpad.mdc
+
+Use this file before making any changes in planning phase. Remove it after planning phase is complete.
+
+## memories.mdc
+
+# AI Memory Rule
+This rule defines how the AI should manage and utilize its "memory" regarding this specific project, including user preferences, learned facts, and project-specific conventions.
+
+## Purpose
+The AI's memory helps maintain consistency and adapt to specific project needs or user preferences discovered during interactions. It prevents the AI from repeatedly asking for the same information or making suggestions contrary to established patterns.
+
+## Storage
+All learned project-specific knowledge and preferences should be stored and referenced in the 'learned-memories mdc file located in ' cursor/ rules
+
+## Updating Memory
+When new information relevant to the project's conventions, user preferences, or specific technical details is learned (either explicitly told by the user or inferred through conversation), the AI should:
+1. **Identify Key Information:** Determine the core piece of knowledge to be stored.
+2. **Check Existing Memory:** Review 'memories mdc' to see if this
+information contradicts or updates existing entries.
+3. **Propose Update:** Suggest an edit to 'memories mdc' to add or modify the relevant information. Keep entries concise and clear.
+
+## architecture.mdc
+Describe the high-level architecture of the project here. Include diagrams (if possible in Markdown), major components, data flow, and technology stack. This helps the AI understand the overall structure.
+When there is a big change(refactoring, etc.) in the project, update this file.

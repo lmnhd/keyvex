@@ -1,0 +1,378 @@
+{
+  "version": "41.0.0",
+  "artifacts": {
+    "TenantArmorStack.assets": {
+      "type": "cdk:asset-manifest",
+      "properties": {
+        "file": "TenantArmorStack.assets.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+      }
+    },
+    "TenantArmorStack": {
+      "type": "aws:cloudformation:stack",
+      "environment": "aws://unknown-account/unknown-region",
+      "properties": {
+        "templateFile": "TenantArmorStack.template.json",
+        "terminationProtection": false,
+        "validateOnSynth": false,
+        "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-deploy-role-${AWS::AccountId}-${AWS::Region}",
+        "cloudFormationExecutionRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-cfn-exec-role-${AWS::AccountId}-${AWS::Region}",
+        "stackTemplateAssetObjectUrl": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/b9265c6c87d3f9af9e9338dedfd5c24b69e1ccfdeca4e725fc94ddb01fd61e44.json",
+        "requiresBootstrapStackVersion": 6,
+        "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+        "additionalDependencies": [
+          "TenantArmorStack.assets"
+        ],
+        "lookupRole": {
+          "arn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-lookup-role-${AWS::AccountId}-${AWS::Region}",
+          "requiresBootstrapStackVersion": 8,
+          "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version"
+        }
+      },
+      "dependencies": [
+        "TenantArmorStack.assets"
+      ],
+      "metadata": {
+        "/TenantArmorStack/LeaseUploadsBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadsBucketDC35BC91"
+          }
+        ],
+        "/TenantArmorStack/LeaseUploadsBucket/Policy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadsBucketPolicy75DAA7DA"
+          }
+        ],
+        "/TenantArmorStack/LeaseUploadsBucket/AutoDeleteObjectsCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadsBucketAutoDeleteObjectsCustomResource9CABC43D"
+          }
+        ],
+        "/TenantArmorStack/LeaseUploadsBucket/Notifications/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadsBucketNotifications79D17F77"
+          }
+        ],
+        "/TenantArmorStack/LeaseUploadsBucket/AllowBucketNotificationsToTenantArmorStackProcessUploadedLeaseLambda3BBEFBC8": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadsBucketAllowBucketNotificationsToTenantArmorStackProcessUploadedLeaseLambda3BBEFBC8C159C609"
+          }
+        ],
+        "/TenantArmorStack/Custom::S3AutoDeleteObjectsCustomResourceProvider": [
+          {
+            "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+            "data": true
+          }
+        ],
+        "/TenantArmorStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+          }
+        ],
+        "/TenantArmorStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
+          }
+        ],
+        "/TenantArmorStack/LeaseAnalysesTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "LeaseAnalysesTableB22F85EA"
+            }
+          }
+        ],
+        "/TenantArmorStack/LeaseAnalysesTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseAnalysesTableB22F85EA"
+          }
+        ],
+        "/TenantArmorStack/EvictionTemplatesTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "EvictionTemplatesTable3873B700"
+            }
+          }
+        ],
+        "/TenantArmorStack/EvictionTemplatesTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvictionTemplatesTable3873B700"
+          }
+        ],
+        "/TenantArmorStack/AIPromptsTable": [
+          {
+            "type": "aws:cdk:hasPhysicalName",
+            "data": {
+              "Ref": "AIPromptsTable3CCB588B"
+            }
+          }
+        ],
+        "/TenantArmorStack/AIPromptsTable/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AIPromptsTable3CCB588B"
+          }
+        ],
+        "/TenantArmorStack/AIPromptsBucket/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AIPromptsBucket0DF82D69"
+          }
+        ],
+        "/TenantArmorStack/AIPromptsBucket/Policy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AIPromptsBucketPolicyA10CE00B"
+          }
+        ],
+        "/TenantArmorStack/AIPromptsBucket/AutoDeleteObjectsCustomResource/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AIPromptsBucketAutoDeleteObjectsCustomResourceCA8EC715"
+          }
+        ],
+        "/TenantArmorStack/PdfProcessorLambdaRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PdfProcessorLambdaRoleD51BBF8B"
+          }
+        ],
+        "/TenantArmorStack/PdfProcessorLambdaRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PdfProcessorLambdaRoleDefaultPolicyBBF4899A"
+          }
+        ],
+        "/TenantArmorStack/ProcessUploadedLeaseLambda/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessUploadedLeaseLambda6238D151"
+          }
+        ],
+        "/TenantArmorStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleB6FB88EC"
+          }
+        ],
+        "/TenantArmorStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Role/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db834RoleDefaultPolicy2CF63D36"
+          }
+        ],
+        "/TenantArmorStack/BucketNotificationsHandler050a0587b7544547bf325f094a3db834/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BucketNotificationsHandler050a0587b7544547bf325f094a3db8347ECC3691"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingDLQ/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingDLQ7E231DA2"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingQueue/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingQueue3D3BAE1B"
+          }
+        ],
+        "/TenantArmorStack/NextJsApiPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "NextJsApiPolicyAB2F22D0"
+          }
+        ],
+        "/TenantArmorStack/PlaceholderNextJsUser/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PlaceholderNextJsUserFA5D6A0D"
+          }
+        ],
+        "/TenantArmorStack/NextJsApiPolicyNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "NextJsApiPolicyNameOutput"
+          }
+        ],
+        "/TenantArmorStack/VercelIamRoleGuidance": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "VercelIamRoleGuidance"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApi6FD33BF1"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/CloudWatchRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiCloudWatchRoleE2A31DF7"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/Account": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiAccount1767555F"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/Deployment/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiDeployment9D8549B3a4c04fe45fff730eeb76f6876524f36a"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/DeploymentStage.v1/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiDeploymentStagev11E73D1BA"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/Endpoint": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiEndpoint32B4AECA"
+          }
+        ],
+        "/TenantArmorStack/TenantArmorApi/Default/OPTIONS/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "TenantArmorApiOPTIONSBE9D7544"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingLambdaRole/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingLambdaRoleE84880F0"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingLambdaRole/DefaultPolicy/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingLambdaRoleDefaultPolicyE5C90903"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingLambda/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingLambdaC5ABBDB3"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingEventSourceMapping/Resource": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingEventSourceMapping6AF5799E"
+          }
+        ],
+        "/TenantArmorStack/LeaseUploadBucketNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseUploadBucketNameOutput"
+          }
+        ],
+        "/TenantArmorStack/LeaseAnalysesTableNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "LeaseAnalysesTableNameOutput"
+          }
+        ],
+        "/TenantArmorStack/ProcessPdfFunctionNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ProcessPdfFunctionNameOutput"
+          }
+        ],
+        "/TenantArmorStack/ApiGatewayEndpointOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "ApiGatewayEndpointOutput"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingQueueUrlOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingQueueUrlOutput"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingQueueArnOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingQueueArnOutput"
+          }
+        ],
+        "/TenantArmorStack/AILeaseProcessingLambdaNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "AILeaseProcessingLambdaNameOutput"
+          }
+        ],
+        "/TenantArmorStack/EvictionTemplatesTableNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "EvictionTemplatesTableNameOutput"
+          }
+        ],
+        "/TenantArmorStack/PromptsTableNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PromptsTableNameOutput"
+          }
+        ],
+        "/TenantArmorStack/PromptsBucketNameOutput": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "PromptsBucketNameOutput"
+          }
+        ],
+        "/TenantArmorStack/CDKMetadata/Default": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadata"
+          }
+        ],
+        "/TenantArmorStack/CDKMetadata/Condition": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CDKMetadataAvailable"
+          }
+        ],
+        "/TenantArmorStack/BootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "BootstrapVersion"
+          }
+        ],
+        "/TenantArmorStack/CheckBootstrapVersion": [
+          {
+            "type": "aws:cdk:logicalId",
+            "data": "CheckBootstrapVersion"
+          }
+        ]
+      },
+      "displayName": "TenantArmorStack"
+    },
+    "Tree": {
+      "type": "cdk:tree",
+      "properties": {
+        "file": "tree.json"
+      }
+    }
+  },
+  "minimumCliVersion": "2.1005.0"
+}

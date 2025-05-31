@@ -1,0 +1,33 @@
+{
+  "CA": {
+    "securityDepositLimit": "2 months rent for unfurnished, 3 months for furnished",
+    "evictionNoticeDays_NoFault_Min": 30,
+    "evictionNoticeDays_NoFault_Over1YearTenant": 60,
+    "landlordEntryNotice": "24 hours written notice (reasonable time)",
+    "commonRisks": [
+      "Waiver of landlord liability for negligence.",
+      "Automatic lease renewal without sufficient notice period for tenant to terminate.",
+      "Excessive late fees or unclear calculation methods."
+    ]
+  },
+  "NY": {
+    "securityDepositLimit": "1 month rent",
+    "evictionNoticeDays_Min": 14, 
+    "landlordEntryNotice": "Reasonable notice (typically 24 hours, unless emergency)",
+    "commonRisks": [
+      "Clauses allowing landlord to take tenant's personal property for unpaid rent (illegal).",
+      "Unclear utility responsibilities.",
+      "Restrictions on guests or roommates that violate state/city law."
+    ]
+  },
+  "TX": {
+    "securityDepositLimit": "No state statutory limit, must be reasonable.",
+    "evictionNoticeDays_LeaseViolation_Min": 3,
+    "landlordEntryNotice": "Lease typically defines, otherwise reasonable prior notice unless emergency.",
+    "commonRisks": [
+      "Waiver of right to a jury trial.",
+      "Tenant responsible for all repairs, regardless of cause.",
+      "Non-refundable fees that are excessively high or not clearly defined."
+    ]
+  }
+} 

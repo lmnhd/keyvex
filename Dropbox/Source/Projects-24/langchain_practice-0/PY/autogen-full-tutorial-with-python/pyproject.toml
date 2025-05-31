@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "autogen-full-tutorial-with-python"
+version = "0.1.0"
+description = ""
+authors = ["Nate Orange <cc.lemonhead@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.13"
+autogen = "^1.0.16"
+pyautogen = "^0.2.21"
+matplotlib = "^3.8.3"
+numpy = "^1.26.4"
+ipython = "^8.23.0"
+beautifulsoup4 = "^4.12.3"
+youtube-transcript-api = "^0.6.2"
+aiohttp = "^3.9.3"
+azure-cognitiveservices-search-imagesearch = "^2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

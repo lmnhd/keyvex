@@ -1,0 +1,35 @@
+{
+  "courtInstructions": "File your response at the [county] County Superior Court. In California, you typically have 5 days to respond to an unlawful detainer lawsuit after being served. The court filing fee can be waived if you qualify for a fee waiver (form FW-001). You must file form UD-105 (Answer-Unlawful Detainer) to contest the eviction. Consider requesting a jury trial by checking the appropriate box and paying the additional fee.",
+  "legalAidContacts": [
+    {
+      "name": "California Legal Aid Association",
+      "phone": "1-800-222-1753",
+      "url": "https://www.calegaladvocates.org/",
+      "notes": "Free legal assistance for low-income tenants statewide"
+    },
+    {
+      "name": "Tenant Law Center",
+      "phone": "(415) 543-6303",
+      "url": "https://www.tenantlawcenter.org/",
+      "notes": "San Francisco Bay Area tenant rights organization"
+    },
+    {
+      "name": "Housing Rights Center",
+      "phone": "(800) 477-5977",
+      "url": "https://www.housingrightscenter.org/",
+      "notes": "Los Angeles area housing discrimination and tenant rights"
+    },
+    {
+      "name": "Legal Aid Foundation of Los Angeles",
+      "phone": "(800) 399-4529",
+      "url": "https://www.lafla.org/",
+      "notes": "Free legal services for low-income residents in Los Angeles County"
+    },
+    {
+      "name": "Bay Area Legal Aid",
+      "phone": "(800) 551-5554",
+      "url": "https://www.baylegal.org/",
+      "notes": "Free civil legal services in the San Francisco Bay Area"
+    }
+  ]
+} 

@@ -1,0 +1,51 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Documentation Update Policy
+
+## Rule: When to Update Project Documentation
+
+**DIRECTIVE**: Update [TenantArmor.mdc](mdc:TenantArmor.mdc) and related rules files **ONLY** when major changes or additions are implemented that affect the overall composition of the application.
+
+### Major Changes That Require Documentation Updates
+
+✅ **UPDATE REQUIRED for these changes:**
+- New infrastructure components (Lambda functions, databases, S3 buckets, etc.)
+- Architecture changes (data flow modifications, API route changes)
+- New core features or functionality
+- Technology stack changes (new frameworks, libraries, services)
+- Deployment process modifications
+- Security model changes
+- Database schema changes
+- API endpoint additions/removals
+- Major configuration changes
+
+❌ **NO UPDATE NEEDED for these changes:**
+- Bug fixes
+- Minor code refactoring
+- Small feature enhancements
+- Prompt content updates (handled by dynamic prompt system)
+- Styling/UI tweaks
+- Variable name changes
+- Code comments or inline documentation
+- Minor dependency updates
+
+### Files to Consider for Updates
+
+When major changes occur, review and update as needed:
+- [TenantArmor.mdc](mdc:TenantArmor.mdc) - Main project specification
+- [aws-cdk-best-practices.mdc](mdc:.cursor/rules/aws-cdk-best-practices.mdc) - Infrastructure patterns and best practices
+- Project README files
+- Architecture diagrams and documentation
+
+### Update Approach
+
+1. **Assess Impact**: Determine if the change affects the overall application architecture or composition
+2. **Update Strategically**: Only modify sections that are actually impacted by the change
+3. **Maintain Accuracy**: Ensure all references, file paths, and technical details remain current
+4. **Mark Changes**: Clearly indicate what has changed and why
+
+**Remember**: The goal is to keep documentation accurate and useful without creating unnecessary maintenance overhead for minor changes.
+

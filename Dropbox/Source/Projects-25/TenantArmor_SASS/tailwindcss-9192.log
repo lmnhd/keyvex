@@ -1,0 +1,695 @@
+2025-05-19T19:25:46.718286Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T19:25:46.718457Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T19:25:46.718746Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T19:25:46.718772Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T19:25:46.722150Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T19:25:46.722330Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:25:46.724994Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T19:25:46.725198Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T19:25:46.725652Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T19:25:46.725797Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T19:25:46.726067Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:25:46.726333Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T19:25:46.726498Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T19:25:46.726663Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T19:25:46.726828Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T19:25:46.726989Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T19:25:46.727224Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T19:25:46.727544Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:25:46.727852Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:25:46.728101Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T19:25:46.728308Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T19:25:46.728483Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T19:25:46.728709Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T19:25:46.729122Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:25:46.729800Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T19:25:46.729890Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T19:25:46.729903Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:25:46.733061Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:25:46.733937Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:25:46.734216Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:25:46.734866Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:25:46.739679Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T19:28:34.871617Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T19:28:34.871674Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T19:28:34.872117Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T19:28:34.872146Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T19:28:34.872537Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T19:28:34.872562Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:28:34.877376Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T19:28:34.877827Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T19:28:34.878301Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T19:28:34.879292Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T19:28:34.879642Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T19:28:34.880235Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:28:34.880789Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T19:28:34.881149Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T19:28:34.881546Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T19:28:34.881939Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T19:28:34.882348Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T19:28:34.882995Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T19:28:34.883423Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:28:34.883877Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:28:34.884245Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T19:28:34.884469Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T19:28:34.884740Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T19:28:34.885075Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T19:28:34.885297Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:28:34.885833Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T19:28:34.885938Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T19:28:34.885964Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:28:34.891413Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:28:34.892833Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:28:34.893293Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:28:34.894333Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:28:34.902212Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T19:32:32.961854Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T19:32:32.961909Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T19:32:32.962412Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T19:32:32.962450Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T19:32:32.962985Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T19:32:32.963045Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:32:32.971368Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T19:32:32.972497Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T19:32:32.973687Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T19:32:32.974778Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T19:32:32.975438Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T19:32:32.976001Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:32:32.977801Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T19:32:32.981582Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T19:32:33.116730Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T19:32:33.121584Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T19:32:33.122527Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T19:32:33.123450Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T19:32:33.123977Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:32:33.124714Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:32:33.125283Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T19:32:33.126026Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T19:32:33.126725Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T19:32:33.127414Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\lib"
+2025-05-19T19:32:33.127920Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\lib\\utils.ts"
+2025-05-19T19:32:33.128324Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T19:32:33.128779Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:32:33.130034Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T19:32:33.130156Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T19:32:33.130176Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T19:32:33.137189Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T19:32:33.139278Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T19:32:33.139995Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T19:32:33.142025Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\lib"
+2025-05-19T19:32:33.143101Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T19:32:33.155594Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:00:49.005511Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:00:49.005685Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:00:49.006062Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:00:49.006095Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:00:49.007266Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:00:49.007309Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:00:49.020691Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:00:49.020971Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:00:49.021363Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:00:49.022251Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:00:49.022551Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:00:49.023102Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:00:49.023918Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:00:49.024570Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:00:49.025225Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:00:49.025911Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:00:49.026514Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:00:49.026930Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:00:49.027606Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:00:49.028159Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:00:49.028654Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:00:49.029141Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:00:49.029437Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:00:49.030396Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:00:49.030896Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:00:49.034234Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:00:49.034377Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:00:49.034409Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:00:49.045974Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:00:49.048064Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:00:49.048787Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:00:49.051830Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:00:49.125193Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:32.179672Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:01:32.179821Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:01:32.180152Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:01:32.180176Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:01:32.181897Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:32.181945Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:32.193002Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:01:32.193442Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:01:32.193808Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:01:32.195020Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:01:32.195446Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:01:32.196225Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:01:32.196905Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:01:32.197412Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:01:32.198037Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:01:32.198467Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:01:32.198868Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:01:32.199703Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:01:32.200295Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:01:32.200904Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:01:32.201447Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:01:32.201838Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:01:32.202203Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:01:32.203550Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:01:32.204379Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:32.205274Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:32.205374Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:32.205394Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:32.215189Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:01:32.217729Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:01:32.218393Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:01:32.220934Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:32.242772Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:38.545453Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:01:38.545497Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:01:38.545865Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:01:38.545894Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:01:38.546389Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:38.546425Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:38.555567Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:01:38.556043Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:01:38.556491Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:01:38.557586Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:01:38.557986Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:01:38.558808Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:01:38.559584Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:01:38.560043Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:01:38.560501Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:01:38.560914Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:01:38.561364Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:01:38.561959Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:01:38.562538Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:01:38.563121Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:01:38.563825Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:01:38.564291Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:01:38.564771Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:01:38.566650Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:01:38.567419Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:38.567695Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:38.567818Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:38.567844Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:01:38.578745Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:01:38.580735Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:01:38.581559Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:01:38.584224Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:01:38.596301Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:32.596121Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:02:32.596173Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:02:32.596582Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:02:32.596614Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:02:32.597155Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:32.597195Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:32.609723Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:02:32.610316Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:02:32.610802Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:02:32.612393Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:02:32.612877Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:02:32.621512Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:32.622439Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:02:32.622914Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:02:32.623409Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:02:32.623908Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:02:32.624394Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:02:32.625303Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:02:32.626044Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:32.627092Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:32.627866Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:02:32.632638Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:02:32.633392Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:02:32.635301Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:02:32.636493Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:32.636800Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:32.636920Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:32.636951Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:32.655956Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:32.659305Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:32.660253Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:32.663720Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:32.684462Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:36.122070Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:02:36.122124Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:02:36.123286Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:02:36.123329Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:02:36.124230Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:36.124453Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:36.140903Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:02:36.141633Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:02:36.142408Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:02:36.143705Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:02:36.144178Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:02:36.145148Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:36.146475Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:02:36.147022Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:02:36.147569Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:02:36.148312Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:02:36.149178Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:02:36.149917Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:02:36.150696Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:36.151623Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:36.152427Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:02:36.152915Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:02:36.153401Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:02:36.155539Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:02:36.156994Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:36.157449Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:36.157561Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:36.157587Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:36.170902Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:36.173681Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:36.174512Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:36.178068Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:36.201640Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:42.600710Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:02:42.600769Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:02:42.601053Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:02:42.601076Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:02:42.601476Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:42.601509Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:42.609757Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:02:42.610284Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:02:42.610750Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:02:42.611714Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:02:42.612052Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:02:42.612675Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:42.613298Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:02:42.613685Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:02:42.614030Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:02:42.614435Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:02:42.614803Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:02:42.615289Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:02:42.615704Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:42.616305Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:42.616889Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:02:42.617231Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:02:42.617533Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:02:42.618650Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:02:42.619129Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:42.619403Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:42.619518Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:42.619540Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:42.629635Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:42.630893Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:42.631272Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:42.632657Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:42.639931Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:49.065138Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:02:49.065189Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:02:49.065472Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:02:49.065489Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:02:49.065887Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:49.065910Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:49.073822Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:02:49.074236Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:02:49.074631Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:02:49.075606Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:02:49.075944Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:02:49.076585Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:49.077229Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:02:49.077633Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:02:49.078002Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:02:49.078371Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:02:49.078766Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:02:49.079368Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:02:49.079925Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:49.080887Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:49.081519Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:02:49.081950Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:02:49.082363Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:02:49.083823Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:02:49.084585Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:49.085108Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:49.085228Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:49.085340Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:02:49.120234Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:02:49.122934Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:02:49.123611Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:02:49.126425Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:02:49.144766Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.464094Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:05:08.464185Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:05:08.464784Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:05:08.464841Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:05:08.465394Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.465442Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.479274Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:05:08.479704Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:05:08.480113Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:05:08.481131Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:05:08.481515Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:05:08.482194Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:08.483316Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:05:08.483763Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:05:08.486141Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:05:08.488424Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:05:08.489233Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:05:08.490118Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:05:08.491758Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:08.492562Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:08.493054Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:05:08.493388Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:05:08.493717Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:05:08.494869Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:05:08.495333Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.495605Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.495736Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.495757Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.506501Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:08.509489Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:08.510354Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:08.513159Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.528042Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.609596Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:05:08.609631Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:05:08.609887Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:05:08.609909Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:05:08.610279Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.610306Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.626382Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:05:08.626797Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:05:08.627223Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:05:08.628161Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:05:08.628504Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:05:08.629093Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:08.629767Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:05:08.630209Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:05:08.630608Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:05:08.631270Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:05:08.631792Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:05:08.632427Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:05:08.633042Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:08.633774Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:08.636469Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:05:08.638921Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:05:08.640295Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:05:08.641836Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:05:08.642359Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.646424Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.646523Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.646549Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:08.658063Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:08.660166Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:08.660789Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:08.663126Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:08.678160Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.460829Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:05:12.460874Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:05:12.461245Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:05:12.461280Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:05:12.461815Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.461848Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.470074Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:05:12.470510Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:05:12.470909Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:05:12.472029Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:05:12.472389Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:05:12.473042Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:12.473703Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:05:12.474114Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:05:12.474490Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:05:12.474883Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:05:12.475312Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:05:12.475887Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:05:12.476442Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:12.477153Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:12.477739Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:05:12.478170Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:05:12.478610Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:05:12.479887Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:05:12.480414Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.480718Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.480869Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.480896Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.492937Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:12.496370Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:12.497612Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:12.500800Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.515623Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.576261Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:05:12.576304Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:05:12.576644Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:05:12.576670Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:05:12.577184Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.577217Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.586352Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:05:12.586876Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:05:12.587344Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:05:12.588479Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:05:12.588865Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:05:12.589683Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:12.590415Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:05:12.590848Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:05:12.591278Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:05:12.591704Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:05:12.592047Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:05:12.592474Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:05:12.593148Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:12.593990Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:12.594578Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:05:12.594966Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:05:12.595389Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:05:12.596653Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:05:12.597141Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.597443Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.597535Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.597561Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:05:12.608210Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:05:12.610472Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:05:12.611245Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:05:12.613594Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:05:12.624897Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:06:47.932954Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:06:47.933337Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:06:47.935246Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:06:47.935286Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:06:47.935895Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:06:47.935927Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:06:47.944502Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:06:47.945177Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:06:47.945702Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:06:47.947085Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:06:47.947503Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:06:47.948639Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:06:47.949588Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:06:47.950065Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:06:47.950629Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:06:47.951111Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:06:47.951564Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:06:47.952209Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:06:47.952798Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:06:47.953561Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:06:47.954182Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:06:47.954581Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:06:47.955035Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:06:47.956313Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:06:47.956856Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:06:47.957086Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:06:47.957225Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:06:47.957251Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:06:47.970722Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:06:47.972956Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:06:47.973594Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:06:47.975282Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:06:47.985146Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.172149Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:07:45.172206Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:07:45.172574Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:07:45.172600Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:07:45.173119Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.173156Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.181663Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:07:45.182033Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:07:45.182360Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:07:45.183256Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:07:45.183532Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:07:45.184011Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:07:45.184474Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:07:45.184779Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:07:45.185104Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:07:45.185522Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:07:45.185815Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:07:45.186317Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:07:45.186951Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:07:45.187726Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:07:45.188719Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:07:45.189092Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:07:45.189440Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:07:45.190709Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:07:45.191392Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.191647Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.191788Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.191816Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.200735Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:07:45.202639Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:07:45.203181Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:07:45.204883Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.215548Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.268844Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:07:45.268908Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:07:45.269301Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:07:45.269345Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:07:45.269832Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.269868Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.279786Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:07:45.280149Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:07:45.280510Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:07:45.281234Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:07:45.281489Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:07:45.281944Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:07:45.282429Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:07:45.282720Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:07:45.283102Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:07:45.283443Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:07:45.283730Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:07:45.284132Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:07:45.284531Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:07:45.285020Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:07:45.285410Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:07:45.285747Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:07:45.286110Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:07:45.287203Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:07:45.287966Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.288224Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.288328Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.288355Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:07:45.299983Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:07:45.302576Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:07:45.303338Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:07:45.305949Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:07:45.318893Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.384924Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:08:15.384965Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:08:15.385168Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:08:15.385209Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:08:15.385557Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.385582Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.389871Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:08:15.390031Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:08:15.390195Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:08:15.390759Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:08:15.390889Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:08:15.391187Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:15.391515Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:08:15.391713Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:08:15.391900Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:08:15.392098Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:08:15.392285Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:08:15.392518Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:08:15.392730Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:15.393083Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:15.393375Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:08:15.393509Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:08:15.393656Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:08:15.394240Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:08:15.394539Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.394700Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.394807Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.394837Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.403229Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:15.405100Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:15.405708Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:15.408624Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.417667Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.456923Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:08:15.456959Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:08:15.457214Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:08:15.457233Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:08:15.457575Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.457599Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.461767Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:08:15.462061Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:08:15.462224Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:08:15.462687Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:08:15.462818Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:08:15.463138Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:15.463552Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:08:15.463861Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:08:15.464174Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:08:15.464438Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:08:15.464664Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:08:15.464984Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:08:15.465225Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:15.465609Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:15.466108Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:08:15.466368Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:08:15.466604Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:08:15.467456Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:08:15.467746Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.467967Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.468039Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.468058Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:15.474810Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:15.476407Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:15.477003Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:15.478377Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:15.484892Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.751505Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:08:36.751745Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:08:36.752158Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:08:36.752186Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:08:36.752671Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.752704Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.763560Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:08:36.764047Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:08:36.764845Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:08:36.768320Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:08:36.769042Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:08:36.770281Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:36.771158Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:08:36.771892Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:08:36.772377Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:08:36.772845Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:08:36.773330Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:08:36.773888Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:08:36.774377Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:36.775144Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:36.775764Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:08:36.776130Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:08:36.776425Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:08:36.777784Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:08:36.778404Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.778661Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.778803Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.778830Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.789967Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:36.793004Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:36.793876Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:36.795665Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.812553Z  INFO get_globs: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.886244Z  INFO tailwindcss_oxide::scanner: Provided sources:
+2025-05-19T20:08:36.886310Z  INFO tailwindcss_oxide::scanner: Source: PublicSourceEntry { base: "c:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor", pattern: "**/*", negated: false }
+2025-05-19T20:08:36.886680Z  INFO tailwindcss_oxide::scanner: Optimized sources:
+2025-05-19T20:08:36.886716Z  INFO tailwindcss_oxide::scanner: Source: Auto { base: "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor" }
+2025-05-19T20:08:36.887283Z  INFO get_files: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.887327Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.896599Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\components.json"
+2025-05-19T20:08:36.897140Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\eslint.config.mjs"
+2025-05-19T20:08:36.897666Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\next.config.ts"
+2025-05-19T20:08:36.898924Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\package.json"
+2025-05-19T20:08:36.899243Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\postcss.config.mjs"
+2025-05-19T20:08:36.899913Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:36.900661Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\file.svg"
+2025-05-19T20:08:36.901156Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\globe.svg"
+2025-05-19T20:08:36.901623Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\next.svg"
+2025-05-19T20:08:36.902048Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\vercel.svg"
+2025-05-19T20:08:36.902469Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public\\window.svg"
+2025-05-19T20:08:36.903015Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\README.md"
+2025-05-19T20:08:36.903510Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:36.904621Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:36.905511Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\globals.css"
+2025-05-19T20:08:36.905863Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\layout.tsx"
+2025-05-19T20:08:36.906219Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app\\page.tsx"
+2025-05-19T20:08:36.907789Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\tsconfig.json"
+2025-05-19T20:08:36.908305Z  INFO get_files:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.908534Z  INFO get_files: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.908640Z  INFO get_globs: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.908664Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: enter
+2025-05-19T20:08:36.920599Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\public"
+2025-05-19T20:08:36.923000Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src"
+2025-05-19T20:08:36.923769Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: Discovering "C:\\Users\\Administrator\\Dropbox\\Source\\Projects-25\\TenantArmor_SASS\\tenantarmor\\src\\app"
+2025-05-19T20:08:36.925971Z  INFO get_globs:scan_sources: tailwindcss_oxide::scanner: exit
+2025-05-19T20:08:36.940686Z  INFO get_globs: tailwindcss_oxide::scanner: exit

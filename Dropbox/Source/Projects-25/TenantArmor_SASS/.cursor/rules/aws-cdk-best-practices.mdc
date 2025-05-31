@@ -1,0 +1,322 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# AWS CDK and TenantArmor Infrastructure Best Practices
+
+## Package Management
+- **ALWAYS use `npm`** - Never use `pnpm` or other package managers
+- If `pnpm-lock.yaml` exists, delete it immediately and run `npm install`
+- For any new dependencies, use `npm install <package-name>`
+
+## AWS Credentials in Next.js API Routes
+- **ALWAYS explicitly set credentials** in AWS SDK clients
+- **NEVER rely on default credential resolution** in Vercel environment
+- Use this pattern for all AWS SDK clients:
+
+```typescript
+// CORRECT - Explicit credentials
+const ddbClient = new DynamoDBClient({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID_NEXTJS_APP || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY_NEXTJS_APP || '',
+  }
+});
+
+// INCORRECT - Default resolution (causes role assumption issues)
+const ddbClient = new DynamoDBClient({ region: awsRegion });
+```
+
+## Vercel Environment Variables
+Required environment variables for Vercel deployment:
+- `AWS_ACCESS_KEY_ID_NEXTJS_APP` - IAM user access key
+- `AWS_SECRET_ACCESS_KEY_NEXTJS_APP` - IAM user secret key
+- `AWS_REGION` - AWS region (e.g., us-east-1)
+- `DYNAMODB_LEASE_ANALYSES_TABLE` - DynamoDB table name
+- `S3_LEASE_UPLOADS_BUCKET` - S3 bucket name
+- `AI_PROCESSING_QUEUE_URL` - SQS queue URL
+
+**NEVER set `AWS_ROLE_ARN` in Vercel** - causes credential resolution conflicts
+
+## Lambda Environment Variables
+Required environment variables for Lambda functions:
+- `OPENAI_API_KEY` - OpenAI API key from Secrets Manager
+- `DYNAMODB_LEASE_ANALYSES_TABLE` - DynamoDB lease analyses table name
+- `S3_LEASE_UPLOADS_BUCKET` - S3 uploads bucket name
+- `PROMPTS_TABLE_NAME` - DynamoDB prompts table name (`TenantArmorStack-AIPrompts`)
+- `PROMPTS_BUCKET_NAME` - S3 prompts bucket name for large prompt files
+- `AI_PROCESSING_QUEUE_URL` - SQS queue URL
+
+## TypeScript Lambda Functions
+Lambda functions use TypeScript with compilation to JavaScript:
+
+### Build Process
+```bash
+# Compile TypeScript for Lambda functions
+cd aws-infra/lambda-fns/ai-lease-processing
+npm run build
+
+# Deploy CDK stack
+cd ../../
+npm run build && npx cdk deploy
+```
+
+### Lambda Function Structure
+```
+aws-infra/lambda-fns/ai-lease-processing/
+├── index.ts              # Main Lambda handler
+├── prompt-manager.ts     # Prompt management class
+├── package.json          # Lambda dependencies
+├── tsconfig.json         # TypeScript configuration
+├── build/                # Compiled JavaScript output
+│   ├── index.js
+│   └── prompt-manager.js
+└── node_modules/         # Dependencies
+```
+
+### Important Notes
+- **ALWAYS compile TypeScript** before CDK deployment
+- Source maps are included for debugging in CloudWatch
+- CDK copies the entire `build/` directory plus `node_modules/`
+
+## Dynamic Prompt Management
+Use the PromptManager class for AI prompts:
+
+```typescript
+// In Lambda function
+import { PromptManager } from './prompt-manager';
+
+const promptManager = new PromptManager();
+const systemPrompt = await promptManager.getPrompt('lease-analysis-system');
+const userPrompt = await promptManager.getPrompt('lease-analysis-user', { state: 'CA' });
+```
+
+### Prompt Management Script
+Use the management script to update prompts without Lambda redeployment:
+
+```bash
+# From aws-infra directory
+node scripts/manage-prompts.js list
+node scripts/manage-prompts.js update lease-analysis-system "New system prompt content"
+node scripts/manage-prompts.js upload-file large-prompt path/to/prompt.txt
+```
+
+## DynamoDB UpdateExpression Syntax
+- **NEVER mix SET and REMOVE with commas**: `SET field = :val, REMOVE field2` ❌
+- **USE proper separation**: `SET field = :val REMOVE field2` ✅
+- Example pattern:
+```typescript
+let updateExpression = `SET ${setFields.join(", ")}`;
+if (needsRemoval) {
+  updateExpression += " REMOVE fieldToRemove";
+}
+```
+
+## CDK Infrastructure Patterns
+
+### S3 Event Notifications
+Always configure S3 event notifications for Lambda triggers:
+```typescript
+bucket.addEventNotification(
+  s3.EventType.OBJECT_CREATED,
+  new s3n.LambdaDestination(lambdaFunction),
+  { prefix: 'uploads/' }
+);
+```
+
+### Lambda IAM Roles
+Lambda roles MUST have permissions for all resources they access:
+```typescript
+// S3 permissions
+uploadsBucket.grantRead(lambdaRole);
+promptsBucket.grantRead(lambdaRole);
+
+// DynamoDB permissions  
+leaseAnalysesTable.grantReadWriteData(lambdaRole);
+promptsTable.grantReadData(lambdaRole);
+
+// Secrets Manager permissions
+lambdaRole.addToRolePolicy(new iam.PolicyStatement({
+  effect: iam.Effect.ALLOW,
+  actions: ['secretsmanager:GetSecretValue'],
+  resources: [openAiSecret.secretArn]
+}));
+
+// SSM Parameter Store permissions (if used)
+lambdaRole.addToRolePolicy(new iam.PolicyStatement({
+  effect: iam.Effect.ALLOW,
+  actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+  resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/tenant-armor/*`]
+}));
+```
+
+### DynamoDB Table Configuration
+- Use `PAY_PER_REQUEST` billing mode for variable workloads
+- Set `RemovalPolicy.DESTROY` only for development
+- Always specify partition key explicitly
+
+#### AI Prompts Table Pattern
+```typescript
+const promptsTable = new dynamodb.Table(this, 'AIPrompts', {
+  partitionKey: { name: 'promptId', type: dynamodb.AttributeType.STRING },
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+  removalPolicy: RemovalPolicy.DESTROY, // Only for development
+});
+```
+
+### S3 Bucket Configuration
+- Enable CORS for web uploads
+- Set appropriate lifecycle rules
+- Use `RemovalPolicy.DESTROY` only for development
+- Configure bucket notifications for Lambda triggers
+
+#### Multiple Buckets Pattern
+```typescript
+// Uploads bucket (for PDFs)
+const uploadsBucket = new s3.Bucket(this, 'LeaseUploads', {
+  versioned: false,
+  removalPolicy: RemovalPolicy.DESTROY,
+  cors: [/* CORS config */]
+});
+
+// Prompts bucket (for large prompt files)
+const promptsBucket = new s3.Bucket(this, 'AIPrompts', {
+  versioned: false,
+  removalPolicy: RemovalPolicy.DESTROY,
+});
+```
+
+### AWS Secrets Manager Integration
+```typescript
+// Store API keys securely
+const openAiSecret = new secretsmanager.Secret(this, 'OpenAISecret', {
+  description: 'OpenAI API Key for TenantArmor',
+  generateSecretString: {
+    secretStringTemplate: JSON.stringify({ apiKey: '' }),
+    generateStringKey: 'apiKey',
+    excludeCharacters: '"@/\\'
+  }
+});
+
+// Grant Lambda access
+openAiSecret.grantRead(lambdaFunction);
+```
+
+## Current Infrastructure Components
+
+### Core Tables (DynamoDB)
+- **LeaseAnalyses**: `TenantArmorStack-LeaseAnalyses` - Main analysis data
+- **AIPrompts**: `TenantArmorStack-AIPrompts` - Dynamic prompt storage
+
+### Core Buckets (S3)
+- **Uploads**: `tenantarmorstack-leaseuploads*` - PDF file uploads
+- **Prompts**: `tenantarmorstack-aiprompts*` - Large prompt files
+
+### Lambda Functions
+- **AI Lease Processing**: `TenantArmorStack-AILeaseProcessing` - Main AI processing
+- **~~PDF Processor~~**: ❌ **REMOVED** - Redundant, functionality moved to AI Lease Processing
+
+### Other Resources
+- **SQS Queue**: `TenantArmorStack-AIProcessingQueue` - Message queue for processing
+- **Secrets Manager**: OpenAI API key storage
+
+## File References
+- Main CDK stack: [tenant-armor-stack.ts](mdc:aws-infra/lib/tenant-armor-stack.ts)
+- AI Lambda function: [ai-lease-processing/](mdc:aws-infra/lambda-fns/ai-lease-processing)
+- Lambda handler: [index.ts](mdc:aws-infra/lambda-fns/ai-lease-processing/index.ts)
+- Prompt manager: [prompt-manager.ts](mdc:aws-infra/lambda-fns/ai-lease-processing/prompt-manager.ts)
+- Management script: [manage-prompts.js](mdc:aws-infra/scripts/manage-prompts.js)
+- ~~API routes~~: ❌ **REMOVED** - `initiate-lease-analysis/route.ts` deleted
+- ~~PDF processor~~: ❌ **REMOVED** - `pdf-processor/` folder deleted
+
+## Common Issues and Solutions
+
+### Issue: AccessDeniedException in Vercel
+**Cause**: Vercel assuming wrong IAM role instead of using static credentials
+**Solution**: Explicitly set credentials in AWS SDK clients (see AWS Credentials section)
+
+### Issue: Lambda not triggered by S3 uploads
+**Cause**: Missing S3 event notification configuration
+**Solution**: Add `bucket.addEventNotification()` in CDK stack
+
+### Issue: DynamoDB UpdateExpression ValidationException
+**Cause**: Incorrect mixing of SET and REMOVE operations with commas
+**Solution**: Separate SET and REMOVE clauses properly (see DynamoDB section)
+
+### Issue: TypeScript compilation errors in Lambda
+**Cause**: Missing build step before CDK deployment
+**Solution**: Run `npm run build` in Lambda function directory before `npx cdk deploy`
+
+### Issue: PromptManager can't find prompts
+**Cause**: Prompts table not seeded or incorrect environment variables
+**Solution**: Use `manage-prompts.js` script to seed initial prompts
+
+### Issue: Lambda timeout during AI processing
+**Cause**: Default Lambda timeout too short for LLM calls
+**Solution**: Increase timeout in CDK stack (current: 5 minutes)
+
+### Issue: Multiple buckets/tables with similar names
+**Cause**: CDK stack updates creating new resources instead of updating existing
+**Solution**: Use consistent naming patterns and check existing resources before deploying
+
+### Issue: Lambda permissions errors
+**Cause**: Lambda execution role missing required permissions
+**Solution**: Use CDK grant methods (`bucket.grantRead()`, `table.grantReadWriteData()`)
+
+### Issue: Secrets Manager access denied
+**Cause**: Lambda role missing permissions for Secrets Manager
+**Solution**: Add proper IAM policy statements for `secretsmanager:GetSecretValue`
+
+## Deployment Checklist
+1. ✅ All environment variables set in Vercel
+2. ✅ IAM user has required policies attached
+3. ✅ S3 event notifications configured
+4. ✅ Lambda roles have proper permissions
+5. ✅ DynamoDB table names match environment variables
+6. ✅ No `AWS_ROLE_ARN` set in Vercel
+7. ✅ TypeScript Lambda functions compiled (`npm run build`)
+8. ✅ Prompts table seeded with initial prompts
+9. ✅ OpenAI API key stored in Secrets Manager
+10. ✅ All CDK grant methods used for permissions
+
+## Testing Workflow
+1. Compile Lambda TypeScript: `cd aws-infra/lambda-fns/ai-lease-processing && npm run build`
+2. Deploy CDK stack: `cd ../../ && npm run build && npx cdk deploy`
+3. Seed prompts: `node scripts/manage-prompts.js list` (verify seeding)
+4. Update Vercel environment variables if needed
+5. Test upload → S3 → Lambda → AI Processing → DynamoDB pipeline
+6. Check CloudWatch logs for each component
+7. Verify DynamoDB status updates throughout pipeline
+8. Test prompt updates without Lambda redeployment
+
+## Management and Maintenance
+
+### Updating AI Prompts
+```bash
+# List current prompts
+node scripts/manage-prompts.js list
+
+# Update existing prompt
+node scripts/manage-prompts.js update lease-analysis-system "New system prompt"
+
+# Upload large prompt file
+node scripts/manage-prompts.js upload-file large-context-prompt ./prompts/large-prompt.txt
+```
+
+### Lambda Function Updates
+1. Make changes to TypeScript source
+2. Compile: `npm run build`
+3. Deploy: `npx cdk deploy`
+4. Test functionality
+5. Update prompts if needed (no redeployment required)
+
+### Monitoring and Logs
+- **CloudWatch Logs**: `/aws/lambda/TenantArmorStack-AILeaseProcessing`
+- **DynamoDB Metrics**: Monitor read/write capacity
+- **S3 Metrics**: Monitor upload patterns and storage usage
+- **Lambda Metrics**: Duration, errors, and invocation patterns
+
+
+

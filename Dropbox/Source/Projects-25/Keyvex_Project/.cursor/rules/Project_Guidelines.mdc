@@ -1,0 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Primary Project Guidelines
+
+This document outlines the primary conventions and structure for the Keyvex project.
+
+## Core Technologies
+
+- **Framework**: Next.JS 14
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS (assumption, common with Next.js)
+- **Authentication**: Clerk
+
+## Key Directories
+
+- **API Routes**: `keyvex_app/src/app/api/` - Contains all backend API logic.
+    - AI related routes are in `[keyvex_app/src/app/api/ai/](mdc:keyvex_app/src/app/api/ai)`.
+    - For example, tool creation is handled in `[keyvex_app/src/app/api/ai/create-tool/route.ts](mdc:keyvex_app/src/app/api/ai/create-tool/route.ts)`.
+- **UI Components**: `keyvex_app/src/components/` - Houses all reusable UI elements.
+    - General UI components: `[keyvex_app/src/components/ui/](mdc:keyvex_app/src/components/ui)`
+    - Authentication components: `[keyvex_app/src/components/auth/](mdc:keyvex_app/src/components/auth)`
+- **Core Logic & Libraries**: `keyvex_app/src/lib/` - Shared utilities, AI logic, database interactions, etc.
+    - AI Orchestrator and agents: `[keyvex_app/src/lib/ai/](mdc:keyvex_app/src/lib/ai)`
+    - Database (DynamoDB): `[keyvex_app/src/lib/db/dynamodb/](mdc:keyvex_app/src/lib/db/dynamodb)`
+- **Application Pages**: `keyvex_app/src/app/` - Contains Next.js pages and route handlers (excluding the `api` subdirectory).
+    - Dashboard: `[keyvex_app/src/app/dashboard/](mdc:keyvex_app/src/app/dashboard)`
+    - Sign-in: `[keyvex_app/src/app/sign-in/](mdc:keyvex_app/src/app/sign-in)`
+
+## Development Notes
+
+- **Windows Environment**: All commands and paths should be Windows-compatible.
+- **PowerShell**: Use Windows PowerShell for terminal commands.
+- **TODO Comments**: Preserve all `TODO:` comments.
+- **Client vs. Server**: Be mindful of Next.js client/server component distinctions.
+- **Reference Code**: The `REFERENCE_CODE/` directory contains examples and inspiration.
+- **Text Files**: Ignore `.txt` files and files with `copy` in their name as they are for reference only.
+

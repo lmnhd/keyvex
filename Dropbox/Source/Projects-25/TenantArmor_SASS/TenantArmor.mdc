@@ -1,0 +1,222 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+TenantArmor: Project Context & Guiding Specifications (7-Day MVP)
+Version: 1.1
+Date: December 2024
+1. Project Mission & MVP Goal:
+Mission: To empower renters by providing rapid, AI-driven lease analysis and eviction notice assistance.
+MVP Goal (7 Days): Launch a functional web application that allows users to:
+Upload a text-based PDF lease agreement, select their state (initially CA, NY, TX), and receive an AI-generated risk analysis.
+Upload a text-based PDF eviction notice, select their state, and receive relevant information/links (with a longer-term goal of templated responses).
+Implement a basic freemium model managed by Clerk auth.
+2. Core Technologies & Stack:
+Frontend: Next.js 14 (App Router) + React + Tailwind CSS (in `tenantarmor/`)
+Backend Logic/API: Next.js 14 API Routes (Serverless Functions on Vercel, in `tenantarmor/`)
+AI Model: OpenAI GPT-3.5 Turbo (via direct API calls with proper error handling)
+PDF Text Extraction: AWS Lambda (TypeScript with PyMuPDF layer)
+Database: AWS DynamoDB (Serverless NoSQL) - LeaseAnalyses + AIPrompts tables
+File Storage: AWS S3 - Multiple buckets (uploads + prompts)
+Authentication: Clerk
+Hosting: Vercel (Frontend/Next.js API), AWS (Lambda, S3, DynamoDB)
+Development Environment: Windows 11 (PowerShell for CLI commands)
+3. Data & Process Flow Architecture (Updated - Direct Lambda Processing):
+User Upload (Client): User uploads a PDF lease or eviction notice and selects their state via the Next.js frontend.
+Presigned URL (Next.js API -> S3): Frontend requests a secure, pre-signed S3 URL from a Next.js API endpoint.
+Direct S3 Upload (Client -> S3): Frontend uploads the file directly to the S3 bucket (`tenant-defender-uploads`) using the pre-signed URL (from `tenantarmor/` app).
+S3 Trigger (S3 -> Lambda): S3 upload triggers the TypeScript AWS Lambda function (`TenantArmorStack-AILeaseProcessing`).
+Text Extraction & AI Processing (Lambda): Lambda function performs:
+- Uses PyMuPDF to extract text from the PDF
+- Creates/updates DynamoDB record with status: TEXT_EXTRACTION_COMPLETE
+- Retrieves dynamic AI prompts from AIPrompts table/bucket using PromptManager
+- Calls OpenAI API directly for lease analysis
+- Updates DynamoDB with final results and status: COMPLETED or FAILED
+Initial DB Record (Lambda -> DynamoDB): Lambda creates/updates an item in the LeaseAnalyses DynamoDB table with:
+analysisId (Primary Key, e.g., S3 object key or a UUID)
+userId (from Clerk, passed via S3 metadata or inferred if possible)
+s3Key
+uploadTimestamp
+status: Processing states - TEXT_EXTRACTION_COMPLETE -> AI_PROCESSING -> COMPLETED/FAILED
+userSelectedState
+documentType: (LEASE or EVICTION_NOTICE)
+extractedText and aiAnalysisResult
+Display Results (Client -> Next.js API -> DynamoDB): Frontend polls a Next.js API endpoint (e.g., /api/analysis-status?analysisId=...). This API checks DynamoDB for the status and returns the analysis when COMPLETED.
+4. AI Strategy:
+Model: OpenAI GPT-3.5 Turbo for MVP and baseline. Consider GPT-4 for advanced features or a "Pro" tier post-MVP.
+Prompt Engineering: Critical for both MVP and Post-MVP phases. Prompts must be clear, provide context, and guide the LLM towards desired output structure and tone.
+Dynamic Prompt System: AI prompts are stored in DynamoDB (`TenantArmorStack-AIPrompts`) and S3 bucket for large files.
+PromptManager Class: TypeScript class in Lambda handles prompt retrieval with templating support.
+State-Specific Context: Prompts can be customized per state (CA, NY, TX) with template variables.
+No-Redeployment Updates: Prompts can be updated via management script without Lambda redeployment.
+Management Script: `aws-infra/scripts/manage-prompts.js` for CRUD operations on prompts.
+Focus: Achieve contextual awareness for lease risk spotting and key data extraction for eviction notices using dynamically managed prompts.
+Post-MVP Context (Phase 2 - RAG with Pinecone):
+Knowledge Base: A Pinecone vector database will store embeddings of comprehensive state-specific legal texts.
+Retrieval: Dynamic context retrieval based on document content and state.
+Augmentation & Generation: Retrieved chunks injected into LLM prompts for enhanced context.
+Structured Output: Well-structured JSON for analysis results and extracted data.
+Cost Optimization: Monitor OpenAI API usage and implement caching strategies.
+Ethical AI & Disclaimers: Always include clear disclaimers about legal advice.
+5. Database (AWS DynamoDB):
+Primary Table: LeaseAnalyses (`TenantArmorStack-LeaseAnalyses`)
+Partition Key: analysisId (String - S3 object key or UUID)
+Key Attributes:
+userId (String - from Clerk, for data ownership and filtering)
+s3Key (String - path to the original file in S3)
+documentType (String Enum: LEASE, EVICTION_NOTICE)
+userSelectedState (String Enum: CA, NY, TX)
+status (String Enum: UPLOADED, TEXT_EXTRACTION_COMPLETE, AI_PROCESSING, COMPLETED, FAILED)
+extractedText (String - from PyMuPDF extraction)
+aiAnalysisResult (String or Map - for lease reports or structured data)
+errorDetails (String - if status is FAILED)
+uploadTimestamp (Number - Unix epoch)
+lastUpdatedTimestamp (Number - Unix epoch)
+**NEW: AI Prompts Table: AIPrompts (`TenantArmorStack-AIPrompts`)**
+Partition Key: promptId (String - e.g., "lease-analysis-system", "lease-analysis-user")
+Attributes:
+promptContent (String - the prompt text, or S3 key for large prompts)
+promptType (String - "system", "user", "context")
+state (String - optional state-specific customization)
+isLargeFile (Boolean - indicates if content is in S3)
+lastUpdated (Number - Unix epoch)
+variables (Map - template variables for dynamic substitution)
+6. Frontend (Next.js 14 / React / Tailwind CSS):
+Key Pages/Views:
+/upload: File input (PDF), state selection dropdown. Clear instructions.
+/analysis/[analysisId]: Results display page. Shows status (polling), then the AI report or eviction info.
+/dashboard (or similar protected route): List of user's past analyses.
+Auth pages (handled by Clerk: /sign-in, /sign-up).
+Pricing/Upgrade Page (Day 7).
+User Experience:
+Provide immediate feedback on actions (e.g., "Uploading...", "Processing...").
+Clear loading states while polling for results.
+Graceful error messages.
+Responsive design for mobile/desktop.
+7. Backend (Next.js 14 API Routes):
+/api/upload-url: (POST in `tenantarmor/app/api/`) Generates a pre-signed S3 URL for uploading. Requires auth.
+/api/analysis-status: (GET in `tenantarmor/app/api/`) Takes `analysisId`. Pollable. Returns status/results. Requires auth.
+/api/download-eviction-letter: (GET in `tenantarmor/app/api/`) Takes `analysisId`. Fetches extracted data, populates template, returns file. Requires auth.
+8. PDF Handling:
+MVP (Current): Strictly text-based (born-digital) PDFs. PyMuPDF in TypeScript Lambda handles text extraction.
+Error Handling: If PyMuPDF fails to extract significant text (e.g., image-only PDF), the status in DynamoDB should be set to FAILED with appropriate errorDetails message.
+Post-MVP (Week 2+):
+Client-side OCR (Tesseract.js) for scanned printed documents.
+Further exploration for handwritten documents (Tesseract.js or server-side OCR like AWS Textract).
+9. Security & Authentication:
+User Authentication: Clerk manages user sign-up, sign-in, and session management.
+API Route Protection: Protect Next.js API routes using Clerk's backend SDK.
+S3 Security:
+Use pre-signed URLs for uploads to limit direct write access.
+S3 buckets should NOT be publicly accessible.
+Object ownership and lifecycle policies implemented.
+API Keys Management:
+OpenAI API Key: Stored in AWS Secrets Manager, accessed by Lambda
+AWS Credentials: IAM user with minimal required permissions for Vercel
+Environment Variables: Securely stored in Vercel and Lambda environments
+Data Segregation: Ensure users can only access their own analysis data (via userId checks).
+10. Error Handling & Logging:
+Frontend: Display user-friendly error messages.
+Backend (Lambda & Next.js API):
+Implement try-catch blocks for all external calls (AWS SDK, OpenAI).
+Log errors to AWS CloudWatch Logs (Lambda) and Vercel Functions logs.
+Update DynamoDB status to FAILED with errorDetails upon failure.
+Structured logging with correlation IDs for debugging.
+11. Deployment:
+Next.js Frontend & API: Vercel (connect GitHub repo for CI/CD). `vercel --prod` for production.
+AWS Lambda: TypeScript compilation required before CDK deployment:
+```bash
+cd aws-infra/lambda-fns/ai-lease-processing
+npm run build
+cd ../../
+npm run build && npx cdk deploy
+```
+AWS Infrastructure: CDK-managed (S3, DynamoDB, Lambda, SQS, Secrets Manager).
+Prompt Management: Use `node scripts/manage-prompts.js` for prompt updates.
+12. Current Infrastructure Components:
+**Core DynamoDB Tables:**
+- LeaseAnalyses: `TenantArmorStack-LeaseAnalyses` - Main analysis data
+- AIPrompts: `TenantArmorStack-AIPrompts` - Dynamic prompt storage
+**Core S3 Buckets:**
+- Uploads: `tenantarmorstack-leaseuploads*` - PDF file uploads  
+- Prompts: `tenantarmorstack-aiprompts*` - Large prompt files
+**Lambda Functions:**
+- AI Lease Processing: `TenantArmorStack-AILeaseProcessing` - TypeScript function handling text extraction and AI processing
+**Other AWS Resources:**
+- SQS Queue: `TenantArmorStack-AIProcessingQueue` - Message queue for processing
+- Secrets Manager: OpenAI API key secure storage
+- CloudWatch Logs: `/aws/lambda/TenantArmorStack-AILeaseProcessing`
+13. Scope Management for 7-Day MVP (Minimal Viability Focus):
+Strict Adherence: Only features explicitly outlined for the 7-day plan.
+"No Fluff": Postpone aesthetic perfection, advanced features beyond core analysis.
+Focus on Core Loop: Upload -> S3 -> Lambda (Text Extraction + AI Analysis) -> Display Results.
+The AI must provide demonstrably more value than a generic LLM call by incorporating state-specific context via dynamic prompts.
+Eviction notice processing for MVP aims for key data extraction and linking to static templates.
+Postponed for Post-MVP:
+Full Pinecone RAG implementation with dynamic retrieval.
+Automated scraping and OCR for knowledge base population.
+Advanced template filling with `@react-pdf/renderer`.
+Lawyer marketplace, renewal alerts.
+Extensive state law variations beyond CA, NY, TX.
+Minimal Viability Goal: A user can upload a lease for CA/NY/TX, receive state-contextualized risk indicators. A user can upload an eviction notice, see key data points extracted, and get relevant guidance. This provides core value and foundation for rapid iteration.
+14. Development Environment Reminder:
+All terminal commands assume Windows PowerShell.
+Ignore .txt files or files with "copy" in the name; they are for reference only.
+DO NOT REMOVE TODO: comments.
+Always compile TypeScript Lambda functions before CDK deployment.
+**Updated File Structure:**
+TenantArmor_SASS/
+├── tenantarmor/                   # Next.js 14 Frontend & API Application
+│   ├── app/                    # Next.js App Router
+│   │   ├── (auth)/             # Route group for authentication pages (Clerk)
+│   │   ├── api/                # API Routes (Backend for Frontend)
+│   │   │   ├── upload-url/     # Generates pre-signed S3 URLs
+│   │   │   │   └── route.ts
+│   │   │   ├── analysis-status/ # Polled by frontend for results
+│   │   │   │   └── route.ts    # Takes query param ?analysisId=...
+│   │   │   └── download-eviction-letter/ # Generates and serves eviction letters
+│   │   │       └── route.ts    # Takes query param ?analysisId=...
+│   │   ├── upload/             # Lease/Eviction Notice Upload Page
+│   │   ├── analysis/[analysisId]/ # Dynamic route for displaying results
+│   │   ├── dashboard/          # User dashboard (list of analyses)
+│   │   ├── layout.tsx          # Root layout (with ClerkProvider)
+│   │   └── page.tsx            # Home/Landing page
+│   ├── components/             # Shared React components
+│   ├── lib/                    # Utility functions, SDK clients, helper modules
+│   │   ├── aws-clients.ts      # AWS SDK v3 client initializations
+│   │   ├── clerk-config.ts     # Clerk client/server configurations
+│   │   └── utils.ts            # General utility functions
+│   └── [standard Next.js files]
+│
+├── aws-infra/                 # AWS CDK Infrastructure as Code Project
+│   ├── bin/
+│   │   └── tenant-armor-infra.ts # CDK App entry point
+│   ├── lib/                    # CDK Stacks and Constructs
+│   │   └── tenant-armor-stack.ts # Main stack defining all resources
+│   ├── lambda-fns/             # Source code for Lambda functions
+│   │   └── ai-lease-processing/ # TypeScript Lambda for PDF processing + AI
+│   │       ├── index.ts        # Lambda handler code
+│   │       ├── prompt-manager.ts # Prompt management class
+│   │       ├── package.json    # Lambda dependencies
+│   │       ├── tsconfig.json   # TypeScript configuration
+│   │       ├── build/          # Compiled JavaScript output
+│   │       └── node_modules/   # Lambda dependencies
+│   ├── scripts/                # Management and utility scripts
+│   │   └── manage-prompts.js   # Script for prompt CRUD operations
+│   └── [standard CDK files]
+│
+├── documents/                  # Project-related, non-code assets
+│   ├── legal-templates-source/ # Raw source for eviction response templates
+│   └── [reference materials]
+│
+└── [project root files]
+
+**Key Changes from Original Specification:**
+1. ✅ **AI Processing moved to Lambda** - No longer using Next.js API for AI calls
+2. ✅ **Dynamic Prompt System** - Prompts stored in DynamoDB/S3, managed via scripts
+3. ✅ **TypeScript Lambda Functions** - All Lambda code in TypeScript with build process
+4. ✅ **Consolidated Architecture** - Single Lambda handles both PDF processing and AI analysis
+5. ✅ **Enhanced Security** - OpenAI keys in Secrets Manager, proper IAM roles
+6. ❌ **Removed JSON Context Files** - Replaced with dynamic prompt system
+7. ❌ **Removed Redundant API Routes** - AI processing no longer in Next.js API

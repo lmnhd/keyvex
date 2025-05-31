@@ -1,0 +1,96 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# TenantArmor Directory Structure Rules
+
+## Critical Directory Structure Guidelines
+
+**MANDATORY**: Always verify your current working directory before creating, editing, or moving files. The TenantArmor project has a specific nested structure that must be respected.
+
+## Project Root Structure
+
+```
+TenantArmor_SASS/                    # Project root directory
+├── tenantarmor/                     # Next.js 14 application directory
+│   ├── src/                         # Next.js source code
+│   │   ├── app/                     # App router pages and API routes
+│   │   ├── components/              # React components
+│   │   └── lib/                     # Utility libraries
+│   ├── package.json                 # Next.js dependencies
+│   ├── next.config.js               # Next.js configuration
+│   ├── tailwind.config.js           # Tailwind CSS configuration
+│   └── tsconfig.json                # TypeScript configuration
+├── aws_infra/                       # AWS CDK infrastructure code
+│   ├── lib/                         # CDK stack definitions
+│   ├── bin/                         # CDK app entry points
+│   └── package.json                 # CDK dependencies
+├── documentation/                   # Project documentation
+├── .cursor/                         # Cursor IDE configuration
+│   └── rules/                       # Cursor rules files
+└── [other tools and documents]      # Various project files
+```
+
+## Working Directory Rules
+
+### Before Making Any Changes:
+1. **Check Current Directory**: Always verify you are in the correct subdirectory
+2. **Use Relative Paths**: Reference files relative to the appropriate project root
+3. **Never Create Top-Level src/**: The `src/` directory belongs inside `tenantarmor/`, not at project root
+
+### Next.js Application Files
+- **Location**: All Next.js code must be within `tenantarmor/`
+- **Components**: Place in `tenantarmor/src/components/`
+- **Pages**: Place in `tenantarmor/src/app/`
+- **API Routes**: Place in `tenantarmor/src/app/api/`
+- **UI Components**: Place in `tenantarmor/src/components/ui/`
+
+### AWS Infrastructure Files
+- **Location**: All CDK code must be within `aws_infra/`
+- **Stacks**: Place in `aws_infra/lib/`
+- **Lambda Functions**: Place in `aws_infra/lambda/`
+
+### Common Mistakes to Avoid
+❌ **NEVER DO**: Create `src/` at project root level
+❌ **NEVER DO**: Place Next.js files outside `tenantarmor/`
+❌ **NEVER DO**: Place AWS CDK files outside `aws_infra/`
+❌ **NEVER DO**: Assume you're in the right directory without checking
+
+✅ **ALWAYS DO**: Verify current working directory first
+✅ **ALWAYS DO**: Use proper nested paths
+✅ **ALWAYS DO**: Place files in their designated subdirectories
+
+## File Creation Guidelines
+
+### When Creating Next.js Files:
+```bash
+# Correct paths (from project root)
+tenantarmor/src/components/my-component.tsx
+tenantarmor/src/app/dashboard/page.tsx
+tenantarmor/src/app/api/my-endpoint/route.ts
+```
+
+### When Creating AWS Infrastructure Files:
+```bash
+# Correct paths (from project root)
+aws_infra/lib/my-stack.ts
+aws_infra/lambda/my-function.ts
+```
+
+### Terminal Commands:
+- Always `cd tenantarmor` before running Next.js commands
+- Always `cd aws_infra` before running CDK commands
+- Check your current directory with `pwd` (Unix) or `cd` (Windows)
+
+## Directory Validation Checklist
+
+Before making any file changes, verify:
+- [ ] Current working directory is correct
+- [ ] Target file path uses proper nested structure
+- [ ] Next.js files are within `tenantarmor/`
+- [ ] AWS files are within `aws_infra/`
+- [ ] No files created at incorrect root level
+
+This structure ensures proper separation of concerns and prevents file system conflicts between different project components.
+

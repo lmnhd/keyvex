@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Local Test Lambda Handler",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/aws-infra/lambda-fns/pdf-processor/local_test_runner.py",
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "cwd": "${workspaceFolder}/aws-infra/lambda-fns/pdf-processor"
+    }
+  ]
+} 

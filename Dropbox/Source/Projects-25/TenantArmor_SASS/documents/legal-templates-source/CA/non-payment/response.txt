@@ -1,0 +1,70 @@
+[tenantName]
+[tenantAddress]
+[City], [State] [zipCode]
+[tenantPhone]
+[tenantEmail]
+
+[Date]
+
+[landlordName]
+[landlordAddress]
+[City], [State] [zipCode]
+
+RE: Response to Three-Day Notice to Pay Rent or Quit
+    Property Address: [propertyAddress]
+    Notice Date: [noticeDate]
+
+Dear [landlordName],
+
+I am writing in response to the Three-Day Notice to Pay Rent or Quit dated [noticeDate] that I received regarding the above-referenced property.
+
+PAYMENT DISPUTE AND LEGAL DEFENSES
+
+I hereby dispute this eviction notice on the following grounds under California Civil Code and the Tenant Protection Act:
+
+1. **IMPROPER NOTICE DEFECTS**
+   The notice you served contains legal defects that make it invalid under California Civil Code Section 1161:
+   - [Check if applicable: The notice period is incorrect]
+   - [Check if applicable: The amount demanded is incorrect]
+   - [Check if applicable: The notice was not properly served according to CCP Section 1162]
+
+2. **RENT PAYMENT RECORDS**
+   My rent payment history shows:
+   - Last rent payment: $[lastPaymentAmount] on [lastPaymentDate]
+   - Payment method: [paymentMethod]
+   - Current rent amount: $[monthlyRent] per month
+
+3. **HABITABILITY DEFENSES**
+   The property has the following habitability issues that affect my obligation to pay rent under Civil Code Section 1942.5:
+   - [List any habitability issues if applicable]
+
+4. **RETALIATORY EVICTION PROTECTION**
+   [If applicable] This eviction appears to be in retaliation for [specific tenant action], which is prohibited under Civil Code Section 1942.5.
+
+5. **COVID-19 RENTAL ASSISTANCE**
+   [If applicable] I have applied for COVID-19 rental assistance and am protected under SB 91 and AB 832.
+
+DEMAND FOR CURE AND COMPLIANCE
+
+If there are legitimate amounts owed, I am willing to discuss a reasonable payment plan. However, I maintain that this eviction notice is legally defective and demand that you:
+
+1. Withdraw this improper notice immediately
+2. Provide proper accounting of any amounts claimed to be owed
+3. Allow reasonable time for payment arrangements if legitimate amounts are due
+
+NOTICE OF INTENT TO DEFEND
+
+Please be advised that if you proceed with this unlawful detainer action, I intend to vigorously defend my rights in court. California law provides strong tenant protections, and improper eviction attempts can result in significant damages to landlords.
+
+I request that you contact me immediately to resolve this matter without the need for litigation.
+
+Sincerely,
+
+[tenantName]
+[tenantSignature]
+
+Date: [Date]
+
+---
+
+IMPORTANT: This letter should be sent certified mail, return receipt requested, and copies should be retained for your records. Consider consulting with a tenant rights attorney for your specific situation. 

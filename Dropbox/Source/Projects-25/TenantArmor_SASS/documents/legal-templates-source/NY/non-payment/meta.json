@@ -1,0 +1,35 @@
+{
+  "courtInstructions": "File your response at the Housing Court in [county] County. In New York, you typically have 5-10 days to answer after being served with a petition, depending on how you were served. In NYC Housing Court, tenants are entitled to free legal representation. File an Answer form and request a trial. Consider requesting discovery for rent records and building violations. You may also request a jury trial in some cases.",
+  "legalAidContacts": [
+    {
+      "name": "Right to Counsel NYC Coalition",
+      "phone": "(212) 533-4400",
+      "url": "https://www.righttocounselnyc.org/",
+      "notes": "Free legal representation for all tenants in NYC Housing Court"
+    },
+    {
+      "name": "Legal Aid Society",
+      "phone": "(212) 577-3300",
+      "url": "https://www.legalaidnyc.org/",
+      "notes": "Free legal services for low-income New Yorkers statewide"
+    },
+    {
+      "name": "New York Legal Assistance Group (NYLAG)",
+      "phone": "(212) 613-5000",
+      "url": "https://nylag.org/",
+      "notes": "Free civil legal services for low-income New Yorkers"
+    },
+    {
+      "name": "Met Council on Housing",
+      "phone": "(212) 979-0611",
+      "url": "https://www.metcouncilonhousing.org/",
+      "notes": "Tenant rights advocacy and housing assistance"
+    },
+    {
+      "name": "Mobilization for Justice",
+      "phone": "(212) 417-3700",
+      "url": "https://mobilizationforjustice.org/",
+      "notes": "Free legal services and advocacy for tenants and low-income individuals"
+    }
+  ]
+} 
