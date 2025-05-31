@@ -1,12 +1,32 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Settings, Eye, BarChart3, Search } from 'lucide-react';
-import { ProductToolDefinition, ProductToolSummary } from '@/lib/types/product-tool';
-import ProductToolRenderer from '@/components/product-tools/product-tool-renderer';
+import { ArrowLeft, Play, Code, Eye, Settings, BarChart3, Wrench, Calculator, TrendingUp, Zap, Database } from 'lucide-react';
+import Link from 'next/link';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+import DynamicComponentRenderer from '@/components/tools/dynamic-component-renderer';
+
+// ============================================================================
+// TYPES FOR THIS TEST PAGE
+// ============================================================================
+
+interface ProductToolSummary {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  type: string;
+  category: string;
+  status: 'draft' | 'published' | 'archived';
+  viewCount: number;
+  completionCount: number;
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+}
 
 // ============================================================================
 // SAMPLE PRODUCT TOOL DEFINITION
@@ -17,8 +37,13 @@ const sampleROICalculator: ProductToolDefinition = {
   slug: 'roi-calculator-demo',
   version: '1.0.0',
   status: 'published',
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  createdBy: 'demo_user',
   
   metadata: {
+    id: 'roi_calculator_demo',
+    slug: 'roi-calculator-demo',
     title: 'ROI Calculator',
     description: 'Calculate your return on investment with our simple tool',
     shortDescription: 'Quick ROI calculation tool',
@@ -36,190 +61,126 @@ const sampleROICalculator: ProductToolDefinition = {
     }
   },
   
-  layout: {
-    type: 'single-page',
-    structure: {
-      container: {
-        maxWidth: '2xl',
-        padding: 'p-6',
-        alignment: 'center'
-      },
-      sections: [
-        {
-          id: 'main',
-          type: 'content',
-          layout: 'vertical',
-          order: 1
-        }
-      ],
-      flow: {
-        type: 'linear'
-      }
-    },
-    responsive: {
-      breakpoints: {
-        sm: 'responsive',
-        md: 'responsive', 
-        lg: 'responsive',
-        xl: 'responsive'
-      }
-    }
-  },
+  componentCode: `'use client';
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+export default function ROICalculator() {
+  const [initialInvestment, setInitialInvestment] = useState(0);
+  const [finalValue, setFinalValue] = useState(0);
+
+  const roi = initialInvestment > 0 ? ((finalValue - initialInvestment) / initialInvestment) * 100 : 0;
+  const profitLoss = finalValue - initialInvestment;
+
+  const handleReset = () => {
+    setInitialInvestment(0);
+    setFinalValue(0);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto p-6">
+      <Card className="shadow-lg" style={{ borderColor: '#3b82f6' }}>
+        <CardHeader style={{ backgroundColor: '#3b82f6', color: 'white' }}>
+          <CardTitle className="text-2xl">ROI Calculator</CardTitle>
+          <p className="text-sm opacity-90">Calculate your return on investment</p>
+        </CardHeader>
+        
+        <CardContent className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="initialInvestment" className="text-sm font-medium">
+                Initial Investment ($)
+              </Label>
+              <Input
+                id="initialInvestment"
+                type="number"
+                value={initialInvestment}
+                onChange={(e) => setInitialInvestment(Number(e.target.value))}
+                placeholder="10000"
+                className="w-full"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="finalValue" className="text-sm font-medium">
+                Final Value ($)
+              </Label>
+              <Input
+                id="finalValue"
+                type="number"
+                value={finalValue}
+                onChange={(e) => setFinalValue(Number(e.target.value))}
+                placeholder="12000"
+                className="w-full"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-6">
+            <h3 className="text-lg font-semibold mb-4">Results</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">ROI Percentage</p>
+                <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
+                  {roi.toFixed(1)}%
+                </p>
+              </div>
+              
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Profit/Loss</p>
+                <p className="text-2xl font-bold" style={{ color: profitLoss >= 0 ? '#10b981' : '#ef4444' }}>
+                  $\{profitLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleReset}
+              variant="outline"
+              className="flex-1"
+            >
+              Reset
+            </Button>
+            <Button 
+              style={{ backgroundColor: '#3b82f6' }}
+              className="flex-1 text-white hover:opacity-90"
+            >
+              Save Results
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}`,
   
-  components: [
-    {
-      id: 'initial_investment',
-      type: 'currency-input',
-      sectionId: 'main',
-      order: 1,
-      props: {
-        label: 'Initial Investment',
-        placeholder: 'Enter your initial investment',
-        helperText: 'The amount you initially invested',
-        required: true
-      },
-      validation: {
-        componentId: 'initial_investment',
-        rules: [
-          { type: 'required', message: 'Initial investment is required' },
-          { type: 'min', value: 0, message: 'Investment must be positive' }
-        ]
-      }
-    },
-    {
-      id: 'final_value',
-      type: 'currency-input',
-      sectionId: 'main',
-      order: 2,
-      props: {
-        label: 'Final Value',
-        placeholder: 'Enter the final value',
-        helperText: 'The current or final value of your investment',
-        required: true
-      },
-      validation: {
-        componentId: 'final_value',
-        rules: [
-          { type: 'required', message: 'Final value is required' },
-          { type: 'min', value: 0, message: 'Value must be positive' }
-        ]
-      }
-    },
-    {
-      id: 'roi_result',
-      type: 'calculation-display',
-      sectionId: 'main',
-      order: 3,
-      props: {
-        label: 'Return on Investment',
-        format: {
-          type: 'percentage',
-          decimals: 2
-        },
-        formula: '((final_value - initial_investment) / initial_investment) * 100',
-        dependencies: ['initial_investment', 'final_value']
-      }
-    }
-  ],
-  
-  styling: {
-    theme: {
-      name: 'default',
-      mode: 'light',
-      borderRadius: 'md',
-      shadows: 'sm',
-      effects: {}
-    },
-    colors: {
-      primary: '#3b82f6',
+  colorScheme: {
+    primary: '#3b82f6',
+    secondary: '#6b7280',
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: {
+      primary: '#111827',
       secondary: '#6b7280',
-      background: '#ffffff',
-      surface: '#f9fafb',
-      text: {
-        primary: '#111827',
-        secondary: '#6b7280',
-        muted: '#9ca3af'
-      },
-      border: '#e5e7eb',
-      success: '#10b981',
-      warning: '#f59e0b',
-      error: '#ef4444',
-      info: '#3b82f6'
+      muted: '#9ca3af'
     },
-    typography: {
-      fontFamily: {
-        primary: 'Inter, sans-serif'
-      },
-      scale: {
-        xs: '0.75rem',
-        sm: '0.875rem',
-        base: '1rem',
-        lg: '1.125rem',
-        xl: '1.25rem',
-        '2xl': '1.5rem',
-        '3xl': '1.875rem',
-        '4xl': '2.25rem'
-      },
-      weights: {
-        normal: 400,
-        medium: 500,
-        semibold: 600,
-        bold: 700
-      }
-    },
-    spacing: {
-      scale: {
-        xs: '0.25rem',
-        sm: '0.5rem',
-        md: '1rem',
-        lg: '1.5rem',
-        xl: '2rem',
-        '2xl': '3rem'
-      }
-    }
-  },
-  
-  logic: {
-    calculations: [
-      {
-        id: 'roi_calculation',
-        name: 'ROI Percentage',
-        formula: '((final_value - initial_investment) / initial_investment) * 100',
-        dependencies: ['initial_investment', 'final_value'],
-        outputComponentId: 'roi_result',
-        triggers: [
-          { event: 'change', debounce: 300 }
-        ],
-        format: {
-          type: 'percentage',
-          decimals: 2
-        }
-      }
-    ],
-    conditions: [],
-    actions: [],
-    formulas: []
-  },
-  
-  validation: {
-    components: [],
-    global: []
+    border: '#e5e7eb',
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444'
   },
   
   analytics: {
     enabled: true,
-    trackingEvents: [
-      {
-        id: 'calculation_performed',
-        name: 'ROI Calculation Performed',
-        trigger: 'calculation'
-      }
-    ]
-  },
-  
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  createdBy: 'demo_user'
+    completions: 0,
+    averageTime: 0
+  }
 };
 
 // ============================================================================
@@ -228,6 +189,7 @@ const sampleROICalculator: ProductToolDefinition = {
 
 export default function ProductToolsTestPage() {
   const [selectedTool, setSelectedTool] = useState<ProductToolDefinition | null>(null);
+  const [showLiveRenderer, setShowLiveRenderer] = useState(false);
   const [tools] = useState<ProductToolSummary[]>([
     {
       id: 'roi_calculator_demo',
@@ -258,11 +220,19 @@ export default function ProductToolsTestPage() {
           
           {/* Header */}
           <div className="mb-8">
+            <div className="flex items-center gap-4 mb-4">
+              <Link href="/tests">
+                <Button variant="outline" size="sm">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Tests
+                </Button>
+              </Link>
+            </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Product Tools Infrastructure Test
             </h1>
             <p className="text-gray-600">
-              Testing the complete product tool system with dynamic JSON-based tool generation
+              Testing the React component-based tool system with dynamic code generation
             </p>
           </div>
 
@@ -283,8 +253,8 @@ export default function ProductToolsTestPage() {
                 </div>
                 <div className="text-center">
                   <Badge variant="default" className="mb-2">Active</Badge>
-                  <div className="text-sm font-medium">Database Layer</div>
-                  <div className="text-xs text-gray-500">DynamoDB Service</div>
+                  <div className="text-sm font-medium">React Components</div>
+                  <div className="text-xs text-gray-500">Dynamic Code Generation</div>
                 </div>
                 <div className="text-center">
                   <Badge variant="default" className="mb-2">Active</Badge>
@@ -293,54 +263,8 @@ export default function ProductToolsTestPage() {
                 </div>
                 <div className="text-center">
                   <Badge variant="default" className="mb-2">Active</Badge>
-                  <div className="text-sm font-medium">Component Factory</div>
-                  <div className="text-xs text-gray-500">Dynamic Rendering</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* API Endpoints */}
-          <Card className="mb-8">
-            <CardHeader>
-              <CardTitle>Available API Endpoints</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                  <div>
-                    <div className="font-mono text-sm">GET /api/product-tools</div>
-                    <div className="text-xs text-gray-600">List all product tools with pagination</div>
-                  </div>
-                  <Badge variant="default">Ready</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                  <div>
-                    <div className="font-mono text-sm">POST /api/product-tools</div>
-                    <div className="text-xs text-gray-600">Create new product tool</div>
-                  </div>
-                  <Badge variant="default">Ready</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                  <div>
-                    <div className="font-mono text-sm">GET /api/product-tools/[toolId]</div>
-                    <div className="text-xs text-gray-600">Get specific tool with analytics tracking</div>
-                  </div>
-                  <Badge variant="default">Ready</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-green-50 rounded">
-                  <div>
-                    <div className="font-mono text-sm">GET /api/product-tools/search</div>
-                    <div className="text-xs text-gray-600">Search tools by query and filters</div>
-                  </div>
-                  <Badge variant="default">Ready</Badge>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded">
-                  <div>
-                    <div className="font-mono text-sm">GET /product-tools/[slug]</div>
-                    <div className="text-xs text-gray-600">Public tool pages by slug</div>
-                  </div>
-                  <Badge variant="secondary">Ready</Badge>
+                  <div className="text-sm font-medium">Dynamic Renderer</div>
+                  <div className="text-xs text-gray-500">Live Component Execution</div>
                 </div>
               </div>
             </CardContent>
@@ -379,29 +303,73 @@ export default function ProductToolsTestPage() {
                         </div>
                       </div>
                     </div>
-                    <Button size="sm" variant="outline">
-                      Test Tool
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline">
+                        View JSON
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToolSelect(tool.id);
+                          setShowLiveRenderer(true);
+                        }}
+                      >
+                        <Play className="h-3 w-3 mr-1" />
+                        Test Live
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* Tool Definition Viewer */}
-          {selectedTool && (
+          {/* Live Component Renderer */}
+          {selectedTool && showLiveRenderer && (
             <Card className="mb-8">
               <CardHeader>
-                <CardTitle>Live Tool Renderer Test</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  Live Component Renderer
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowLiveRenderer(false)}
+                  >
+                    Close
+                  </Button>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ProductToolRenderer toolDefinition={selectedTool} />
+                <DynamicComponentRenderer
+                  componentCode={selectedTool.componentCode}
+                  metadata={{
+                    title: selectedTool.metadata.title,
+                    description: selectedTool.metadata.description,
+                    slug: selectedTool.slug
+                  }}
+                  isLoading={false}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tool Definition Viewer */}
+          {selectedTool && !showLiveRenderer && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>React Component Code</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-900 text-gray-100 p-4 rounded text-xs overflow-x-auto">
+                  <pre>{selectedTool.componentCode}</pre>
+                </div>
               </CardContent>
             </Card>
           )}
 
           {/* Tool Definition JSON Viewer */}
-          {selectedTool && (
+          {selectedTool && !showLiveRenderer && (
             <Card className="mb-8">
               <CardHeader>
                 <CardTitle>Tool Definition JSON</CardTitle>
@@ -425,42 +393,42 @@ export default function ProductToolsTestPage() {
                   <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm font-medium">✓</div>
                   <div>
                     <div className="font-medium">TypeScript Errors Fixed</div>
-                    <div className="text-sm text-gray-600">Resolved Clerk auth import, JSX namespace, and component factory issues</div>
+                    <div className="text-sm text-gray-600">Updated to use simplified ProductToolDefinition with React component code</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm font-medium">✓</div>
                   <div>
-                    <div className="font-medium">Component System Ready</div>
-                    <div className="text-sm text-gray-600">ProductToolComponentFactory created with type adapters for compatibility</div>
+                    <div className="font-medium">React Component System</div>
+                    <div className="text-sm text-gray-600">AI generates actual React JSX code that renders dynamically</div>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-sm font-medium">✓</div>
+                  <div>
+                    <div className="font-medium">Live Dynamic Rendering</div>
+                    <div className="text-sm text-gray-600">Click "Test Live" above to see the component execute in real-time</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">1</div>
                   <div>
-                    <div className="font-medium">Install AWS SDK Dependencies</div>
-                    <div className="text-sm text-gray-600">Run: <code className="bg-gray-100 px-1 rounded">npm install @aws-sdk/client-dynamodb @aws-sdk/util-dynamodb</code></div>
+                    <div className="font-medium">Test AI Component Generation</div>
+                    <div className="text-sm text-gray-600">Visit <Link href="/tests/react-components" className="text-blue-600 underline">/tests/react-components</Link> to test AI-generated components</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">2</div>
                   <div>
-                    <div className="font-medium">Test Live Rendering</div>
-                    <div className="text-sm text-gray-600">Uncomment ProductToolRenderer in test above and verify dynamic component rendering</div>
+                    <div className="font-medium">Test Complete Workflow</div>
+                    <div className="text-sm text-gray-600">Visit <Link href="/tests/ui" className="text-blue-600 underline">/tests/ui</Link> to test the full AI conversation to tool creation flow</div>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">3</div>
                   <div>
-                    <div className="font-medium">Test API Endpoints</div>
-                    <div className="text-sm text-gray-600">Test CRUD operations with actual DynamoDB connection</div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">4</div>
-                  <div>
-                    <div className="font-medium">Setup Authentication</div>
-                    <div className="text-sm text-gray-600">Configure Clerk auth integration for protected routes</div>
+                    <div className="font-medium">Database Integration</div>
+                    <div className="text-sm text-gray-600">Test storing and retrieving tools from DynamoDB</div>
                   </div>
                 </div>
               </div>

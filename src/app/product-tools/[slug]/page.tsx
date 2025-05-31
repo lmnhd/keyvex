@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Clock, User, Eye, CheckCircle, AlertCircle } from 'lucide-react';
-import ProductToolRenderer from '@/components/product-tools/product-tool-renderer';
+// import ProductToolRenderer from '@/components/product-tools/product-tool-renderer'; // REMOVED - transitioning to React components
 
 // ============================================================================
 // PRODUCT TOOL PUBLIC PAGE
@@ -158,7 +158,7 @@ export default function ProductToolPage() {
       {/* Tool Content */}
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <ProductToolRenderer toolDefinition={tool} />
+          {/* Placeholder for the removed ProductToolRenderer */}
         </div>
       </div>
     </div>

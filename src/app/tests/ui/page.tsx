@@ -113,7 +113,7 @@ import {
   CheckCircle,
   Upload
 } from 'lucide-react';
-import { CanvasTool } from '@/components/tool-creator/canvas-tool';
+import DynamicComponentRenderer from '@/components/tools/dynamic-component-renderer';
 import { InputHistory } from '@/components/tool-creator/input-history';
 import { initBehaviorTracker, getBehaviorTracker } from '@/lib/ai/behavior-tracker';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
@@ -3129,6 +3129,235 @@ export default function TestUIPage() {
     }
   };
 
+  // Canvas Component that shows the generated tool or placeholder
+  const CanvasTool = ({ isDarkMode, className = '', productToolDefinition, isGenerating, generatingMessage }: any) => {
+    if (isGenerating && generatingMessage) {
+      return (
+        <div className={`p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
+          <div className={`border-2 border-dashed rounded-lg p-8 text-center ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-300'
+          }`}>
+            <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
+            <h3 className="text-lg font-medium mb-2">Creating Your Tool</h3>
+            <p className="text-sm opacity-70">
+              {generatingMessage}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    if (productToolDefinition && productToolDefinition.componentCode) {
+      return (
+        <div className={`p-6 ${className}`}>
+          <DynamicComponentRenderer
+            componentCode={productToolDefinition.componentCode}
+            metadata={{
+              title: productToolDefinition.metadata.title,
+              description: productToolDefinition.metadata.description,
+              slug: productToolDefinition.slug
+            }}
+            onError={(error) => console.error('Canvas render error:', error)}
+          />
+        </div>
+      );
+    }
+
+    // Default placeholder when no tool is generated yet
+    return (
+      <div className={`p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
+        <div className={`border-2 border-dashed rounded-lg p-8 text-center ${
+          isDarkMode ? 'border-gray-600' : 'border-gray-300'
+        }`}>
+          <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
+          <h3 className="text-lg font-medium mb-2">Canvas Ready</h3>
+          <p className="text-sm opacity-70">
+            Your generated tool will appear here. Use the options menu to test tool creation!
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Tool Info Bubble Component
+  const ToolInfoBubble = ({ productToolDefinition, isDarkMode }: { 
+    productToolDefinition: ProductToolDefinition | null, 
+    isDarkMode: boolean 
+  }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    if (!productToolDefinition) return null;
+
+    return (
+      <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20">
+        {/* Hover trigger */}
+        <div
+          className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer transition-all duration-200 ${
+            isDarkMode 
+              ? 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-gray-100 border-gray-600' 
+              : 'bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-900 border-gray-300'
+          } border-2 shadow-lg hover:shadow-xl`}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          <Type className="h-4 w-4" />
+        </div>
+
+        {/* Info bubble */}
+        {isHovered && (
+          <div
+            className={`absolute left-12 top-1/2 transform -translate-y-1/2 w-80 p-4 rounded-lg shadow-xl border-2 z-30 animate-in fade-in slide-in-from-left-2 duration-200 ${
+              isDarkMode 
+                ? 'bg-gray-800 border-gray-600 text-gray-100' 
+                : 'bg-white border-gray-300 text-gray-900'
+            }`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
+            {/* Arrow pointing to trigger */}
+            <div 
+              className={`absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-2 w-0 h-0 ${
+                isDarkMode 
+                  ? 'border-r-gray-600' 
+                  : 'border-r-gray-300'
+              }`}
+              style={{
+                borderTop: '8px solid transparent',
+                borderBottom: '8px solid transparent',
+                borderRight: '8px solid',
+                borderRightColor: isDarkMode ? '#4B5563' : '#D1D5DB'
+              }}
+            />
+            
+            <div className="space-y-3">
+              {/* Tool Title */}
+              <div className="space-y-1">
+                <h3 className="text-lg font-semibold leading-tight">
+                  {productToolDefinition.metadata.title}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${
+                      isDarkMode ? 'border-gray-500 text-gray-300' : 'border-gray-400 text-gray-600'
+                    }`}
+                  >
+                    {productToolDefinition.metadata.type}
+                  </Badge>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs ${
+                      isDarkMode ? 'border-gray-500 text-gray-300' : 'border-gray-400 text-gray-600'
+                    }`}
+                  >
+                    {productToolDefinition.metadata.category}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <p className={`text-sm leading-relaxed ${
+                  isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  {productToolDefinition.metadata.description}
+                </p>
+                
+                {productToolDefinition.metadata.shortDescription && 
+                 productToolDefinition.metadata.shortDescription !== productToolDefinition.metadata.description && (
+                  <p className={`text-xs ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    {productToolDefinition.metadata.shortDescription}
+                  </p>
+                )}
+              </div>
+
+              {/* Additional metadata */}
+              <div className={`space-y-2 pt-2 border-t ${
+                isDarkMode ? 'border-gray-600' : 'border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                    Target Audience:
+                  </span>
+                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {productToolDefinition.metadata.targetAudience}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between text-xs">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                    Industry:
+                  </span>
+                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {productToolDefinition.metadata.industry}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between text-xs">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                    Difficulty:
+                  </span>
+                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {productToolDefinition.metadata.difficultyLevel}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className={isDarkMode ? 'text-gray-400' : 'text-gray-500'}>
+                    Est. Time:
+                  </span>
+                  <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                    {productToolDefinition.metadata.estimatedCompletionTime} min
+                  </span>
+                </div>
+              </div>
+
+              {/* Features tags */}
+              {productToolDefinition.metadata.features && productToolDefinition.metadata.features.length > 0 && (
+                <div className="space-y-2">
+                  <p className={`text-xs font-medium ${
+                    isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    Features:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {productToolDefinition.metadata.features.slice(0, 6).map((feature, index) => (
+                      <Badge 
+                        key={index} 
+                        variant="secondary" 
+                        className={`text-xs px-2 py-0.5 ${
+                          isDarkMode 
+                            ? 'bg-gray-700 text-gray-300 border-gray-600' 
+                            : 'bg-gray-100 text-gray-700 border-gray-300'
+                        }`}
+                      >
+                        {feature}
+                      </Badge>
+                    ))}
+                    {productToolDefinition.metadata.features.length > 6 && (
+                      <Badge 
+                        variant="secondary" 
+                        className={`text-xs px-2 py-0.5 ${
+                          isDarkMode 
+                            ? 'bg-gray-700 text-gray-300 border-gray-600' 
+                            : 'bg-gray-100 text-gray-700 border-gray-300'
+                        }`}
+                      >
+                        +{productToolDefinition.metadata.features.length - 6}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Progress Header */}
@@ -3179,8 +3408,8 @@ export default function TestUIPage() {
                   onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
                   onToggleMockData={() => setUseMockData(!useMockData)}
                   onToggleIteratorTest={() => {
-                    setUseIteratorTest(!useIteratorTest);
-                    resetWorkflow();
+                        setUseIteratorTest(!useIteratorTest);
+                        resetWorkflow();
                   }}
                   onToggleHistoryPanel={() => setHistoryPanelSide(historyPanelSide === 'left' ? 'right' : 'left')}
                   onResetWorkflow={resetWorkflow}
@@ -3216,29 +3445,29 @@ export default function TestUIPage() {
                     }
                   }}
                   onTestMultiPart={async () => {
-                    if (!useMockData) {
-                      setCurrentInput('send a test multi-input');
-                      await handleAIFreeformInput('send a test multi-input');
-                    } else {
-                      setLastAIMessage('Switch to AI Mode to test API commands!');
-                    }
-                  }}
+                        if (!useMockData) {
+                          setCurrentInput('send a test multi-input');
+                          await handleAIFreeformInput('send a test multi-input');
+                        } else {
+                          setLastAIMessage('Switch to AI Mode to test API commands!');
+                        }
+                      }}
                   onTestFileUpload={async () => {
-                    if (!useMockData) {
-                      setCurrentInput('send a test image-upload');
-                      await handleAIFreeformInput('send a test image-upload');
-                    } else {
-                      setLastAIMessage('Switch to AI Mode to test API commands!');
-                    }
-                  }}
+                        if (!useMockData) {
+                          setCurrentInput('send a test image-upload');
+                          await handleAIFreeformInput('send a test image-upload');
+                        } else {
+                          setLastAIMessage('Switch to AI Mode to test API commands!');
+                        }
+                      }}
                   onTestColorPicker={async () => {
-                    if (!useMockData) {
-                      setCurrentInput('send a test color-picker');
-                      await handleAIFreeformInput('send a test color-picker');
-                    } else {
-                      setLastAIMessage('Switch to AI Mode to test API commands!');
-                    }
-                  }}
+                        if (!useMockData) {
+                          setCurrentInput('send a test color-picker');
+                          await handleAIFreeformInput('send a test color-picker');
+                        } else {
+                          setLastAIMessage('Switch to AI Mode to test API commands!');
+                        }
+                      }}
                   onTestComponentValidation={() => {
                     import('@/lib/prompts/tool-creation-prompt').then(module => {
                       console.log('🧪 Running component validation tests...');
@@ -3299,6 +3528,12 @@ export default function TestUIPage() {
 
         {/* Canvas Tool Section - Scrollable */}
         <div className="flex-1 overflow-y-auto relative">
+          {/* Tool Info Bubble */}
+          <ToolInfoBubble 
+            productToolDefinition={productToolDefinition}
+            isDarkMode={isDarkMode}
+          />
+
           {/* Editing Mode Overlay */}
           {isEditingPrevious && editingTarget && (
             <div className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-40 
@@ -3459,27 +3694,27 @@ export default function TestUIPage() {
                       
                       {/* Buttons side by side */}
                       <div className="flex items-center gap-3">
-                        {/* See Full Form Button */}
-                        <button
-                          onClick={() => {
-                            // Initialize full form with current answers
-                            const currentAnswers = { ...multiPartAnswers };
-                            if (currentInput.trim()) {
-                              currentAnswers[multiPartQuestions[multiPartIndex]?.id] = currentInput;
-                            }
-                            console.log('🔧 Opening full form with answers:', currentAnswers);
-                            console.log('🔧 multiPartAnswers state:', multiPartAnswers);
-                            console.log('🔧 Current input:', currentInput);
-                            console.log('🔧 Current question ID:', multiPartQuestions[multiPartIndex]?.id);
-                            setFullFormAnswers(currentAnswers);
-                            setShowFullFormPopup(true);
-                          }}
-                          className={`text-xs underline hover:no-underline transition-all duration-200 ${
-                            isDarkMode ? 'text-yellow-300 hover:text-yellow-200' : 'text-yellow-600 hover:text-yellow-700'
-                          }`}
-                        >
-                          see full form
-                        </button>
+                      {/* See Full Form Button */}
+                      <button
+                        onClick={() => {
+                          // Initialize full form with current answers
+                          const currentAnswers = { ...multiPartAnswers };
+                          if (currentInput.trim()) {
+                            currentAnswers[multiPartQuestions[multiPartIndex]?.id] = currentInput;
+                          }
+                          console.log('🔧 Opening full form with answers:', currentAnswers);
+                          console.log('🔧 multiPartAnswers state:', multiPartAnswers);
+                          console.log('🔧 Current input:', currentInput);
+                          console.log('🔧 Current question ID:', multiPartQuestions[multiPartIndex]?.id);
+                          setFullFormAnswers(currentAnswers);
+                          setShowFullFormPopup(true);
+                        }}
+                        className={`text-xs underline hover:no-underline transition-all duration-200 ${
+                          isDarkMode ? 'text-yellow-300 hover:text-yellow-200' : 'text-yellow-600 hover:text-yellow-700'
+                        }`}
+                      >
+                        see full form
+                      </button>
                         
                         {/* Speak Freely Button */}
                         <button
@@ -3494,7 +3729,7 @@ export default function TestUIPage() {
                           <MessageSquare className="h-3 w-3" />
                           speak freely
                         </button>
-                      </div>
+                    </div>
                     </div>
                     
                   </div>

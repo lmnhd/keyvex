@@ -7,9 +7,32 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { TOOL_CREATION_PROMPT, validateComponentTypes } from '@/lib/prompts/tool-creation-prompt';
+import { 
+  TOOL_CREATION_PROMPT, 
+  validateComponentTypes,
+  buildCompleteSystemPrompt,
+  buildToolCreationUserPrompt
+} from '@/lib/prompts/tool-creation-prompt';
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
-import { detectColorScheme, DEFAULT_COLOR_SCHEMES } from '@/lib/ai/utils/tool-defaults';
+
+// Simple color scheme detection (inline replacement)
+const DEFAULT_COLOR_SCHEMES = {
+  professional: {
+    primary: '#3b82f6',
+    secondary: '#6b7280',
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+    border: '#e5e7eb',
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444'
+  }
+} as const;
+
+type ColorSchemeKey = keyof typeof DEFAULT_COLOR_SCHEMES;
+
+const detectColorScheme = (context: any): ColorSchemeKey => 'professional';
 
 // Input schema for tool creation requests
 const toolCreationRequestSchema = z.object({
@@ -80,58 +103,8 @@ const productToolDefinitionSchema = z.object({
     })
   }),
   
-  layout: z.object({
-    type: z.string(),
-    structure: z.object({
-      container: z.object({
-        maxWidth: z.string(),
-        padding: z.string(),
-        alignment: z.string()
-      }),
-      sections: z.array(z.object({
-        id: z.string(),
-        type: z.string(),
-        layout: z.string(),
-        order: z.number()
-      })),
-      flow: z.object({
-        type: z.string()
-      })
-    }),
-    responsive: z.object({
-      breakpoints: z.record(z.object({
-        container: z.object({
-          maxWidth: z.string().optional(),
-          padding: z.string().optional(),
-          alignment: z.string().optional()
-        }).optional(),
-        sections: z.array(z.object({
-          id: z.string(),
-          changes: z.record(z.any())
-        })).optional(),
-        components: z.array(z.object({
-          id: z.string(),
-          changes: z.record(z.any())
-        })).optional()
-      })).optional()
-    })
-  }),
-  
-  components: z.array(z.object({
-    id: z.string(),
-    type: z.string(),
-    sectionId: z.string(),
-    order: z.number(),
-    props: z.record(z.any()).optional(),
-    validation: z.object({
-      componentId: z.string(),
-      rules: z.array(z.object({
-        type: z.string(),
-        message: z.string(),
-        value: z.any().optional()
-      }))
-    }).optional()
-  })),
+  // NEW: Component code as React component string
+  componentCode: z.string(),
   
   styling: z.object({
     theme: z.object({
@@ -169,6 +142,60 @@ const productToolDefinitionSchema = z.object({
     }).optional()
   }),
   
+  // Keep existing schema structure but make optional for backward compatibility
+  layout: z.object({
+    type: z.string(),
+    structure: z.object({
+      container: z.object({
+        maxWidth: z.string(),
+        padding: z.string(),
+        alignment: z.string()
+      }),
+      sections: z.array(z.object({
+        id: z.string(),
+        type: z.string(),
+        layout: z.string(),
+        order: z.number()
+      })),
+      flow: z.object({
+        type: z.string()
+      })
+    }),
+    responsive: z.object({
+      breakpoints: z.record(z.object({
+        container: z.object({
+          maxWidth: z.string().optional(),
+          padding: z.string().optional(),
+          alignment: z.string().optional()
+        }).optional(),
+        sections: z.array(z.object({
+          id: z.string(),
+          changes: z.record(z.any())
+        })).optional(),
+        components: z.array(z.object({
+          id: z.string(),
+          changes: z.record(z.any())
+        })).optional()
+      })).optional()
+    })
+  }).optional(),
+  
+  components: z.array(z.object({
+    id: z.string(),
+    type: z.string(),
+    sectionId: z.string(),
+    order: z.number(),
+    props: z.record(z.any()).optional(),
+    validation: z.object({
+      componentId: z.string(),
+      rules: z.array(z.object({
+        type: z.string(),
+        message: z.string(),
+        value: z.any().optional()
+      }))
+    }).optional()
+  })).optional(),
+  
   logic: z.object({
     calculations: z.array(z.object({
       id: z.string(),
@@ -184,7 +211,7 @@ const productToolDefinitionSchema = z.object({
         type: z.string(),
         decimals: z.number().optional()
       })
-    })),
+    })).optional(),
     conditions: z.array(z.object({
       id: z.string(),
       type: z.string(),
@@ -206,7 +233,7 @@ const productToolDefinitionSchema = z.object({
       expression: z.string(),
       dependencies: z.array(z.string())
     })).optional()
-  }),
+  }).optional(),
   
   validation: z.object({
     components: z.array(z.object({
@@ -307,121 +334,9 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
-    const systemPrompt = `${TOOL_CREATION_PROMPT}
-
-    You MUST respond with a valid JSON object that exactly matches the ProductToolDefinition interface.
-    The response must be pure JSON with no markdown formatting or explanations.
-    
-    Use ONLY the allowed component types listed above. Any unknown component types will cause errors.
-    
-    CRITICAL LABELING REQUIREMENTS:
-    - NEVER use placeholder text like "heading", "button", "label", "text here", "example", etc.
-    - ALL component labels must be specific, meaningful, and relevant to the tool's purpose
-    - ALL text content must be professional business language
-    - Component props.label MUST describe the actual function/content
-    - helperText should provide genuine helpful guidance to users
-    
-    CRITICAL STYLING REQUIREMENTS:
-    - ALWAYS ensure text has proper contrast against backgrounds
-    - NEVER use white text on white/light backgrounds
-    - Default text color should be dark (#1f2937 or similar) for light backgrounds
-    - If using dark backgrounds, use light text (#ffffff or #f9fafb)
-    - Test contrast ratios: dark text on light backgrounds, light text on dark backgrounds
-    
-    EXAMPLE OF GOOD vs BAD LABELING:
-    ❌ BAD: {"label": "heading", "helperText": "enter text here"}
-    ✅ GOOD: {"label": "Monthly Revenue", "helperText": "Enter your average monthly revenue in USD"}
-    
-    ❌ BAD: {"label": "button", "textColor": "#ffffff", "backgroundColor": "#ffffff"}
-    ✅ GOOD: {"label": "Calculate ROI", "textColor": "#1f2937", "backgroundColor": "#f0f9ff"}
-    
-    ${logicBrainstorming ? `
-    CREATIVE LOGIC BRAINSTORMING RESULTS:
-    The Logic Architect has provided these creative suggestions for your tool:
-    
-    🎯 CORE CONCEPT: ${logicBrainstorming.coreWConcept}
-    ⚠️  CRITICAL: Use this exact concept as the foundation for your tool's title and design!
-    
-    Suggested Calculations:
-    ${logicBrainstorming.keyCalculations?.map((calc: any) => 
-      `- ${calc.name}: ${calc.formula} (${calc.description})`
-    ).join('\n    ') || 'No specific calculations provided'}
-    
-    Interaction Flow Ideas:
-    ${logicBrainstorming.interactionFlow?.map((step: any) => 
-      `${step.step}. ${step.title}: ${step.description}`
-    ).join('\n    ') || 'No flow provided'}
-    
-    Value Proposition: ${logicBrainstorming.valueProposition}
-    
-    Creative Enhancements: ${logicBrainstorming.creativeEnhancements?.join(', ') || 'None'}
-    
-    🚨 IMPLEMENTATION REQUIREMENTS:
-    1. Tool title MUST reflect the Core Concept: "${logicBrainstorming.coreWConcept}"
-    2. Tool description MUST incorporate the Value Proposition
-    3. Use suggested calculations and interaction flow as primary inspiration
-    4. Create a cohesive tool that delivers on the brainstormed concept
-    
-    Don't just ignore these insights - they are the creative foundation for this tool!
-    ` : 'Focus on creating practical, business-focused calculators that solve real problems.'}`;
-
-    const userPrompt = existingTool && updateType 
-      ? `Update this existing tool based on the user's request: "${userIntent}"
-         
-         Current tool: ${JSON.stringify(existingTool)}
-         Update type: ${updateType}
-         Context: ${JSON.stringify(context)}`
-      : `Create a new business tool for: "${userIntent}"
-         
-         RICH CONTEXT FROM CONVERSATION:
-         ${context ? `
-         • Target Audience: ${context.targetAudience || 'Not specified'}
-         • Industry: ${context.industry || 'Not specified'}
-         • Tool Type: ${context.toolType || 'Not specified'}
-         • Features Requested: ${context.features?.join(', ') || 'Not specified'}
-         • Business Description: ${context.businessDescription || 'Not specified'}
-         • Brand Colors: ${context.colors?.join(', ') || 'Not specified'}
-         
-         COLLECTED ANSWERS FROM CONVERSATION:
-         ${context.collectedAnswers ? Object.entries(context.collectedAnswers).map(([key, value]) => 
-           `• ${key}: ${value}`
-         ).join('\n         ') : 'No specific answers collected yet'}
-         
-         ${context.brandAnalysis ? `
-         BRAND ANALYSIS RESULTS:
-         • Style: ${context.brandAnalysis.style || 'Not analyzed'}
-         • Personality: ${context.brandAnalysis.personality?.join(', ') || 'Not analyzed'}
-         • Brand Colors: ${context.brandAnalysis.colors?.map((c: any) => `${c.name || c.hex || c}`).join(', ') || 'Not analyzed'}
-         • Recommendations: ${context.brandAnalysis.recommendations?.join('; ') || 'None'}
-         ` : ''}
-         
-         ${context.conversationHistory?.length ? `
-         RECENT CONVERSATION CONTEXT:
-         ${context.conversationHistory.slice(-3).map((msg: any, i: number) => 
-           `• ${msg.role || 'Message'} ${i + 1}: ${msg.content || msg.message || JSON.stringify(msg).slice(0, 100)}`
-         ).join('\n         ')}
-         ` : ''}
-         
-         ${context.uploadedFiles?.length ? `
-         UPLOADED FILES & BRANDING:
-         ${context.uploadedFiles.map((file: any) => 
-           `• ${file.description}${file.hasLogo ? ' (LOGO/BRAND ASSET)' : ''}`
-         ).join('\n         ')}
-         
-         NOTE: Consider uploaded logo/brand assets for styling and branding consistency.
-         ` : ''}
-         ` : 'No additional context provided'}
-         
-         INSTRUCTIONS:
-         Use ALL the information above to create a highly personalized, professional tool that:
-         1. Solves a real problem for the specified target audience
-         2. Incorporates the requested features and business context
-         3. Uses the specified colors for professional branding
-         4. Reflects the specific answers and preferences collected during conversation
-         5. Creates meaningful component relationships and calculations
-         6. Provides genuine business value, not just random components
-         
-         Make it professional, practical, and valuable for the target audience.`;
+    // STEP 3: Build prompts using consolidated builder functions
+    const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
+    const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
 
     console.log('🎯 Sending request to model:', model.model);
 
@@ -471,18 +386,82 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // STEP 3: Enrich with intelligent defaults
+    // STEP 4: Enrich with intelligent defaults
     // Detect appropriate color scheme from context
     const colorScheme = detectColorScheme(context);
     
     // Enhance styling with appropriate color scheme if not fully specified
     if (!productTool.styling?.colors || Object.keys(productTool.styling.colors).length < 3) {
+      const selectedColorScheme = DEFAULT_COLOR_SCHEMES[colorScheme] || DEFAULT_COLOR_SCHEMES.professional;
       productTool.styling = {
         ...productTool.styling,
         colors: {
-          ...DEFAULT_COLOR_SCHEMES[colorScheme],
+          ...selectedColorScheme,
           ...productTool.styling?.colors // Keep any AI-generated colors
         }
+      };
+    }
+    
+    // Add default layout if not specified
+    if (!productTool.layout) {
+      productTool.layout = {
+        type: 'single-page',
+        structure: {
+          container: {
+            maxWidth: '1200px',
+            padding: '24px',
+            alignment: 'center'
+          },
+          sections: [
+            {
+              id: 'header',
+              type: 'header',
+              layout: 'centered',
+              order: 1
+            },
+            {
+              id: 'main',
+              type: 'content',
+              layout: 'grid',
+              order: 2
+            },
+            {
+              id: 'results',
+              type: 'results',
+              layout: 'grid',
+              order: 3
+            }
+          ],
+          flow: {
+            type: 'linear'
+          }
+        },
+        responsive: {
+          breakpoints: {}
+        }
+      };
+    }
+    
+    // Add default components if not specified
+    if (!productTool.components || productTool.components.length === 0) {
+      productTool.components = [
+        {
+          id: 'title',
+          type: 'heading',
+          sectionId: 'header',
+          order: 1,
+          props: {
+            level: 1,
+            text: productTool.metadata.title
+          }
+        }
+      ];
+    }
+    
+    // Add default logic if not specified
+    if (!productTool.logic) {
+      productTool.logic = {
+        calculations: []
       };
     }
     
