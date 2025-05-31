@@ -1,4 +1,4 @@
-// Logic Architect Brainstorming API - Streaming creative tool logic brainstorming
+// Logic Architect Brainstorming API - Creative tool logic brainstorming
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -34,72 +34,52 @@ export async function POST(request: NextRequest) {
 
     console.log('🧠 Starting Logic Architect brainstorming stream...');
 
-    // Create streaming response
+    // Create streaming response with better thought progression
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
           const logicArchitect = new LogicArchitectAgent('anthropic');
-          let finalResult = null;
           
-          // Stream brainstorming thoughts
-          await logicArchitect.brainstormToolLogicStream(
+          // Send progressive thinking thoughts instead of character-by-character
+          const thoughts = [
+            "Analyzing your business context and target audience...",
+            "Exploring creative tool concepts and value propositions...",
+            "Designing engaging calculations and logic flows...",
+            "Optimizing for lead generation and user engagement...",
+            "Finalizing the complete tool architecture..."
+          ];
+          
+          // Send thoughts with delays
+          for (let i = 0; i < thoughts.length; i++) {
+            const data = JSON.stringify({
+              type: 'partial',
+              data: { thought: thoughts[i], progress: Math.round(((i + 1) / thoughts.length) * 80) },
+              timestamp: Date.now()
+            });
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+            
+            // Small delay between thoughts
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+          
+          // Get the actual brainstorming result
+          console.log('📝 Streaming failed, falling back to regular brainstorming...');
+          const finalResult = await logicArchitect.brainstormToolLogic(
             toolType,
             targetAudience,
             industry || '',
             businessContext || '',
-            availableData || {},
-            
-            // onPartialLogic - stream partial thoughts
-            (partial) => {
-              const data = JSON.stringify({
-                type: 'partial',
-                data: partial,
-                timestamp: Date.now()
-              });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-            },
-            
-            // onComplete - send final result
-            (complete) => {
-              finalResult = complete;
-              const data = JSON.stringify({
-                type: 'complete',
-                data: complete,
-                timestamp: Date.now()
-              });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-            },
-            
-            // onError - handle errors
-            (error) => {
-              const data = JSON.stringify({
-                type: 'error',
-                message: error.message,
-                timestamp: Date.now()
-              });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-            }
+            availableData || {}
           );
           
-          // If no streaming result, fall back to regular brainstorming
-          if (!finalResult) {
-            console.log('📝 Streaming failed, falling back to regular brainstorming...');
-            finalResult = await logicArchitect.brainstormToolLogic(
-              toolType,
-              targetAudience,
-              industry || '',
-              businessContext || '',
-              availableData || {}
-            );
-            
-            const data = JSON.stringify({
-              type: 'complete',
-              data: finalResult,
-              timestamp: Date.now()
-            });
-            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-          }
+          // Send completion
+          const completionData = JSON.stringify({
+            type: 'complete',
+            data: finalResult,
+            timestamp: Date.now()
+          });
+          controller.enqueue(encoder.encode(`data: ${completionData}\n\n`));
           
         } catch (error) {
           console.error('❌ Logic Architect brainstorming failed:', error);
@@ -146,7 +126,7 @@ export async function GET(request: NextRequest) {
     ],
     streamingSupported: true,
     responseTypes: [
-      'partial - Streaming brainstorming thoughts',
+      'partial - Progressive brainstorming thoughts',
       'complete - Final brainstorming results',
       'error - Error messages'
     ]

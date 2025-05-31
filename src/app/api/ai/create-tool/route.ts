@@ -46,7 +46,7 @@ const toolCreationRequestSchema = z.object({
       creativeEnhancements: z.array(z.string()).optional(),
       userExperienceFlow: z.array(z.any()).optional(),
       businessLogic: z.array(z.any()).optional()
-    }).optional()
+    }).nullable().optional()
   }).optional(),
   existingTool: z.any().optional(),
   updateType: z.enum(['color', 'title', 'description', 'features', 'components', 'general']).optional()

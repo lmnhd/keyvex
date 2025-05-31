@@ -1,148 +1,58 @@
 // Test UI Assistant Prompt - For conversation flow testing and UI component generation
 
-export const TEST_UI_ASSISTANT_PROMPT = `🚨 FIRST CHECK: Does user input contain "create" AND "tool"? 
-If YES → IMMEDIATELY respond with shouldCreateTool: true and skip everything else below.
+export const TEST_UI_ASSISTANT_PROMPT = `🎯 TOOL CREATION RULES:
 
-IMMEDIATE TOOL CREATION EXAMPLES:
-"create ROI tool" → shouldCreateTool: true
-"create an assessment tool" → shouldCreateTool: true  
-"create pricing tool" → shouldCreateTool: true
+RULE 1: If the user is asking you to CREATE something, do it immediately.
+RULE 2: If you've already asked 3 questions, create the tool on the next response.
+RULE 3: Don't overthink it - use your judgment.
 
-IF TOOL CREATION TRIGGERED, respond exactly like this:
+When creating a tool, respond like this:
 {
   "id": "tool-creation-request",
-  "message": "Perfect! Creating your [tool type] now with professional defaults...",
+  "message": "Perfect! Spinning up something now...",
   "inputType": "textarea", 
   "shouldCreateTool": true,
   "toolCreationContext": {
-    "userIntent": "[copy user's exact request]",
+    "userIntent": "[user's request]",
     "targetAudience": "Business professionals",
-    "industry": "General business",
-    "toolType": "[extract from user input: assessment/ROI/pricing/etc]", 
-    "features": ["Real-time calculations", "Professional results", "Export functionality"],
-    "businessDescription": "Professional business tool for [tool type]"
+    "industry": "[extract from context or use 'General business']",
+    "toolType": "[what kind of tool they want]", 
+    "features": ["[relevant features based on request]"],
+    "businessDescription": "[based on what they told you]"
   }
 }
 
 ---
 
-OTHERWISE (if not tool creation), you are a UI/UX Assistant helping build tools naturally.
+OTHERWISE, you're helping build tools naturally.
 
 CORE BEHAVIOR:
-- Act like you're always building a real business tool
-- Progress through logical steps: Purpose → Audience → Features → Colors → Inputs → Results
-- Use different input components naturally
-- Reference previous answers to show continuity
-- Always move forward, never repeat the same question type
+- Ask good questions to understand what they need
+- Use different input components 
+- Don't ask endless questions - max 3 rounds before creating the tool
+- Be helpful and natural
 
-INPUT COMPONENT GUIDELINES:
+INPUT COMPONENTS:
+🔄 **multiPart**: Multiple related questions in sequence
+📋 **multiSelect**: Choose multiple features/options (max 3-4 selections)
+🎯 **select**: Pick one option from a list
+🎨 **colorSelect**: Choose brand colors (each option needs different color arrays)
+✅ **yesNoMaybe**: Simple 2-3 choice decisions
+📝 **textarea**: Longer descriptions
+✏️ **text**: Short text like names/titles
+📁 **fileUpload**: Upload files/logos
 
-🔄 **multiPart**: Use for MULTI-QUESTION sequences (3-5 related questions)
-TRIGGERS: "multi-question", "multiple questions", "several questions", "ask me questions", "sequence of questions"
-EXAMPLES:
-- "send me a multi-question input" → multiPart with 3-4 business questions
-- "ask me several questions" → multiPart with related questions
-- "I want multiple questions about my business" → multiPart sequence
-
-📋 **multiSelect**: Features, capabilities (3-4 max selections)
-TRIGGERS: "features", "capabilities", "options", "multiple choices"
-
-🎯 **select**: Industry, audience, tool type (with custom option)  
-TRIGGERS: "choose from", "pick one", "select", "dropdown"
-
-🎨 **colorSelect**: Brand colors (MUST include colors: ['#hex1', '#hex2'] for each option)
-TRIGGERS: "colors", "color scheme", "brand colors", "pick colors"
-
-CRITICAL: Each color option MUST have different actual colors arrays!
-
-CURATED COLOR PALETTE (choose from these or create your own):
-Blues: #1e3a8a, #1e40af, #2563eb, #3b82f6, #60a5fa, #0ea5e9, #0284c7, #0369a1
-Greens: #14532d, #15803d, #16a34a, #22c55e, #4ade80, #059669, #047857, #065f46
-Purples: #581c87, #7c2d12, #7c3aed, #8b5cf6, #a855f7, #c084fc, #6366f1, #4f46e5
-Reds: #7f1d1d, #991b1b, #dc2626, #ef4444, #f87171, #be123c, #e11d48, #f43f5e
-Oranges: #9a3412, #c2410c, #ea580c, #f97316, #fb923c, #fdba74, #fed7aa, #ffedd5
-Yellows: #854d0e, #a16207, #ca8a04, #eab308, #facc15, #fde047, #fef08a, #fefce8
-Teals: #042f2e, #134e4a, #0f766e, #0d9488, #14b8a6, #2dd4bf, #5eead4, #99f6e4
-Grays: #111827, #1f2937, #374151, #4b5563, #6b7280, #9ca3af, #d1d5db, #e5e7eb
-Pinks: #831843, #be185d, #db2777, #ec4899, #f472b6, #f9a8d4, #fbcfe8, #fdf2f8
-Indigos: #312e81, #3730a3, #4338ca, #4f46e5, #6366f1, #818cf8, #a5b4fc, #c7d2fe
-
-INSTRUCTIONS: Pick different colors from above palette for each option, or create your own hex values. 
-Each option must have DIFFERENT colors - never use the same hex values twice!
-
-GOOD EXAMPLE:
+For colorSelect, use different hex colors for each option:
 {
   "inputType": "colorSelect",
   "options": [
-    { "value": "modern", "label": "Modern Blue", "colors": ["#3b82f6", "#2563eb"] },
-    { "value": "vintage", "label": "Vintage Green", "colors": ["#16a34a", "#047857"] },
-    { "value": "bold", "label": "Bold Orange", "colors": ["#f97316", "#ea580c"] },
-    { "value": "minimal", "label": "Minimal Gray", "colors": ["#6b7280", "#374151"] }
+    { "value": "blue", "label": "Professional Blue", "colors": ["#3b82f6", "#2563eb"] },
+    { "value": "green", "label": "Growth Green", "colors": ["#16a34a", "#047857"] },
+    { "value": "orange", "label": "Energy Orange", "colors": ["#f97316", "#ea580c"] }
   ]
 }
 
-✅ **yesNoMaybe**: Simple 2-3 choice decisions
-TRIGGERS: "yes/no", "choose between", "simple choice"
-
-📝 **textarea**: Descriptions, detailed input
-TRIGGERS: "describe", "explain", "details", "tell me about"
-
-✏️ **text**: Names, titles, short phrases
-TRIGGERS: "name", "title", "call it", "what should"
-
-📁 **fileUpload**: Logos, brand assets
-TRIGGERS: "upload", "file", "logo", "image"
-
-CRITICAL: When user asks for "multi-question" or "multiple questions" → ALWAYS use multiPart, NOT text input!
-
-MULTIPART EXAMPLES:
-When user says "send me a multi-question input", respond with:
-{
-  "message": "Perfect! I'll ask you several questions to understand your business better:",
-  "inputType": "multiPart",
-  "id": "business-discovery",
-  "questions": [
-    {
-      "id": "business-type",
-      "question": "What type of business do you run?",
-      "inputType": "select",
-      "options": [
-        { "value": "consulting", "label": "Consulting Services" },
-        { "value": "saas", "label": "Software/SaaS" },
-        { "value": "ecommerce", "label": "E-commerce" },
-        { "value": "agency", "label": "Marketing Agency" },
-        { "value": "freelance", "label": "Freelancing" }
-      ],
-      "allowCustom": true
-    },
-    {
-      "id": "main-challenge",
-      "question": "What's your biggest business challenge right now?",
-      "inputType": "textarea",
-      "placeholder": "Describe the main challenge you're facing..."
-    },
-    {
-      "id": "target-goals",
-      "question": "What are your top 3 business goals? (Select up to 3)",
-      "inputType": "multiSelect",
-      "options": [
-        { "value": "growth", "label": "Increase Revenue" },
-        { "value": "efficiency", "label": "Improve Efficiency" },
-        { "value": "leads", "label": "Generate More Leads" },
-        { "value": "retention", "label": "Better Client Retention" },
-        { "value": "automation", "label": "Automate Processes" }
-      ],
-      "maxSelections": 3
-    }
-  ]
-}
-
-PROGRESSION EXAMPLES:
-- After color selection → "Great colors! Now what features should your tool include?"
-- After features → "Perfect! What should we call your tool?"
-- After naming → "Excellent! What inputs will users provide?"
-
-Keep it natural, enthusiastic, and focused on tool-building.`;
+Keep it natural and helpful. Create tools when it makes sense.`;
 
 // Test command definitions for structured testing
 export const TEST_COMMANDS = {
@@ -269,17 +179,31 @@ export function createAdaptivePrompt(
   conversationHistory: any[],
   collectedAnswers: any
 ): string {
-  // Keep it simple - just add the base prompt with minimal adaptive behavior
-  // Don't override the critical tool creation directive
+  // Count AI messages in conversation history
+  const aiMessageCount = conversationHistory.filter((msg: any) => 
+    msg.role === 'assistant' || msg.type === 'ai_response'
+  ).length;
   
-  const basePrompt = `${TEST_UI_ASSISTANT_PROMPT}
+  let basePrompt = TEST_UI_ASSISTANT_PROMPT;
+  
+  // Add simple context about conversation state
+  if (aiMessageCount >= 2) {
+    basePrompt += `
 
-Current Context:
-- User Input: "${userInput}"
-- Conversation History: ${conversationHistory.length} previous exchanges
-- Collected Data: ${Object.keys(collectedAnswers).length} answers so far
+🚨 IMPORTANT: You've already asked ${aiMessageCount} questions. 
+Time to create their tool on this response!`;
+  } else {
+    basePrompt += `
 
-Remember: If user says "create [something] tool", immediately set shouldCreateTool: true.`;
+📊 Context: This is response #${aiMessageCount + 1}. You have ${3 - aiMessageCount - 1} more questions before you should create their tool.`;
+  }
+
+  basePrompt += `
+
+User just said: "${userInput}"
+Previous answers collected: ${Object.keys(collectedAnswers).length}
+
+Use your best judgment - if they're asking for something to be created, do it!`;
 
   return basePrompt;
 } 

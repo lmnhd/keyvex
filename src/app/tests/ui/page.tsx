@@ -1598,6 +1598,14 @@ export default function TestUIPage() {
   const [editingTarget, setEditingTarget] = useState<string | null>(null);
   const [editingOverlayFadingOut, setEditingOverlayFadingOut] = useState(false);
   
+  // NEW: Proper AI message history for counting responses
+  const [aiMessageHistory, setAiMessageHistory] = useState<Array<{
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    timestamp: Date;
+    type?: string;
+  }>>([]);
+  
   // Dynamic question history for AI workflow
   const [questionHistory, setQuestionHistory] = useState<Array<{
     id: string;
@@ -2289,20 +2297,40 @@ export default function TestUIPage() {
       console.log('🔧 handleAIFreeformInput called with input:', input);
       setLastAIMessage("Thinking about your question...");
       
+      // Build updated message history including this new user message
+      const updatedMessageHistory = [...aiMessageHistory, {
+        role: 'user' as const,
+        content: input,
+        timestamp: new Date(),
+        type: 'user_input'
+      }];
+      
+      // Track user message in state
+      setAiMessageHistory(updatedMessageHistory);
+      
       // Call the test UI API with current context
       const requestBody = {
         userInput: input,
-        conversationHistory: conversationHistory || [],
+        conversationHistory: updatedMessageHistory, // Use the immediately updated history
         collectedAnswers,
         currentStep
       };
       
       console.log('🔧 Sending request to API:', requestBody);
+      console.log('🔧 AI message count so far:', updatedMessageHistory.filter(msg => msg.role === 'assistant').length);
       
       // Use streaming request for real-time feedback
       const result = await handleStreamingAIRequest(requestBody);
 
       if (result.success && result.response) {
+        // Track AI response
+        setAiMessageHistory(prev => [...prev, {
+          role: 'assistant',
+          content: result.response.message,
+          timestamp: new Date(),
+          type: 'ai_response'
+        }]);
+        
         // Check if AI wants to create a tool - use enhanced brainstorming workflow
         if (result.response.toolCreationContext) {
           console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
@@ -2386,6 +2414,7 @@ export default function TestUIPage() {
     setCollectedAnswers({});
     setCustomColors([]);
     setConversationHistory([]);
+    setAiMessageHistory([]); // Reset AI message history
     setIsEditingPrevious(false);
     setEditingTarget(null);
     setEditingOverlayFadingOut(false);
@@ -3433,11 +3462,27 @@ export default function TestUIPage() {
                         }`}>
                           {thought.type === 'error' && thought.message 
                             ? thought.message 
-                            : typeof thought.data === 'string' 
-                              ? thought.data 
-                              : JSON.stringify(thought.data, null, 2)
+                            : thought.type === 'partial' && thought.data?.thought
+                              ? thought.data.thought
+                              : thought.type === 'complete' && thought.data?.coreWConcept
+                                ? `✅ ${thought.data.coreWConcept}`
+                                : typeof thought.data === 'string' 
+                                  ? thought.data 
+                                  : thought.type === 'complete'
+                                    ? '✅ Brainstorming complete! Tool concept ready.'
+                                    : JSON.stringify(thought.data, null, 2)
                           }
                         </p>
+                        {thought.type === 'partial' && thought.data?.progress && (
+                          <div className={`mt-2 w-full bg-gray-200 rounded-full h-1.5 ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                          }`}>
+                            <div 
+                              className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                              style={{ width: `${thought.data.progress}%` }}
+                            />
+                          </div>
+                        )}
                         <p className={`text-xs mt-1 ${
                           isDarkMode ? 'text-gray-400' : 'text-gray-500'
                         }`}>
