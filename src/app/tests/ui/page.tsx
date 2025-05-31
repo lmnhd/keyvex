@@ -2231,16 +2231,38 @@ export default function TestUIPage() {
       const targetAudience = answers['target-audience'] || answers['role-title'] || 'business professionals';
       const industry = answers['industry-focus'] || 'general business';
       
+      // Build user input message and update message history
+      const userMessage = `Based on my responses: ${expertise}. I'm creating a ${toolType} for ${targetAudience} in ${industry}.`;
+      const updatedMessageHistory = [...aiMessageHistory, {
+        role: 'user' as const,
+        content: userMessage,
+        timestamp: new Date(),
+        type: 'user_input'
+      }];
+      
+      // Track user message in state
+      setAiMessageHistory(updatedMessageHistory);
+      
+      console.log('🔧 processWithAI: AI message count so far:', updatedMessageHistory.filter(msg => msg.role === 'assistant').length);
+      
       // Call the test UI API with streaming support
       const result = await handleStreamingAIRequest({
-        userInput: `Based on my responses: ${expertise}. I'm creating a ${toolType} for ${targetAudience} in ${industry}.`,
-        conversationHistory: conversationHistory || [],
+        userInput: userMessage,
+        conversationHistory: updatedMessageHistory, // Use proper AI message history
         collectedAnswers: answers,
         currentStep
       });
 
       if (result.success && result.response) {
         console.log('🔧 AI API response received:', result.response);
+        
+        // Track AI response
+        setAiMessageHistory(prev => [...prev, {
+          role: 'assistant',
+          content: result.response.message,
+          timestamp: new Date(),
+          type: 'ai_response'
+        }]);
         
         // Check if AI wants to create a tool - use enhanced brainstorming workflow
         if (result.response.toolCreationContext) {
