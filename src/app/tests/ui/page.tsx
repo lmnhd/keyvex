@@ -3431,15 +3431,97 @@ export default function TestUIPage() {
                   }}
                   onTestToolCreation={async () => {
                     try {
-                      const testContext = {
-                        userIntent: 'Create a business assessment tool',
-                        toolType: 'assessment',
-                        targetAudience: 'entrepreneurs',
-                        industry: 'general business',
-                        features: ['scoring', 'recommendations', 'export'],
-                        businessDescription: 'Comprehensive business readiness assessment'
-                      };
-                      await callToolCreationAgent(testContext);
+                      // 🎲 10 Creative Calculator Types for Random Testing
+                      const calculatorTypes = [
+                        {
+                          userIntent: 'Create a carbon footprint calculator for eco-conscious businesses',
+                          toolType: 'environmental-calculator',
+                          targetAudience: 'sustainability managers',
+                          industry: 'environmental consulting',
+                          features: ['emissions tracking', 'offset recommendations', 'reporting'],
+                          businessDescription: 'Calculate and reduce your organization\'s carbon footprint with actionable insights'
+                        },
+                        {
+                          userIntent: 'Build a wedding budget calculator with vendor comparisons',
+                          toolType: 'budget-calculator',
+                          targetAudience: 'engaged couples',
+                          industry: 'wedding planning',
+                          features: ['vendor tracking', 'payment scheduling', 'guest count impact'],
+                          businessDescription: 'Plan your dream wedding while staying within budget with smart vendor recommendations'
+                        },
+                        {
+                          userIntent: 'Design a freelancer rate calculator with market analysis',
+                          toolType: 'pricing-calculator',
+                          targetAudience: 'freelancers and consultants',
+                          industry: 'professional services',
+                          features: ['market rates', 'experience weighting', 'project complexity'],
+                          businessDescription: 'Determine competitive freelance rates based on skills, experience, and market demand'
+                        },
+                        {
+                          userIntent: 'Create a solar panel savings calculator for homeowners',
+                          toolType: 'savings-calculator',
+                          targetAudience: 'homeowners',
+                          industry: 'renewable energy',
+                          features: ['energy savings', 'tax incentives', 'payback period'],
+                          businessDescription: 'Calculate potential savings from solar panel installation with incentive analysis'
+                        },
+                        {
+                          userIntent: 'Build a restaurant profitability calculator with menu optimization',
+                          toolType: 'profit-calculator',
+                          targetAudience: 'restaurant owners',
+                          industry: 'food service',
+                          features: ['ingredient costs', 'labor analysis', 'menu pricing'],
+                          businessDescription: 'Optimize menu pricing and track restaurant profitability with cost analysis'
+                        },
+                        {
+                          userIntent: 'Design a crypto portfolio diversification calculator',
+                          toolType: 'investment-calculator',
+                          targetAudience: 'cryptocurrency investors',
+                          industry: 'financial services',
+                          features: ['risk assessment', 'allocation recommendations', 'rebalancing alerts'],
+                          businessDescription: 'Build a balanced crypto portfolio with risk-adjusted diversification strategies'
+                        },
+                        {
+                          userIntent: 'Create a pet care cost calculator for new pet owners',
+                          toolType: 'cost-calculator',
+                          targetAudience: 'prospective pet owners',
+                          industry: 'pet care',
+                          features: ['lifetime costs', 'breed comparisons', 'healthcare planning'],
+                          businessDescription: 'Understand the true cost of pet ownership with comprehensive care planning'
+                        },
+                        {
+                          userIntent: 'Build a productivity score calculator for remote teams',
+                          toolType: 'assessment-calculator',
+                          targetAudience: 'remote team managers',
+                          industry: 'human resources',
+                          features: ['team metrics', 'improvement suggestions', 'benchmark comparisons'],
+                          businessDescription: 'Measure and improve remote team productivity with data-driven insights'
+                        },
+                        {
+                          userIntent: 'Design a real estate investment analyzer with market trends',
+                          toolType: 'investment-analyzer',
+                          targetAudience: 'real estate investors',
+                          industry: 'real estate',
+                          features: ['cash flow analysis', 'market comparisons', 'financing options'],
+                          businessDescription: 'Analyze real estate investment opportunities with comprehensive market data'
+                        },
+                        {
+                          userIntent: 'Create a fitness goal calculator with personalized workout plans',
+                          toolType: 'fitness-calculator',
+                          targetAudience: 'fitness enthusiasts',
+                          industry: 'health and wellness',
+                          features: ['goal tracking', 'calorie calculations', 'progress milestones'],
+                          businessDescription: 'Set and achieve fitness goals with personalized workout and nutrition planning'
+                        }
+                      ];
+
+                      // 🎯 Randomly select one calculator type
+                      const randomIndex = Math.floor(Math.random() * calculatorTypes.length);
+                      const selectedCalculator = calculatorTypes[randomIndex];
+                      
+                      console.log(`🎲 Testing with random calculator: ${selectedCalculator.toolType} (${randomIndex + 1}/10)`);
+                      
+                      await callToolCreationAgent(selectedCalculator);
                     } catch (error) {
                       console.error('Test tool creation failed:', error);
                     }

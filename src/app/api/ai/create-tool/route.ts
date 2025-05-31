@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
       schema: productToolDefinitionSchema,
       system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.3,
+      temperature: 1.0,
       maxRetries: 2
     });
 
