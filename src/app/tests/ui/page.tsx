@@ -1993,15 +1993,24 @@ export default function TestUIPage() {
   const [savedTools, setSavedTools] = useState<SavedTool[]>([]);
   const [showLogicSelect, setShowLogicSelect] = useState(false);
   const [showToolsSelect, setShowToolsSelect] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('gpt-4o'); // Default model
+  const [selectedModel, setSelectedModel] = useState('gpt-4.1'); // Default to flagship model
 
   // Available models for testing
   const availableModels = [
-    { id: 'gpt-4o', name: 'GPT-4o' },
+    // Flagship models
+    { id: 'gpt-4.1', name: 'GPT-4.1 (Flagship)' },
+    { id: 'gpt-4o', name: 'GPT-4o (Fast & Intelligent)' },
+    { id: 'chatgpt-4o-latest', name: 'ChatGPT-4o (Latest)' },
+    { id: 'gpt-4o-audio-preview', name: 'GPT-4o Audio' },
+    
+    // Cost-optimized models
+    { id: 'o4-mini', name: 'o4-mini (Fast Reasoning)' },
+    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini' },
+    { id: 'gpt-4.1-nano', name: 'GPT-4.1 Nano (Fastest)' },
+    { id: 'o3-mini', name: 'o3-mini' },
     { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'o1-mini', name: 'o1-mini' },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
-    { id: 'gpt-4', name: 'GPT-4' }
+    { id: 'gpt-4o-mini-audio-preview', name: 'GPT-4o Mini Audio' },
+    { id: 'o1-mini', name: 'o1-mini (Deprecated)' }
   ];
 
   // Initialize dark mode based on system preference
