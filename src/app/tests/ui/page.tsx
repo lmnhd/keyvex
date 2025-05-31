@@ -1554,6 +1554,295 @@ function FullFormPopup({
   );
 }
 
+// ============================================================================
+// OPTIONS MENU COMPONENT WITH COLLAPSIBLE SUB-MENUS
+// ============================================================================
+
+interface OptionsMenuProps {
+  isDarkMode: boolean;
+  onClose: () => void;
+  useMockData: boolean;
+  useIteratorTest: boolean;
+  historyPanelSide: 'left' | 'right';
+  savedLogicResults: SavedLogicResult[];
+  savedTools: SavedTool[];
+  onToggleDarkMode: () => void;
+  onToggleMockData: () => void;
+  onToggleIteratorTest: () => void;
+  onToggleHistoryPanel: () => void;
+  onResetWorkflow: () => void;
+  onShowLogicSelect: () => void;
+  onShowToolsSelect: () => void;
+  onTestBrainstorming: () => void;
+  onTestToolCreation: () => void;
+  onTestMultiPart: () => void;
+  onTestFileUpload: () => void;
+  onTestColorPicker: () => void;
+  onTestComponentValidation: () => void;
+}
+
+interface MenuSection {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  items: Array<{
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    badge?: string;
+  }>;
+}
+
+function OptionsMenu({ 
+  isDarkMode, 
+  onClose, 
+  useMockData,
+  useIteratorTest,
+  historyPanelSide,
+  savedLogicResults,
+  savedTools,
+  onToggleDarkMode,
+  onToggleMockData,
+  onToggleIteratorTest,
+  onToggleHistoryPanel,
+  onResetWorkflow,
+  onShowLogicSelect,
+  onShowToolsSelect,
+  onTestBrainstorming,
+  onTestToolCreation,
+  onTestMultiPart,
+  onTestFileUpload,
+  onTestColorPicker,
+  onTestComponentValidation
+}: OptionsMenuProps) {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['mode-workflow']));
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
+
+  const menuSections: MenuSection[] = [
+    {
+      id: 'mode-workflow',
+      title: 'Mode & Workflow',
+      icon: <Settings className="h-4 w-4" />,
+      items: [
+        {
+          icon: isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />,
+          label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+          onClick: () => {
+            onToggleDarkMode();
+            onClose();
+          }
+        },
+        {
+          icon: <Brain className="h-4 w-4" />,
+          label: useMockData ? 'Switch to Real AI' : 'Switch to Mock Mode',
+          onClick: () => {
+            onToggleMockData();
+            onClose();
+          }
+        },
+        {
+          icon: <MessageCircle className="h-4 w-4" />,
+          label: useIteratorTest ? 'Standard Workflow' : 'Iterator Test Workflow',
+          onClick: () => {
+            onToggleIteratorTest();
+            onClose();
+          }
+        },
+        {
+          icon: <RotateCcw className="h-4 w-4" />,
+          label: 'Reset Workflow',
+          onClick: () => {
+            onResetWorkflow();
+            onClose();
+          }
+        }
+      ]
+    },
+    {
+      id: 'panel-settings',
+      title: 'Panel Settings',
+      icon: <Layout className="h-4 w-4" />,
+      items: [
+        {
+          icon: historyPanelSide === 'left' ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />,
+          label: `History Panel: ${historyPanelSide === 'left' ? 'Left Side' : 'Right Side'}`,
+          onClick: () => {
+            onToggleHistoryPanel();
+            onClose();
+          }
+        }
+      ]
+    },
+    {
+      id: 'test-commands',
+      title: 'Test API Commands',
+      icon: <MessageSquare className="h-4 w-4" />,
+      items: [
+        {
+          icon: <MessageCircle className="h-4 w-4" />,
+          label: 'Test Multi-Part Questions',
+          onClick: () => {
+            onTestMultiPart();
+            onClose();
+          }
+        },
+        {
+          icon: <Upload className="h-4 w-4" />,
+          label: 'Test File Upload',
+          onClick: () => {
+            onTestFileUpload();
+            onClose();
+          }
+        },
+        {
+          icon: <Palette className="h-4 w-4" />,
+          label: 'Test Color Picker',
+          onClick: () => {
+            onTestColorPicker();
+            onClose();
+          }
+        }
+      ]
+    },
+    {
+      id: 'ai-tools',
+      title: 'AI Tools & Logic Architect',
+      icon: <Brain className="h-4 w-4" />,
+      items: [
+        {
+          icon: <Brain className="h-4 w-4" />,
+          label: 'Test Logic Architect Brainstorming',
+          onClick: () => {
+            onTestBrainstorming();
+            onClose();
+          }
+        },
+        {
+          icon: <Zap className="h-4 w-4" />,
+          label: 'Test Tool Creation Agent',
+          onClick: () => {
+            onTestToolCreation();
+            onClose();
+          }
+        }
+      ]
+    },
+    {
+      id: 'data-management',
+      title: 'Saved Data Management',
+      icon: <History className="h-4 w-4" />,
+      items: [
+        {
+          icon: <History className="h-4 w-4" />,
+          label: 'View Saved Logic Results',
+          onClick: () => {
+            onShowLogicSelect();
+            onClose();
+          },
+          badge: String(savedLogicResults.length)
+        },
+        {
+          icon: <Calculator className="h-4 w-4" />,
+          label: 'View Saved Tools',
+          onClick: () => {
+            onShowToolsSelect();
+            onClose();
+          },
+          badge: String(savedTools.length)
+        }
+      ]
+    },
+    {
+      id: 'development',
+      title: 'Development & Testing',
+      icon: <CheckCircle className="h-4 w-4" />,
+      items: [
+        {
+          icon: <CheckCircle className="h-4 w-4" />,
+          label: 'Run Component Validation Tests',
+          onClick: () => {
+            onTestComponentValidation();
+            onClose();
+          }
+        }
+      ]
+    }
+  ];
+
+  return (
+    <div className={`absolute right-0 top-full mt-2 w-72 rounded-xl shadow-xl border z-50 max-h-96 overflow-y-auto ${
+      isDarkMode 
+        ? 'bg-gray-800 border-gray-600 shadow-black/20' 
+        : 'bg-white border-gray-300 shadow-lg'
+    }`}>
+      <div className="py-2">
+        {menuSections.map((section, sectionIndex) => (
+          <div key={section.id}>
+            {/* Section Header */}
+            <button
+              onClick={() => toggleSection(section.id)}
+              className={`w-full px-4 py-3 text-left text-sm font-medium flex items-center justify-between transition-colors rounded-lg mx-2 ${
+                isDarkMode ? 'hover:bg-gray-700 text-gray-200' : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {section.icon}
+                <span>{section.title}</span>
+              </div>
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${
+                expandedSections.has(section.id) ? 'rotate-180' : ''
+              }`} />
+            </button>
+
+            {/* Section Items */}
+            {expandedSections.has(section.id) && (
+              <div className="pb-2">
+                {section.items.map((item, itemIndex) => (
+                  <button
+                    key={itemIndex}
+                    onClick={item.onClick}
+                    className={`w-full px-8 py-2 text-left text-sm flex items-center justify-between transition-colors rounded-lg mx-2 ${
+                      isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </div>
+                    {item.badge && (
+                      <Badge variant="outline" className="text-xs">
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Divider between sections (except last) */}
+            {sectionIndex < menuSections.length - 1 && (
+              <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+
 export default function TestUIPage() {
   const [useMockData, setUseMockData] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -2658,6 +2947,25 @@ export default function TestUIPage() {
         
         return result.tool;
       } else {
+        // Enhanced error handling for component validation errors
+        if (result.invalidComponents && result.invalidComponents.length > 0) {
+          const errorDetails = `Invalid component types detected:\n${result.invalidComponents.join('\n')}`;
+          console.error('❌ Component validation failed:', result.invalidComponents);
+          if (result.suggestions) {
+            console.log('💡 Suggestions:', result.suggestions);
+          }
+          throw new Error(`Tool creation failed: ${errorDetails}\n\nThe AI generated invalid component types. This has been logged for improvement.`);
+        }
+        
+        // Handle syntax errors separately
+        if (result.syntaxErrors && result.syntaxErrors.length > 0) {
+          const syntaxDetails = `Component syntax errors detected:\n${result.syntaxErrors.join('\n')}`;
+          console.error('❌ Component syntax validation failed:', result.syntaxErrors);
+          if (result.suggestions) {
+            console.log('💡 Suggestions:', result.suggestions);
+          }
+          throw new Error(`Tool creation failed: ${syntaxDetails}\n\nThe AI generated invalid component syntax. This has been logged for improvement.`);
+        }
         throw new Error(result.message || 'Tool creation failed');
       }
     } catch (error) {
@@ -2672,11 +2980,21 @@ export default function TestUIPage() {
     console.log('🧠 Starting tool creation with brainstorming...');
     
     try {
-      // Show brainstorming panel
+      // STEP 0: Start canvas transition and UI updates IMMEDIATELY
+      console.log('🎨 Starting canvas transition and brainstorming UI...');
+      
+      // Show brainstorming panel and start transition
       setShowBrainstormingPanel(true);
       setIsBrainstorming(true);
       setBrainstormingThoughts([]);
+      setIsGeneratingTool(true); // Start generating state early
       setLastAIMessage('🧠 Let me brainstorm some creative ideas for your tool...');
+      
+      // Start canvas transition immediately
+      await transitionToNewContent(() => {
+        // This will start the fade effect while brainstorming happens
+        console.log('🎨 Canvas transition started during brainstorming');
+      });
       
       // Step 1: Logic Architect Brainstorming with Streaming
       const brainstormingResponse = await fetch('/api/ai/logic-architect/brainstorm', {
@@ -2778,7 +3096,25 @@ export default function TestUIPage() {
       
       // Step 2: Call Tool Creation Agent with enriched context
       setLastAIMessage('🛠️ Creating your tool with the brainstormed ideas...');
+      
+      // Debug: Log the context being passed to tool creation
+      console.log('🔧 Context being passed to Tool Creation Agent:', {
+        brainstormingResult: context.brainstormingResult,
+        logicArchitectInsights: context.logicArchitectInsights,
+        coreWConcept: context.brainstormingResult?.coreWConcept || context.logicArchitectInsights?.coreWConcept
+      });
+      
       const tool = await callToolCreationAgent(context);
+      
+      // Add final completion thought to brainstorming panel
+      setBrainstormingThoughts(prev => [...prev, {
+        type: 'complete',
+        data: {
+          coreWConcept: `Tool Created: ${tool.metadata.title}`,
+          message: `✅ Successfully created "${tool.metadata.title}" based on brainstormed concept`
+        },
+        timestamp: Date.now()
+      }]);
       
       setLastAIMessage(`🎉 Your "${tool.metadata.title}" is ready! Check out the preview and let me know if you'd like any adjustments.`);
       
@@ -2832,217 +3168,89 @@ export default function TestUIPage() {
               </Button>
               
               {showOptionsMenu && (
-                <div className={`absolute right-0 top-full mt-2 w-52 rounded-xl shadow-xl border z-50 ${
-                  isDarkMode 
-                    ? 'bg-gray-800 border-gray-600 shadow-black/20' 
-                    : 'bg-white border-gray-300 shadow-lg'
-                }`}>
-                  <div className="py-2">
-                    <button
-                      onClick={() => {
-                        setIsDarkMode(!isDarkMode);
-                        setShowOptionsMenu(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                      {isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUseMockData(!useMockData);
-                        setShowOptionsMenu(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Brain className="h-4 w-4" />
-                      {useMockData ? 'Switch to Real AI' : 'Switch to Mock Mode'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setUseIteratorTest(!useIteratorTest);
-                        resetWorkflow();
-                        setShowOptionsMenu(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      {useIteratorTest ? 'Standard Workflow' : 'Iterator Test Workflow'}
-                    </button>
-                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
-                    <button
-                      onClick={() => {
-                        setHistoryPanelSide(historyPanelSide === 'left' ? 'right' : 'left');
-                        setShowOptionsMenu(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {historyPanelSide === 'left' ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                      History Panel: {historyPanelSide === 'left' ? 'Left Side' : 'Right Side'}
-                    </button>
-                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
-                    <button
-                      onClick={() => {
-                        resetWorkflow();
-                        setShowOptionsMenu(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Reset Workflow
-                    </button>
-                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
-                    <div className="px-4 py-2">
-                      <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Test API Commands
-                      </span>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        setShowOptionsMenu(false);
-                        if (!useMockData) {
-                          setCurrentInput('send a test multi-input');
-                          await handleAIFreeformInput('send a test multi-input');
-                        } else {
-                          setLastAIMessage('Switch to AI Mode to test API commands!');
-                        }
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                      Test Multi-Part Questions
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowOptionsMenu(false);
-                        if (!useMockData) {
-                          setCurrentInput('send a test image-upload');
-                          await handleAIFreeformInput('send a test image-upload');
-                        } else {
-                          setLastAIMessage('Switch to AI Mode to test API commands!');
-                        }
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Palette className="h-4 w-4" />
-                      Test File Upload
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowOptionsMenu(false);
-                        if (!useMockData) {
-                          setCurrentInput('send a test color-picker');
-                          await handleAIFreeformInput('send a test color-picker');
-                        } else {
-                          setLastAIMessage('Switch to AI Mode to test API commands!');
-                        }
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Palette className="h-4 w-4" />
-                      Test Color Picker
-                    </button>
-                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
-                    <div className="px-4 py-2">
-                      <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        NEW: Tool Creation & Logic Architect
-                      </span>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        setShowOptionsMenu(false);
-                        try {
-                          const testContext = {
-                            userIntent: 'Create a marketing ROI calculator',
-                            toolType: 'calculator',
-                            targetAudience: 'small business owners',
-                            industry: 'marketing',
-                            businessDescription: 'Help businesses track their marketing investment returns'
-                          };
-                          await createToolWithBrainstorming(testContext);
-                        } catch (error) {
-                          console.error('Test brainstorming failed:', error);
-                        }
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Brain className="h-4 w-4" />
-                      Test Logic Architect Brainstorming
-                    </button>
-                    <button
-                      onClick={async () => {
-                        setShowOptionsMenu(false);
-                        try {
-                          const testContext = {
-                            userIntent: 'Create a business assessment tool',
-                            toolType: 'assessment',
-                            targetAudience: 'entrepreneurs',
-                            industry: 'general business',
-                            features: ['scoring', 'recommendations', 'export'],
-                            businessDescription: 'Comprehensive business readiness assessment'
-                          };
-                          await callToolCreationAgent(testContext);
-                        } catch (error) {
-                          console.error('Test tool creation failed:', error);
-                        }
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Zap className="h-4 w-4" />
-                      Test Tool Creation Agent
-                    </button>
-                    <div className={`border-t my-2 mx-2 ${isDarkMode ? 'border-gray-600' : 'border-gray-300'}`} />
-                    <div className="px-4 py-2">
-                      <span className={`text-xs font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        Saved Data Management
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setShowOptionsMenu(false);
-                        setShowLogicSelect(true);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <History className="h-4 w-4" />
-                      View Saved Logic Results ({savedLogicResults.length})
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowOptionsMenu(false);
-                        setShowToolsSelect(true);
-                      }}
-                      className={`w-full px-4 py-3 text-left text-sm flex items-center gap-3 transition-colors rounded-lg mx-2 ${
-                        isDarkMode ? 'hover:bg-gray-700 text-gray-50' : 'hover:bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      <Calculator className="h-4 w-4" />
-                      View Saved Tools ({savedTools.length})
-                    </button>
-                  </div>
-                </div>
+                <OptionsMenu 
+                  isDarkMode={isDarkMode} 
+                  onClose={() => setShowOptionsMenu(false)}
+                  useMockData={useMockData}
+                  useIteratorTest={useIteratorTest}
+                  historyPanelSide={historyPanelSide}
+                  savedLogicResults={savedLogicResults}
+                  savedTools={savedTools}
+                  onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                  onToggleMockData={() => setUseMockData(!useMockData)}
+                  onToggleIteratorTest={() => {
+                    setUseIteratorTest(!useIteratorTest);
+                    resetWorkflow();
+                  }}
+                  onToggleHistoryPanel={() => setHistoryPanelSide(historyPanelSide === 'left' ? 'right' : 'left')}
+                  onResetWorkflow={resetWorkflow}
+                  onShowLogicSelect={() => setShowLogicSelect(true)}
+                  onShowToolsSelect={() => setShowToolsSelect(true)}
+                  onTestBrainstorming={async () => {
+                    try {
+                      const testContext = {
+                        userIntent: 'Create a marketing ROI calculator',
+                        toolType: 'calculator',
+                        targetAudience: 'small business owners',
+                        industry: 'marketing',
+                        businessDescription: 'Help businesses track their marketing investment returns'
+                      };
+                      await createToolWithBrainstorming(testContext);
+                    } catch (error) {
+                      console.error('Test brainstorming failed:', error);
+                    }
+                  }}
+                  onTestToolCreation={async () => {
+                    try {
+                      const testContext = {
+                        userIntent: 'Create a business assessment tool',
+                        toolType: 'assessment',
+                        targetAudience: 'entrepreneurs',
+                        industry: 'general business',
+                        features: ['scoring', 'recommendations', 'export'],
+                        businessDescription: 'Comprehensive business readiness assessment'
+                      };
+                      await callToolCreationAgent(testContext);
+                    } catch (error) {
+                      console.error('Test tool creation failed:', error);
+                    }
+                  }}
+                  onTestMultiPart={async () => {
+                    if (!useMockData) {
+                      setCurrentInput('send a test multi-input');
+                      await handleAIFreeformInput('send a test multi-input');
+                    } else {
+                      setLastAIMessage('Switch to AI Mode to test API commands!');
+                    }
+                  }}
+                  onTestFileUpload={async () => {
+                    if (!useMockData) {
+                      setCurrentInput('send a test image-upload');
+                      await handleAIFreeformInput('send a test image-upload');
+                    } else {
+                      setLastAIMessage('Switch to AI Mode to test API commands!');
+                    }
+                  }}
+                  onTestColorPicker={async () => {
+                    if (!useMockData) {
+                      setCurrentInput('send a test color-picker');
+                      await handleAIFreeformInput('send a test color-picker');
+                    } else {
+                      setLastAIMessage('Switch to AI Mode to test API commands!');
+                    }
+                  }}
+                  onTestComponentValidation={() => {
+                    import('@/lib/prompts/tool-creation-prompt').then(module => {
+                      console.log('🧪 Running component validation tests...');
+                      const results = module.runComponentValidationTests();
+                      if (results.failed === 0) {
+                        setLastAIMessage(`✅ All component validation tests passed! (${results.passed} tests)`);
+                      } else {
+                        setLastAIMessage(`⚠️ Component validation tests failed: ${results.failed} failures out of ${results.passed + results.failed} tests. Check console for details.`);
+                      }
+                    });
+                  }}
+                />
               )}
             </div>
           </div>
@@ -3115,6 +3323,9 @@ export default function TestUIPage() {
             toolData={toolData} 
             colorScheme={toolData.colorScheme || 'professional-blue'}
             isDarkMode={isDarkMode}
+            productToolDefinition={productToolDefinition ? productToolDefinition : undefined}
+            isGenerating={isGeneratingTool}
+            generatingMessage={isBrainstorming ? 'AI is brainstorming creative ideas for your tool...' : isGeneratingTool ? 'Creating your tool...' : undefined}
           />
         </div>
 
@@ -3495,13 +3706,23 @@ export default function TestUIPage() {
                                     : JSON.stringify(thought.data, null, 2)
                           }
                         </p>
-                        {thought.type === 'partial' && thought.data?.progress && (
+                        {(thought.type === 'partial' && thought.data?.progress) && (
                           <div className={`mt-2 w-full bg-gray-200 rounded-full h-1.5 ${
                             isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
                           }`}>
                             <div 
                               className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
                               style={{ width: `${thought.data.progress}%` }}
+                            />
+                          </div>
+                        )}
+                        {thought.type === 'complete' && (
+                          <div className={`mt-2 w-full bg-gray-200 rounded-full h-1.5 ${
+                            isDarkMode ? 'bg-gray-600' : 'bg-gray-200'
+                          }`}>
+                            <div 
+                              className="bg-green-500 h-1.5 rounded-full transition-all duration-1000"
+                              style={{ width: '100%' }}
                             />
                           </div>
                         )}

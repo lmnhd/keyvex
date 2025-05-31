@@ -38,7 +38,9 @@ export const ALLOWED_COMPONENTS = {
     'badge',           // Status badges
     'card',            // Content containers
     'divider',         // Section separators
-    'icon'             // Lucide icons
+    'icon',            // Lucide icons
+    'score-display',   // Score displays for assessments
+    'recommendation'   // Recommendation text/content
   ],
 
   // INTERACTIVE COMPONENTS
@@ -78,6 +80,28 @@ export const ALL_ALLOWED_COMPONENTS = [
 export type AllowedComponentType = typeof ALL_ALLOWED_COMPONENTS[number];
 
 // ============================================================================
+// AUTOMATED PROMPT GENERATION (PREVENTS MISMATCHES)
+// ============================================================================
+
+/**
+ * Generates the component types section for the AI prompt automatically
+ * This ensures the prompt always matches the actual ALLOWED_COMPONENTS
+ */
+function generateComponentTypesPrompt(): string {
+  const sections = [
+    { name: 'Input Components', types: ALLOWED_COMPONENTS.inputs },
+    { name: 'Display Components', types: ALLOWED_COMPONENTS.displays },
+    { name: 'Interactive Components', types: ALLOWED_COMPONENTS.interactive },
+    { name: 'Chart Components', types: ALLOWED_COMPONENTS.charts },
+    { name: 'Layout Components', types: ALLOWED_COMPONENTS.layout }
+  ];
+
+  return sections.map(section => 
+    `${section.name}:\n- ${section.types.join(', ')}`
+  ).join('\n\n');
+}
+
+// ============================================================================
 // AI TOOL CREATION PROMPT WITH COMPONENT CONSTRAINTS
 // ============================================================================
 
@@ -94,23 +118,13 @@ CORE PRINCIPLES:
 5. **Mobile Responsive**: Works perfectly on all devices
 
 ALLOWED COMPONENT TYPES:
-Input Components:
-- text-input, number-input, email-input, currency-input, textarea
-- select, multi-select, radio-group, checkbox-group
-- slider, color-picker
+${generateComponentTypesPrompt()}
 
-Display Components: 
-- heading, text, metric-display, calculation-display, currency-display, percentage-display
-- progress-bar, badge, card, divider, icon, score-display, recommendation
-
-Interactive Components:
-- button, export-button, submit-button, reset-button
-
-Chart Components:
-- bar-chart, line-chart, pie-chart, gauge-chart
-
-Layout Components:
-- container, grid, section
+CRITICAL COMPONENT TYPE RULES:
+- Component types MUST be exact strings from the list above
+- NO custom component types or variations allowed
+- NO colons, spaces, or special characters in component types
+- Examples: 'score-display' ✅, 'paq-score: score-display' ❌, 'custom-score' ❌
 
 CRITICAL REQUIREMENTS:
 
@@ -215,36 +229,103 @@ Remember: You're creating tools that businesses will actually use to capture lea
 // ============================================================================
 
 /**
- * Validates that all components in a tool definition use only allowed component types
+ * Enhanced validation that catches common AI errors and provides specific guidance
  */
 export function validateComponentTypes(components: any[]): {
   valid: boolean;
   invalidComponents: string[];
   suggestions: string[];
+  syntaxErrors: string[];
 } {
   const invalidComponents: string[] = [];
   const suggestions: string[] = [];
+  const syntaxErrors: string[] = [];
   
   components.forEach(component => {
-    if (!ALL_ALLOWED_COMPONENTS.includes(component.type as any)) {
-      invalidComponents.push(`${component.id}: ${component.type}`);
+    const componentType = component.type;
+    
+    // Check for syntax errors first
+    if (componentType.includes(':')) {
+      syntaxErrors.push(`${component.id}: "${componentType}" contains invalid colon - use simple component type only`);
+      // Extract the part after colon as a potential fix
+      const afterColon = componentType.split(':')[1]?.trim();
+      if (afterColon && ALL_ALLOWED_COMPONENTS.includes(afterColon as any)) {
+        suggestions.push(`For ${component.id}, use "${afterColon}" instead of "${componentType}"`);
+      }
+      return;
+    }
+    
+    if (componentType.includes(' ')) {
+      syntaxErrors.push(`${component.id}: "${componentType}" contains spaces - use hyphenated format (e.g., "score-display")`);
+      return;
+    }
+    
+    if (/[A-Z]/.test(componentType)) {
+      syntaxErrors.push(`${component.id}: "${componentType}" contains uppercase letters - use lowercase with hyphens`);
+      return;
+    }
+    
+    // Check if component type is allowed
+    if (!ALL_ALLOWED_COMPONENTS.includes(componentType as any)) {
+      invalidComponents.push(`${component.id}: ${componentType}`);
       
-      // Suggest similar valid types
-      const similar = ALL_ALLOWED_COMPONENTS.filter(valid => 
-        valid.includes(component.type) || component.type.includes(valid)
-      );
+      // Provide smart suggestions
+      const similar = ALL_ALLOWED_COMPONENTS.filter(valid => {
+        const similarity = 
+          valid.includes(componentType) || 
+          componentType.includes(valid) ||
+          levenshteinDistance(valid, componentType) <= 2;
+        return similarity;
+      });
       
       if (similar.length > 0) {
-        suggestions.push(`For ${component.type}, consider: ${similar.join(', ')}`);
+        suggestions.push(`For "${componentType}", consider: ${similar.join(', ')}`);
+      } else {
+        // Suggest by category
+        const isDisplay = componentType.includes('display') || componentType.includes('show') || componentType.includes('text');
+        const isInput = componentType.includes('input') || componentType.includes('field') || componentType.includes('select');
+        const isInteractive = componentType.includes('button') || componentType.includes('click');
+        
+        if (isDisplay) {
+          suggestions.push(`For display components, use: ${ALLOWED_COMPONENTS.displays.slice(0, 5).join(', ')}, etc.`);
+        } else if (isInput) {
+          suggestions.push(`For input components, use: ${ALLOWED_COMPONENTS.inputs.slice(0, 5).join(', ')}, etc.`);
+        } else if (isInteractive) {
+          suggestions.push(`For interactive components, use: ${ALLOWED_COMPONENTS.interactive.join(', ')}`);
+        }
       }
     }
   });
   
   return {
-    valid: invalidComponents.length === 0,
+    valid: invalidComponents.length === 0 && syntaxErrors.length === 0,
     invalidComponents,
-    suggestions
+    suggestions,
+    syntaxErrors
   };
+}
+
+/**
+ * Simple Levenshtein distance for fuzzy matching
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+  
+  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+  
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,     // deletion
+        matrix[j - 1][i] + 1,     // insertion
+        matrix[j - 1][i - 1] + indicator // substitution
+      );
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
 }
 
 /**
@@ -259,4 +340,86 @@ export function getComponentExamples(category: keyof typeof ALLOWED_COMPONENTS):
  */
 export function getAllowedComponentTypes(): string[] {
   return [...ALL_ALLOWED_COMPONENTS];
+}
+
+/**
+ * Test suite for component validation - run this to catch issues early
+ */
+export function runComponentValidationTests(): {
+  passed: number;
+  failed: number;
+  errors: string[];
+} {
+  const errors: string[] = [];
+  let passed = 0;
+  let failed = 0;
+  
+  // Test cases for common AI mistakes
+  const testCases = [
+    // Valid components should pass
+    { components: [{ id: 'test', type: 'score-display' }], shouldPass: true, description: 'Valid score-display component' },
+    { components: [{ id: 'test', type: 'text-input' }], shouldPass: true, description: 'Valid text-input component' },
+    
+    // Invalid syntax should fail
+    { components: [{ id: 'test', type: 'paq-score: score-display' }], shouldPass: false, description: 'Component type with colon should fail' },
+    { components: [{ id: 'test', type: 'Score Display' }], shouldPass: false, description: 'Component type with spaces should fail' },
+    { components: [{ id: 'test', type: 'ScoreDisplay' }], shouldPass: false, description: 'Component type with camelCase should fail' },
+    
+    // Non-existent components should fail
+    { components: [{ id: 'test', type: 'custom-score' }], shouldPass: false, description: 'Non-existent component type should fail' },
+    { components: [{ id: 'test', type: 'made-up-component' }], shouldPass: false, description: 'Made-up component should fail' }
+  ];
+  
+  testCases.forEach(testCase => {
+    try {
+      const result = validateComponentTypes(testCase.components);
+      const actuallyPassed = result.valid;
+      
+      if (actuallyPassed === testCase.shouldPass) {
+        passed++;
+        console.log(`✅ ${testCase.description}`);
+      } else {
+        failed++;
+        const error = `❌ ${testCase.description} - Expected ${testCase.shouldPass ? 'pass' : 'fail'} but got ${actuallyPassed ? 'pass' : 'fail'}`;
+        errors.push(error);
+        console.error(error);
+      }
+    } catch (error) {
+      failed++;
+      const errorMsg = `❌ ${testCase.description} - Test threw error: ${error}`;
+      errors.push(errorMsg);
+      console.error(errorMsg);
+    }
+  });
+  
+  // Test prompt-code synchronization
+  try {
+    const promptComponents = generateComponentTypesPrompt();
+    const allComponents = getAllowedComponentTypes();
+    
+    // Verify all components are mentioned in prompt
+    let allMentioned = true;
+    allComponents.forEach(component => {
+      if (!promptComponents.includes(component)) {
+        allMentioned = false;
+        errors.push(`❌ Component '${component}' not found in generated prompt`);
+      }
+    });
+    
+    if (allMentioned) {
+      passed++;
+      console.log('✅ All components are properly included in prompt');
+    } else {
+      failed++;
+    }
+  } catch (error) {
+    failed++;
+    const errorMsg = `❌ Prompt synchronization test failed: ${error}`;
+    errors.push(errorMsg);
+    console.error(errorMsg);
+  }
+  
+  console.log(`\n📊 Component Validation Tests: ${passed} passed, ${failed} failed`);
+  
+  return { passed, failed, errors };
 } 

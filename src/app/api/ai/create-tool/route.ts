@@ -339,7 +339,8 @@ export async function POST(request: NextRequest) {
     CREATIVE LOGIC BRAINSTORMING RESULTS:
     The Logic Architect has provided these creative suggestions for your tool:
     
-    Core Concept: ${logicBrainstorming.coreWConcept}
+    🎯 CORE CONCEPT: ${logicBrainstorming.coreWConcept}
+    ⚠️  CRITICAL: Use this exact concept as the foundation for your tool's title and design!
     
     Suggested Calculations:
     ${logicBrainstorming.keyCalculations?.map((calc: any) => 
@@ -355,9 +356,13 @@ export async function POST(request: NextRequest) {
     
     Creative Enhancements: ${logicBrainstorming.creativeEnhancements?.join(', ') || 'None'}
     
-    IMPLEMENTATION FOCUS:
-    Use these creative ideas as inspiration but focus on creating a practical, implementable tool.
-    You don't need to implement every suggestion - choose the most valuable and feasible elements.
+    🚨 IMPLEMENTATION REQUIREMENTS:
+    1. Tool title MUST reflect the Core Concept: "${logicBrainstorming.coreWConcept}"
+    2. Tool description MUST incorporate the Value Proposition
+    3. Use suggested calculations and interaction flow as primary inspiration
+    4. Create a cohesive tool that delivers on the brainstormed concept
+    
+    Don't just ignore these insights - they are the creative foundation for this tool!
     ` : 'Focus on creating practical, business-focused calculators that solve real problems.'}`;
 
     const userPrompt = existingTool && updateType 
@@ -432,15 +437,27 @@ export async function POST(request: NextRequest) {
       maxRetries: 2
     });
 
-    // NEW: Validate component types
+    // NEW: Enhanced component validation with syntax error detection
     if (productTool.components) {
       const validation = validateComponentTypes(productTool.components);
       if (!validation.valid) {
-        console.error('❌ Invalid component types:', validation.invalidComponents);
+        console.error('❌ Component validation failed:', {
+          invalidComponents: validation.invalidComponents,
+          syntaxErrors: validation.syntaxErrors,
+          suggestions: validation.suggestions
+        });
+        
+        const errorMessage = [
+          'Tool contains invalid component types',
+          validation.syntaxErrors.length > 0 ? `Syntax errors: ${validation.syntaxErrors.join('; ')}` : '',
+          validation.invalidComponents.length > 0 ? `Invalid types: ${validation.invalidComponents.join('; ')}` : ''
+        ].filter(Boolean).join('\n');
+        
         return NextResponse.json({ 
           success: false, 
-          message: 'Tool contains invalid component types',
+          message: errorMessage,
           invalidComponents: validation.invalidComponents,
+          syntaxErrors: validation.syntaxErrors,
           suggestions: validation.suggestions
         }, { status: 400 });
       }
