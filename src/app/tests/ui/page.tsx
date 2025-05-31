@@ -1566,6 +1566,8 @@ interface OptionsMenuProps {
   historyPanelSide: 'left' | 'right';
   savedLogicResults: SavedLogicResult[];
   savedTools: SavedTool[];
+  selectedModel: string;
+  availableModels: Array<{ id: string; name: string }>;
   onToggleDarkMode: () => void;
   onToggleMockData: () => void;
   onToggleIteratorTest: () => void;
@@ -1579,6 +1581,7 @@ interface OptionsMenuProps {
   onTestFileUpload: () => void;
   onTestColorPicker: () => void;
   onTestComponentValidation: () => void;
+  onModelChange: (model: string) => void;
 }
 
 interface MenuSection {
@@ -1601,6 +1604,8 @@ function OptionsMenu({
   historyPanelSide,
   savedLogicResults,
   savedTools,
+  selectedModel,
+  availableModels,
   onToggleDarkMode,
   onToggleMockData,
   onToggleIteratorTest,
@@ -1613,7 +1618,8 @@ function OptionsMenu({
   onTestMultiPart,
   onTestFileUpload,
   onTestColorPicker,
-  onTestComponentValidation
+  onTestComponentValidation,
+  onModelChange
 }: OptionsMenuProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['mode-workflow']));
 
@@ -1777,6 +1783,12 @@ function OptionsMenu({
           }
         }
       ]
+    },
+    {
+      id: 'model-selection',
+      title: 'Model Selection',
+      icon: <Brain className="h-4 w-4" />,
+      items: [] // Special section with custom rendering
     }
   ];
 
@@ -1808,25 +1820,54 @@ function OptionsMenu({
             {/* Section Items */}
             {expandedSections.has(section.id) && (
               <div className="pb-2">
-                {section.items.map((item, itemIndex) => (
-                  <button
-                    key={itemIndex}
-                    onClick={item.onClick}
-                    className={`w-full px-8 py-2 text-left text-sm flex items-center justify-between transition-colors rounded-lg mx-2 ${
-                      isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </div>
-                    {item.badge && (
-                      <Badge variant="outline" className="text-xs">
-                        {item.badge}
-                      </Badge>
-                    )}
-                  </button>
-                ))}
+                {/* Special handling for model selection */}
+                {section.id === 'model-selection' ? (
+                  <div className="px-8 py-2">
+                    <label htmlFor="model-select" className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Choose Model:
+                    </label>
+                    <select
+                      id="model-select"
+                      value={selectedModel}
+                      onChange={(e) => onModelChange(e.target.value)}
+                      className={`w-full p-2 rounded-md border text-sm ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                          : 'bg-white border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      {availableModels.map((model) => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      Selected: {availableModels.find(m => m.id === selectedModel)?.name}
+                    </p>
+                  </div>
+                ) : (
+                  /* Regular menu items */
+                  section.items.map((item, itemIndex) => (
+                    <button
+                      key={itemIndex}
+                      onClick={item.onClick}
+                      className={`w-full px-8 py-2 text-left text-sm flex items-center justify-between transition-colors rounded-lg mx-2 ${
+                        isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'hover:bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        {item.icon}
+                        <span>{item.label}</span>
+                      </div>
+                      {item.badge && (
+                        <Badge variant="outline" className="text-xs">
+                          {item.badge}
+                        </Badge>
+                      )}
+                    </button>
+                  ))
+                )}
               </div>
             )}
 
@@ -1952,6 +1993,16 @@ export default function TestUIPage() {
   const [savedTools, setSavedTools] = useState<SavedTool[]>([]);
   const [showLogicSelect, setShowLogicSelect] = useState(false);
   const [showToolsSelect, setShowToolsSelect] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('gpt-4o'); // Default model
+
+  // Available models for testing
+  const availableModels = [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'o1-mini', name: 'o1-mini' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+    { id: 'gpt-4', name: 'GPT-4' }
+  ];
 
   // Initialize dark mode based on system preference
   useEffect(() => {
@@ -2928,6 +2979,7 @@ export default function TestUIPage() {
             brainstormingResult: context.brainstormingResult || latestBrainstormingResult,
             logicArchitectInsights: context.logicArchitectInsights || latestBrainstormingResult
           },
+          selectedModel: selectedModel, // Add selected model to API call
           existingTool: productToolDefinition,
           updateType: context.updateType || 'general'
         }),
@@ -3405,6 +3457,8 @@ export default function TestUIPage() {
                   historyPanelSide={historyPanelSide}
                   savedLogicResults={savedLogicResults}
                   savedTools={savedTools}
+                  selectedModel={selectedModel}
+                  availableModels={availableModels}
                   onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
                   onToggleMockData={() => setUseMockData(!useMockData)}
                   onToggleIteratorTest={() => {
@@ -3561,6 +3615,7 @@ export default function TestUIPage() {
                       }
                     });
                   }}
+                  onModelChange={(model) => setSelectedModel(model)}
                 />
               )}
             </div>

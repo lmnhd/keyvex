@@ -71,6 +71,7 @@ const toolCreationRequestSchema = z.object({
       businessLogic: z.array(z.any()).optional()
     }).nullable().optional()
   }).optional(),
+  selectedModel: z.string().optional(),
   existingTool: z.any().optional(),
   updateType: z.enum(['color', 'title', 'description', 'features', 'components', 'general']).optional()
 });
@@ -280,7 +281,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedRequest = toolCreationRequestSchema.parse(body);
-    const { userIntent, context, existingTool, updateType } = validatedRequest;
+    const { userIntent, context, selectedModel, existingTool, updateType } = validatedRequest;
 
     // STEP 1: Logic Architect Brainstorming (for new tools only)
     let logicBrainstorming = null;
@@ -303,7 +304,7 @@ export async function POST(request: NextRequest) {
     // }
 
     // STEP 2: Get the primary model for tool creation
-    const model = getPrimaryModel('toolCreator');
+    const model = selectedModel ? { provider: 'openai', model: selectedModel } : getPrimaryModel('toolCreator');
     if (!model) {
       return NextResponse.json({ 
         success: false, 
