@@ -407,15 +407,9 @@ export default function DynamicComponentRenderer({
           return ROIComponent;
         }
 
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown compilation error';
-        console.error('Component compilation failed:', error);
-        console.error('Failed code preview:', componentCode.substring(0, 500));
-        setRenderError(errorMessage);
-        onError?.(error instanceof Error ? error : new Error(errorMessage));
-        return null;
-      }
-    } catch (error) {
+      } 
+
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown runtime error';
       console.error('Component runtime error:', error);
       setRenderError(errorMessage);

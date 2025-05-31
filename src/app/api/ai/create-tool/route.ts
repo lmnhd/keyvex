@@ -290,40 +290,17 @@ export async function POST(request: NextRequest) {
       console.log('🎯 Using external brainstorming results from streaming session');
       logicBrainstorming = context.brainstormingResult || context.logicArchitectInsights;
       console.log('✅ External brainstorming loaded:', logicBrainstorming?.coreWConcept);
-    } else if (!existingTool) {
-      console.log('🧠 Starting internal Logic Architect brainstorming...');
-      try {
-        const logicArchitect = new LogicArchitectAgent('anthropic');
-        
-        // Extract context for brainstorming
-        const toolType = context?.toolType || 'calculator';
-        const targetAudience = context?.targetAudience || 'business professionals';
-        const industry = context?.industry || '';
-        const businessDescription = context?.businessDescription || '';
-        
-        // Combine all available context for creative brainstorming
-        const availableData = {
-          collectedAnswers: context?.collectedAnswers || {},
-          features: context?.features || [],
-          colors: context?.colors || [],
-          brandAnalysis: context?.brandAnalysis,
-          uploadedFiles: context?.uploadedFiles,
-          conversationHistory: context?.conversationHistory
-        };
-        
-        logicBrainstorming = await logicArchitect.brainstormToolLogic(
-          toolType,
-          targetAudience,
-          industry,
-          businessDescription,
-          availableData
-        );
-        
-        console.log('✅ Internal Logic Architect brainstorming complete:', logicBrainstorming?.coreWConcept);
-      } catch (logicError) {
-        console.warn('⚠️ Logic Architect brainstorming failed, continuing with standard creation:', logicError);
-      }
     }
+    // TEMPORARILY DISABLED: Skip internal Logic Architect due to Anthropic API overload
+    // else if (!existingTool) {
+    //   console.log('🧠 Starting internal Logic Architect brainstorming...');
+    //   try {
+    //     const logicArchitect = new LogicArchitectAgent('anthropic');
+    //     // ... brainstorming logic
+    //   } catch (logicError) {
+    //     console.warn('⚠️ Logic Architect brainstorming failed, continuing with standard creation:', logicError);
+    //   }
+    // }
 
     // STEP 2: Get the primary model for tool creation
     const model = getPrimaryModel('toolCreator');
@@ -349,7 +326,7 @@ export async function POST(request: NextRequest) {
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 1.0,
-      maxRetries: 2
+      maxRetries: 1
     });
 
     // NEW: Enhanced component validation with syntax error detection
