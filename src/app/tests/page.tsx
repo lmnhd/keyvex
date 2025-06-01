@@ -17,7 +17,8 @@ import {
   Zap,
   ArrowRight,
   FileText,
-  Cog
+  Cog,
+  Save
 } from 'lucide-react';
 
 const TEST_PAGES = [
@@ -50,6 +51,14 @@ const TEST_PAGES = [
     description: 'Test JSX compilation and dynamic component rendering functionality',
     path: '/tests/dynamic-tools',
     icon: Cog,
+    category: 'UI',
+    status: 'active'
+  },
+  {
+    title: 'Saved Tools',
+    description: 'Manage and test saved tools and brainstorms from localStorage',
+    path: '/tests/saved-tools',
+    icon: Save,
     category: 'UI',
     status: 'active'
   },

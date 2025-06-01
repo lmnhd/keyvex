@@ -1,14 +1,16 @@
 # Admin Dashboard System
 
-The Admin Dashboard provides comprehensive monitoring and analytics for AI model usage, costs, and performance metrics during development and production.
+The Admin Dashboard provides comprehensive monitoring and analytics for AI model usage, costs, and performance metrics during development and production, along with advanced tool data integration capabilities.
 
 ## Overview
 
-The admin dashboard system consists of several components that work together to provide real-time insights into your AI model usage:
+The admin dashboard system consists of several components that work together to provide real-time insights into your AI model usage and comprehensive data management:
 
 - **Cost Tracking**: Monitor spending across models, processes, and providers
 - **Usage Analytics**: Track request volumes, success rates, and patterns
 - **Performance Monitoring**: Analyze response times, error rates, and throughput
+- **Tool Data Integration**: Connect tools to real data sources for dynamic experiences
+- **Smart Data Management**: AI-powered data source detection and integration
 - **Alert System**: Get notified about cost overruns, performance issues, and errors
 - **Real-time Updates**: Auto-refreshing dashboard with live metrics
 
@@ -38,12 +40,72 @@ The admin dashboard system consists of several components that work together to 
 - **Throughput**: Requests per minute
 - **Cache Hit Rate**: Efficiency of caching systems
 
+### 🗄️ Tool Data Integration
+- **Data Source Management**: Connect and monitor multiple data sources
+- **Smart Data Detection**: AI-powered analysis of uploaded files and data structures
+- **Multi-Format Support**: CSV, Excel, Access, SQL databases, cloud services, APIs
+- **Real-time Sync Monitoring**: Track connection health and sync status
+- **Mock-to-Real Migration**: Seamless transition from demo to production data
+- **Data Templates**: Pre-built templates for common business use cases
+- **Integration Wizard**: User-friendly setup for database connections and file uploads
+
+#### Data Source Types
+- **File Uploads**: Drag-and-drop CSV, Excel, and Access files
+- **SQL Databases**: MySQL, PostgreSQL, SQL Server with WiFi-like connection wizard
+- **Cloud Services**: Google Sheets, Salesforce, Airtable, and other popular platforms
+- **API Endpoints**: REST APIs, GraphQL, and webhook integrations
+- **Real-time Sources**: Live database connections with automatic sync
+
+#### Smart Integration Features
+- **Automatic Field Detection**: AI analyzes data structure and suggests optimal tool configurations
+- **Data Health Monitoring**: Track connection status, sync times, and data quality
+- **Progressive Enhancement**: Start with mock data, upgrade to real sources without rebuilding tools
+- **Template Library**: Industry-specific data templates (Real Estate, CRM, Product Catalogs)
+- **Connection Templates**: Pre-configured setups for popular data sources
+
 ### 🚨 Alert System
 - **Cost Alerts**: Budget overruns and unusual spending
 - **Performance Alerts**: Latency spikes and degradation
 - **Error Alerts**: API failures and rate limiting
+- **Data Source Alerts**: Connection failures, sync issues, and data quality problems
 - **Severity Levels**: Low, medium, and high priority alerts
 - **Real-time Notifications**: Immediate alert generation
+
+## Dashboard Tabs
+
+### 1. Overview
+- **Quick Stats**: User engagement, tool creation, and system health
+- **Recent Activity**: Latest tool interactions and system events
+- **Quick Actions**: Fast access to create tools, manage data, and view analytics
+
+### 2. My Tools
+- **Tool Management**: View, edit, and organize your created tools
+- **Performance Metrics**: Individual tool analytics and engagement data
+- **Publishing Controls**: Manage tool visibility and sharing settings
+
+### 3. Tool Data ✨ NEW
+- **Data Source Overview**: Connected sources, tools using data, and health status
+- **Quick Connect**: One-click setup for files, databases, cloud services, and APIs
+- **Source Management**: Monitor active connections, sync status, and resolve issues
+- **Smart Integration**: AI-powered data detection and mapping recommendations
+- **Templates & Examples**: Download sample data formats and pre-configured datasets
+
+#### Tool Data Features
+- **Connection Status Monitoring**: Real-time health checks for all data sources
+- **Integration Health Dashboard**: Visual indicators for Active, Live, and Error states
+- **Popular Integrations**: Quick access to Google Sheets, MySQL, Salesforce, PostgreSQL
+- **Data Templates**: Ready-to-use templates for Real Estate, Customer CRM, Product Catalogs
+- **Smart Upload Wizard**: AI analyzes files and recommends optimal tool configurations
+
+### 4. Analytics
+- **Detailed Metrics**: Comprehensive performance and usage analytics
+- **Cost Analysis**: Spending breakdown and optimization recommendations
+- **Performance Trends**: Historical data and pattern analysis
+
+### 5. Admin (Development) 
+- **System Monitoring**: AI model usage, costs, and performance metrics
+- **Alert Management**: Configure thresholds and resolve system alerts
+- **Debug Tools**: Development utilities and system diagnostics
 
 ## File Structure
 
@@ -54,21 +116,125 @@ src/
 │   │   ├── page.tsx                    # Main dashboard UI
 │   │   └── test-data/
 │   │       └── page.tsx                # Test data generator
+│   ├── dashboard/                      # User dashboard with Tool Data
+│   │   └── page.tsx                    # Main dashboard with Tool Data tab
 │   └── api/
-│       └── admin/
-│           └── metrics/
-│               └── route.ts            # Metrics API endpoint
+│       ├── admin/
+│       │   └── metrics/
+│       │       └── route.ts            # Metrics API endpoint
+│       └── data-sources/               # Data integration APIs
+│           ├── upload/
+│           │   └── route.ts            # File upload handling
+│           ├── database/
+│           │   └── route.ts            # Database connection management
+│           └── cloud/
+│               └── route.ts            # Cloud service integrations
 └── lib/
-    └── ai/
-        └── utils/
-            └── metrics-tracker.ts      # Automatic metrics tracking
+    ├── ai/
+    │   └── utils/
+    │       └── metrics-tracker.ts      # Automatic metrics tracking
+    └── data/
+        ├── connectors/                 # Data source connectors
+        │   ├── sql.ts                  # SQL database connector
+        │   ├── files.ts                # File processing utilities
+        │   └── cloud.ts                # Cloud service integrations
+        └── templates/                  # Data templates and schemas
+            ├── real-estate.ts
+            ├── crm.ts
+            └── products.ts
+```
+
+## Tool Data Integration Usage
+
+### Connecting Data Sources
+
+#### File Upload
+```typescript
+// Upload CSV, Excel, or Access files
+const formData = new FormData();
+formData.append('file', file);
+formData.append('type', 'csv');
+
+const response = await fetch('/api/data-sources/upload', {
+  method: 'POST',
+  body: formData
+});
+```
+
+#### Database Connection
+```typescript
+// Connect to SQL database
+const connection = await fetch('/api/data-sources/database', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    type: 'mysql',
+    host: 'localhost',
+    database: 'myapp',
+    username: 'user',
+    password: 'password'
+  })
+});
+```
+
+#### Cloud Service Integration
+```typescript
+// Connect to Google Sheets
+const integration = await fetch('/api/data-sources/cloud', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    provider: 'googlesheets',
+    spreadsheetId: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms',
+    range: 'Sheet1!A1:Z1000'
+  })
+});
+```
+
+### Smart Data Detection
+
+The AI-powered data detection system automatically:
+- Analyzes uploaded files and data structures
+- Suggests appropriate tool types (calculators, quizzes, assessments)
+- Recommends field mappings and data transformations
+- Provides optimization suggestions for better performance
+
+### Mock-to-Real Migration
+
+Tools can seamlessly transition from demo data to real sources:
+
+```typescript
+// Start with mock data
+const tool = createTool({
+  type: 'neighborhood-quiz',
+  data: mockNeighborhoodData
+});
+
+// Later, connect real data source
+await tool.connectDataSource({
+  type: 'csv',
+  sourceId: 'neighborhood-data-csv',
+  mapping: {
+    'neighborhood_name': 'name',
+    'school_rating': 'schools',
+    'median_price': 'price'
+  }
+});
 ```
 
 ## Usage
 
 ### Accessing the Dashboard
 
-Visit `/admin` to access the main admin dashboard:
+Visit `/dashboard` to access the main user dashboard with Tool Data integration:
+
+```
+http://localhost:3000/dashboard
+```
+
+### Accessing Admin Dashboard
+
+Visit `/admin` to access the system admin dashboard:
 
 ```
 http://localhost:3000/admin
@@ -85,6 +251,7 @@ http://localhost:3000/admin/test-data
 This will create:
 - 50 sample AI requests with realistic data
 - 3 sample alerts (cost, performance, error)
+- Sample data source connections
 - Data distributed across all configured AI processes
 
 ### API Endpoints
@@ -154,6 +321,30 @@ await fetch('/api/admin/metrics', {
 });
 ```
 
+#### Data Source Management APIs
+
+```typescript
+// Get all connected data sources
+const sources = await fetch('/api/data-sources');
+
+// Test data source connection
+const test = await fetch('/api/data-sources/test', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ sourceId: 'csv-neighborhoods' })
+});
+
+// Update data source configuration
+await fetch('/api/data-sources/update', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    sourceId: 'mysql-crm',
+    config: { refreshInterval: 3600 }
+  })
+});
+```
+
 ### Automatic Metrics Tracking
 
 The system includes automatic tracking for AI requests:
@@ -189,6 +380,11 @@ METRICS_BATCH_SIZE=10
 
 # Metrics flush interval in milliseconds (optional, defaults to 30000)
 METRICS_FLUSH_INTERVAL=30000
+
+# Data source connection limits
+MAX_FILE_SIZE=50MB
+MAX_CONCURRENT_CONNECTIONS=10
+DATA_RETENTION_DAYS=90
 ```
 
 ### Alert Thresholds
@@ -198,90 +394,9 @@ The system automatically creates alerts based on these thresholds:
 - **High Cost Alert**: Requests costing more than $1.00
 - **High Latency Alert**: Requests taking more than 5 seconds
 - **Error Alert**: Any failed request
+- **Data Source Alert**: Connection failures or sync issues
 
 You can customize these thresholds in `src/app/api/admin/metrics/route.ts`.
-
-## Dashboard Tabs
-
-### 1. Cost Analysis
-- **Cost by Process**: Pie chart showing spending distribution
-- **Cost by Provider**: Bar chart comparing provider costs
-- **Most Expensive Requests**: List of highest-cost individual requests
-- **Daily Cost Trends**: Line chart showing 7-day cost history
-
-### 2. Usage Metrics
-- **Requests by Process**: Volume distribution across AI processes
-- **Usage Statistics**: Fallback usage, cache hit rate, throughput
-- **Hourly Usage**: 24-hour request volume chart
-- **Provider Distribution**: Request counts by provider
-
-### 3. Performance
-- **Latency by Process**: Average response times per process
-- **Error Analysis**: Overall error rate and error type breakdown
-- **Throughput Metrics**: Requests per minute and performance trends
-- **Cache Performance**: Hit rates and efficiency metrics
-
-### 4. Alerts
-- **Cost Alerts**: Budget overruns and spending anomalies
-- **Performance Alerts**: Latency spikes and degradation
-- **Error Alerts**: API failures and rate limiting
-- **Alert Management**: Resolve and dismiss alerts
-
-## Data Storage
-
-### Development
-In development, metrics are stored in memory for simplicity. Data is lost when the server restarts.
-
-### Production
-For production deployment, you should:
-
-1. **Replace In-Memory Storage**: Update the metrics API to use DynamoDB or another persistent store
-2. **Add Authentication**: Restrict admin dashboard access to authorized users
-3. **Implement Data Retention**: Set up automatic cleanup of old metrics data
-4. **Add Backup**: Ensure metrics data is backed up regularly
-
-### Sample DynamoDB Schema
-
-```typescript
-// Metrics table
-{
-  PK: 'METRIC#${requestId}',
-  SK: 'REQUEST',
-  userId: string,
-  process: string,
-  provider: string,
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-  cost: number,
-  latency: number,
-  success: boolean,
-  error?: string,
-  timestamp: string,
-  TTL: number // Auto-expire after 30 days
-}
-
-// Alerts table
-{
-  PK: 'ALERT#${alertId}',
-  SK: 'ALERT',
-  type: 'cost' | 'performance' | 'error',
-  severity: 'low' | 'medium' | 'high',
-  message: string,
-  timestamp: string,
-  resolved: boolean,
-  TTL: number // Auto-expire after 90 days
-}
-```
-
-## Integration with Model Configuration
-
-The admin dashboard automatically integrates with your centralized model configuration:
-
-- **Cost Calculations**: Uses actual model pricing from `default-models.json`
-- **Process Mapping**: Displays metrics for all configured AI processes
-- **Provider Tracking**: Monitors usage across all configured providers
-- **Model Analysis**: Breaks down costs and usage by specific models
 
 ## Best Practices
 
@@ -289,21 +404,31 @@ The admin dashboard automatically integrates with your centralized model configu
 - Check the dashboard daily during development
 - Set up alerts for cost thresholds
 - Monitor performance trends weekly
+- Review data source health regularly
 
 ### 2. Cost Optimization
 - Use the cost analysis to identify expensive processes
 - Consider switching to cheaper models for development
 - Monitor fallback usage to optimize primary model selection
+- Optimize data source connections to reduce API calls
 
 ### 3. Performance Tuning
 - Track latency trends to identify performance issues
 - Use error analysis to improve reliability
 - Monitor cache hit rates to optimize caching strategies
+- Balance data freshness with performance
 
-### 4. Alert Management
+### 4. Data Management
+- Regularly validate data source connections
+- Monitor data quality and sync frequency
+- Use templates for consistent data structure
+- Plan for data source failover scenarios
+
+### 5. Alert Management
 - Resolve alerts promptly to maintain dashboard clarity
 - Adjust alert thresholds based on your usage patterns
 - Use alerts to proactively address issues
+- Set up notification channels for critical alerts
 
 ## Troubleshooting
 
@@ -312,6 +437,12 @@ The admin dashboard automatically integrates with your centralized model configu
 2. Generate test data using `/admin/test-data`
 3. Verify API endpoints are working
 4. Check browser console for errors
+
+### Data Source Connection Issues
+1. Verify connection credentials and permissions
+2. Check network connectivity and firewall settings
+3. Validate data source format and structure
+4. Review connection logs and error messages
 
 ### High Memory Usage
 1. Clear old metrics data regularly
@@ -340,4 +471,9 @@ The admin dashboard automatically integrates with your centralized model configu
 - **Integration APIs**: Webhook notifications for alerts
 - **Multi-tenant Support**: Separate metrics by user/organization
 - **Advanced Filtering**: Complex query capabilities
-- **Performance Benchmarking**: Compare against historical baselines 
+- **Performance Benchmarking**: Compare against historical baselines
+- **Advanced Data Connectors**: Additional cloud services and databases
+- **AI-Powered Data Insights**: Intelligent recommendations for data optimization
+- **Automated Data Migration**: Smart tools for upgrading from mock to real data
+- **Data Quality Monitoring**: Automated validation and quality scoring
+- **Cross-Tool Data Sharing**: Unified data sources across multiple tools 

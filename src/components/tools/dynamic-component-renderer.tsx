@@ -42,7 +42,40 @@ export default function DynamicComponentRenderer({
       // The componentCode is now pre-compiled JavaScript (not JSX)
       // We just need to execute it safely with proper context
       
-      // Step 1: Extract component name from the compiled code
+      // Step 1: Pre-validate the code for common syntax errors
+      console.log('[Dynamic Component] 🔍 Pre-validating component code...');
+      
+      // Check for malformed regex patterns
+      const regexPatterns = componentCode.match(/\/[^\/\n]*\/?/g);
+      if (regexPatterns) {
+        regexPatterns.forEach((pattern, index) => {
+          try {
+            // Try to validate each potential regex pattern
+            if (pattern.startsWith('/') && !pattern.endsWith('/')) {
+              console.warn(`[Dynamic Component] ⚠️ Potential malformed regex found: ${pattern}`);
+            }
+          } catch (e) {
+            console.warn(`[Dynamic Component] ⚠️ Regex validation warning for pattern ${index}:`, e);
+          }
+        });
+      }
+      
+      // Check for other common syntax issues
+      const syntaxChecks = [
+        { pattern: /\/\*([^*]|\*(?!\/))*$/g, name: 'unclosed block comment' },
+        { pattern: /\/\/.*[\r\n].*\/\//g, name: 'potential comment issues' },
+        { pattern: /['""][^'"]*$/g, name: 'unclosed string literal' },
+        { pattern: /\{[^}]*$/g, name: 'unclosed brace' }
+      ];
+      
+      syntaxChecks.forEach(check => {
+        const matches = componentCode.match(check.pattern);
+        if (matches && matches.length > 0) {
+          console.warn(`[Dynamic Component] ⚠️ Potential ${check.name} detected:`, matches);
+        }
+      });
+      
+      // Step 2: Extract component name from the compiled code
       let componentName = 'GeneratedComponent';
       const functionMatch = componentCode.match(/function\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
       if (functionMatch) {
@@ -51,7 +84,7 @@ export default function DynamicComponentRenderer({
 
       console.log('[Dynamic Component] 🎯 Component name:', componentName);
 
-      // Step 2: Create execution context with all React dependencies
+      // Step 3: Create execution context with all React dependencies
       const contextVars = {
         React,
         useState,
@@ -69,7 +102,7 @@ export default function DynamicComponentRenderer({
         AlertCircle,
       };
 
-      // Step 3: Execute the pre-compiled JavaScript
+      // Step 4: Execute the pre-compiled JavaScript with enhanced error handling
       const executableCode = `
         // Destructure all context variables
         const { ${Object.keys(contextVars).join(', ')} } = contextVars;
@@ -82,12 +115,33 @@ export default function DynamicComponentRenderer({
       `;
 
       console.log('[Dynamic Component] 🔧 Executing pre-compiled code...');
+      console.log('[Dynamic Component] 📄 Code preview (first 200 chars):', componentCode.substring(0, 200) + '...');
 
-      // Step 4: Execute and get the component
-      const componentFunction = new Function('contextVars', executableCode);
-      const Component = componentFunction(contextVars);
+      // Step 5: Execute and get the component with try-catch for better error reporting
+      let Component;
+      try {
+        const componentFunction = new Function('contextVars', executableCode);
+        Component = componentFunction(contextVars);
+      } catch (executionError) {
+        // Enhanced error reporting for specific error types
+        const errorMessage = executionError instanceof Error ? executionError.message : String(executionError);
+        
+        if (errorMessage.includes('Invalid regular expression')) {
+          console.error('[Dynamic Component] 🚨 REGEX ERROR: The AI generated malformed regular expression code');
+          console.error('[Dynamic Component] 📋 Code causing regex error:', componentCode);
+          throw new Error(`Malformed regular expression in generated code: ${errorMessage}`);
+        } else if (errorMessage.includes('Unexpected token')) {
+          console.error('[Dynamic Component] 🚨 SYNTAX ERROR: Invalid JavaScript syntax in generated code');
+          console.error('[Dynamic Component] 📋 Code with syntax error:', componentCode);
+          throw new Error(`JavaScript syntax error in generated code: ${errorMessage}`);
+        } else {
+          console.error('[Dynamic Component] 🚨 EXECUTION ERROR:', errorMessage);
+          console.error('[Dynamic Component] 📋 Full component code:', componentCode);
+          throw executionError;
+        }
+      }
 
-      // Step 5: Validate the result
+      // Step 6: Validate the result
       if (typeof Component !== 'function') {
         throw new Error(`Expected function, got ${typeof Component}. Component name: ${componentName}`);
       }

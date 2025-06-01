@@ -6,6 +6,8 @@ import { redirect } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ToolsList } from '@/components/tools/tools-list';
 import { 
   Plus, 
@@ -15,12 +17,24 @@ import {
   Calculator,
   HelpCircle,
   ClipboardList,
-  Eye
+  Eye,
+  Database,
+  Upload,
+  FileSpreadsheet,
+  Wifi,
+  Globe,
+  CheckCircle2,
+  AlertCircle,
+  Settings,
+  Link2,
+  Cloud,
+  Server,
+  FileText
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const { user, isLoaded } = useUser();
-  const [activeTab, setActiveTab] = useState<'overview' | 'tools' | 'analytics'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'tools' | 'data' | 'analytics'>('overview');
 
   if (!isLoaded) {
     return (
@@ -224,6 +238,347 @@ export default function DashboardPage() {
     </div>
   );
 
+  const renderToolData = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">Tool Data Sources</h2>
+        <p className="text-muted-foreground">
+          Connect your tools to real data sources for dynamic, personalized experiences
+        </p>
+      </div>
+
+      {/* Data Source Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Connected Sources</p>
+                <p className="text-2xl font-bold">3</p>
+              </div>
+              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">CSV Files</Badge>
+                <Badge variant="secondary" className="text-xs">SQL DB</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Tools Using Data</p>
+                <p className="text-2xl font-bold">2</p>
+              </div>
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                <Link2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-muted-foreground">Real estate quiz, Fitness calc</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Data Health</p>
+                <p className="text-2xl font-bold text-green-600">Good</p>
+              </div>
+              <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                <Database className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-sm text-muted-foreground">Last sync: 2 hours ago</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Connect Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Connect New Data Source</CardTitle>
+          <CardDescription>Choose how you want to add data to your tools</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* File Upload */}
+            <Card className="hover:shadow-md transition-shadow cursor-pointer border-dashed">
+              <CardContent className="p-6 text-center">
+                <div className="mx-auto w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center mb-4">
+                  <Upload className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                </div>
+                <h3 className="font-semibold mb-2">Upload Files</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  CSV, Excel, or Access files
+                </p>
+                <Button size="sm" variant="outline" className="w-full">
+                  Choose Files
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Database Connection */}
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-6 text-center">
+                <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center mb-4">
+                  <Database className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="font-semibold mb-2">SQL Database</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  MySQL, PostgreSQL, SQL Server
+                </p>
+                <Button size="sm" variant="outline" className="w-full">
+                  Connect DB
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Cloud Services */}
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-6 text-center">
+                <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center mb-4">
+                  <Cloud className="h-6 w-6 text-green-600 dark:text-green-400" />
+                </div>
+                <h3 className="font-semibold mb-2">Cloud Apps</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Google Sheets, Salesforce, Airtable
+                </p>
+                <Button size="sm" variant="outline" className="w-full">
+                  Browse Apps
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* API Endpoint */}
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-6 text-center">
+                <div className="mx-auto w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center mb-4">
+                  <Globe className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h3 className="font-semibold mb-2">API Endpoint</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  REST API, GraphQL, Webhooks
+                </p>
+                <Button size="sm" variant="outline" className="w-full">
+                  Add API
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Existing Data Sources */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Data Sources</CardTitle>
+          <CardDescription>Manage and monitor your connected data sources</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Sample Connected Source 1 */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                  <FileSpreadsheet className="h-5 w-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">Neighborhood Data.csv</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Real estate data • 2,450 records • Updated 2 hours ago
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Active
+                </Badge>
+                <Button size="sm" variant="outline">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Sample Connected Source 2 */}
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                  <Database className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">Customer CRM Database</h4>
+                  <p className="text-sm text-muted-foreground">
+                    MySQL • customers, leads tables • Live connection
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <Wifi className="h-3 w-3 mr-1" />
+                  Live
+                </Badge>
+                <Button size="sm" variant="outline">
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Sample Disconnected Source */}
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+                  <Cloud className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">Google Sheets - Products</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Product catalog • Connection error • Last sync: 3 days ago
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="destructive">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Error
+                </Badge>
+                <Button size="sm" variant="outline">
+                  Reconnect
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data Integration Wizard */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Smart Data Integration</CardTitle>
+          <CardDescription>
+            Let AI help you connect your tools to the right data sources
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                  Smart Data Detection
+                </h4>
+                <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                  Upload any file and our AI will automatically detect data types, 
+                  suggest field mappings, and recommend the best tools to create.
+                </p>
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                  Start Smart Upload
+                </Button>
+              </div>
+
+              <div className="p-4 bg-green-50 dark:bg-green-950/50 rounded-lg border border-green-200 dark:border-green-800">
+                <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">
+                  Mock-to-Real Migration
+                </h4>
+                <p className="text-sm text-green-800 dark:text-green-200 mb-3">
+                  Start with demo data, then seamlessly transition to your real data 
+                  without rebuilding your tools.
+                </p>
+                <Button size="sm" variant="outline" className="border-green-600 text-green-700 hover:bg-green-100">
+                  Learn More
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-semibold">Popular Integrations</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span className="text-sm font-medium">Google Sheets</span>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <Database className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium">MySQL</span>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <Cloud className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium">Salesforce</span>
+                </div>
+                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <Server className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium">PostgreSQL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data Templates */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Data Templates & Examples</CardTitle>
+          <CardDescription>
+            Download sample data formats or start with pre-configured datasets
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="p-4 border rounded-lg hover:shadow-sm transition-shadow">
+              <div className="flex items-center space-x-3 mb-3">
+                <FileText className="h-5 w-5 text-blue-600" />
+                <h4 className="font-semibold">Real Estate Sample</h4>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Property listings, neighborhood data, market trends
+              </p>
+              <Button size="sm" variant="outline" className="w-full">
+                Download Template
+              </Button>
+            </div>
+
+            <div className="p-4 border rounded-lg hover:shadow-sm transition-shadow">
+              <div className="flex items-center space-x-3 mb-3">
+                <FileText className="h-5 w-5 text-green-600" />
+                <h4 className="font-semibold">Customer CRM</h4>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Lead scoring, customer segments, contact information
+              </p>
+              <Button size="sm" variant="outline" className="w-full">
+                Download Template
+              </Button>
+            </div>
+
+            <div className="p-4 border rounded-lg hover:shadow-sm transition-shadow">
+              <div className="flex items-center space-x-3 mb-3">
+                <FileText className="h-5 w-5 text-orange-600" />
+                <h4 className="font-semibold">Product Catalog</h4>
+              </div>
+              <p className="text-sm text-muted-foreground mb-3">
+                Inventory, pricing, specifications, categories
+              </p>
+              <Button size="sm" variant="outline" className="w-full">
+                Download Template
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   const renderAnalytics = () => (
     <div className="space-y-6">
       <div>
@@ -272,6 +627,13 @@ export default function DashboardPage() {
               My Tools
             </Button>
             <Button
+              variant={activeTab === 'data' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveTab('data')}
+            >
+              Tool Data
+            </Button>
+            <Button
               variant={activeTab === 'analytics' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setActiveTab('analytics')}
@@ -289,6 +651,7 @@ export default function DashboardPage() {
               onViewTool={handleViewTool}
             />
           )}
+          {activeTab === 'data' && renderToolData()}
           {activeTab === 'analytics' && renderAnalytics()}
         </div>
       </div>

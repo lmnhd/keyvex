@@ -149,10 +149,15 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         ❌ NEVER use import statements: import React from 'react'
         ❌ NEVER use JSX syntax: <div>content</div>
         ❌ NEVER use export default function ComponentName()
+        ❌ NEVER access window.React or try to destructure from React
+        ❌ NEVER write: const React = window.React; const { useState } = React;
+        ❌ NEVER write: const { useState, useEffect } = React;
         
         ✅ ALWAYS use function ComponentName() (no export, no default)
         ✅ ALWAYS use React.createElement('div', { className: 'classes' }, 'content')
         ✅ ALWAYS access context variables directly: useState, Card, Button, etc.
+        ✅ ALWAYS write: const [state, setState] = useState(initialValue);
+        ✅ ALWAYS write: useEffect(() => { ... }, [dependencies]);
     </syntax-requirements>
     
     <component-best-practices>
@@ -168,6 +173,60 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - Use consistent spacing and typography
         - Use React.createElement for ALL JSX elements
     </component-best-practices>
+    
+    <input-labeling-requirements>
+        🎯 CRITICAL: Every input MUST have CLEAR, DESCRIPTIVE labels and guidance!
+        
+        <mandatory-patterns>
+            - EVERY input must have a descriptive <Label> element with clear text
+            - COMPLEX inputs must include additional help text or examples
+            - USE placeholders with realistic examples (e.g., "e.g. 85" not just "Enter weight")
+            - ADD units of measurement in labels (e.g., "Weight (kg)" not just "Weight")
+            - INCLUDE context for confusing inputs (e.g., "Fitness Score (0-100, from fitness assessment)")
+            - PROVIDE value ranges or scales (e.g., "Goal Difficulty (1=Easy, 10=Extreme)")
+        </mandatory-patterns>
+        
+        <label-enhancement-examples>
+            ❌ BAD: <Label>Weight</Label>
+            ✅ GOOD: <Label>Current Weight (kg)</Label>
+            
+            ❌ BAD: <Label>Score</Label>  
+            ✅ GOOD: <Label>Current Fitness Score (0-100, based on your assessment)</Label>
+            
+            ❌ BAD: <Label>Duration</Label>
+            ✅ GOOD: <Label>Base Duration (weeks - typical timeframe for similar goals)</Label>
+            
+            ❌ BAD: placeholder="Enter value"
+            ✅ GOOD: placeholder="e.g. 75 (your target weight)"
+        </label-enhancement-examples>
+        
+        <required-structure-for-inputs>
+            React.createElement('div', null,
+              React.createElement(Label, { 
+                htmlFor: 'inputId',
+                className: 'block text-sm font-medium text-gray-700 mb-1'
+              }, 'Clear Descriptive Label (with units)'),
+              React.createElement(Input, {
+                id: 'inputId',
+                type: 'number',
+                placeholder: 'e.g. 75 (realistic example)',
+                className: 'w-full'
+              }),
+              // Optional: Add help text for complex inputs
+              React.createElement('p', {
+                className: 'text-xs text-gray-500 mt-1'
+              }, 'Additional context or explanation if needed')
+            )
+        </required-structure-for-inputs>
+        
+        <special-cases>
+            - SLIDERS: Always show current value and include scale labels
+            - DROPDOWNS: Include clear option descriptions
+            - COMPLEX CALCULATIONS: Explain what variables mean in business context
+            - TECHNICAL TERMS: Define or explain abbreviations and jargon
+            - RANGES: Always specify min/max and what they represent
+        </special-cases>
+    </input-labeling-requirements>
     
     <header-design-requirements>
         ⚠️ CRITICAL: Create SPACE-EFFICIENT headers, not bulky description sections!
@@ -212,10 +271,15 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     <component-example>
         'use client';
 
-        // DO NOT USE IMPORT STATEMENTS - Use context variables instead
+        // ❌ WRONG: DO NOT DO THIS!
+        // const React = window.React;
+        // const { useState, useEffect } = React;
+        
+        // ✅ CORRECT: Access context variables directly
         // Available in context: React, useState, useEffect, useCallback, Card, CardContent, CardHeader, CardTitle, Button, Input, Label
 
         function ROICalculator() {
+          // ✅ CORRECT: Use useState directly from context
           const [initialInvestment, setInitialInvestment] = useState(0);
           const [finalValue, setFinalValue] = useState(0);
           const [timePeriod, setTimePeriod] = useState(1);
@@ -262,7 +326,8 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       value: initialInvestment,
                       onChange: (e) => setInitialInvestment(Number(e.target.value)),
                       placeholder: '10000',
-                      className: 'w-full'
+                      className: 'w-full',
+                      style: { color: '#1f2937' }
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
@@ -273,7 +338,8 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       value: finalValue,
                       onChange: (e) => setFinalValue(Number(e.target.value)),
                       placeholder: '15000',
-                      className: 'w-full'
+                      className: 'w-full',
+                      style: { color: '#1f2937' }
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
@@ -285,7 +351,8 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       onChange: (e) => setTimePeriod(Number(e.target.value)),
                       placeholder: '2',
                       className: 'w-full',
-                      min: '1'
+                      min: '1',
+                      style: { color: '#1f2937' }
                     })
                   )
                 ),
@@ -336,10 +403,123 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         }
     </component-example>
     
+    <common-mistake-warning>
+        🚨 CRITICAL ERROR PREVENTION:
+        
+        ❌ THIS PATTERN CAUSES "Cannot destructure property" ERRORS:
+        
+        function MyComponent() {
+          const React = window.React;           // ← WRONG! React may be undefined
+          const { useState } = React;           // ← FAILS! Cannot destructure from undefined
+          const [state, setState] = useState(); // ← Never reached due to error above
+        }
+        
+        ✅ ALWAYS USE THIS PATTERN INSTEAD:
+        
+        function MyComponent() {
+          // Context variables are available directly - no need to access window.React
+          const [state, setState] = useState(initialValue);     // ← CORRECT!
+          const [other, setOther] = useState(initialValue);     // ← CORRECT!
+          
+          useEffect(() => {                                     // ← CORRECT!
+            // effect logic
+          }, [dependencies]);
+        }
+        
+        🎯 REMEMBER: All React hooks and components are provided in execution context:
+        - useState (directly available)
+        - useEffect (directly available)  
+        - React (for React.createElement)
+        - Card, Button, Input, Label (UI components)
+        
+        ⚠️ NEVER try to access React from window, global, or any other source!
+    </common-mistake-warning>
+    
+    <enhanced-labeling-example>
+        // EXAMPLE: Proper labeling for fitness/health tools
+        
+        // ❌ BAD labeling (confusing, no context):
+        React.createElement(Label, { htmlFor: 'weight' }, 'Weight'),
+        React.createElement(Input, { id: 'weight', placeholder: 'Enter weight' })
+        
+        // ✅ GOOD labeling (clear, descriptive, with units and context):
+        React.createElement('div', { className: 'space-y-2' },
+          React.createElement(Label, { 
+            htmlFor: 'currentWeight', 
+            className: 'text-sm font-medium text-gray-700' 
+          }, 'Current Weight (kg)'),
+          React.createElement(Input, {
+            id: 'currentWeight',
+            type: 'number',
+            placeholder: 'e.g. 75 (your current weight in kilograms)',
+            className: 'w-full',
+            min: '30',
+            max: '300',
+            step: '0.1'
+          }),
+          React.createElement('p', {
+            className: 'text-xs text-gray-500'
+          }, 'Used to calculate your BMI and fitness targets')
+        )
+        
+        // ❌ BAD: Complex input without explanation:
+        React.createElement(Label, null, 'Score'),
+        React.createElement(Input, { placeholder: 'Score' })
+        
+        // ✅ GOOD: Complex input with full context:
+        React.createElement('div', { className: 'space-y-2' },
+          React.createElement(Label, { 
+            htmlFor: 'fitnessScore',
+            className: 'text-sm font-medium text-gray-700'
+          }, 'Current Fitness Score (0-100)'),
+          React.createElement(Input, {
+            id: 'fitnessScore',
+            type: 'number',
+            placeholder: 'e.g. 65 (from fitness assessment or app)',
+            min: '0',
+            max: '100'
+          }),
+          React.createElement('p', {
+            className: 'text-xs text-gray-500'
+          }, 'Based on cardiovascular health, strength, and flexibility. Use 50 if unsure.')
+        )
+        
+        // ❌ BAD: Slider without context:
+        React.createElement('input', { type: 'range', min: '1', max: '10' })
+        
+        // ✅ GOOD: Slider with scale labels and current value:
+        React.createElement('div', { className: 'space-y-2' },
+          React.createElement(Label, {
+            className: 'text-sm font-medium text-gray-700'
+          }, 'Goal Difficulty (1=Easy, 10=Extreme)'),
+          React.createElement('input', {
+            type: 'range',
+            min: '1',
+            max: '10',
+            value: difficulty,
+            onChange: (e) => setDifficulty(Number(e.target.value)),
+            className: 'w-full'
+          }),
+          React.createElement('div', {
+            className: 'flex justify-between text-xs text-gray-500'
+          },
+            React.createElement('span', null, 'Easy (1)'),
+            React.createElement('span', { className: 'font-medium' }, 'Current: ' + difficulty),
+            React.createElement('span', null, 'Extreme (10)')
+          )
+        )
+    </enhanced-labeling-example>
+    
     <critical-rules>
         - 🚨 NEVER use import statements - all dependencies provided via context
         - 🚨 NEVER use JSX syntax - use React.createElement() only
         - 🚨 NEVER use export statements - just define the function
+        - 🚨 NEVER access window.React or destructure from React - use context variables directly
+        - 🚨 NEVER write: const React = window.React; const { useState } = React;
+        - 🚨 CONTRAST CRITICAL: NEVER use white text on white/light backgrounds
+        - 🚨 CONTRAST CRITICAL: NEVER use light text on light backgrounds  
+        - 🚨 CONTRAST CRITICAL: Always use dark text (#1f2937, #374151) on light backgrounds
+        - 🚨 CONTRAST CRITICAL: Only use light text (#ffffff, #f9fafb) on dark backgrounds (#1f2937, #374151)
         - Component name MUST be PascalCase and descriptive (e.g., SolarSavingsCalculator)
         - ALL state variables must be properly initialized and used
         - Use proper TypeScript/JavaScript syntax (e.g., Number(e.target.value) not parseInt)
@@ -354,6 +534,12 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - ALWAYS handle edge cases (division by zero, empty inputs, etc.)
         - 🎯 CRITICAL: Use space-efficient headers with info popovers (NO long description paragraphs)
         - 🎯 CRITICAL: Follow the modern header pattern exactly as specified above
+        - 🔥 MANDATORY: Every input MUST have descriptive labels with units and context
+        - 🔥 MANDATORY: Use realistic placeholders with examples (e.g., "e.g. 75kg" not "Enter weight")
+        - 🔥 MANDATORY: Add help text for complex or confusing inputs
+        - 🚨 NEVER use regular expressions (regex) in component code - they can cause execution errors
+        - 🚨 NEVER use complex string patterns or template literals with unescaped characters
+        - 🚨 AVOID eval(), new RegExp(), or other dynamic code evaluation methods
     </critical-rules>
     
     <final-reminder>
@@ -545,6 +731,35 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         <contrast-rule>If using dark backgrounds, use light text (#ffffff or #f9fafb)</contrast-rule>
         <contrast-rule>Test contrast ratios: dark text on light backgrounds, light text on dark backgrounds</contrast-rule>
     </styling-requirements>
+    
+    <forbidden-contrast-combinations>
+        ❌ NEVER USE THESE COMBINATIONS:
+        - color: '#ffffff' with backgroundColor: '#ffffff' (white on white)
+        - color: '#f9fafb' with backgroundColor: '#ffffff' (light gray on white)  
+        - color: '#ffffff' with backgroundColor: '#f9fafb' (white on light gray)
+        - color: '#e5e7eb' with backgroundColor: '#ffffff' (very light gray on white)
+        - color: '#d1d5db' with backgroundColor: '#f3f4f6' (light gray on light background)
+        
+        ✅ ALWAYS USE THESE SAFE COMBINATIONS:
+        - color: '#1f2937' with backgroundColor: '#ffffff' (dark gray on white)
+        - color: '#374151' with backgroundColor: '#f9fafb' (medium gray on light background)
+        - color: '#ffffff' with backgroundColor: '#1f2937' (white on dark background)
+        - color: '#f9fafb' with backgroundColor: '#374151' (light gray on dark background)
+        - color: '#1f2937' with backgroundColor: '#f3f4f6' (dark text on very light background)
+    </forbidden-contrast-combinations>
+    
+    <color-safety-rules>
+        🎯 SAFE DEFAULT COLORS TO ALWAYS USE:
+        - Text: style={{ color: '#1f2937' }} (dark gray - works on all light backgrounds)
+        - Light backgrounds: backgroundColor: '#ffffff', '#f9fafb', '#f3f4f6'
+        - Dark backgrounds: backgroundColor: '#1f2937', '#374151', '#111827'
+        - Light text (only on dark backgrounds): color: '#ffffff', '#f9fafb'
+        
+        🚨 WHEN IN DOUBT:
+        - Default to dark text (#1f2937) on white/light backgrounds
+        - NEVER assume light text will be readable - test contrast
+        - Use className instead of inline styles when possible for consistency
+    </color-safety-rules>
     
     <labeling-examples>
         <bad-example>
