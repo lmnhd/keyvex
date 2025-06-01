@@ -2,6 +2,8 @@
 
 import { z } from 'zod';
 import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
+import * as babel from '@babel/core';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -283,4 +285,54 @@ export async function validateCreateToolQuality(result: any): Promise<{
     issues: [],
     score: result.metadata?.quality?.overall || 8.0
   };
+}
+
+// Simple color scheme detection (inline replacement)
+const DEFAULT_COLOR_SCHEMES = {
+  professional: {
+    primary: '#3b82f6',
+    secondary: '#6b7280',
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+    border: '#e5e7eb',
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444'
+  }
+} as const;
+
+type ColorSchemeKey = keyof typeof DEFAULT_COLOR_SCHEMES;
+
+const detectColorScheme = (context: any): ColorSchemeKey => 'professional';
+
+// Enhanced tool processing logic (without JSX compilation)
+export async function processToolCreation(
+  productTool: ProductToolDefinition,
+  context: any,
+  compiledComponentCode: string
+): Promise<ProductToolDefinition> {
+  // Use the pre-compiled component code
+  productTool.componentCode = compiledComponentCode;
+
+  // Enrich with intelligent defaults
+  // Detect appropriate color scheme from context
+  const colorScheme = detectColorScheme(context);
+  
+  // Enhance color scheme if not fully specified
+  if (!productTool.colorScheme || Object.keys(productTool.colorScheme).length < 5) {
+    const selectedColorScheme = DEFAULT_COLOR_SCHEMES[colorScheme] || DEFAULT_COLOR_SCHEMES.professional;
+    productTool.colorScheme = selectedColorScheme;
+  }
+  
+  // Ensure analytics tracking is enabled for lead generation
+  if (!productTool.analytics?.completions) {
+    productTool.analytics = {
+      enabled: true,
+      completions: 0,
+      averageTime: 0
+    };
+  }
+
+  return productTool;
 } 

@@ -8,7 +8,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { requireAuth, debugLog } from '@/lib/auth/debug';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { getBehaviorTracker } from '@/lib/ai/behavior-tracker';
-import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { ProductToolDefinition, ToolColorScheme } from '@/lib/types/product-tool';
 import { TEST_UI_ASSISTANT_PROMPT, TEST_COMMANDS, createAdaptivePrompt } from '@/lib/prompts/test-ui-prompt';
 
 // Request schema for UI flow testing
@@ -113,10 +113,7 @@ async function generateOrUpdateProductTool(
         features: determineFeatures(userInput, context, existingDefinition)
       },
       
-      styling: {
-        ...baseDefinition.styling,
-        colors: determineColors(userInput, context, existingDefinition, updateType)
-      }
+      colorScheme: determineColors(userInput, context, existingDefinition, updateType)
     };
 
     console.log('✅ Generated/updated ProductTool:', updatedDefinition.metadata.title);
@@ -130,8 +127,9 @@ async function generateOrUpdateProductTool(
 
 // Helper functions for tool generation
 function createBaseToolDefinition(): ProductToolDefinition {
+  const toolId = `tool_${Date.now()}`;
   return {
-    id: `tool_${Date.now()}`,
+    id: toolId,
     slug: 'ai-generated-tool',
     version: '1.0.0',
     status: 'draft',
@@ -140,6 +138,8 @@ function createBaseToolDefinition(): ProductToolDefinition {
     createdBy: 'ai-agent',
     
     metadata: {
+      id: toolId,
+      slug: 'ai-generated-tool',
       title: 'Business Calculator',
       description: 'AI-generated business tool',
       shortDescription: 'AI-generated business tool',
@@ -154,102 +154,25 @@ function createBaseToolDefinition(): ProductToolDefinition {
       icon: { type: 'lucide', value: 'Calculator' }
     },
     
-    layout: {
-      type: 'single-page',
-      structure: {
-        container: { maxWidth: '2xl', padding: 'p-6', alignment: 'center' },
-        sections: [{ id: 'main', type: 'content', layout: 'vertical', order: 1 }],
-        flow: { type: 'linear' }
-      },
-      responsive: { breakpoints: { sm: 'responsive', md: 'responsive', lg: 'responsive', xl: 'responsive' } }
-    },
-    
-    components: [
-      {
-        id: 'input1',
-        type: 'currency-input',
-        sectionId: 'main',
-        order: 1,
-        props: {
-          label: 'Initial Investment',
-          placeholder: 'Enter amount',
-          helperText: 'The amount you invested',
-          required: true
-        },
-        validation: {
-          componentId: 'input1',
-          rules: [{ type: 'required', message: 'Required' }, { type: 'min', value: 0 }]
-        }
-      },
-      {
-        id: 'input2',
-        type: 'currency-input',
-        sectionId: 'main',
-        order: 2,
-        props: {
-          label: 'Current Value',
-          placeholder: 'Enter current value',
-          helperText: 'Current value of investment',
-          required: true
-        },
-        validation: {
-          componentId: 'input2',
-          rules: [{ type: 'required', message: 'Required' }, { type: 'min', value: 0 }]
-        }
-      },
-      {
-        id: 'result',
-        type: 'calculation-display',
-        sectionId: 'main',
-        order: 3,
-        props: {
-          label: 'ROI Result',
-          format: { type: 'percentage', decimals: 2 },
-          formula: '((input2 - input1) / input1) * 100',
-          dependencies: ['input1', 'input2']
-        }
+    componentCode: `
+      export default function BusinessCalculator() {
+        return <div className="p-6"><h1>Business Calculator</h1></div>;
       }
-    ],
+    `,
     
-    styling: {
-      theme: { name: 'default', mode: 'light', borderRadius: 'md', shadows: 'sm', effects: {} },
-      colors: {
-        primary: '#3b82f6',
-        secondary: '#1e40af',
-        background: '#ffffff',
-        surface: '#f9fafb',
-        text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
-        border: '#e5e7eb',
-        success: '#10b981',
-        warning: '#f59e0b',
-        error: '#ef4444',
-        info: '#3b82f6'
-      },
-      typography: {
-        fontFamily: { primary: 'Inter, sans-serif' },
-        scale: { xs: '0.75rem', sm: '0.875rem', base: '1rem', lg: '1.125rem', xl: '1.25rem', '2xl': '1.5rem', '3xl': '1.875rem', '4xl': '2.25rem' },
-        weights: { normal: 400, medium: 500, semibold: 600, bold: 700 }
-      },
-      spacing: { scale: { xs: '0.25rem', sm: '0.5rem', md: '1rem', lg: '1.5rem', xl: '2rem', '2xl': '3rem' } }
+    colorScheme: {
+      primary: '#3b82f6',
+      secondary: '#1e40af',
+      background: '#ffffff',
+      surface: '#f9fafb',
+      text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+      border: '#e5e7eb',
+      success: '#10b981',
+      warning: '#f59e0b',
+      error: '#ef4444'
     },
     
-    logic: {
-      calculations: [{
-        id: 'main_calc',
-        name: 'Main Calculation',
-        formula: '((input2 - input1) / input1) * 100',
-        dependencies: ['input1', 'input2'],
-        outputComponentId: 'result',
-        triggers: [{ event: 'change', debounce: 300 }],
-        format: { type: 'percentage', decimals: 2 }
-      }],
-      conditions: [],
-      actions: [],
-      formulas: []
-    },
-    
-    validation: { components: [], global: [] },
-    analytics: { enabled: true, trackingEvents: [] }
+    analytics: { enabled: true, completions: 0, averageTime: 0 }
   };
 }
 
@@ -277,8 +200,8 @@ function determineFeatures(userInput: string, context: any, existing?: ProductTo
   return features;
 }
 
-function determineColors(userInput: string, context: any, existing?: ProductToolDefinition | null, updateType?: string) {
-  const defaultColors = {
+function determineColors(userInput: string, context: any, existing?: ProductToolDefinition | null, updateType?: string): ToolColorScheme {
+  const defaultColors: ToolColorScheme = {
     primary: '#3b82f6',
     secondary: '#1e40af',
     background: '#ffffff',
@@ -287,13 +210,12 @@ function determineColors(userInput: string, context: any, existing?: ProductTool
     border: '#e5e7eb',
     success: '#10b981',
     warning: '#f59e0b',
-    error: '#ef4444',
-    info: '#3b82f6'
+    error: '#ef4444'
   };
 
   // If we have existing colors and this isn't a color update, preserve them
-  if (existing?.styling?.colors && updateType !== 'color') {
-    return existing.styling.colors;
+  if (existing?.colorScheme && updateType !== 'color') {
+    return existing.colorScheme;
   }
 
   // Handle context colors (from user selection)
@@ -306,8 +228,8 @@ function determineColors(userInput: string, context: any, existing?: ProductTool
   }
 
   // Handle existing colors
-  if (existing?.styling?.colors) {
-    return existing.styling.colors;
+  if (existing?.colorScheme) {
+    return existing.colorScheme;
   }
 
   return defaultColors;

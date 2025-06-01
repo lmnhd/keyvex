@@ -16,7 +16,8 @@ import {
   Database,
   Zap,
   ArrowRight,
-  FileText
+  FileText,
+  Cog
 } from 'lucide-react';
 
 const TEST_PAGES = [
@@ -41,6 +42,14 @@ const TEST_PAGES = [
     description: 'Test UI components, workflows, and user interactions',
     path: '/tests/ui',
     icon: Palette,
+    category: 'UI',
+    status: 'active'
+  },
+  {
+    title: 'Dynamic Tools',
+    description: 'Test JSX compilation and dynamic component rendering functionality',
+    path: '/tests/dynamic-tools',
+    icon: Cog,
     category: 'UI',
     status: 'active'
   },

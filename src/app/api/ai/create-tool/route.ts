@@ -9,11 +9,12 @@ import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config'
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { 
   TOOL_CREATION_PROMPT, 
-  validateComponentTypes,
   buildCompleteSystemPrompt,
   buildToolCreationUserPrompt
 } from '@/lib/prompts/tool-creation-prompt';
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
+import * as babel from '@babel/core';
+import { processToolCreation } from './core-logic';
 
 // Simple color scheme detection (inline replacement)
 const DEFAULT_COLOR_SCHEMES = {
@@ -87,6 +88,8 @@ const productToolDefinitionSchema = z.object({
   createdBy: z.string(),
   
   metadata: z.object({
+    id: z.string(),
+    slug: z.string(),
     title: z.string(),
     description: z.string(),
     shortDescription: z.string(),
@@ -99,169 +102,37 @@ const productToolDefinitionSchema = z.object({
     difficultyLevel: z.enum(['beginner', 'intermediate', 'advanced']),
     features: z.array(z.string()),
     icon: z.object({
-      type: z.string(),
+      type: z.enum(['lucide', 'emoji']),
       value: z.string()
     })
   }),
   
-  // NEW: Component code as React component string
+  // React component code as string
   componentCode: z.string(),
   
-  styling: z.object({
-    theme: z.object({
-      name: z.string(),
-      mode: z.enum(['light', 'dark']),
-      borderRadius: z.string().optional(),
-      shadows: z.string().optional(),
-      effects: z.record(z.any()).optional()
-    }),
-    colors: z.object({
+  // Simplified color scheme
+  colorScheme: z.object({
+    primary: z.string(),
+    secondary: z.string(),
+    background: z.string(),
+    surface: z.string(),
+    text: z.object({
       primary: z.string(),
       secondary: z.string(),
-      background: z.string().optional(),
-      surface: z.string().optional(),
-      text: z.object({
-        primary: z.string(),
-      secondary: z.string().optional(),
-        muted: z.string().optional()
-      }),
-      border: z.string().optional(),
-      success: z.string().optional(),
-      warning: z.string().optional(),
-      error: z.string().optional(),
-      info: z.string().optional()
+      muted: z.string()
     }),
-    typography: z.object({
-      fontFamily: z.object({
-        primary: z.string()
-      }),
-      scale: z.record(z.string()).optional(),
-      weights: z.record(z.number()).optional()
-    }).optional(),
-    spacing: z.object({
-      scale: z.record(z.string()).optional()
-    }).optional()
+    border: z.string(),
+    success: z.string(),
+    warning: z.string(),
+    error: z.string()
   }),
   
-  // Keep existing schema structure but make optional for backward compatibility
-  layout: z.object({
-    type: z.string(),
-    structure: z.object({
-      container: z.object({
-        maxWidth: z.string(),
-        padding: z.string(),
-        alignment: z.string()
-      }),
-      sections: z.array(z.object({
-        id: z.string(),
-        type: z.string(),
-        layout: z.string(),
-        order: z.number()
-      })),
-      flow: z.object({
-        type: z.string()
-      })
-    }),
-    responsive: z.object({
-      breakpoints: z.record(z.object({
-        container: z.object({
-          maxWidth: z.string().optional(),
-          padding: z.string().optional(),
-          alignment: z.string().optional()
-        }).optional(),
-        sections: z.array(z.object({
-          id: z.string(),
-          changes: z.record(z.any())
-        })).optional(),
-        components: z.array(z.object({
-          id: z.string(),
-          changes: z.record(z.any())
-        })).optional()
-      })).optional()
-    })
-  }).optional(),
-  
-  components: z.array(z.object({
-    id: z.string(),
-    type: z.string(),
-    sectionId: z.string(),
-    order: z.number(),
-    props: z.record(z.any()).optional(),
-    validation: z.object({
-      componentId: z.string(),
-      rules: z.array(z.object({
-        type: z.string(),
-        message: z.string(),
-        value: z.any().optional()
-      }))
-    }).optional()
-  })).optional(),
-  
-  logic: z.object({
-    calculations: z.array(z.object({
-      id: z.string(),
-      name: z.string(),
-      formula: z.string(),
-      dependencies: z.array(z.string()),
-      outputComponentId: z.string(),
-      triggers: z.array(z.object({
-        event: z.string(),
-        debounce: z.number().optional()
-      })),
-      format: z.object({
-        type: z.string(),
-        decimals: z.number().optional()
-      })
-    })).optional(),
-    conditions: z.array(z.object({
-      id: z.string(),
-      type: z.string(),
-      componentId: z.string(),
-      operator: z.string(),
-      value: z.union([z.string(), z.number(), z.boolean()]),
-      action: z.string()
-    })).optional(),
-    actions: z.array(z.object({
-      id: z.string(),
-      type: z.string(),
-      trigger: z.string(),
-      targetComponentId: z.string(),
-      parameters: z.record(z.any()).optional()
-    })).optional(),
-    formulas: z.array(z.object({
-      id: z.string(),
-      name: z.string(),
-      expression: z.string(),
-      dependencies: z.array(z.string())
-    })).optional()
-  }).optional(),
-  
-  validation: z.object({
-    components: z.array(z.object({
-      componentId: z.string(),
-      rules: z.array(z.object({
-        type: z.string(),
-        message: z.string(),
-        value: z.any().optional()
-      }))
-    })).optional(),
-    global: z.array(z.object({
-      type: z.string(),
-      message: z.string(),
-      condition: z.string()
-    })).optional()
-  }).optional(),
-  
+  // Simple analytics
   analytics: z.object({
     enabled: z.boolean(),
-    trackingEvents: z.array(z.object({
-      id: z.string(),
-      name: z.string(),
-      trigger: z.enum(['component-interaction', 'calculation', 'completion', 'custom']),
-      componentId: z.string().optional(),
-      properties: z.record(z.any()).optional()
-    })).optional()
-  }).optional()
+    completions: z.number(),
+    averageTime: z.number()
+  })
 });
 
 // Helper function to create model instance
@@ -273,6 +144,42 @@ function createModelInstance(provider: string, modelId: string) {
       return anthropic(modelId);
     default:
       return openai('gpt-4o');
+  }
+}
+
+// JSX Compilation Function (server-side only)
+async function compileJSXComponent(componentCode: string): Promise<string> {
+  try {
+    console.log('[JSX Compiler] Compiling component code...');
+    
+    // Clean the code first
+    const cleanedCode = componentCode
+      .replace(/^['"]use client['"];?\s*/gm, '') // Remove 'use client'
+      .replace(/^import\s+.*?from\s+['"].*?['"];?\s*/gm, '') // Remove import statements
+      .trim();
+
+    // Transform JSX to JavaScript using Babel
+    const result = babel.transformSync(cleanedCode, {
+      presets: [
+        ['@babel/preset-react', {
+          runtime: 'classic', // Use React.createElement instead of automatic runtime
+          pragma: 'React.createElement'
+        }]
+      ],
+      plugins: [],
+      filename: 'component.tsx'
+    });
+
+    if (!result || !result.code) {
+      throw new Error('Babel compilation failed - no output generated');
+    }
+
+    console.log('[JSX Compiler] ✅ Successfully compiled JSX to JavaScript');
+    return result.code;
+
+  } catch (error) {
+    console.error('[JSX Compiler] ❌ Compilation failed:', error);
+    throw new Error(`JSX compilation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -330,32 +237,6 @@ export async function POST(request: NextRequest) {
       maxRetries: 1
     });
 
-    // NEW: Enhanced component validation with syntax error detection
-    if (productTool.components) {
-      const validation = validateComponentTypes(productTool.components);
-      if (!validation.valid) {
-        console.error('❌ Component validation failed:', {
-          invalidComponents: validation.invalidComponents,
-          syntaxErrors: validation.syntaxErrors,
-          suggestions: validation.suggestions
-        });
-        
-        const errorMessage = [
-          'Tool contains invalid component types',
-          validation.syntaxErrors.length > 0 ? `Syntax errors: ${validation.syntaxErrors.join('; ')}` : '',
-          validation.invalidComponents.length > 0 ? `Invalid types: ${validation.invalidComponents.join('; ')}` : ''
-        ].filter(Boolean).join('\n');
-        
-        return NextResponse.json({ 
-          success: false, 
-          message: errorMessage,
-          invalidComponents: validation.invalidComponents,
-          syntaxErrors: validation.syntaxErrors,
-          suggestions: validation.suggestions
-        }, { status: 400 });
-      }
-    }
-
     // Ensure required fields
     if (!productTool.metadata?.title) {
       return NextResponse.json({ 
@@ -364,131 +245,28 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // STEP 4: Enrich with intelligent defaults
-    // Detect appropriate color scheme from context
-    const colorScheme = detectColorScheme(context);
-    
-    // Enhance styling with appropriate color scheme if not fully specified
-    if (!productTool.styling?.colors || Object.keys(productTool.styling.colors).length < 3) {
-      const selectedColorScheme = DEFAULT_COLOR_SCHEMES[colorScheme] || DEFAULT_COLOR_SCHEMES.professional;
-      productTool.styling = {
-        ...productTool.styling,
-        colors: {
-          ...selectedColorScheme,
-          ...productTool.styling?.colors // Keep any AI-generated colors
-        }
-      };
-    }
-    
-    // Add default layout if not specified
-    if (!productTool.layout) {
-      productTool.layout = {
-        type: 'single-page',
-        structure: {
-          container: {
-            maxWidth: '1200px',
-            padding: '24px',
-            alignment: 'center'
-          },
-          sections: [
-            {
-              id: 'header',
-              type: 'header',
-              layout: 'centered',
-              order: 1
-            },
-            {
-              id: 'main',
-              type: 'content',
-              layout: 'grid',
-              order: 2
-            },
-            {
-              id: 'results',
-              type: 'results',
-              layout: 'grid',
-              order: 3
-            }
-          ],
-          flow: {
-            type: 'linear'
-          }
-        },
-        responsive: {
-          breakpoints: {}
-        }
-      };
-    }
-    
-    // Add default components if not specified
-    if (!productTool.components || productTool.components.length === 0) {
-      productTool.components = [
-        {
-          id: 'title',
-          type: 'heading',
-          sectionId: 'header',
-          order: 1,
-          props: {
-            level: 1,
-            text: productTool.metadata.title
-          }
-        }
-      ];
-    }
-    
-    // Add default logic if not specified
-    if (!productTool.logic) {
-      productTool.logic = {
-        calculations: []
-      };
-    }
-    
-    // Ensure analytics tracking is enabled for lead generation
-    if (!productTool.analytics?.trackingEvents?.length) {
-      productTool.analytics = {
-        enabled: true,
-        trackingEvents: [
-          {
-            id: 'tool-interaction',
-            name: 'Tool Interaction',
-            trigger: 'component-interaction',
-            componentId: '',
-            properties: {
-              tool_type: productTool.metadata.type || 'calculator',
-              industry: context?.industry || 'general'
-            }
-          }
-        ],
-        ...productTool.analytics
-      };
-    }
-    
-    // Add default validation if none exists
-    if (!productTool.validation?.components?.length && productTool.components?.length) {
-      productTool.validation = {
-        components: productTool.components
-          .filter(comp => comp.type === 'textInput' || comp.type === 'numberInput')
-          .map(comp => ({
-            componentId: comp.id,
-            rules: [
-              {
-                type: 'required',
-                message: 'This field is required'
-              }
-            ]
-          })),
-        global: [],
-        ...productTool.validation
-      };
-    }
+    // STEP 4 & 5: Process tool creation (JSX compilation + enhancements)
+    try {
+      // First compile JSX to JavaScript (server-side only)
+      const compiledComponentCode = await compileJSXComponent(productTool.componentCode);
+      console.log('🔧 JSX successfully compiled to JavaScript');
 
-    console.log('✅ Successfully created tool:', productTool.metadata.title);
+      // Then process the tool with compiled code
+      const processedTool = await processToolCreation(productTool, context, compiledComponentCode);
+      console.log('✅ Successfully processed tool:', processedTool.metadata.title);
 
-    return NextResponse.json({
-      success: true,
-      tool: productTool,
-      message: `Created ${productTool.metadata.title} successfully`
-    });
+      return NextResponse.json({
+        success: true,
+        tool: processedTool,
+        message: `Created ${processedTool.metadata.title} successfully`
+      });
+    } catch (processingError) {
+      console.error('❌ Tool processing failed:', processingError);
+      return NextResponse.json({
+        success: false,
+        message: `Tool processing failed: ${processingError instanceof Error ? processingError.message : 'Unknown processing error'}`
+      }, { status: 400 });
+    }
 
   } catch (error) {
     console.error('❌ Tool creation error:', error);

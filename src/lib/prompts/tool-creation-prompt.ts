@@ -121,11 +121,13 @@ export const TOOL_CREATION_PROMPT = `<purpose>
 
 <component-code-requirements>
     <structure>
-        - Generate a complete React functional component 
+        - Generate a complete, working React functional component 
         - Include 'use client'; at the top
-        - Import necessary components from UI library
+        - Import only the necessary components (don't import unused components)
         - Use React hooks (useState, useEffect) for state management
-        - Export as default function with PascalCase name
+        - Export as default function with descriptive PascalCase name
+        - Ensure ALL variables are properly declared and used
+        - Include proper error handling and validation
     </structure>
     
     <allowed-imports>
@@ -134,7 +136,62 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - { Button } from '@/components/ui/button'
         - { Input } from '@/components/ui/input'
         - { Label } from '@/components/ui/label'
+        
+        DO NOT import anything else. These are the only available components.
     </allowed-imports>
+    
+    <component-best-practices>
+        - Use descriptive function names that match the tool purpose
+        - Implement proper state management with meaningful variable names
+        - Include comprehensive calculations relevant to the tool type
+        - Use professional color schemes and styling
+        - Add proper input validation and number formatting
+        - Include helpful placeholders and labels
+        - Use responsive layouts (grid-cols-1 md:grid-cols-2, etc.)
+        - Format large numbers with .toLocaleString() for readability
+        - Add reset functionality for better UX
+        - Use consistent spacing and typography
+    </component-best-practices>
+    
+    <header-design-requirements>
+        ⚠️ CRITICAL: Create SPACE-EFFICIENT headers, not bulky description sections!
+        
+        <modern-header-pattern>
+            - Use brief, 1-line title only (NO long description paragraphs)
+            - Add small "?" info icon with hover popover for full description
+            - Keep header compact with minimal padding (pb-4, not pb-6)
+            - Use clean flex layout: title + info icon side-by-side
+            - Popover should contain the full description/help text
+        </modern-header-pattern>
+        
+        <required-structure>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-xl font-semibold">[Brief Tool Name]</CardTitle>
+                <div className="group relative">
+                  <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300">?</div>
+                  <div className="absolute left-6 top-0 w-64 p-3 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                    <p className="text-sm text-gray-700">[Full description and help text here]</p>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+        </required-structure>
+        
+        <forbidden-patterns>
+            ❌ Long description paragraphs under the title
+            ❌ Multiple lines of explanatory text in header
+            ❌ Background colors on header (removes visual clutter)
+            ❌ Large title sizes (text-2xl) that waste space
+        </forbidden-patterns>
+        
+        <space-efficiency-rules>
+            ✅ Minimize vertical space usage in headers
+            ✅ Put detailed info in hover states, not always visible
+            ✅ Use semantic HTML for accessibility (cursor-help, proper transitions)
+            ✅ Keep headers clean and professional
+        </space-efficiency-rules>
+    </header-design-requirements>
     
     <component-example>
         'use client';
@@ -145,37 +202,118 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         import { Input } from '@/components/ui/input';
         import { Label } from '@/components/ui/label';
 
-        export default function ToolNameCalculator() {
-          const [inputValue, setInputValue] = useState(0);
-          const calculation = inputValue * 2;
+        export default function ROICalculator() {
+          const [initialInvestment, setInitialInvestment] = useState(0);
+          const [finalValue, setFinalValue] = useState(0);
+          const [timePeriod, setTimePeriod] = useState(1);
+
+          // Calculations with proper validation
+          const totalReturn = finalValue - initialInvestment;
+          const roi = initialInvestment > 0 ? (totalReturn / initialInvestment) * 100 : 0;
+          const annualizedROI = timePeriod > 0 ? roi / timePeriod : 0;
+
+          const handleReset = () => {
+            setInitialInvestment(0);
+            setFinalValue(0);
+            setTimePeriod(1);
+          };
 
           return (
-            <div className="max-w-2xl mx-auto p-6">
-              <Card className="shadow-lg">
-                <CardHeader style={{ backgroundColor: '#3b82f6', color: 'white' }}>
-                  <CardTitle className="text-2xl">Tool Title</CardTitle>
-                  <p className="text-sm opacity-90">Tool description</p>
+            <div className="max-w-3xl mx-auto p-6">
+              <Card className="shadow-lg" style={{ borderColor: '#3b82f6' }}>
+                {/* SPACE-EFFICIENT HEADER - Brief title with info popover */}
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-xl font-semibold">ROI Calculator</CardTitle>
+                    <div className="group relative">
+                      <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300">
+                        ?
+                      </div>
+                      <div className="absolute left-6 top-0 w-64 p-3 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                        <p className="text-sm text-gray-700">Calculate your return on investment with detailed analysis including profit margins and annualized returns.</p>
+                      </div>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-6">
-                  {/* Input section */}
-                  <div className="space-y-4">
-                    <Label htmlFor="input">Input Label</Label>
-                    <Input
-                      id="input"
-                      type="number"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(Number(e.target.value))}
-                      placeholder="Enter value"
-                    />
-                  </div>
-                  {/* Results section */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold mb-4">Results</h3>
-                    <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
-                        {calculation}
-                      </p>
+                  {/* Input Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="initial" className="text-sm font-medium">Initial Investment ($)</Label>
+                      <Input
+                        id="initial"
+                        type="number"
+                        value={initialInvestment}
+                        onChange={(e) => setInitialInvestment(Number(e.target.value))}
+                        placeholder="10000"
+                        className="w-full"
+                      />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="final" className="text-sm font-medium">Final Value ($)</Label>
+                      <Input
+                        id="final"
+                        type="number"
+                        value={finalValue}
+                        onChange={(e) => setFinalValue(Number(e.target.value))}
+                        placeholder="15000"
+                        className="w-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="period" className="text-sm font-medium">Time Period (years)</Label>
+                      <Input
+                        id="period"
+                        type="number"
+                        value={timePeriod}
+                        onChange={(e) => setTimePeriod(Number(e.target.value))}
+                        placeholder="2"
+                        className="w-full"
+                        min="1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Results Section */}
+                  <div className="border-t pt-6">
+                    <h3 className="text-lg font-semibold mb-4">Investment Analysis</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center p-4 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-2">Total ROI</p>
+                        <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
+                          {roi.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className="text-center p-4 bg-green-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-2">Net Profit</p>
+                        <p className="text-2xl font-bold" style={{ color: '#059669' }}>
+                          $[NET_PROFIT_CALCULATION]
+                        </p>
+                      </div>
+                      <div className="text-center p-4 bg-purple-50 rounded-lg">
+                        <p className="text-sm text-gray-600 mb-2">Annualized ROI</p>
+                        <p className="text-2xl font-bold" style={{ color: '#7c3aed' }}>
+                          {annualizedROI.toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <Button 
+                      onClick={handleReset}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Reset Calculator
+                    </Button>
+                    <Button 
+                      style={{ backgroundColor: '#3b82f6' }}
+                      className="flex-1 text-white hover:opacity-90"
+                    >
+                      Save Results
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -185,15 +323,33 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     </component-example>
     
     <critical-rules>
-        - Component name MUST be PascalCase and match the tool purpose
-        - Use professional styling with consistent color scheme
-        - Include proper state management for all interactive elements
-        - Add proper form labels and accessibility attributes
-        - Use responsive grid layouts (grid-cols-1 md:grid-cols-2, etc.)
-        - Format results clearly with proper typography
-        - Include reset functionality where appropriate
-        - Add proper input validation and number formatting
+        - Component name MUST be PascalCase and descriptive (e.g., SolarSavingsCalculator)
+        - ALL state variables must be properly initialized and used
+        - Use proper TypeScript/JavaScript syntax (e.g., Number(e.target.value) not parseInt)
+        - Format large numbers with .toLocaleString() for professional display
+        - Include meaningful calculations relevant to the tool purpose
+        - Use consistent color scheme throughout the component
+        - Add proper input validation and minimum values where needed
+        - Include responsive grid layouts for better UX
+        - Use semantic HTML structure with proper labels
+        - Test calculations with sample data to ensure they work correctly
+        - NEVER use undefined variables or components
+        - ALWAYS handle edge cases (division by zero, empty inputs, etc.)
+        - 🎯 CRITICAL: Use space-efficient headers with info popovers (NO long description paragraphs)
+        - 🎯 CRITICAL: Follow the modern header pattern exactly as specified above
     </critical-rules>
+    
+    <final-reminder>
+        The componentCode field must contain a COMPLETE, WORKING React component that:
+        1. Can be compiled and executed immediately
+        2. Has proper imports and exports
+        3. Uses only the allowed UI components
+        4. Implements real calculations relevant to the tool
+        5. Has professional styling and responsive layout
+        6. Includes proper error handling and validation
+        
+        This is the actual React code that will be executed, so it must be perfect!
+    </final-reminder>
 </component-code-requirements>
 
 <instructions>
