@@ -123,22 +123,37 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     <structure>
         - Generate a complete, working React functional component 
         - Include 'use client'; at the top
-        - Import only the necessary components (don't import unused components)
+        - DO NOT USE ANY IMPORT STATEMENTS - all dependencies are provided via context
+        - Use React.createElement() syntax instead of JSX
         - Use React hooks (useState, useEffect) for state management
-        - Export as default function with descriptive PascalCase name
+        - Function name should be descriptive PascalCase (e.g., SolarSavingsCalculator)
         - Ensure ALL variables are properly declared and used
         - Include proper error handling and validation
     </structure>
     
-    <allowed-imports>
-        - React, { useState, useEffect, useCallback } from 'react'
-        - { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-        - { Button } from '@/components/ui/button'
-        - { Input } from '@/components/ui/input'
-        - { Label } from '@/components/ui/label'
+    <available-context-variables>
+        The following are available in the execution context (do NOT import them):
+        - React (includes React.createElement)
+        - useState
+        - useEffect  
+        - useCallback
+        - useMemo
+        - Card, CardContent, CardHeader, CardTitle
+        - Button
+        - Input
+        - Label
+        - Loader2, AlertCircle (for icons)
+    </available-context-variables>
+    
+    <syntax-requirements>
+        ❌ NEVER use import statements: import React from 'react'
+        ❌ NEVER use JSX syntax: <div>content</div>
+        ❌ NEVER use export default function ComponentName()
         
-        DO NOT import anything else. These are the only available components.
-    </allowed-imports>
+        ✅ ALWAYS use function ComponentName() (no export, no default)
+        ✅ ALWAYS use React.createElement('div', { className: 'classes' }, 'content')
+        ✅ ALWAYS access context variables directly: useState, Card, Button, etc.
+    </syntax-requirements>
     
     <component-best-practices>
         - Use descriptive function names that match the tool purpose
@@ -151,6 +166,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - Format large numbers with .toLocaleString() for readability
         - Add reset functionality for better UX
         - Use consistent spacing and typography
+        - Use React.createElement for ALL JSX elements
     </component-best-practices>
     
     <header-design-requirements>
@@ -196,13 +212,10 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     <component-example>
         'use client';
 
-        import React, { useState } from 'react';
-        import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-        import { Button } from '@/components/ui/button';
-        import { Input } from '@/components/ui/input';
-        import { Label } from '@/components/ui/label';
+        // DO NOT USE IMPORT STATEMENTS - Use context variables instead
+        // Available in context: React, useState, useEffect, useCallback, Card, CardContent, CardHeader, CardTitle, Button, Input, Label
 
-        export default function ROICalculator() {
+        function ROICalculator() {
           const [initialInvestment, setInitialInvestment] = useState(0);
           const [finalValue, setFinalValue] = useState(0);
           const [timePeriod, setTimePeriod] = useState(1);
@@ -218,111 +231,115 @@ export const TOOL_CREATION_PROMPT = `<purpose>
             setTimePeriod(1);
           };
 
-          return (
-            <div className="max-w-3xl mx-auto p-6">
-              <Card className="shadow-lg" style={{ borderColor: '#3b82f6' }}>
-                {/* SPACE-EFFICIENT HEADER - Brief title with info popover */}
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-xl font-semibold">ROI Calculator</CardTitle>
-                    <div className="group relative">
-                      <div className="w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300">
-                        ?
-                      </div>
-                      <div className="absolute left-6 top-0 w-64 p-3 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
-                        <p className="text-sm text-gray-700">Calculate your return on investment with detailed analysis including profit margins and annualized returns.</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  {/* Input Section */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="initial" className="text-sm font-medium">Initial Investment ($)</Label>
-                      <Input
-                        id="initial"
-                        type="number"
-                        value={initialInvestment}
-                        onChange={(e) => setInitialInvestment(Number(e.target.value))}
-                        placeholder="10000"
-                        className="w-full"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="final" className="text-sm font-medium">Final Value ($)</Label>
-                      <Input
-                        id="final"
-                        type="number"
-                        value={finalValue}
-                        onChange={(e) => setFinalValue(Number(e.target.value))}
-                        placeholder="15000"
-                        className="w-full"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="period" className="text-sm font-medium">Time Period (years)</Label>
-                      <Input
-                        id="period"
-                        type="number"
-                        value={timePeriod}
-                        onChange={(e) => setTimePeriod(Number(e.target.value))}
-                        placeholder="2"
-                        className="w-full"
-                        min="1"
-                      />
-                    </div>
-                  </div>
+          return React.createElement('div', { className: 'max-w-3xl mx-auto p-6' },
+            React.createElement(Card, { className: 'shadow-lg', style: { borderColor: '#3b82f6' } },
+              // SPACE-EFFICIENT HEADER - Brief title with info popover
+              React.createElement(CardHeader, { className: 'pb-4' },
+                React.createElement('div', { className: 'flex items-center gap-2' },
+                  React.createElement(CardTitle, { className: 'text-xl font-semibold' }, 'ROI Calculator'),
+                  React.createElement('div', { className: 'group relative' },
+                    React.createElement('div', {
+                      className: 'w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300'
+                    }, '?'),
+                    React.createElement('div', {
+                      className: 'absolute left-6 top-0 w-64 p-3 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10'
+                    },
+                      React.createElement('p', { className: 'text-sm text-gray-700' },
+                        'Calculate your return on investment with detailed analysis including profit margins and annualized returns.'
+                      )
+                    )
+                  )
+                )
+              ),
+              React.createElement(CardContent, { className: 'p-6 space-y-6' },
+                // Input Section
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+                  React.createElement('div', { className: 'space-y-2' },
+                    React.createElement(Label, { htmlFor: 'initial', className: 'text-sm font-medium' }, 'Initial Investment ($)'),
+                    React.createElement(Input, {
+                      id: 'initial',
+                      type: 'number',
+                      value: initialInvestment,
+                      onChange: (e) => setInitialInvestment(Number(e.target.value)),
+                      placeholder: '10000',
+                      className: 'w-full'
+                    })
+                  ),
+                  React.createElement('div', { className: 'space-y-2' },
+                    React.createElement(Label, { htmlFor: 'final', className: 'text-sm font-medium' }, 'Final Value ($)'),
+                    React.createElement(Input, {
+                      id: 'final',
+                      type: 'number',
+                      value: finalValue,
+                      onChange: (e) => setFinalValue(Number(e.target.value)),
+                      placeholder: '15000',
+                      className: 'w-full'
+                    })
+                  ),
+                  React.createElement('div', { className: 'space-y-2' },
+                    React.createElement(Label, { htmlFor: 'period', className: 'text-sm font-medium' }, 'Time Period (years)'),
+                    React.createElement(Input, {
+                      id: 'period',
+                      type: 'number',
+                      value: timePeriod,
+                      onChange: (e) => setTimePeriod(Number(e.target.value)),
+                      placeholder: '2',
+                      className: 'w-full',
+                      min: '1'
+                    })
+                  )
+                ),
 
-                  {/* Results Section */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold mb-4">Investment Analysis</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-gray-600 mb-2">Total ROI</p>
-                        <p className="text-2xl font-bold" style={{ color: '#3b82f6' }}>
-                          {roi.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <p className="text-sm text-gray-600 mb-2">Net Profit</p>
-                        <p className="text-2xl font-bold" style={{ color: '#059669' }}>
-                          $[NET_PROFIT_CALCULATION]
-                        </p>
-                      </div>
-                      <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <p className="text-sm text-gray-600 mb-2">Annualized ROI</p>
-                        <p className="text-2xl font-bold" style={{ color: '#7c3aed' }}>
-                          {annualizedROI.toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                // Results Section
+                React.createElement('div', { className: 'border-t pt-6' },
+                  React.createElement('h3', { className: 'text-lg font-semibold mb-4' }, 'Investment Analysis'),
+                  React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
+                    React.createElement('div', { className: 'text-center p-4 bg-blue-50 rounded-lg' },
+                      React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Total ROI'),
+                      React.createElement('p', {
+                        className: 'text-2xl font-bold',
+                        style: { color: '#3b82f6' }
+                      }, roi.toFixed(1) + '%')
+                    ),
+                    React.createElement('div', { className: 'text-center p-4 bg-green-50 rounded-lg' },
+                      React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Net Profit'),
+                      React.createElement('p', {
+                        className: 'text-2xl font-bold',
+                        style: { color: '#059669' }
+                      }, '$' + totalReturn.toLocaleString())
+                    ),
+                    React.createElement('div', { className: 'text-center p-4 bg-purple-50 rounded-lg' },
+                      React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Annualized ROI'),
+                      React.createElement('p', {
+                        className: 'text-2xl font-bold',
+                        style: { color: '#7c3aed' }
+                      }, annualizedROI.toFixed(1) + '%')
+                    )
+                  )
+                ),
 
-                  {/* Action Buttons */}
-                  <div className="flex gap-3">
-                    <Button 
-                      onClick={handleReset}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Reset Calculator
-                    </Button>
-                    <Button 
-                      style={{ backgroundColor: '#3b82f6' }}
-                      className="flex-1 text-white hover:opacity-90"
-                    >
-                      Save Results
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                // Action Buttons
+                React.createElement('div', { className: 'flex gap-3' },
+                  React.createElement(Button, {
+                    onClick: handleReset,
+                    variant: 'outline',
+                    className: 'flex-1'
+                  }, 'Reset Calculator'),
+                  React.createElement(Button, {
+                    style: { backgroundColor: '#3b82f6' },
+                    className: 'flex-1 text-white hover:opacity-90'
+                  }, 'Save Results')
+                )
+              )
+            )
           );
         }
     </component-example>
     
     <critical-rules>
+        - 🚨 NEVER use import statements - all dependencies provided via context
+        - 🚨 NEVER use JSX syntax - use React.createElement() only
+        - 🚨 NEVER use export statements - just define the function
         - Component name MUST be PascalCase and descriptive (e.g., SolarSavingsCalculator)
         - ALL state variables must be properly initialized and used
         - Use proper TypeScript/JavaScript syntax (e.g., Number(e.target.value) not parseInt)
@@ -341,14 +358,15 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     
     <final-reminder>
         The componentCode field must contain a COMPLETE, WORKING React component that:
-        1. Can be compiled and executed immediately
-        2. Has proper imports and exports
-        3. Uses only the allowed UI components
-        4. Implements real calculations relevant to the tool
-        5. Has professional styling and responsive layout
-        6. Includes proper error handling and validation
+        1. Can be executed immediately using new Function() in browser
+        2. Uses NO import statements (dependencies provided via context)
+        3. Uses React.createElement() syntax instead of JSX
+        4. Uses only the allowed UI components from context
+        5. Implements real calculations relevant to the tool
+        6. Has professional styling and responsive layout
+        7. Includes proper error handling and validation
         
-        This is the actual React code that will be executed, so it must be perfect!
+        This is the actual React code that will be executed using new Function(), so it must be import-free!
     </final-reminder>
 </component-code-requirements>
 

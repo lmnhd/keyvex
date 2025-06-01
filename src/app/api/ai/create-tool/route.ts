@@ -13,7 +13,6 @@ import {
   buildToolCreationUserPrompt
 } from '@/lib/prompts/tool-creation-prompt';
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
-import * as babel from '@babel/core';
 import { processToolCreation } from './core-logic';
 
 // Simple color scheme detection (inline replacement)
@@ -147,42 +146,6 @@ function createModelInstance(provider: string, modelId: string) {
   }
 }
 
-// JSX Compilation Function (server-side only)
-async function compileJSXComponent(componentCode: string): Promise<string> {
-  try {
-    console.log('[JSX Compiler] Compiling component code...');
-    
-    // Clean the code first
-    const cleanedCode = componentCode
-      .replace(/^['"]use client['"];?\s*/gm, '') // Remove 'use client'
-      .replace(/^import\s+.*?from\s+['"].*?['"];?\s*/gm, '') // Remove import statements
-      .trim();
-
-    // Transform JSX to JavaScript using Babel
-    const result = babel.transformSync(cleanedCode, {
-      presets: [
-        ['@babel/preset-react', {
-          runtime: 'classic', // Use React.createElement instead of automatic runtime
-          pragma: 'React.createElement'
-        }]
-      ],
-      plugins: [],
-      filename: 'component.tsx'
-    });
-
-    if (!result || !result.code) {
-      throw new Error('Babel compilation failed - no output generated');
-    }
-
-    console.log('[JSX Compiler] ✅ Successfully compiled JSX to JavaScript');
-    return result.code;
-
-  } catch (error) {
-    console.error('[JSX Compiler] ❌ Compilation failed:', error);
-    throw new Error(`JSX compilation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
-
 // POST handler - Tool Creation Agent
 export async function POST(request: NextRequest) {
   try {
@@ -245,14 +208,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // STEP 4 & 5: Process tool creation (JSX compilation + enhancements)
+    // STEP 4 & 5: Process tool creation (use generated code directly)
     try {
-      // First compile JSX to JavaScript (server-side only)
-      const compiledComponentCode = await compileJSXComponent(productTool.componentCode);
-      console.log('🔧 JSX successfully compiled to JavaScript');
+      // AI now generates import-free React.createElement code that can be executed directly
+      // No JSX compilation needed since code uses React.createElement syntax
+      const componentCode = productTool.componentCode;
+      console.log('✅ Using AI-generated import-free component code');
 
-      // Then process the tool with compiled code
-      const processedTool = await processToolCreation(productTool, context, compiledComponentCode);
+      // Process the tool with the generated code
+      const processedTool = await processToolCreation(productTool, context, componentCode);
       console.log('✅ Successfully processed tool:', processedTool.metadata.title);
 
       return NextResponse.json({
