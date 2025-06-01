@@ -3,9 +3,41 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Primary Project Guidelines
+# Primary Project Guidelines: MANDATORY ADHERENCE REQUIRED
 
-This document outlines the primary conventions and structure for the Keyvex project.
+## 🚨 CRITICAL DIRECTIVES - NON-NEGOTIABLE - VIOLATION IS NOT PERMITTED:
+
+### 🔥 DEVELOPMENT SERVER: STRICTLY PROHIBITED
+**UNDER NO CIRCUMSTANCES** are agents to attempt to start, stop, restart, or manage the Next.js development server in ANY way. This is exclusively handled by the user. **ANY DEVIATION IS A CRITICAL FAILURE.**
+
+### 🔥 TODO COMMENTS: PRESERVE AT ALL COSTS
+**ABSOLUTELY NEVER** remove TODO: comments. These are critical markers and **MUST REMAIN UNTOUCHED.**
+
+### 🔥 OPERATING SYSTEM: WINDOWS 11 & POWERSHELL ONLY
+All operations **MUST** assume **WINDOWS 11** with **Windows PowerShell**. UNIX/bash commands are **STRICTLY FORBIDDEN.**
+
+### 🔥 MULTI-STEP EDITING: SEQUENTIAL CONFIRMATION MANDATORY
+**AGENTS MUST ALWAYS** stop between tasks and obtain explicit confirmation from the user before proceeding to the next step of any multi-step process. **DO NOT** perform multiple editing steps in sequence without verifying each individual step with the user. **FAILURE TO COMPLY IS A CRITICAL ERROR.**
+
+### 🔥 GIT CHECKPOINT STRATEGY: MANDATORY FOR SIGNIFICANT CHANGES
+Before making ANY significant structural changes, large refactoring, or modifications affecting multiple files, agents **MUST ALWAYS** create a git checkpoint. This involves committing current work with a descriptive message like "checkpoint: before [description of major change]". This is a **NON-NEGOTIABLE** step to ensure reversibility and maintain a clear history.
+
+---
+
+## Code Structure & Design: ADHERENCE REQUIRED
+
+*   **Prompt Separation**: LLM prompts **MUST ALWAYS** be kept separate from the main application logic. Store them in dedicated files or modules (e.g., within `[keyvex_app/src/lib/prompts/](mdc:keyvex_app/src/lib/prompts)` or `[REFERENCE_CODE/prompts/](mdc:REFERENCE_CODE/prompts)`).
+*   **AI Logic Isolation**: AI-specific processing (e.g., model calls, orchestrator interactions) **MUST BE** clearly separated from general server-side processing and business logic.
+*   **Database Flexibility**: When designing database tables or schemas, agents **MUST ALWAYS** include a generic metadata object (e.g., a JSON blob or a flexible key-value map). This is critical for allowing the inclusion of overlooked or later-added data types and properties without requiring immediate schema migrations. For example: `meta: { [key: string]: any }`.
+*   **Test Page Organization**: **AGENTS MUST ALWAYS** create test pages within the `/tests/` directory structure. All development **MUST** follow a test-first approach. Any new features, components, or functionality **REQUIRE** corresponding test pages created in the appropriate `/tests/` subdirectory:
+    *   **API Tests**: `/tests/api/` for API route testing
+    *   **UI Tests**: `/tests/ui/` for component and workflow testing
+    *   **AI Tests**: `/tests/brand-intelligence/`, `/tests/model-config/` for AI-specific testing
+    *   **Admin Tests**: `/tests/admin/` for administrative functionality testing
+    *   **Custom Tests**: Create new subdirectories under `/tests/` as needed for specific test categories
+    *   **Navigation**: The main test dashboard at `/tests/page.tsx` **MUST BE** updated when adding new test categories.
+
+---
 
 ## Core Technologies
 
@@ -31,10 +63,52 @@ This document outlines the primary conventions and structure for the Keyvex proj
 
 ## Development Notes
 
-- **Windows Environment**: All commands and paths should be Windows-compatible.
-- **PowerShell**: Use Windows PowerShell for terminal commands.
-- **TODO Comments**: Preserve all `TODO:` comments.
-- **Client vs. Server**: Be mindful of Next.js client/server component distinctions.
+- **Client vs. Server**: Agents **MUST BE** mindful of Next.js client/server component distinctions.
 - **Reference Code**: The `REFERENCE_CODE/` directory contains examples and inspiration.
-- **Text Files**: Ignore `.txt` files and files with `copy` in their name as they are for reference only.
 
+---
+
+## 🧠 AI Memory & Context Management (Memory Bank): MANDATORY USAGE
+
+**AGENTS ARE REQUIRED TO ACTIVELY USE THE `memory-bank-mcp` TOOLS TO MAINTAIN AND SHARE CONTEXT. THIS IS CRITICAL FOR COLLABORATIVE EFFICIENCY AND ACCURACY. FAILURE TO DO SO IS A DEVIATION FROM REQUIRED PROTOCOL.**
+
+The Memory Bank is a shared knowledge base. Use it to:
+*   **Persist important information** discovered during your tasks.
+*   **Track progress** on multi-step operations.
+*   **Log decisions** and their rationale.
+*   **Share contextual data** that would benefit other agents or future tasks.
+
+### Key `memory-bank-mcp` Tools and Usage Examples:
+
+1.  **Tracking Progress on Complex Tasks:**
+    *   **Scenario:** An agent is working on a feature involving multiple steps (e.g., "Create a new API endpoint, then update the frontend, then write tests").
+    *   **Mandatory Actions:**
+        *   After each significant step, use `mcp_memory-bank-mcp_track_progress` to log completion (e.g., `action: "Implemented API endpoint /api/new-feature", description: "Created POST handler, defined request/response types."`).
+        *   Use `mcp_memory-bank-mcp_update_active_context` to list `nextSteps` (e.g., `nextSteps: ["Update frontend component X to call /api/new-feature"]`) or pending `tasks`.
+        *   **Benefit:** Other agents (or the same agent later) can quickly understand the current state by using `mcp_memory-bank-mcp_read_memory_bank_file` (to read `active-context.mdc` or `progress-log.mdc`) or `mcp_memory-bank-mcp_get_memory_bank_status`.
+
+2.  **Logging Key Decisions and Their Rationale:**
+    *   **Scenario:** An agent makes a significant design choice or technical decision (e.g., "Choosing Library X over Library Y for a component due to performance benefits").
+    *   **Mandatory Actions:**
+        *   Use `mcp_memory-bank-mcp_log_decision` to record the choice:
+            *   `title: "Library Choice for Real-time Charting"`
+            *   `context: "Evaluating libraries for rendering real-time data visualizations in the dashboard."`
+            *   `decision: "Selected ChartJS for its lightweight nature and good performance with streaming data."`
+            *   `alternatives: ["D3.js (more powerful but steeper learning curve)", "Plotly (feature-rich but heavier)"]`
+            *   `consequences: ["Faster load times for charts. May require more custom code for highly advanced visualizations later."]`
+        *   **Benefit:** This provides lasting documentation for *why* decisions were made, retrievable via `mcp_memory-bank-mcp_read_memory_bank_file` (e.g., `decision-log.mdc`), preventing repetitive analysis and ensuring architectural consistency.
+
+3.  **Storing and Retrieving Discovered Project-Specific Knowledge:**
+    *   **Scenario:** An agent discovers a non-obvious piece of information vital for the project (e.g., a specific API's undocumented behavior, a reusable utility function, a critical coding pattern).
+    *   **Mandatory Actions:**
+        *   Use `mcp_memory-bank-mcp_write_memory_bank_file` to save this information to a relevant, clearly named file (e.g., `api-quirks.mdc`, `project-conventions.mdc`, `shared-utilities-notes.mdc`).
+            *   Example for `api-quirks.mdc`: `## ExternalService API Notes\n- The /submit endpoint returns a 202 Accepted immediately, but the actual processing can take up to 5 minutes. Subsequent calls should check status via /status/{jobId}.`
+        *   Before starting tasks related to known areas, agents **MUST** attempt to retrieve relevant information using `mcp_memory-bank-mcp_read_memory_bank_file` or `mcp_memory-bank-mcp_list_memory_bank_files` to see if relevant contextual files exist.
+        *   **Benefit:** Prevents repeated discovery of the same information, reduces errors, and ensures all agents work with the most current understanding.
+
+### Other Important Memory Bank Tools:
+*   `mcp_memory-bank-mcp_initialize_memory_bank`: Ensure this is set up for the project.
+*   `mcp_memory-bank-mcp_get_current_mode`: Understand the agent's current operational mode if relevant.
+*   `mcp_memory-bank-mcp_switch_mode`: Change mode if necessary for a task (e.g., to 'architect' or 'debug').
+
+**Proactive and consistent use of the Memory Bank is not optional; it is a core requirement for all agent operations.**

@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+🚨 NEVER TOUCH THE DEV SERVER - I handle it manually! 🚨
+
+Never remove TODO: comments EVER!
+WE ARE USING WINDOWS 11
+We are coding with Next.JS 14. Please consider clent side versus server side when contemplating issues.
+We use Windows Powershell for commands - Not UNIX
+ignore the text files and files with copy after the name - they are just for my reference 
