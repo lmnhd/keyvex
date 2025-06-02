@@ -1196,7 +1196,12 @@ export default function TestUIPage() {
                         setLastAIMessage("Creating a sample ROI calculator tool...");
                       });
 
-                      const newTool = await callToolCreationAgent('Create a sample ROI calculator', undefined, undefined);
+                      const newTool = await callToolCreationAgent({
+                        userIntent: 'Create a sample ROI calculator',
+                        toolType: 'calculator',
+                        targetAudience: 'business professionals',
+                        industry: 'general business'
+                      }, undefined, undefined);
                       
                       if (newTool) {
                         console.log('🛠️ Setting new tool in state:', newTool.metadata.title);

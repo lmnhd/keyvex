@@ -390,7 +390,7 @@ export const createToolWithBrainstorming = async (
       coreWConcept: context.brainstormingResult?.coreWConcept || context.logicArchitectInsights?.coreWConcept
     });
     
-    const tool = await callToolCreationAgent(context.userIntent, context, undefined);
+    const tool = await callToolCreationAgent(context, undefined, undefined);
     
     // Add final completion thought to brainstorming panel
     setBrainstormingThoughts(prev => [...prev, {
