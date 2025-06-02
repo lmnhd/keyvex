@@ -177,6 +177,35 @@ export default function DynamicComponentRenderer({
           element.className = classNameString;
         } else {
           console.warn(`[Dynamic Component] Element with data-style-id="${dataStyleId}" not found for styling.`);
+          
+          // FALLBACK: Apply common styles to main container when specific elements aren't found
+          if (dataStyleId === 'background') {
+            console.log(`[Dynamic Component] 🔄 Fallback: Applying background style to main container`);
+            const mainContainer = wrapperRef.current.querySelector('div:first-child') as HTMLElement;
+            if (mainContainer) {
+              // Remove old background classes and add new ones
+              const currentClasses = mainContainer.className.split(' ').filter(cls => !cls.startsWith('bg-'));
+              mainContainer.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
+              console.log(`[Dynamic Component] ✅ Applied background to main container: ${mainContainer.className}`);
+            } else {
+              // Last resort: apply to wrapper itself
+              const currentClasses = wrapperRef.current.className.split(' ').filter(cls => !cls.startsWith('bg-'));
+              wrapperRef.current.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
+              console.log(`[Dynamic Component] ✅ Applied background to wrapper: ${wrapperRef.current.className}`);
+            }
+          }
+          
+          // Add more fallbacks for other common style types
+          if (dataStyleId === 'text' || dataStyleId === 'title') {
+            console.log(`[Dynamic Component] 🔄 Fallback: Applying text style to headings and text elements`);
+            const textElements = wrapperRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span');
+            textElements.forEach((textEl) => {
+              const htmlEl = textEl as HTMLElement;
+              const currentClasses = htmlEl.className.split(' ').filter(cls => !cls.startsWith('text-'));
+              htmlEl.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
+            });
+            console.log(`[Dynamic Component] ✅ Applied text styles to ${textElements.length} elements`);
+          }
         }
       }
     }
