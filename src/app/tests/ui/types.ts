@@ -77,6 +77,7 @@ export interface OptionsMenuProps {
   onTestFileUpload: () => void;
   onTestColorPicker: () => void;
   onTestComponentValidation: () => void;
+  onTestStyleUpdate: () => void;
   onModelChange: (model: string) => void;
 }
 

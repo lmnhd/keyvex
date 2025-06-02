@@ -64,6 +64,7 @@ export interface OptionsMenuProps {
   onTestFileUpload: () => void;
   onTestColorPicker: () => void;
   onTestComponentValidation: () => void;
+  onTestStyleUpdate: () => void;
   onModelChange: (model: string) => void;
 }
 
@@ -102,6 +103,7 @@ export function OptionsMenu({
   onTestFileUpload,
   onTestColorPicker,
   onTestComponentValidation,
+  onTestStyleUpdate,
   onModelChange
 }: OptionsMenuProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['mode-workflow']));
@@ -262,6 +264,14 @@ export function OptionsMenu({
           label: 'Run Component Validation Tests',
           onClick: () => {
             onTestComponentValidation();
+            onClose();
+          }
+        },
+        {
+          icon: <Palette className="h-4 w-4" />,
+          label: 'Test AI Style Updates',
+          onClick: () => {
+            onTestStyleUpdate();
             onClose();
           }
         }

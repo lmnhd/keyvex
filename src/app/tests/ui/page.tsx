@@ -522,7 +522,7 @@ export default function TestUIPage() {
           if (useMockData) {
             await processMockWorkflow(newAnswers);
           } else {
-            await processWithAI(newAnswers, conversationHistory, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+            await processWithAI(newAnswers, conversationHistory, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
             // setQuestionQueue([]); // DISABLED: This was clearing AI-generated questions
             setCurrentQuestionIndex(0);
             setCurrentInput('');
@@ -533,7 +533,7 @@ export default function TestUIPage() {
         if (useMockData) {
           await handleMockFreeformInput(currentInput);
         } else {
-          await handleAIFreeformInput(currentInput, conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+          await handleAIFreeformInput(currentInput, conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
         }
       }
 
@@ -1157,16 +1157,23 @@ export default function TestUIPage() {
                     }
                   }}
                   onTestMultiPart={() => {
-                    handleAIFreeformInput('send a test multi-input', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+                    handleAIFreeformInput('send a test multi-input', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
                   }}
                   onTestFileUpload={() => {
-                    handleAIFreeformInput('test file upload ui', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+                    handleAIFreeformInput('test file upload ui', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
                   }}
                   onTestColorPicker={() => {
-                    handleAIFreeformInput('test color picker', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+                    handleAIFreeformInput('test color picker', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
                   }}
                   onTestComponentValidation={() => {
-                    handleAIFreeformInput('test component validation', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+                    handleAIFreeformInput('test component validation', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                  }}
+                  onTestStyleUpdate={() => {
+                    if (!productToolDefinition) {
+                      setLastAIMessage('❌ No tool loaded. Please create a tool first before testing style updates.');
+                      return;
+                    }
+                    handleAIFreeformInput('make the main title text larger and more prominent', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
                   }}
                   onModelChange={(model: string) => {
                     console.log('Model changed to:', model);

@@ -206,6 +206,50 @@ export const handleStyleUpdate = async (
   }
 };
 
+// NEW: Function to call the style update API and apply changes
+export const callStyleUpdateAPI = async (
+  toolDefinitionId: string,
+  dataStyleId: string,
+  newTailwindClasses: string
+): Promise<ProductToolDefinition | null> => {
+  console.log(`🎨 Calling style update API for tool: ${toolDefinitionId}, element: ${dataStyleId}, classes: ${newTailwindClasses}`);
+
+  try {
+    const response = await fetch('/api/ai/update-tool-style', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        toolDefinitionId,
+        dataStyleId,
+        newTailwindClasses
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update style');
+    }
+
+    const apiResponse = await response.json();
+    console.log('✅ Style Update API returned:', apiResponse);
+    
+    if (!apiResponse.success || !apiResponse.updatedToolDefinition) {
+      throw new Error(apiResponse.message || 'Style update failed');
+    }
+
+    const updatedToolDefinition: ProductToolDefinition = apiResponse.updatedToolDefinition;
+    console.log('✅ Style updated successfully:', updatedToolDefinition.metadata.title);
+    
+    return updatedToolDefinition;
+
+  } catch (error) {
+    console.error('❌ Style Update API error:', error);
+    throw error;
+  }
+};
+
 export const createToolWithBrainstorming = async (
   context: any,
   setShowBrainstormingPanel: (show: boolean) => void,
@@ -371,7 +415,24 @@ export const createToolWithBrainstorming = async (
   }
 };
 
-export const processWithAI = async (answers: Record<string, string>, conversationHistory: any[], currentStep: any, setLastAIMessage: (message: string) => void, handleAIGeneratedQuestion: (question: any) => void, setShowBrainstormingPanel: (show: boolean) => void, setIsBrainstorming: (loading: boolean) => void, setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, setIsGeneratingTool: (generating: boolean) => void, setLatestBrainstormingResult: (result: any) => void, saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, setSavedLogicResults: (results: any[]) => void, getSavedLogicResults: () => any[], transitionToNewContent: (updateFunction: () => void) => Promise<void>) => {
+export const processWithAI = async (
+  answers: Record<string, string>, 
+  conversationHistory: any[], 
+  currentStep: any, 
+  setLastAIMessage: (message: string) => void, 
+  handleAIGeneratedQuestion: (question: any) => void, 
+  setShowBrainstormingPanel: (show: boolean) => void, 
+  setIsBrainstorming: (loading: boolean) => void, 
+  setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, 
+  setIsGeneratingTool: (generating: boolean) => void, 
+  setLatestBrainstormingResult: (result: any) => void, 
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, 
+  setSavedLogicResults: (results: any[]) => void, 
+  getSavedLogicResults: () => any[], 
+  transitionToNewContent: (updateFunction: () => void) => Promise<void>,
+  productToolDefinition?: ProductToolDefinition | null,
+  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void
+) => {
   try {
     setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
     
@@ -386,11 +447,34 @@ export const processWithAI = async (answers: Record<string, string>, conversatio
       userInput: `Based on my responses: ${expertise}. I'm creating a ${toolType} for ${targetAudience} in ${industry}.`,
       conversationHistory: conversationHistory || [],
       collectedAnswers: answers,
-      currentStep
+      currentStep,
+      productToolDefinition // Pass current tool for context
     });
 
     if (result.success && result.response) {
       console.log('🔧 AI API response received:', result.response);
+      
+      // Check if AI wants to update tool style
+      if (result.response.shouldUpdateStyle && result.response.styleUpdateContext && setProductToolDefinition) {
+        console.log('🎨 AI requested style update:', result.response.styleUpdateContext);
+        
+        try {
+          const updatedTool = await callStyleUpdateAPI(
+            result.response.styleUpdateContext.toolDefinitionId,
+            result.response.styleUpdateContext.dataStyleId,
+            result.response.styleUpdateContext.newTailwindClasses
+          );
+          
+          if (updatedTool) {
+            setProductToolDefinition(updatedTool);
+            setLastAIMessage(`🎨 Style updated! Changed ${result.response.styleUpdateContext.dataStyleId} styling.`);
+          }
+        } catch (styleError) {
+          console.error('❌ Style update failed:', styleError);
+          setLastAIMessage(`❌ Style update failed: ${styleError instanceof Error ? styleError.message : 'Unknown error'}`);
+        }
+        return; // Exit early since we handled the style update
+      }
       
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
@@ -442,7 +526,25 @@ export const processWithAI = async (answers: Record<string, string>, conversatio
   }
 };
 
-export const handleAIFreeformInput = async (input: string, conversationHistory: any[], collectedAnswers: any, currentStep: any, setLastAIMessage: (message: string) => void, handleAIGeneratedQuestion: (question: any) => void, setShowBrainstormingPanel: (show: boolean) => void, setIsBrainstorming: (loading: boolean) => void, setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, setIsGeneratingTool: (generating: boolean) => void, setLatestBrainstormingResult: (result: any) => void, saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, setSavedLogicResults: (results: any[]) => void, getSavedLogicResults: () => any[], transitionToNewContent: (updateFunction: () => void) => Promise<void>) => {
+export const handleAIFreeformInput = async (
+  input: string, 
+  conversationHistory: any[], 
+  collectedAnswers: any, 
+  currentStep: any, 
+  setLastAIMessage: (message: string) => void, 
+  handleAIGeneratedQuestion: (question: any) => void, 
+  setShowBrainstormingPanel: (show: boolean) => void, 
+  setIsBrainstorming: (loading: boolean) => void, 
+  setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, 
+  setIsGeneratingTool: (generating: boolean) => void, 
+  setLatestBrainstormingResult: (result: any) => void, 
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, 
+  setSavedLogicResults: (results: any[]) => void, 
+  getSavedLogicResults: () => any[], 
+  transitionToNewContent: (updateFunction: () => void) => Promise<void>,
+  productToolDefinition?: ProductToolDefinition | null,
+  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void
+) => {
   try {
     console.log('🔧 handleAIFreeformInput called with input:', input);
     setLastAIMessage("Thinking about your question...");
@@ -452,7 +554,8 @@ export const handleAIFreeformInput = async (input: string, conversationHistory: 
       userInput: input,
       conversationHistory: conversationHistory || [],
       collectedAnswers,
-      currentStep
+      currentStep,
+      productToolDefinition // Pass current tool for context
     };
     
     console.log('🔧 Sending request to API:', requestBody);
@@ -461,6 +564,28 @@ export const handleAIFreeformInput = async (input: string, conversationHistory: 
     const result = await handleStreamingAIRequest(requestBody);
 
     if (result.success && result.response) {
+      // Check if AI wants to update tool style
+      if (result.response.shouldUpdateStyle && result.response.styleUpdateContext && setProductToolDefinition) {
+        console.log('🎨 AI requested style update:', result.response.styleUpdateContext);
+        
+        try {
+          const updatedTool = await callStyleUpdateAPI(
+            result.response.styleUpdateContext.toolDefinitionId,
+            result.response.styleUpdateContext.dataStyleId,
+            result.response.styleUpdateContext.newTailwindClasses
+          );
+          
+          if (updatedTool) {
+            setProductToolDefinition(updatedTool);
+            setLastAIMessage(`🎨 Style updated! Changed ${result.response.styleUpdateContext.dataStyleId} styling.`);
+          }
+        } catch (styleError) {
+          console.error('❌ Style update failed:', styleError);
+          setLastAIMessage(`❌ Style update failed: ${styleError instanceof Error ? styleError.message : 'Unknown error'}`);
+        }
+        return; // Exit early since we handled the style update
+      }
+      
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
         console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
