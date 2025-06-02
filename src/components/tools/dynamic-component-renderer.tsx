@@ -38,10 +38,20 @@ export default function DynamicComponentRenderer({
   const compiledComponent = useMemo(() => {
     if (!componentCode) return null;
 
+    // Log the raw component code for debugging
+    console.log('🔍 RAW COMPONENT CODE:', componentCode);
+    console.log('🔍 COMPONENT CODE LENGTH:', componentCode.length);
+    console.log('🔍 COMPONENT CODE TYPE:', typeof componentCode);
+
     try {
       // Check for basic syntax issues first
       if (!componentCode.trim()) {
         throw new Error('Component code is empty');
+      }
+
+      // Check for null/undefined character sequences that could cause issues
+      if (componentCode.includes('\x00') || componentCode.includes('\\x00')) {
+        throw new Error('Component code contains null characters');
       }
 
       // Extract component name from the compiled code
@@ -50,6 +60,8 @@ export default function DynamicComponentRenderer({
       if (functionMatch) {
         componentName = functionMatch[1];
       }
+
+      console.log('🔍 EXTRACTED COMPONENT NAME:', componentName);
 
       // Create execution context with all React dependencies
       const contextVars = {
@@ -71,6 +83,7 @@ export default function DynamicComponentRenderer({
 
       // Validate the component code doesn't contain obvious syntax errors
       if (componentCode.includes('undefined') || componentCode.includes('null,') || componentCode.includes(',,')) {
+        console.warn('🔍 DETECTED POTENTIAL SYNTAX ISSUES IN CODE');
         throw new Error('Component code contains syntax errors (undefined values or double commas)');
       }
 
@@ -90,6 +103,8 @@ export default function DynamicComponentRenderer({
         }
       `;
 
+      console.log('🔍 FINAL EXECUTABLE CODE:', executableCode);
+
       const componentFunction = new Function('contextVars', executableCode);
       const Component = componentFunction(contextVars);
 
@@ -97,13 +112,22 @@ export default function DynamicComponentRenderer({
         throw new Error(`Expected function, got ${typeof Component}. Component name: ${componentName}`);
       }
 
+      console.log('✅ COMPONENT COMPILED SUCCESSFULLY');
       setRenderError(null);
       return Component;
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('Component compilation error:', errorMsg);
-      console.error('Component code that failed:', componentCode);
+      console.error('❌ Component compilation error:', errorMsg);
+      console.error('❌ Component code that failed:', componentCode);
+      console.error('❌ Full error object:', error);
+      
+      // Also try to identify specific problematic characters
+      const problematicChars = componentCode.match(/[^\x20-\x7E\s]/g);
+      if (problematicChars) {
+        console.error('❌ Found problematic characters:', problematicChars);
+      }
+      
       setRenderError(`Component execution failed: ${errorMsg}`);
 
       if (onError) {
