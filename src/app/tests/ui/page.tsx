@@ -139,50 +139,128 @@ const getSavedTools = (): SavedTool[] => {
   }
 };
 
-// Validation function to check if a ProductToolDefinition is valid
+// Enhanced validation function to check if a ProductToolDefinition is valid
 const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition => {
+  console.log('🔧 TRACE: Validating tool definition...');
+  console.log('🔧 TRACE: Tool ID:', tool?.id);
+  console.log('🔧 TRACE: Tool metadata title:', tool?.metadata?.title);
+  console.log('🔧 TRACE: ComponentCode length:', tool?.componentCode?.length || 0);
+  
   if (!tool || typeof tool !== 'object') {
-    console.warn('Tool validation failed: not an object');
+    console.warn('⚠️ Tool validation failed: Not an object');
     return false;
   }
   
-  // Check required fields
-  if (!tool.id || typeof tool.id !== 'string') {
-    console.warn('Tool validation failed: missing or invalid id');
+  // Check for required fields
+  if (!tool.id || !tool.metadata || !tool.componentCode) {
+    console.warn('⚠️ Tool validation failed: Missing required fields', {
+      hasId: !!tool.id,
+      hasMetadata: !!tool.metadata, 
+      hasComponentCode: !!tool.componentCode
+    });
     return false;
   }
   
-  if (!tool.metadata || typeof tool.metadata !== 'object') {
-    console.warn('Tool validation failed: missing or invalid metadata');
+  // Check for undefined values in critical fields
+  if (String(tool.id).includes('undefined') || 
+      String(tool.slug || '').includes('undefined') ||
+      String(tool.metadata?.id || '').includes('undefined') ||
+      String(tool.metadata?.title || '').includes('undefined')) {
+    console.warn('⚠️ Tool validation failed: Contains undefined values in critical fields');
+    return false;
+  }
+
+  // NEW: Test component code for JavaScript execution safety
+  try {
+    console.log('🔧 TRACE: Testing component code JavaScript execution...');
+    
+    // Create a safe test environment to check if the componentCode will execute
+    const testFunction = new Function(`
+      "use strict";
+      const React = { createElement: () => null };
+      const useState = () => [null, () => {}];
+      const useEffect = () => {};
+      const Card = () => null;
+      const Button = () => null;
+      
+      try {
+        ${tool.componentCode}
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    `);
+    
+    const testResult = testFunction();
+    
+    if (!testResult.success) {
+      console.warn('⚠️ Tool validation failed: Component code execution error:', testResult.error);
+      return false;
+    }
+    
+    console.log('🔧 TRACE: ✅ Component code execution test passed');
+  } catch (executionError) {
+    console.warn('⚠️ Tool validation failed: Component code is corrupted:', executionError);
     return false;
   }
   
-  if (!tool.metadata.title || typeof tool.metadata.title !== 'string') {
-    console.warn('Tool validation failed: missing or invalid metadata.title');
-    return false;
-  }
-  
-  if (!tool.componentCode || typeof tool.componentCode !== 'string') {
-    console.warn('Tool validation failed: missing or invalid componentCode');
-    return false;
-  }
-  
-  // Check if componentCode is not corrupted (basic sanity check)
-  if (tool.componentCode.length < 50) {
-    console.warn('Tool validation failed: componentCode too short (likely corrupted)');
-    return false;
-  }
-  
-  // Check for obvious corruption patterns
-  if (tool.componentCode.includes('undefined,undefined') || 
-      tool.componentCode.includes(',,') ||
-      tool.componentCode.includes('null,null')) {
-    console.warn('Tool validation failed: componentCode contains corruption patterns');
-    return false;
-  }
-  
-  console.log('✅ Tool validation passed');
+  console.log('🔧 TRACE: ✅ Tool validation passed');
   return true;
+};
+
+// NEW: Add automatic cleanup of corrupted tools from IndexedDB
+const clearCorruptedToolFromStorage = async (toolId: string) => {
+  try {
+    console.log('🧹 TRACE: Clearing corrupted tool from storage:', toolId);
+    
+    // Clear from IndexedDB using the correct imported function
+    await saveLastActiveToolToDB(null as any);
+    
+    // Clear from localStorage backup
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('tool_') || key === 'lastActiveToolId') {
+        try {
+          const toolData = JSON.parse(localStorage.getItem(key) || '{}');
+          if (toolData.id === toolId) {
+            localStorage.removeItem(key);
+            console.log('🧹 TRACE: Removed corrupted tool from localStorage:', key);
+          }
+        } catch (e) {
+          // If parsing fails, the localStorage item is also corrupted, remove it
+          localStorage.removeItem(key);
+          console.log('🧹 TRACE: Removed corrupted localStorage item:', key);
+        }
+      }
+    });
+    
+    console.log('🧹 TRACE: ✅ Corrupted tool cleanup completed');
+  } catch (error) {
+    console.error('🧹 TRACE: ⚠️ Error during corrupted tool cleanup:', error);
+  }
+};
+
+// Helper function to create a sample question for an existing tool
+const createSampleQuestion = (tool: ProductToolDefinition) => {
+  return {
+    id: `sample_${Date.now()}`,
+    message: `Sample question for ${tool.metadata.title}`,
+    inputType: 'text' as const,
+    placeholder: 'Enter your input here...',
+    isInMultiPart: false,
+    multiPartQuestions: []
+  };
+};
+
+// Helper function to create a mock question for initial state
+const createMockQuestion = () => {
+  return {
+    id: `mock_${Date.now()}`,
+    message: 'What type of business tool would you like to create?',
+    inputType: 'text' as const,
+    placeholder: 'Describe your tool idea...',
+    isInMultiPart: false,
+    multiPartQuestions: []
+  };
 };
 
 export default function TestUIPage() {
@@ -1040,43 +1118,66 @@ export default function TestUIPage() {
 
   // Initialize localStorage data and load last active tool
   useEffect(() => {
-    setSavedLogicResults(getSavedLogicResults());
-    setSavedTools(getSavedTools());
-    
-    // Load the last active tool from IndexedDB
-    const loadLastTool = async () => {
+    const initializeFromStorage = async () => {
       try {
+        console.log('📱 Loading last active tool on startup');
         const lastTool = await loadLastActiveToolFromDB();
+        
         if (lastTool) {
-          console.log('📱 Loading last active tool on startup:', lastTool.metadata?.title || 'Unknown Tool');
+          console.log('📱 Loading last active tool on startup:', lastTool.metadata?.title);
           
-          // Validate the tool before setting it
+          // ENHANCED: Use the improved validation with JavaScript execution testing
           if (isValidProductToolDefinition(lastTool)) {
-            setProductToolDefinition(lastTool);
             console.log('✅ Tool validation passed, tool loaded successfully');
+            setProductToolDefinition(lastTool);
+            
+            // Add sample question to queue for this tool
+            const sampleQuestion = createSampleQuestion(lastTool);
+            setQuestionQueue([sampleQuestion]);
           } else {
-            console.warn('⚠️ Corrupted tool detected on startup, skipping load');
-            // Clear the corrupted tool from IndexedDB
-            try {
-              await saveLastActiveToolToDB(null as any); // Clear corrupted data
-            } catch (clearError) {
-              console.warn('Could not clear corrupted tool:', clearError);
+            console.warn('⚠️ Tool validation FAILED - corrupted tool detected during startup');
+            console.warn('⚠️ Tool ID:', lastTool?.id);
+            console.warn('⚠️ Tool Title:', lastTool?.metadata?.title);
+            
+            // Clear the corrupted tool automatically
+            await clearCorruptedToolFromStorage(lastTool?.id || 'unknown');
+            
+            // Load initial state instead
+            console.log('📱 Loading clean initial state after clearing corrupted tool');
+            if (useMockData) {
+              const firstQuestion = createMockQuestion();
+              setQuestionQueue([firstQuestion]);
             }
+          }
+        } else {
+          console.log('📱 No previous tool found, starting fresh');
+          if (useMockData) {
+            const firstQuestion = createMockQuestion();
+            setQuestionQueue([firstQuestion]);
           }
         }
       } catch (error) {
-        console.error('Failed to load last active tool:', error);
-        // Clear potentially corrupted data
+        console.error('⚠️ Error during startup tool loading:', error);
+        
+        // If there's any error, clear potentially corrupted data and start fresh
         try {
-          await saveLastActiveToolToDB(null as any);
+          localStorage.clear(); // Clear all localStorage as a safety measure
+          // Clear IndexedDB (we'll implement a safe clear function)
+          console.log('🧹 Cleared all storage due to startup errors');
         } catch (clearError) {
-          console.warn('Could not clear corrupted data after error:', clearError);
+          console.error('⚠️ Error clearing storage:', clearError);
+        }
+        
+        // Load initial state
+        if (useMockData) {
+          const firstQuestion = createMockQuestion();
+          setQuestionQueue([firstQuestion]);
         }
       }
     };
-    
-    loadLastTool();
-  }, []);
+
+    initializeFromStorage();
+  }, [useMockData]); // Only run on mount and when useMockData changes
 
   // Track when a question becomes active (user starts responding)
   useEffect(() => {

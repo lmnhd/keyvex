@@ -55,11 +55,16 @@ export default function DynamicComponentRenderer({
       if (componentCode.includes('\\x00') || componentCode.includes('\\\\x00')) {
         console.warn('⚠️ Component code contains null characters');
         return () => React.createElement('div', { 
-          className: 'p-4 border border-yellow-300 rounded bg-yellow-50 text-yellow-700 text-center' 
-        }, 'Component code contains invalid characters');
+          className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center' 
+        }, 'Component code is corrupted');
       }
 
-      // Enhanced undefined value detection - only flag actual execution problems
+      // Enhanced validation for problematic undefined patterns
+      let hasProblematicUndefined = false;
+      const foundPatterns: string[] = [];
+      
+      console.log('🔍 TRACE: Checking for problematic undefined patterns...');
+      
       const problematicUndefinedPatterns = [
         /,\s*undefined\s*,/g,           // undefined as array element: [a, undefined, b]
         /,\s*undefined\s*\)/g,          // undefined as function parameter: func(a, undefined)
@@ -67,85 +72,129 @@ export default function DynamicComponentRenderer({
         /:\s*undefined\s*,/g,           // undefined as object value: {key: undefined,}
         /=\s*undefined\s*;/g,           // undefined assignment: var x = undefined;
       ];
-
-      let hasProblematicUndefined = false;
-      const foundPatterns: string[] = [];
       
-      console.log('🔍 TRACE: Checking for problematic undefined patterns...');
       for (const pattern of problematicUndefinedPatterns) {
         const matches = componentCode.match(pattern);
         if (matches) {
           hasProblematicUndefined = true;
-          foundPatterns.push(`Pattern: ${pattern.source}, Matches: ${matches.length}`);
-          console.error('🔍 TRACE: Found problematic undefined pattern:', pattern.source, 'Matches:', matches);
+          foundPatterns.push(...matches);
         }
       }
-
+      
       if (hasProblematicUndefined) {
-        console.error('🔍 TRACE: ⚠️ PROBLEMATIC UNDEFINED VALUES detected!');
-        console.error('🔍 TRACE: Found patterns:', foundPatterns);
-        console.error('🔍 TRACE: Component code with issues:', componentCode);
-        return () => React.createElement('div', { 
-          className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700' 
+        console.warn('🔍 TRACE: ⚠️ Problematic undefined patterns found:', foundPatterns);
+        return () => React.createElement('div', {
+          className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
         }, [
           React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Data Issue'),
-          React.createElement('div', { key: 'message', className: 'mb-2' }, 'Component contains undefined values in data structures'),
-          React.createElement('div', { key: 'advice', className: 'text-sm' }, 'Try regenerating the tool or contact support if this persists'),
-          React.createElement('details', { key: 'details', className: 'mt-2 text-xs' }, [
-            React.createElement('summary', { key: 'summary', className: 'cursor-pointer font-medium' }, 'Technical Details'),
-            React.createElement('div', { key: 'patterns', className: 'mt-1 font-mono bg-red-100 p-2 rounded' }, foundPatterns.join(', '))
-          ])
+          React.createElement('div', { key: 'desc', className: 'text-sm' }, 'Component contains undefined values in data structures'),
+          React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Try regenerating the tool or contact support if this persists')
         ]);
-      } else {
-        console.log('🔍 TRACE: ✅ No problematic undefined patterns detected');
+      }
+      
+      console.log('🔍 TRACE: ✅ No problematic undefined patterns detected');
+
+      console.log('🔍 TRACE: Proceeding with component compilation');
+
+      // TEST JAVASCRIPT EXECUTION FIRST - This is key for catching corrupted tools!
+      try {
+        console.log('🔍 TRACE: Testing JavaScript execution safety...');
+        
+        // Create a safe test environment to check if the code will execute without errors
+        const testFunction = new Function(`
+          "use strict";
+          const React = { createElement: () => null };
+          const useState = () => [null, () => {}];
+          const useEffect = () => {};
+          const Card = () => null;
+          const Button = () => null;
+          
+          try {
+            ${componentCode}
+            return { success: true };
+          } catch (error) {
+            return { success: false, error: error.message };
+          }
+        `);
+        
+        const testResult = testFunction();
+        
+        if (!testResult.success) {
+          console.error('🔍 TRACE: ⚠️ JavaScript execution test FAILED:', testResult.error);
+          return () => React.createElement('div', {
+            className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
+          }, [
+            React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Compilation Failed'),
+            React.createElement('div', { key: 'error', className: 'text-sm' }, testResult.error),
+            React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try regenerating the component'),
+            React.createElement('details', { key: 'details', className: 'mt-3' }, [
+              React.createElement('summary', { key: 'summary', className: 'text-xs cursor-pointer' }, 'Technical Details'),
+              React.createElement('pre', { key: 'pre', className: 'text-xs mt-1 p-2 bg-red-100 rounded overflow-auto' }, testResult.error)
+            ])
+          ]);
+        }
+        
+        console.log('🔍 TRACE: ✅ JavaScript execution test PASSED');
+      } catch (executionError) {
+        console.error('🔍 TRACE: ⚠️ JavaScript execution test threw error:', executionError);
+        return () => React.createElement('div', {
+          className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
+        }, [
+          React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Execution Error'),
+          React.createElement('div', { key: 'error', className: 'text-sm' }, String(executionError)),
+          React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'This tool appears to be corrupted and needs to be regenerated')
+        ]);
       }
 
-      // Continue with component compilation...
-      console.log('🔍 TRACE: Proceeding with component compilation');
-      
-      // Transform into executable function
-      const componentFunction = new Function('React', 'useState', 'useEffect', 'useMemo', 'useCallback', `
-        ${componentCode}
-        if (typeof exports !== 'undefined' && exports.default) return exports.default;
-        if (typeof module !== 'undefined' && module.exports && module.exports.default) return module.exports.default;
-        // Look for the last function declaration or assignment
-        const lines = \`${componentCode.replace(/`/g, '\\`')}\`.split('\\n');
-        for (let i = lines.length - 1; i >= 0; i--) {
-          const line = lines[i].trim();
-          if (line.startsWith('function ') || line.includes('= function') || line.includes('=> {') || line.includes('() => ')) {
-            const match = line.match(/(?:function\\s+([a-zA-Z][a-zA-Z0-9]*)|([a-zA-Z][a-zA-Z0-9]*)\\s*=\\s*function|([a-zA-Z][a-zA-Z0-9]*)\\s*=\\s*(?:\\([^)]*\\)|[a-zA-Z][a-zA-Z0-9]*)\\s*=>)/);
-            if (match) {
-              const funcName = match[1] || match[2] || match[3];
-              if (typeof eval(funcName) === 'function') return eval(funcName);
-            }
+      // Create the component function with proper error boundaries
+      console.log('🔍 TRACE: Creating component function...');
+      const componentFunction = new Function('React', 'useState', 'useEffect', 'Card', 'Button', `
+        "use strict";
+        try {
+          ${componentCode}
+          
+          // Find the main component function
+          const componentNames = Object.getOwnPropertyNames(this || {}).filter(name => 
+            typeof this[name] === 'function' && 
+            name[0] === name[0].toUpperCase() &&
+            name !== 'Function' &&
+            name !== 'Object'
+          );
+          
+          if (componentNames.length === 0) {
+            throw new Error('No valid React component function found');
           }
+          
+          return this[componentNames[0]] || (() => React.createElement('div', {}, 'Component not found'));
+        } catch (error) {
+          console.error('Component execution error:', error);
+          return () => React.createElement('div', {
+            className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center'
+          }, 'Component failed to load: ' + error.message);
         }
-        throw new Error('No valid React component found in code');
       `);
 
       console.log('🔍 TRACE: Component function created successfully');
-      
-      const CompiledComponent = componentFunction(React, React.useState, React.useEffect, React.useMemo, React.useCallback);
-      
-      if (typeof CompiledComponent !== 'function') {
-        console.error('🔍 TRACE: Component compilation failed - not a function');
-        throw new Error('Generated component is not a valid React component function');
-      }
 
+      // Get the component with all required dependencies
+      const ComponentImpl = componentFunction(React, useState, useEffect, Card, Button);
+      
       console.log('🔍 TRACE: ✅ Component compilation successful');
-      return CompiledComponent;
+      return ComponentImpl;
 
     } catch (error) {
-      console.error('🔍 TRACE: ❌ Component compilation failed:', error);
-      return () => React.createElement('div', { 
-        className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700' 
+      console.error('🔍 TRACE: ⚠️ Component compilation error:', error);
+      
+      // Return a safe error component instead of throwing
+      return () => React.createElement('div', {
+        className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
       }, [
         React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Compilation Failed'),
-        React.createElement('div', { key: 'message', className: 'mb-2' }, error instanceof Error ? error.message : 'Unknown compilation error'),
-        React.createElement('div', { key: 'advice', className: 'text-sm' }, 'Please try regenerating the component'),
-        React.createElement('details', { key: 'details', className: 'mt-2 text-xs' }, [
-          React.createElement('summary', { key: 'summary', className: 'cursor-pointer font-medium' }, 'Technical Details'),
-          React.createElement('pre', { key: 'error', className: 'mt-1 bg-red-100 p-2 rounded overflow-auto' }, String(error))
+        React.createElement('div', { key: 'error', className: 'text-sm' }, String(error)),
+        React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try regenerating the component'),
+        React.createElement('details', { key: 'details', className: 'mt-3' }, [
+          React.createElement('summary', { key: 'summary', className: 'text-xs cursor-pointer' }, 'Technical Details'),
+          React.createElement('pre', { key: 'pre', className: 'text-xs mt-1 p-2 bg-red-100 rounded overflow-auto' }, String(error))
         ])
       ]);
     }

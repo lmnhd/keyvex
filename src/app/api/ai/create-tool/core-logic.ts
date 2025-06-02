@@ -94,6 +94,466 @@ function createModelInstance(provider: string, modelId: string) {
 
 // Helper function to get system prompt
 function getToolCreationSystemPrompt(): string {
+  console.log('🏭 TRACE: TOOL_CREATION_PROMPT length:', TOOL_CREATION_PROMPT.length);
+  console.log('🏭 TRACE: TOOL_CREATION_PROMPT first 1000 chars:', TOOL_CREATION_PROMPT.substring(0, 1000));
+  return TOOL_CREATION_PROMPT;
+}
+
+// ProductToolDefinition schema for structured output
+const productToolDefinitionSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  version: z.string(),
+  status: z.enum(['draft', 'published', 'archived']),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  createdBy: z.string(),
+  
+  metadata: z.object({
+    id: z.string(),
+    slug: z.string(),
+    title: z.string(),
+    description: z.string(),
+    shortDescription: z.string(),
+    type: z.string(),
+    category: z.string(),
+    targetAudience: z.string(),
+    industry: z.string(),
+    tags: z.array(z.string()),
+    estimatedCompletionTime: z.number(),
+    difficultyLevel: z.enum(['beginner', 'intermediate', 'advanced']),
+    features: z.array(z.string()),
+    icon: z.object({
+      type: z.enum(['lucide', 'emoji']),
+      value: z.string()
+    })
+  }),
+  
+  // React component code as string
+  componentCode: z.string(),
+  
+  // Style information
+  initialStyleMap: z.record(z.string()).optional(), // Generated once by AI
+  currentStyleMap: z.record(z.string()).optional(),  // Active, editable style map
+
+  // Simplified color scheme
+  colorScheme: z.object({
+    primary: z.string(),
+    secondary: z.string(),
+    background: z.string(),
+    surface: z.string(),
+    text: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      muted: z.string()
+    }),
+    border: z.string(),
+    success: z.string(),
+    warning: z.string(),
+    error: z.string()
+  }),
+  
+  // Simple analytics
+  analytics: z.object({
+    enabled: z.boolean(),
+    completions: z.number(),
+    averageTime: z.number()
+  }).optional()
+});
+
+// Main processing function
+export async function processCreateToolRequest(
+  request: CreateToolRequest
+): Promise<CreateToolResponse> {
+  const context = await initializeCreateToolContext(request);
+  
+  try {
+    // Switch provider if needed
+    if (request.provider && request.provider !== aiOrchestrator.getStatus().provider) {
+      aiOrchestrator.switchProvider(request.provider);
+    }
+
+    // Create tool request for orchestrator
+    const toolRequest: ToolCreationRequest = {
+      expertise: request.expertise,
+      targetAudience: request.targetAudience,
+      industry: request.industry,
+      goals: request.goals,
+      branding: request.branding,
+      selectedSuggestion: request.selectedSuggestion,
+      customFramework: request.customFramework,
+      contentPreferences: request.contentPreferences,
+      stylePreferences: request.stylePreferences,
+      provider: request.provider || 'anthropic',
+      streaming: false,
+      sessionId: request.sessionId
+    };
+
+    // Create tool with orchestrator
+    const result = await aiOrchestrator.createTool(toolRequest);
+
+    // Update session with results
+    await updateAISession(request.userId, result.metadata.sessionId, {
+      action: 'create-tool',
+      request: toolRequest,
+      result,
+      metadata: {
+        ...result.metadata,
+        userId: request.userId,
+        completedAt: new Date()
+      }
+    });
+
+    return {
+      success: true,
+      data: result,
+      metadata: {
+        processingTime: Date.now() - context.startTime,
+        sessionId: result.metadata.sessionId,
+        provider: result.metadata.provider,
+        quality: result.metadata.quality
+      }
+    };
+
+  } catch (error) {
+    throw error; // Let the route handler deal with error formatting
+  }
+}
+
+// Streaming processing function
+export async function processCreateToolStreaming(
+  request: CreateToolRequest,
+  callbacks: CreateToolStreamingCallbacks
+): Promise<void> {
+  const context = await initializeCreateToolContext(request);
+  const sessionId = request.sessionId || generateSessionId();
+
+  try {
+    // Switch provider if needed
+    if (request.provider && request.provider !== aiOrchestrator.getStatus().provider) {
+      aiOrchestrator.switchProvider(request.provider);
+    }
+
+    // Create tool request for orchestrator
+    const toolRequest: ToolCreationRequest = {
+      expertise: request.expertise,
+      targetAudience: request.targetAudience,
+      industry: request.industry,
+      goals: request.goals,
+      branding: request.branding,
+      selectedSuggestion: request.selectedSuggestion,
+      customFramework: request.customFramework,
+      contentPreferences: request.contentPreferences,
+      stylePreferences: request.stylePreferences,
+      provider: request.provider || 'anthropic',
+      streaming: true,
+      sessionId
+    };
+
+    // Set up streaming callbacks for orchestrator
+    const orchestratorCallbacks: StreamingCallbacks = {
+      onStepStart: (step) => {
+        callbacks.onStepStart?.(step);
+      },
+
+      onStepProgress: (step, progress) => {
+        callbacks.onStepProgress?.(step, progress);
+      },
+
+      onStepComplete: (step, result) => {
+        callbacks.onStepComplete?.(step, result);
+      },
+
+      onError: (step, error) => {
+        callbacks.onError?.(step, error);
+      },
+
+      onComplete: async (result) => {
+        // Update session with final results
+        await updateAISession(request.userId, sessionId, {
+          action: 'create-tool-streaming',
+          request: toolRequest,
+          result,
+          metadata: {
+            ...result.metadata,
+            userId: request.userId,
+            completedAt: new Date(),
+            streaming: true
+          }
+        });
+
+        callbacks.onComplete?.(result);
+      }
+    };
+
+    // Start streaming tool creation
+    await aiOrchestrator.streamToolCreation(toolRequest, orchestratorCallbacks);
+
+  } catch (error) {
+    callbacks.onError?.('streaming', error instanceof Error ? error : new Error('Unknown error'));
+  }
+}
+
+// Session retrieval function
+export async function getCreateToolSession(
+  userId: string,
+  sessionId: string
+): Promise<any | null> {
+  try {
+    // TODO: Replace with actual database implementation
+    console.log('Getting Create Tool session:', { userId, sessionId });
+    return null;
+  } catch (error) {
+    console.error('Failed to get Create Tool session:', error);
+    return null;
+  }
+}
+
+// Orchestrator status function
+export function getCreateToolStatus(): any {
+  return aiOrchestrator.getStatus();
+}
+
+// Helper functions
+async function initializeCreateToolContext(
+  request: CreateToolRequest
+): Promise<CreateToolContext> {
+  const startTime = Date.now();
+
+  return {
+    request,
+    startTime
+  };
+}
+
+function generateSessionId(): string {
+  return `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+async function updateAISession(
+  userId: string,
+  sessionId: string,
+  data: any
+): Promise<void> {
+  try {
+    // TODO: Replace with actual database implementation
+    console.log('Updating Create Tool AI session:', { userId, sessionId, data });
+  } catch (error) {
+    console.error('Failed to update Create Tool AI session:', error);
+  }
+}
+
+// Rate limiting function
+export async function checkCreateToolRateLimit(userId: string): Promise<boolean> {
+  // TODO: Implement actual rate limiting with Redis/DynamoDB
+  return true;
+}
+
+// Usage tracking function
+export async function trackCreateToolUsage(
+  userId: string,
+  action: string,
+  metadata: any
+): Promise<void> {
+  // TODO: Implement usage tracking with DynamoDB
+  console.log('Create Tool usage tracked:', { userId, action, metadata });
+}
+
+// Quality validation function
+export async function validateCreateToolQuality(result: any): Promise<{
+  isValid: boolean;
+  issues: string[];
+  score: number;
+}> {
+  // TODO: Implement comprehensive quality validation
+  return {
+    isValid: true,
+    issues: [],
+    score: result.metadata?.quality?.overall || 8.0
+  };
+}
+
+// Simple color scheme detection (inline replacement)
+const DEFAULT_COLOR_SCHEMES = {
+  professional: {
+    primary: '#3b82f6',
+    secondary: '#6b7280',
+    background: '#ffffff',
+    surface: '#f9fafb',
+    text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+    border: '#e5e7eb',
+    success: '#10b981',
+    warning: '#f59e0b',
+    error: '#ef4444'
+  }
+} as const;
+
+type ColorSchemeKey = keyof typeof DEFAULT_COLOR_SCHEMES;
+
+const detectColorScheme = (context: any): ColorSchemeKey => 'professional';
+
+// Enhanced tool processing logic (without JSX compilation)
+export async function processToolCreation(
+  userIntent: string,
+  context: any,
+  existingTool?: ProductToolDefinition | null,
+  userId?: string
+): Promise<ProductToolDefinition> {
+  console.log('🏭 TRACE: processToolCreation START');
+  console.log('🏭 TRACE: userIntent:', userIntent);
+  console.log('🏭 TRACE: context received:', JSON.stringify(context, null, 2));
+  console.log('🏭 TRACE: existingTool:', existingTool?.id || 'none');
+  
+  try {
+    // Get model configuration
+    const modelConfig = getPrimaryModel('toolCreation');
+    const model = modelConfig ? createModelInstance(modelConfig.provider, modelConfig.modelInfo.id) : openai('gpt-4o');
+    
+    console.log('🏭 TRACE: Using model:', modelConfig?.modelInfo?.id || 'gpt-4o');
+    
+    // FORCE gpt-4o for debugging
+    const debugModel = openai('gpt-4o');
+    console.log('🏭 TRACE: ⚠️ FORCING gpt-4o for debugging purposes');
+
+    // Load external brainstorming context if available
+    let brainstormingContext = null;
+    if (context.brainstormingResult || context.logicArchitectInsights) {
+      brainstormingContext = context.brainstormingResult || context.logicArchitectInsights;
+      console.log('🏭 TRACE: ✅ External brainstorming loaded:', JSON.stringify(brainstormingContext, null, 2));
+    } else {
+      console.log('🏭 TRACE: ⚠️ No external brainstorming context available');
+    }
+
+    // Determine if this is an update or new creation
+    const isUpdate = !!existingTool;
+    const updateType = context.updateType || 'general';
+    
+    console.log('🏭 TRACE: isUpdate:', isUpdate, 'updateType:', updateType);
+
+    // Build the user prompt with all available context
+    console.log('🏭 TRACE: Building user prompt...');
+    const userPrompt = buildToolCreationUserPrompt(
+      userIntent,
+      {
+        ...context,
+        brainstormingResult: brainstormingContext,
+        logicArchitectInsights: brainstormingContext
+      },
+      existingTool,
+      updateType
+    );
+    
+    console.log('🏭 TRACE: User prompt built, length:', userPrompt.length);
+    console.log('🏭 TRACE: User prompt preview (first 500 chars):', userPrompt.substring(0, 500));
+
+    // Get the system prompt
+    const systemPrompt = getToolCreationSystemPrompt();
+    console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
+    console.log('🏭 TRACE: System prompt preview (first 500 chars):', systemPrompt.substring(0, 500));
+
+    // Generate tool definition using AI
+    console.log('🏭 TRACE: Calling AI model...');
+    const result = await generateObject({
+      model: debugModel,
+      schema: productToolDefinitionSchema,
+      prompt: userPrompt,
+      system: systemPrompt,
+// Create Tool Core Logic - Reusable business logic for Lambda compatibility
+
+import { z } from 'zod';
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
+import * as babel from '@babel/core';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { buildToolCreationUserPrompt, TOOL_CREATION_PROMPT } from '@/lib/prompts/tool-creation-prompt';
+
+// Core request interface
+export interface CreateToolRequest {
+  expertise: string;
+  targetAudience: string;
+  goals: string[];
+  branding: {
+    companyName?: string;
+    industry?: string;
+    colors?: {
+      primary?: string;
+      secondary?: string;
+      accent?: string;
+    };
+    fonts?: {
+      heading?: string;
+      body?: string;
+    };
+    tone: string;
+    logoUrl?: string;
+    existingBrandAssets?: string[];
+  };
+  industry?: string;
+  selectedSuggestion?: any;
+  customFramework?: {
+    methodology?: string;
+    existingContent?: string;
+  };
+  contentPreferences?: {
+    tone?: string;
+    style?: string;
+    language?: string;
+  };
+  stylePreferences?: {
+    theme?: string;
+    colorScheme?: string;
+    layout?: string;
+  };
+  provider?: 'openai' | 'anthropic';
+  streaming?: boolean;
+  sessionId?: string;
+  userId: string;
+}
+
+// Core response interface
+export interface CreateToolResponse {
+  success: boolean;
+  data: any;
+  metadata: {
+    processingTime: number;
+    sessionId: string;
+    provider: string;
+    quality: any;
+  };
+}
+
+// Streaming callback interface
+export interface CreateToolStreamingCallbacks {
+  onStepStart?: (step: string) => void;
+  onStepProgress?: (step: string, progress: number) => void;
+  onStepComplete?: (step: string, result: any) => void;
+  onError?: (step: string, error: Error) => void;
+  onComplete?: (result: any) => void;
+}
+
+// Core processing context
+export interface CreateToolContext {
+  request: CreateToolRequest;
+  startTime: number;
+}
+
+// Helper function to create model instance
+function createModelInstance(provider: string, modelId: string) {
+  switch (provider) {
+    case 'openai':
+      return openai(modelId);
+    case 'anthropic':
+      return anthropic(modelId);
+    default:
+      return openai('gpt-4o');
+  }
+}
+
+// Helper function to get system prompt
+function getToolCreationSystemPrompt(): string {
   return TOOL_CREATION_PROMPT;
 }
 
