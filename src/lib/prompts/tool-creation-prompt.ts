@@ -112,11 +112,13 @@ export const TOOL_CREATION_PROMPT = `<purpose>
 </purpose>
 
 <output-format>
-    You must generate BOTH:
-    1. A complete ProductToolDefinition object (for data storage and metadata)
-    2. A React component code string (for dynamic rendering)
+    You must generate a complete ProductToolDefinition object. This object has several key fields:
+    1.  'metadata': An object containing the title, description, category, etc.
+    2.  'componentCode': A string containing the complete, working React functional component code (using React.createElement, no imports, no JSX).
+    3.  'colorScheme': An object defining the color palette for the tool.
+    4.  'initialStyleMap' (IMPORTANT): An object mapping 'data-style-id' attributes from your 'componentCode' to their initial Tailwind CSS class strings. Example: { "title-text": "text-2xl font-bold text-blue-600", "main-container": "p-4 bg-gray-100 rounded-lg" }
     
-    The componentCode field should contain a complete, working React component that matches the tool's purpose.
+    The componentCode and initialStyleMap are CRITICAL for dynamic styling later.
 </output-format>
 
 <component-code-requirements>
@@ -129,6 +131,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - Function name should be descriptive PascalCase (e.g., SolarSavingsCalculator)
         - Ensure ALL variables are properly declared and used
         - Include proper error handling and validation
+        - CRITICAL FOR STYLING: For elements that should be dynamically stylable (like text, containers, buttons), add a 'data-style-id' attribute with a unique, descriptive kebab-case string. Example: React.createElement('h1', { className: 'initial-tailwind-classes', 'data-style-id': 'main-title-text' }, 'Tool Title')
     </structure>
     
     <available-context-variables>
@@ -227,6 +230,16 @@ export const TOOL_CREATION_PROMPT = `<purpose>
             - RANGES: Always specify min/max and what they represent
         </special-cases>
     </input-labeling-requirements>
+    
+    <style-map-requirements>
+        🎯 CRITICAL: You MUST provide an 'initialStyleMap' object within the ProductToolDefinition.
+        - This object is a dictionary where:
+            - Keys are the exact string values you used for 'data-style-id' attributes in your 'componentCode'.
+            - Values are the complete Tailwind CSS class strings that should be initially applied to those elements.
+        - Every element in 'componentCode' that has a 'data-style-id' MUST have a corresponding entry in 'initialStyleMap'.
+        - Example: If componentCode has '<div data-style-id="my-container" className="p-4 bg-white">', then initialStyleMap must include '"my-container": "p-4 bg-white"'.
+        - Ensure the class strings in 'initialStyleMap' are valid and complete Tailwind classes.
+    </style-map-requirements>
     
     <header-design-requirements>
         ⚠️ CRITICAL: Create SPACE-EFFICIENT headers, not bulky description sections!

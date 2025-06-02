@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "lastUpdated": "2024-01-15",
-  "description": "Centralized AI model configuration for Keyvex processes",
+  "version": "2.0.0",
+  "lastUpdated": "2025-01-27",
+  "description": "Centralized AI model configuration for Keyvex processes - Updated with all new OpenAI models including GPT-4.1 series and o-series reasoning models",
   
   "providers": {
     "openai": {
@@ -52,6 +52,39 @@
           "capabilities": ["text", "fast-response"],
           "recommended": ["quick-suggestions", "simple-tasks"]
         },
+        "gpt-4.1": {
+          "id": "gpt-4.1",
+          "name": "GPT-4.1",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.005,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "complex-tasks"],
+          "recommended": ["flagship-tasks", "complex-reasoning", "advanced-analysis"]
+        },
+        "gpt-4.1-mini": {
+          "id": "gpt-4.1-mini",
+          "name": "GPT-4.1 Mini",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.00015,
+            "output": 0.0006
+          },
+          "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "fast-response", "cost-effective"],
+          "recommended": ["tool-generation", "cost-effective-tasks", "rapid-prototyping", "intelligent-speed-balance"]
+        },
+        "gpt-4.1-nano": {
+          "id": "gpt-4.1-nano",
+          "name": "GPT-4.1 Nano",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.00005,
+            "output": 0.0002
+          },
+          "capabilities": ["text", "reasoning", "fast-response", "ultra-cost-effective"],
+          "recommended": ["simple-tasks", "ultra-fast-responses", "high-volume-operations"]
+        },
         "gpt-4o": {
           "id": "gpt-4o",
           "name": "GPT-4o",
@@ -74,16 +107,105 @@
           "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "fast-response"],
           "recommended": ["quick-tool-generation", "cost-effective-tasks", "rapid-prototyping"]
         },
+        "gpt-4o-audio-preview": {
+          "id": "gpt-4o-audio-preview",
+          "name": "GPT-4o Audio",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.005,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "audio-input", "audio-output", "multimodal"],
+          "recommended": ["audio-processing", "voice-interfaces", "multimedia-applications"]
+        },
+        "gpt-4o-mini-audio-preview": {
+          "id": "gpt-4o-mini-audio-preview",
+          "name": "GPT-4o Mini Audio",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.00015,
+            "output": 0.0006
+          },
+          "capabilities": ["text", "reasoning", "audio-input", "audio-output", "multimodal", "fast-response"],
+          "recommended": ["cost-effective-audio", "rapid-audio-prototyping", "simple-voice-tasks"]
+        },
+        "chatgpt-4o-latest": {
+          "id": "chatgpt-4o-latest",
+          "name": "ChatGPT-4o",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.005,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "conversation", "multimodal"],
+          "recommended": ["chat-applications", "conversational-ai", "interactive-experiences"]
+        },
+        "o1": {
+          "id": "o1",
+          "name": "o1",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.015,
+            "output": 0.06
+          },
+          "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought", "mathematical-reasoning"],
+          "recommended": ["complex-logic", "mathematical-problems", "advanced-reasoning-tasks"]
+        },
         "o1-mini": {
           "id": "o1-mini",
-          "name": "o1-mini",
+          "name": "o1-mini (Deprecated)",
           "maxTokens": 65536,
           "costPer1kTokens": {
             "input": 0.003,
             "output": 0.012
           },
           "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought"],
-          "recommended": ["complex-logic", "mathematical-reasoning", "structured-problem-solving"]
+          "recommended": ["complex-logic", "mathematical-reasoning", "structured-problem-solving"],
+          "deprecated": true
+        },
+        "o1-pro": {
+          "id": "o1-pro",
+          "name": "o1-pro",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.06,
+            "output": 0.24
+          },
+          "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought", "enhanced-compute"],
+          "recommended": ["highest-quality-reasoning", "complex-mathematical-problems", "advanced-analysis"]
+        },
+        "o3": {
+          "id": "o3",
+          "name": "o3",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.06,
+            "output": 0.24
+          },
+          "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought", "most-powerful-reasoning"],
+          "recommended": ["most-complex-reasoning", "advanced-mathematical-problems", "sophisticated-analysis"]
+        },
+        "o3-mini": {
+          "id": "o3-mini",
+          "name": "o3-mini",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.003,
+            "output": 0.012
+          },
+          "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought", "cost-effective-reasoning"],
+          "recommended": ["reasoning-tasks", "mathematical-problems", "logical-analysis", "affordable-reasoning"]
+        },
+        "o4-mini": {
+          "id": "o4-mini",
+          "name": "o4-mini",
+          "maxTokens": 128000,
+          "costPer1kTokens": {
+            "input": 0.001,
+            "output": 0.004
+          },
+          "capabilities": ["text", "advanced-reasoning", "complex-problem-solving", "chain-of-thought", "fast-reasoning", "affordable-reasoning"],
+          "recommended": ["fast-reasoning-tasks", "cost-effective-complex-problems", "rapid-logical-analysis"]
         }
       }
     },
@@ -269,7 +391,7 @@
       "description": "Conversation management and UI testing agent",
       "primary": {
         "provider": "openai",
-        "model": "gpt-4o",
+        "model": "gpt-4.1",
         "reason": "Advanced reasoning and conversation flow management with multimodal capabilities"
       },
       "fallback": {
@@ -286,12 +408,12 @@
       "description": "Specialized tool generation and ProductToolDefinition creation",
       "primary": {
         "provider": "openai",
-        "model": "gpt-4o",
-        "reason": "Excellent structured output generation and complex schema handling"
+        "model": "gpt-4.1-mini",
+        "reason": "Excellent structured output generation with intelligent speed/cost balance, perfect for tool creation"
       },
       "fallback": {
         "provider": "openai",
-        "model": "gpt-4-turbo",
+        "model": "gpt-4o",
         "reason": "Strong alternative for structured tool generation"
       },
       "streaming": false,

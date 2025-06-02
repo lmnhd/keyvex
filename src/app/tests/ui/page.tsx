@@ -114,13 +114,22 @@ import {
   Upload
 } from 'lucide-react';
 import DynamicComponentRenderer from '@/components/tools/dynamic-component-renderer';
-import { InputHistory } from '@/components/tool-creator/input-history';
+import { InputHistory } from '@/components/tool-creator-ui/input-history';
 import { initBehaviorTracker, getBehaviorTracker } from '@/lib/ai/behavior-tracker';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { DynamicInput } from '@/components/tool-creator-ui/inputs';
+import { ColorPickerPopup } from '@/components/tool-creator-ui/inputs';
+import { FullFormPopup } from '@/components/tool-creator-ui/inputs/FullFormPopup';
 
-// Local Storage Utilities for Development
-const LOGIC_STORAGE_KEY = 'keyvex_logic_architect_results';
-const TOOLS_STORAGE_KEY = 'keyvex_created_tools';
+// Local Storage Utilities for Development (Keep for LOGIC_STORAGE_KEY for now)
+// const LOGIC_STORAGE_KEY = 'keyvex_logic_architect_results'; // REMOVED: Will use IndexedDB
+// const TOOLS_STORAGE_KEY = 'keyvex_created_tools'; // REMOVED: Last active tool uses IndexedDB, list of all tools is removed from this page
+
+// IndexedDB Constants
+const DB_NAME = 'KeyvexUIDevDB';
+const TOOL_STORE_NAME = 'productTools';
+const LOGIC_RESULT_STORE_NAME = 'logicArchitectResults'; // NEW Store
+const LAST_ACTIVE_TOOL_KEY = 'lastActiveTool_v1';
 
 interface SavedLogicResult {
   id: string;
@@ -132,6 +141,7 @@ interface SavedLogicResult {
   result: any;
 }
 
+// Reinstate SavedTool for the "all tools" list which still uses localStorage
 interface SavedTool {
   id: string;
   timestamp: number;
@@ -140,69 +150,292 @@ interface SavedTool {
   tool: ProductToolDefinition;
 }
 
-const saveLogicResult = (toolType: string, targetAudience: string, industry: string | undefined, result: any) => {
-  try {
-    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-    const existing: SavedLogicResult[] = saved ? JSON.parse(saved) : [];
-    
-    const newResult: SavedLogicResult = {
-      id: `logic_${Date.now()}`,
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-      toolType,
-      targetAudience,
-      industry,
-      result
+// IndexedDB Helper Functions
+async function openToolDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 3); // Increment DB version to 3 for schema change
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', (event.target as IDBOpenDBRequest).error);
+      reject('Error opening IndexedDB');
     };
-    
-    existing.unshift(newResult); // Add to beginning
-    localStorage.setItem(LOGIC_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
-    console.log('💾 Saved logic result to localStorage:', newResult.id);
-  } catch (error) {
-    console.error('Failed to save logic result:', error);
-  }
-};
 
-const saveCreatedTool = (tool: ProductToolDefinition) => {
-  try {
-    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
-    const existing: SavedTool[] = saved ? JSON.parse(saved) : [];
-    
-    const newTool: SavedTool = {
-      id: `tool_${Date.now()}`,
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-      title: tool.metadata.title,
-      tool
+    request.onsuccess = (event) => {
+      resolve((event.target as IDBOpenDBRequest).result);
     };
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      const oldVersion = event.oldVersion;
+      console.log(`Upgrading IndexedDB from version ${oldVersion} to ${db.version}`);
+
+      // Object store for individual product tools (used for last active and list of all)
+      if (!db.objectStoreNames.contains(TOOL_STORE_NAME)) {
+        const toolStore = db.createObjectStore(TOOL_STORE_NAME, { keyPath: 'id' });
+        toolStore.createIndex('timestamp', 'updatedAt', { unique: false }); // Index for sorting by recent changes
+        console.log(`Object store "${TOOL_STORE_NAME}" created with keyPath 'id' and index 'timestamp' (on 'updatedAt').`);
+      } else {
+        // If store exists, ensure index is present (idempotent check)
+        const transaction = (event.target as IDBOpenDBRequest).transaction;
+        if (transaction) {
+          const toolStore = transaction.objectStore(TOOL_STORE_NAME);
+          if (!toolStore.indexNames.contains('timestamp')) {
+            toolStore.createIndex('timestamp', 'updatedAt', { unique: false });
+            console.log(`Index 'timestamp' (on 'updatedAt') created for existing store "${TOOL_STORE_NAME}".`);
+          }
+        }
+      }
+      
+      // Object store for Logic Architect results
+      if (!db.objectStoreNames.contains(LOGIC_RESULT_STORE_NAME)) {
+        const logicStore = db.createObjectStore(LOGIC_RESULT_STORE_NAME, { keyPath: 'id' });
+        logicStore.createIndex('timestamp', 'timestamp', { unique: false });
+        console.log(`Object store "${LOGIC_RESULT_STORE_NAME}" created.`);
+      }
+    };
+  });
+}
+
+async function saveLastActiveToolToDB(tool: ProductToolDefinition): Promise<void> {
+  try {
+    const db = await openToolDB();
+    // First, save/update the full tool definition in the main store
+    const transaction = db.transaction(TOOL_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    // Ensure the tool has an 'id' and 'updatedAt'
+    const toolToSave = { ...tool, id: tool.id || `tool_${Date.now()}`, updatedAt: tool.updatedAt || Date.now() };
+    const saveRequest = store.put(toolToSave);
+
+    await new Promise<void>((resolveUpdate, rejectUpdate) => {
+      saveRequest.onsuccess = () => {
+        console.log('💾 Saved/Updated tool definition in main store for last active:', toolToSave.id);
+        resolveUpdate();
+      };
+      saveRequest.onerror = (event) => {
+        console.error('Failed to save tool definition to main store for last active:', (event.target as IDBRequest).error);
+        rejectUpdate((event.target as IDBRequest).error);
+      };
+    });
     
-    existing.unshift(newTool); // Add to beginning
-    localStorage.setItem(TOOLS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
-    console.log('💾 Saved created tool to localStorage:', newTool.id);
-  } catch (error) {
-    console.error('Failed to save created tool:', error);
-  }
-};
+    // Then, save the ID of this tool under the LAST_ACTIVE_TOOL_KEY in localStorage
+    localStorage.setItem(LAST_ACTIVE_TOOL_KEY, toolToSave.id);
+    console.log('💾 Saved last active tool ID to localStorage:', toolToSave.id);
 
-const getSavedLogicResults = (): SavedLogicResult[] => {
-  try {
-    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
   } catch (error) {
-    console.error('Failed to load logic results:', error);
-    return [];
+    console.error('Error in saveLastActiveToolToDB:', error);
+    throw error;
   }
-};
+}
 
-const getSavedTools = (): SavedTool[] => {
+async function loadLastActiveToolFromDB(): Promise<ProductToolDefinition | null> {
   try {
-    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
+    const lastActiveToolId = localStorage.getItem(LAST_ACTIVE_TOOL_KEY);
+    if (!lastActiveToolId) {
+      console.log('🔧 No last active tool ID found in localStorage.');
+      return null;
+    }
+
+    const db = await openToolDB();
+    const transaction = db.transaction(TOOL_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    const request = store.get(lastActiveToolId);
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = (event) => {
+        const result = (event.target as IDBRequest).result as ProductToolDefinition | undefined;
+        if (result) {
+          console.log('🔧 Loaded last active tool from IndexedDB (ID from localStorage):', result.metadata.title);
+          resolve(result);
+        } else {
+          console.log('🔧 Last active tool ID found in localStorage, but tool not in IndexedDB. Clearing orphan ID.');
+          localStorage.removeItem(LAST_ACTIVE_TOOL_KEY); 
+          resolve(null);
+        }
+      };
+      request.onerror = (event) => {
+        console.error('Failed to load last active tool from IndexedDB:', (event.target as IDBRequest).error);
+        resolve(null);
+      };
+    });
   } catch (error) {
-    console.error('Failed to load saved tools:', error);
-    return [];
+    console.error('Error in loadLastActiveToolFromDB:', error);
+    return null;
   }
-};
+}
+
+// NEW: Save Logic Architect result to IndexedDB
+async function saveLogicResultToDB(logicResult: SavedLogicResult): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction(LOGIC_RESULT_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(LOGIC_RESULT_STORE_NAME);
+    const request = store.put(logicResult);
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        console.log('💾 Saved logic result to IndexedDB:', logicResult.id);
+        resolve();
+      };
+      request.onerror = (event) => {
+        console.error('Failed to save logic result to IndexedDB:', (event.target as IDBRequest).error);
+        reject((event.target as IDBRequest).error);
+      };
+    });
+  } catch (error) {
+    console.error('Error in saveLogicResultToDB:', error);
+    throw error;
+  }
+}
+
+// NEW: Load Logic Architect results from IndexedDB, sorted by timestamp
+async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction(LOGIC_RESULT_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(LOGIC_RESULT_STORE_NAME);
+    const index = store.index('timestamp'); // Use the timestamp index
+    const request = index.getAll(); // Get all, then sort in JS, or use IDBCursor with direction 'prev'
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = (event) => {
+        const results = (event.target as IDBRequest).result as SavedLogicResult[];
+        // Sort descending by timestamp (newest first)
+        results.sort((a, b) => b.timestamp - a.timestamp);
+        console.log(`🔧 Loaded ${results.length} logic results from IndexedDB.`);
+        resolve(results.slice(0, 50)); // Limit to 50 most recent, similar to previous localStorage logic
+      };
+      request.onerror = (event) => {
+        console.error('Failed to load logic results from IndexedDB:', (event.target as IDBRequest).error);
+        resolve([]); // Return empty array on error
+      };
+    });
+  } catch (error) {
+    console.error('Error in loadLogicResultsFromDB:', error);
+    return []; // Return empty array on error
+  }
+}
+
+// NEW: Save a tool to the general list in IndexedDB
+async function saveToolToDBList(tool: ProductToolDefinition): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction(TOOL_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    // Ensure the tool has a unique 'id' and 'updatedAt' for storing and sorting
+    const toolToSave = { 
+      ...tool, 
+      id: tool.id || `tool_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`, 
+      updatedAt: tool.updatedAt || Date.now() 
+    };
+    const request = store.put(toolToSave); // put will add or update if exists
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        console.log('💾 Saved tool to IndexedDB list (add/update):', toolToSave.metadata.title, toolToSave.id);
+        resolve();
+      };
+      request.onerror = (event) => {
+        console.error('Failed to save tool to IndexedDB list:', (event.target as IDBRequest).error);
+        reject((event.target as IDBRequest).error);
+      };
+    });
+  } catch (error) {
+    console.error('Error in saveToolToDBList:', error);
+    throw error;
+  }
+}
+
+// NEW: Load all tools from IndexedDB, sorted by updatedAt (newest first)
+async function loadAllToolsFromDB(): Promise<ProductToolDefinition[]> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction(TOOL_STORE_NAME, 'readonly');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    const index = store.index('timestamp'); // Using 'timestamp' index which maps to 'updatedAt'
+    const request = index.getAll(); 
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = (event) => {
+        let results = (event.target as IDBRequest).result as ProductToolDefinition[];
+        // Filter out the entry that might correspond to LAST_ACTIVE_TOOL_KEY if it's just an ID string
+        // However, with the new approach, LAST_ACTIVE_TOOL_KEY is just an ID in localStorage,
+        // and the actual tool is stored normally. So, all items should be ProductToolDefinition.
+        results = results.filter(item => typeof item === 'object' && item.id && item.metadata);
+
+        // Sort descending by updatedAt (newest first)
+        results.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        console.log(`🔧 Loaded ${results.length} tools from IndexedDB list.`);
+        resolve(results);
+      };
+      request.onerror = (event) => {
+        console.error('Failed to load all tools from IndexedDB list:', (event.target as IDBRequest).error);
+        resolve([]); 
+      };
+    });
+  } catch (error) {
+    console.error('Error in loadAllToolsFromDB:', error);
+    return []; 
+  }
+}
+
+// NEW: Delete a tool from the IndexedDB list by its ID
+async function deleteToolFromDBList(toolId: string): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction(TOOL_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    const request = store.delete(toolId);
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        console.log('🗑️ Deleted tool from IndexedDB list:', toolId);
+        resolve();
+      };
+      request.onerror = (event) => {
+        console.error('Failed to delete tool from IndexedDB list:', (event.target as IDBRequest).error);
+        reject((event.target as IDBRequest).error);
+      };
+    });
+  } catch (error) {
+    console.error('Error in deleteToolFromDBList:', error);
+    throw error;
+  }
+}
+
+// Restore localStorage function for the list of all saved tools
+// const saveCreatedTool = (tool: ProductToolDefinition) => { // REMOVED
+// try {
+// const TOOLS_STORAGE_KEY_LITERAL = 'keyvex_created_tools'; // Define literal key
+// const saved = localStorage.getItem(TOOLS_STORAGE_KEY_LITERAL);
+// const existing: SavedTool[] = saved ? JSON.parse(saved) : [];
+    
+// const newTool: SavedTool = {
+// id: tool.id || `tool_${Date.now()}`, // Use tool.id if available
+// timestamp: Date.now(),
+// date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
+// title: tool.metadata.title,
+// tool
+// };
+    
+// existing.unshift(newTool);
+// localStorage.setItem(TOOLS_STORAGE_KEY_LITERAL, JSON.stringify(existing.slice(0, 50)));
+// console.log('💾 Saved created tool to localStorage (for all tools list):', newTool.id);
+// } catch (error) {
+// console.error('Failed to save created tool to localStorage (for all tools list):', error);
+// }
+// };
+
+// Restore localStorage function for the list of all saved tools
+// const getSavedTools = (): SavedTool[] => { // REMOVED
+// try {
+// const TOOLS_STORAGE_KEY_LITERAL = 'keyvex_created_tools'; // Define literal key
+// const saved = localStorage.getItem(TOOLS_STORAGE_KEY_LITERAL);
+// return saved ? JSON.parse(saved) : [];
+// } catch (error) {
+// console.error('Failed to load saved tools from localStorage (for all tools list):', error);
+// return [];
+// }
+// };
 
 // Mock workflow for testing different input types and transitions
 const mockWorkflow = [
@@ -363,106 +596,100 @@ const iteratorTestWorkflow = [
         suggestions: ['John Smith', 'Jane Doe', 'Alex Johnson']
       },
       {
-        id: 'role-title',
-        question: "What's your professional role?",
+        id: 'company-role',
+        question: "What's your role at your company?",
         inputType: 'select',
         options: [
           { value: 'ceo', label: 'CEO/Founder' },
           { value: 'marketing', label: 'Marketing Manager' },
-          { value: 'sales', label: 'Sales Director' },
-          { value: 'consultant', label: 'Business Consultant' },
-          { value: 'freelancer', label: 'Freelancer' },
-          { value: 'other', label: 'Other Role' }
+          { value: 'sales', label: 'Sales Manager' },
+          { value: 'operations', label: 'Operations Manager' },
+          { value: 'consultant', label: 'Consultant' },
+          { value: 'other', label: 'Other' }
         ],
         allowCustom: true
       },
       {
         id: 'experience-level',
-        question: "How would you describe your experience level?",
-        inputType: 'yesNoMaybe',
+        question: "How many years of experience do you have in your field?",
+        inputType: 'select',
         options: [
-          { value: 'beginner', label: 'Beginner' },
-          { value: 'intermediate', label: 'Intermediate' },
-          { value: 'expert', label: 'Expert' }
+          { value: '0-2', label: '0-2 years' },
+          { value: '3-5', label: '3-5 years' },
+          { value: '6-10', label: '6-10 years' },
+          { value: '11-15', label: '11-15 years' },
+          { value: '15+', label: '15+ years' }
         ]
       },
       {
-        id: 'interests',
-        question: "Which areas interest you most? (Select up to 3)",
+        id: 'primary-goals',
+        question: "What are your primary business goals this year? (Select up to 3)",
         inputType: 'multiSelect',
         options: [
-          { value: 'ai', label: 'Artificial Intelligence' },
-          { value: 'marketing', label: 'Digital Marketing' },
-          { value: 'sales', label: 'Sales Automation' },
-          { value: 'analytics', label: 'Data Analytics' },
-          { value: 'design', label: 'Design & UX' },
-          { value: 'development', label: 'Software Development' }
+          { value: 'increase-revenue', label: 'Increase Revenue' },
+          { value: 'reduce-costs', label: 'Reduce Costs' },
+          { value: 'improve-efficiency', label: 'Improve Efficiency' },
+          { value: 'expand-market', label: 'Expand Market Share' },
+          { value: 'digital-transformation', label: 'Digital Transformation' },
+          { value: 'team-growth', label: 'Team Growth' }
         ],
         maxSelections: 3
       },
       {
-        id: 'goals',
-        question: "What are your main goals for this year?",
+        id: 'additional-info',
+        question: "Any additional information you'd like to share?",
         inputType: 'textarea',
-        placeholder: 'Describe your professional goals, challenges you want to solve, or skills you want to develop...',
+        placeholder: 'Share anything else that might be relevant...',
         rows: 3
       }
     ]
   },
   {
     id: 'preferences-collection',
-    message: "Great! Now let's gather your preferences. Another set of 4 questions coming up:",
+    message: "Great! Now let's understand your preferences and work style:",
     inputType: 'multiPart',
     questions: [
       {
-        id: 'preferred-colors',
-        question: "What's your preferred color scheme for professional tools?",
-        inputType: 'colorSelect',
-        options: [
-          { value: 'corporate-blue', label: 'Corporate Blue', colors: ['#1e3a8a', '#3b82f6'] },
-          { value: 'nature-green', label: 'Nature Green', colors: ['#065f46', '#10b981'] },
-          { value: 'sunset-orange', label: 'Sunset Orange', colors: ['#c2410c', '#f97316'] },
-          { value: 'royal-purple', label: 'Royal Purple', colors: ['#581c87', '#a855f7'] },
-          { value: 'elegant-gray', label: 'Elegant Gray', colors: ['#374151', '#6b7280'] }
-        ],
-        allowCustom: true
-      },
-      {
         id: 'communication-style',
-        question: "How do you prefer to receive information?",
+        question: "How do you prefer to communicate with tools and systems?",
         inputType: 'select',
         options: [
+          { value: 'direct', label: 'Direct and to the point' },
           { value: 'detailed', label: 'Detailed explanations' },
-          { value: 'concise', label: 'Brief and to the point' },
           { value: 'visual', label: 'Visual examples and demos' },
-          { value: 'interactive', label: 'Interactive tutorials' }
-        ],
-        allowCustom: false
-      },
-      {
-        id: 'meeting-preference',
-        question: "Do you prefer virtual or in-person meetings?",
-        inputType: 'yesNoMaybe',
-        options: [
-          { value: 'virtual', label: 'Virtual' },
-          { value: 'in-person', label: 'In-Person' },
-          { value: 'hybrid', label: 'Both/Hybrid' }
+          { value: 'interactive', label: 'Interactive guided experiences' }
         ]
       },
       {
-        id: 'additional-comments',
-        question: "Any additional comments or special requirements?",
-        inputType: 'textarea',
-        placeholder: 'Share any specific needs, accessibility requirements, or other preferences...',
-        rows: 2
+        id: 'urgency-level',
+        question: "How urgently do you need solutions to be implemented?",
+        inputType: 'select',
+        options: [
+          { value: 'asap', label: 'ASAP (within days)' },
+          { value: 'weeks', label: 'Within a few weeks' },
+          { value: 'months', label: 'Within a few months' },
+          { value: 'planning', label: 'Just planning ahead' }
+        ]
+      },
+      {
+        id: 'budget-range',
+        question: "What's your typical budget range for business tools?",
+        inputType: 'select',
+        options: [
+          { value: 'free', label: 'Free tools only' },
+          { value: 'low', label: '$1-100/month' },
+          { value: 'medium', label: '$100-500/month' },
+          { value: 'high', label: '$500-2000/month' },
+          { value: 'enterprise', label: '$2000+/month' }
+        ]
       }
     ]
   },
   {
-    id: 'iterator-feedback',
-    message: "Perfect! You've just completed two multi-question sequences. How was the experience with the iterator component?",
+    id: 'final-thoughts',
+    message: "Perfect! Last question - what would make this experience better for you?",
     inputType: 'textarea',
-    placeholder: 'Share your feedback about the multi-question iterator - was it smooth, clear, intuitive?...',
+    placeholder: 'Share your thoughts on how we could improve this flow...',
     rows: 4
   }
 ];
@@ -484,647 +711,647 @@ interface DynamicInputProps {
   hideSubmitButton?: boolean;
 }
 
-function DynamicInput({ 
-  currentQuestion, 
-  value, 
-  onChange, 
-  onSubmit, 
-  isLoading, 
-  isDarkMode, 
-  onOpenColorPicker, 
-  onPreviewUpdate,
-  customColors = [],
-  hideSubmitButton = false
-}: DynamicInputProps) {
-  const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customValue, setCustomValue] = useState('');
-  const [currentPage, setCurrentPage] = useState(0);
-  const [showColorPicker, setShowColorPicker] = useState(false);
+// function DynamicInput({ 
+//   currentQuestion, 
+//   value, 
+//   onChange, 
+//   onSubmit, 
+//   isLoading, 
+//   isDarkMode, 
+//   onOpenColorPicker, 
+//   onPreviewUpdate,
+//   customColors = [],
+//   hideSubmitButton = false
+// }: DynamicInputProps) {
+//   const [showCustomInput, setShowCustomInput] = useState(false);
+//   const [customValue, setCustomValue] = useState('');
+//   const [currentPage, setCurrentPage] = useState(0);
+//   const [showColorPicker, setShowColorPicker] = useState(false);
 
-  // Reset pagination when question changes
-  useEffect(() => {
-    setCurrentPage(0);
-  }, [currentQuestion?.id]);
+//   // Reset pagination when question changes
+//   useEffect(() => {
+//     setCurrentPage(0);
+//   }, [currentQuestion?.id]);
 
-  if (!currentQuestion) {
-    return (
-      <div className="flex gap-2 w-full">
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Ask a question or provide feedback..."
-          rows={4}
-          disabled={isLoading}
-          className={`flex-1 resize-none ${
-            isDarkMode 
-              ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
-              : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
-          }`}
-        />
-        {!hideSubmitButton && (
-          <Button 
-            onClick={onSubmit}
-            disabled={isLoading || !value.trim()}
-            className="flex-shrink-0 self-start"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    );
-  }
+//   if (!currentQuestion) {
+//     return (
+//       <div className="flex gap-2 w-full">
+//         <Textarea
+//           value={value}
+//           onChange={(e) => onChange(e.target.value)}
+//           placeholder="Ask a question or provide feedback..."
+//           rows={4}
+//           disabled={isLoading}
+//           className={`flex-1 resize-none ${
+//             isDarkMode 
+//               ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
+//               : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
+//           }`}
+//         />
+//         {!hideSubmitButton && (
+//           <Button 
+//             onClick={onSubmit}
+//             disabled={isLoading || !value.trim()}
+//             className="flex-shrink-0 self-start"
+//           >
+//             <Send className="h-4 w-4" />
+//           </Button>
+//         )}
+//       </div>
+//     );
+//   }
 
-  const handleCustomSubmit = () => {
-    onChange(customValue);
-    setShowCustomInput(false);
-    setCustomValue('');
-    setTimeout(onSubmit, 100);
-  };
+//   const handleCustomSubmit = () => {
+//     onChange(customValue);
+//     setShowCustomInput(false);
+//     setCustomValue('');
+//     setTimeout(onSubmit, 100);
+//   };
 
-  const renderInput = () => {
-    // Show custom input if toggled
-    if (showCustomInput) {
-      return (
-        <div className="space-y-2 w-full">
-          <div className="flex gap-2">
-            <Textarea
-              value={customValue}
-              onChange={(e) => setCustomValue(e.target.value)}
-              placeholder="Enter your custom value..."
-              rows={4}
-              className={`flex-1 resize-none ${
-                isDarkMode 
-                  ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
-                  : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
-              }`}
-              autoFocus
-            />
-            {!hideSubmitButton && (
-              <Button 
-                onClick={handleCustomSubmit}
-                disabled={!customValue.trim()}
-                className="flex-shrink-0 self-start"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowCustomInput(false)}
-            className={`w-full text-xs border ${
-              isDarkMode 
-                ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
-                : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
-            }`}
-          >
-            Back to Options
-          </Button>
-        </div>
-      );
-    }
+//   const renderInput = () => {
+//     // Show custom input if toggled
+//     if (showCustomInput) {
+//       return (
+//         <div className="space-y-2 w-full">
+//           <div className="flex gap-2">
+//             <Textarea
+//               value={customValue}
+//               onChange={(e) => setCustomValue(e.target.value)}
+//               placeholder="Enter your custom value..."
+//               rows={4}
+//               className={`flex-1 resize-none ${
+//                 isDarkMode 
+//                   ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
+//                   : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
+//               }`}
+//               autoFocus
+//             />
+//             {!hideSubmitButton && (
+//               <Button 
+//                 onClick={handleCustomSubmit}
+//                 disabled={!customValue.trim()}
+//                 className="flex-shrink-0 self-start"
+//               >
+//                 <Send className="h-4 w-4" />
+//               </Button>
+//             )}
+//           </div>
+//           <Button 
+//             variant="outline" 
+//             size="sm" 
+//             onClick={() => setShowCustomInput(false)}
+//             className={`w-full text-xs border ${
+//               isDarkMode 
+//                 ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
+//                 : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
+//             }`}
+//           >
+//             Back to Options
+//           </Button>
+//         </div>
+//       );
+//     }
 
-    switch (currentQuestion.inputType) {
-      case 'select':
-        return (
-          <div className="space-y-3 w-full">
-            <div className="flex gap-2">
-              <Select value={value} onValueChange={onChange}>
-                <SelectTrigger className={`flex-1 ${
-                  isDarkMode 
-                    ? 'text-gray-100 bg-gray-600 border-gray-500' 
-                    : 'text-gray-900 bg-white border-gray-300'
-                }`}>
-                  <SelectValue placeholder={currentQuestion.placeholder} />
-                </SelectTrigger>
-                <SelectContent className={`shadow-lg ${
-                  isDarkMode 
-                    ? 'bg-gray-700 border-gray-600' 
-                    : 'bg-white border-gray-300'
-                }`}>
-                  {currentQuestion.options?.map((option: any) => (
-                    <SelectItem 
-                      key={option.value} 
-                      value={option.value} 
-                      className={`cursor-pointer ${
-                        isDarkMode 
-                          ? 'text-gray-100 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 data-[highlighted]:bg-gray-600 data-[highlighted]:text-gray-100' 
-                          : 'text-gray-900 bg-white hover:bg-blue-50 focus:bg-blue-50 data-[highlighted]:bg-blue-50 data-[highlighted]:text-gray-900'
-                      }`}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!hideSubmitButton && (
-                <Button 
-                  onClick={onSubmit}
-                  disabled={!value}
-                  className="flex-shrink-0"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowCustomInput(true)}
-              className={`w-full text-xs border ${
-                isDarkMode 
-                  ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
-                  : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <Edit3 className="h-3 w-3 mr-1" />
-              Enter Custom Value
-            </Button>
-          </div>
-        );
+//     switch (currentQuestion.inputType) {
+//       case 'select':
+//         return (
+//           <div className="space-y-3 w-full">
+//             <div className="flex gap-2">
+//               <Select value={value} onValueChange={onChange}>
+//                 <SelectTrigger className={`flex-1 ${
+//                   isDarkMode 
+//                     ? 'text-gray-100 bg-gray-600 border-gray-500' 
+//                     : 'text-gray-900 bg-white border-gray-300'
+//                 }`}>
+//                   <SelectValue placeholder={currentQuestion.placeholder} />
+//                 </SelectTrigger>
+//                 <SelectContent className={`shadow-lg ${
+//                   isDarkMode 
+//                     ? 'bg-gray-700 border-gray-600' 
+//                     : 'bg-white border-gray-300'
+//                 }`}>
+//                   {currentQuestion.options?.map((option: any) => (
+//                     <SelectItem 
+//                       key={option.value} 
+//                       value={option.value} 
+//                       className={`cursor-pointer ${
+//                         isDarkMode 
+//                           ? 'text-gray-100 bg-gray-700 hover:bg-gray-600 focus:bg-gray-600 data-[highlighted]:bg-gray-600 data-[highlighted]:text-gray-100' 
+//                           : 'text-gray-900 bg-white hover:bg-blue-50 focus:bg-blue-50 data-[highlighted]:bg-blue-50 data-[highlighted]:text-gray-900'
+//                       }`}
+//                     >
+//                       {option.label}
+//                     </SelectItem>
+//                   ))}
+//                 </SelectContent>
+//               </Select>
+//               {!hideSubmitButton && (
+//                 <Button 
+//                   onClick={onSubmit}
+//                   disabled={!value}
+//                   className="flex-shrink-0"
+//                 >
+//                   <Send className="h-4 w-4" />
+//                 </Button>
+//               )}
+//             </div>
+//             <Button 
+//               variant="outline" 
+//               size="sm" 
+//               onClick={() => setShowCustomInput(true)}
+//               className={`w-full text-xs border ${
+//                 isDarkMode 
+//                   ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
+//                   : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
+//               }`}
+//             >
+//               <Edit3 className="h-3 w-3 mr-1" />
+//               Enter Custom Value
+//             </Button>
+//           </div>
+//         );
 
-      case 'colorSelect':
-        const colorItemsPerPage = 3; // Show 3 color options at a time (accounting for wider buttons)
+//       case 'colorSelect':
+//         const colorItemsPerPage = 3; // Show 3 color options at a time (accounting for wider buttons)
         
-        // Combine original options with custom colors
-        const allColorOptions = [...(currentQuestion.options || []), ...customColors];
-        const colorTotalPages = Math.ceil(allColorOptions.length / colorItemsPerPage);
-        const colorStartIndex = currentPage * colorItemsPerPage;
-        const visibleColorOptions = allColorOptions.slice(colorStartIndex, colorStartIndex + colorItemsPerPage);
+//         // Combine original options with custom colors
+//         const allColorOptions = [...(currentQuestion.options || []), ...customColors];
+//         const colorTotalPages = Math.ceil(allColorOptions.length / colorItemsPerPage);
+//         const colorStartIndex = currentPage * colorItemsPerPage;
+//         const visibleColorOptions = allColorOptions.slice(colorStartIndex, colorStartIndex + colorItemsPerPage);
         
-        return (
-          <div className="space-y-3 w-full">
-            <div className="flex gap-2 justify-between items-center">
-              {/* Previous button */}
-              <button
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-                aria-label="Previous colors"
-                className={`p-1 rounded ${
-                  currentPage === 0 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'text-gray-300 hover:text-gray-100' 
-                      : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
+//         return (
+//           <div className="space-y-3 w-full">
+//             <div className="flex gap-2 justify-between items-center">
+//               {/* Previous button */}
+//               <button
+//                 onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+//                 disabled={currentPage === 0}
+//                 aria-label="Previous colors"
+//                 className={`p-1 rounded ${
+//                   currentPage === 0 
+//                     ? 'text-gray-400 cursor-not-allowed' 
+//                     : isDarkMode 
+//                       ? 'text-gray-300 hover:text-gray-100' 
+//                       : 'text-gray-600 hover:text-gray-900'
+//                 }`}
+//               >
+//                 <ChevronLeft className="h-4 w-4" />
+//               </button>
               
-              {/* Color options container */}
-              <div className="flex gap-2 flex-1 justify-center">
-                {visibleColorOptions.map((option: any) => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      onChange(option.value);
-                      // Update preview immediately for color changes
-                      if (onPreviewUpdate && currentQuestion?.id) {
-                        onPreviewUpdate(currentQuestion.id, option.value);
-                      }
-                    }}
-                    className={`px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
-                      value === option.value 
-                        ? 'border-blue-500 bg-blue-50 shadow-sm' 
-                        : isDarkMode 
-                          ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50' 
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {option.colors && (
-                      <div className="flex gap-1">
-                        {option.colors.map((color: string, i: number) => (
-                          <div
-                            key={i}
-                            className="w-3 h-3 rounded-full border shadow-sm"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    )}
-                    <span className={`text-sm font-medium ${
-                      isDarkMode ? 'text-gray-100' : 'text-gray-900'
-                    }`}>{option.label}</span>
-                  </button>
-                ))}
-              </div>
+//               {/* Color options container */}
+//               <div className="flex gap-2 flex-1 justify-center">
+//                 {visibleColorOptions.map((option: any) => (
+//                   <button
+//                     key={option.value}
+//                     onClick={() => {
+//                       onChange(option.value);
+//                       // Update preview immediately for color changes
+//                       if (onPreviewUpdate && currentQuestion?.id) {
+//                         onPreviewUpdate(currentQuestion.id, option.value);
+//                       }
+//                     }}
+//                     className={`px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
+//                       value === option.value 
+//                         ? 'border-blue-500 bg-blue-50 shadow-sm' 
+//                         : isDarkMode 
+//                           ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50' 
+//                           : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+//                     }`}
+//                   >
+//                     {option.colors && (
+//                       <div className="flex gap-1">
+//                         {option.colors.map((color: string, i: number) => (
+//                           <div
+//                             key={i}
+//                             className="w-3 h-3 rounded-full border shadow-sm"
+//                             style={{ backgroundColor: color }}
+//                           />
+//                         ))}
+//                       </div>
+//                     )}
+//                     <span className={`text-sm font-medium ${
+//                       isDarkMode ? 'text-gray-100' : 'text-gray-900'
+//                     }`}>{option.label}</span>
+//                   </button>
+//                 ))}
+//               </div>
               
-              {/* Next button */}
-              <button
-                onClick={() => setCurrentPage(Math.min(colorTotalPages - 1, currentPage + 1))}
-                disabled={currentPage >= colorTotalPages - 1}
-                aria-label="Next colors"
-                className={`p-1 rounded ${
-                  currentPage >= colorTotalPages - 1 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'text-gray-300 hover:text-gray-100' 
-                      : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+//               {/* Next button */}
+//               <button
+//                 onClick={() => setCurrentPage(Math.min(colorTotalPages - 1, currentPage + 1))}
+//                 disabled={currentPage >= colorTotalPages - 1}
+//                 aria-label="Next colors"
+//                 className={`p-1 rounded ${
+//                   currentPage >= colorTotalPages - 1 
+//                     ? 'text-gray-400 cursor-not-allowed' 
+//                     : isDarkMode 
+//                       ? 'text-gray-300 hover:text-gray-100' 
+//                       : 'text-gray-600 hover:text-gray-900'
+//                 }`}
+//               >
+//                 <ChevronRight className="h-4 w-4" />
+//               </button>
+//             </div>
             
-            {/* Custom Color Picker */}
-            {showColorPicker && (
-              <div className="space-y-3 border-t pt-3">
-                <div className="text-sm font-medium text-center">
-                  <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>
-                    Choose Your Custom Colors
-                  </span>
-                </div>
+//             {/* Custom Color Picker */}
+//             {showColorPicker && (
+//               <div className="space-y-3 border-t pt-3">
+//                 <div className="text-sm font-medium text-center">
+//                   <span className={isDarkMode ? 'text-gray-200' : 'text-gray-700'}>
+//                     Choose Your Custom Colors
+//                   </span>
+//                 </div>
                 
-                {/* Horizontal Color Wheel */}
-                <div className="space-y-2">
-                  <div className="flex gap-2 items-center">
-                    <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Primary:
-                    </span>
-                    <input
-                      type="color"
-                      value={customValue.split(',')[0] || '#2563eb'}
-                      onChange={(e) => {
-                        const colors = customValue.split(',');
-                        colors[0] = e.target.value;
-                        setCustomValue(colors.join(','));
-                      }}
-                      className="w-8 h-6 rounded border cursor-pointer"
-                      aria-label="Select primary color"
-                    />
-                    <div 
-                      className="w-6 h-6 rounded border shadow-sm"
-                      style={{ backgroundColor: customValue.split(',')[0] || '#2563eb' }}
-                    />
-                  </div>
+//                 {/* Horizontal Color Wheel */}
+//                 <div className="space-y-2">
+//                   <div className="flex gap-2 items-center">
+//                     <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+//                       Primary:
+//                     </span>
+//                     <input
+//                       type="color"
+//                       value={customValue.split(',')[0] || '#2563eb'}
+//                       onChange={(e) => {
+//                         const colors = customValue.split(',');
+//                         colors[0] = e.target.value;
+//                         setCustomValue(colors.join(','));
+//                       }}
+//                       className="w-8 h-6 rounded border cursor-pointer"
+//                       aria-label="Select primary color"
+//                     />
+//                     <div 
+//                       className="w-6 h-6 rounded border shadow-sm"
+//                       style={{ backgroundColor: customValue.split(',')[0] || '#2563eb' }}
+//                     />
+//                   </div>
                   
-                  <div className="flex gap-2 items-center">
-                    <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                      Secondary:
-                    </span>
-                    <input
-                      type="color"
-                      value={customValue.split(',')[1] || '#1e40af'}
-                      onChange={(e) => {
-                        const colors = customValue.split(',');
-                        colors[1] = e.target.value;
-                        setCustomValue(colors.join(','));
-                      }}
-                      className="w-8 h-6 rounded border cursor-pointer"
-                      aria-label="Select secondary color"
-                    />
-                    <div 
-                      className="w-6 h-6 rounded border shadow-sm"
-                      style={{ backgroundColor: customValue.split(',')[1] || '#1e40af' }}
-                    />
-                  </div>
-                </div>
+//                   <div className="flex gap-2 items-center">
+//                     <span className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+//                       Secondary:
+//                     </span>
+//                     <input
+//                       type="color"
+//                       value={customValue.split(',')[1] || '#1e40af'}
+//                       onChange={(e) => {
+//                         const colors = customValue.split(',');
+//                         colors[1] = e.target.value;
+//                         setCustomValue(colors.join(','));
+//                       }}
+//                       className="w-8 h-6 rounded border cursor-pointer"
+//                       aria-label="Select secondary color"
+//                     />
+//                     <div 
+//                       className="w-6 h-6 rounded border shadow-sm"
+//                       style={{ backgroundColor: customValue.split(',')[1] || '#1e40af' }}
+//                     />
+//                   </div>
+//                 </div>
                 
-                <div className="flex gap-2">
-                  <Button 
-                    onClick={handleCustomSubmit}
-                    disabled={!customValue.trim()}
-                    className="flex-1"
-                  >
-                    Use Custom Colors
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setShowColorPicker(false)}
-                    className={`${
-                      isDarkMode 
-                        ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
-                        : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            )}
+//                 <div className="flex gap-2">
+//                   <Button 
+//                     onClick={handleCustomSubmit}
+//                     disabled={!customValue.trim()}
+//                     className="flex-1"
+//                   >
+//                     Use Custom Colors
+//                   </Button>
+//                   <Button 
+//                     variant="outline" 
+//                     size="sm" 
+//                     onClick={() => setShowColorPicker(false)}
+//                     className={`${
+//                       isDarkMode 
+//                         ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
+//                         : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
+//                     }`}
+//                   >
+//                     Cancel
+//                   </Button>
+//                 </div>
+//               </div>
+//             )}
             
-            {!showColorPicker && (
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => {
-                    if (onOpenColorPicker) {
-                      onOpenColorPicker();
-                    }
-                  }}
-                  className={`flex-1 text-xs border ${
-                    isDarkMode 
-                      ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
-                      : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Palette className="h-3 w-3 mr-1" />
-                  Custom Color Scheme
-                </Button>
-                <Button 
-                  onClick={onSubmit}
-                  disabled={!value}
-                  className="flex-1"
-                >
-                  Choose
-                </Button>
-              </div>
-            )}
-          </div>
-        );
+//             {!showColorPicker && (
+//               <div className="flex gap-2">
+//                 <Button 
+//                   variant="outline" 
+//                   size="sm" 
+//                   onClick={() => {
+//                     if (onOpenColorPicker) {
+//                       onOpenColorPicker();
+//                     }
+//                   }}
+//                   className={`flex-1 text-xs border ${
+//                     isDarkMode 
+//                       ? 'text-gray-200 border-gray-500 bg-gray-700 hover:bg-gray-600' 
+//                       : 'text-gray-900 border-gray-400 bg-white hover:bg-gray-50 hover:text-gray-900'
+//                   }`}
+//                 >
+//                   <Palette className="h-3 w-3 mr-1" />
+//                   Custom Color Scheme
+//                 </Button>
+//                 <Button 
+//                   onClick={onSubmit}
+//                   disabled={!value}
+//                   className="flex-1"
+//                 >
+//                   Choose
+//                 </Button>
+//               </div>
+//             )}
+//           </div>
+//         );
 
-      case 'multiSelect':
-        const selectedValues = value ? value.split(',') : [];
-        const itemsPerPage = 4; // Show 4 items at a time
-        const totalPages = Math.ceil((currentQuestion.options?.length || 0) / itemsPerPage);
-        const startIndex = currentPage * itemsPerPage;
-        const visibleOptions = currentQuestion.options?.slice(startIndex, startIndex + itemsPerPage) || [];
+//       case 'multiSelect':
+//         const selectedValues = value ? value.split(',') : [];
+//         const itemsPerPage = 4; // Show 4 items at a time
+//         const totalPages = Math.ceil((currentQuestion.options?.length || 0) / itemsPerPage);
+//         const startIndex = currentPage * itemsPerPage;
+//         const visibleOptions = currentQuestion.options?.slice(startIndex, startIndex + itemsPerPage) || [];
         
-        return (
-          <div className="space-y-3 w-full">
-            <div className="flex gap-2 justify-between items-center">
-              {/* Previous button */}
-              <button
-                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
-                disabled={currentPage === 0}
-                aria-label="Previous options"
-                className={`p-1 rounded ${
-                  currentPage === 0 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'text-gray-300 hover:text-gray-100' 
-                      : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
+//         return (
+//           <div className="space-y-3 w-full">
+//             <div className="flex gap-2 justify-between items-center">
+//               {/* Previous button */}
+//               <button
+//                 onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+//                 disabled={currentPage === 0}
+//                 aria-label="Previous options"
+//                 className={`p-1 rounded ${
+//                   currentPage === 0 
+//                     ? 'text-gray-400 cursor-not-allowed' 
+//                     : isDarkMode 
+//                       ? 'text-gray-300 hover:text-gray-100' 
+//                       : 'text-gray-600 hover:text-gray-900'
+//                 }`}
+//               >
+//                 <ChevronLeft className="h-4 w-4" />
+//               </button>
               
-              {/* Options container */}
-              <div className="flex gap-2 flex-1 justify-center">
-                {visibleOptions.map((option: any) => {
-                  const isSelected = selectedValues.includes(option.value);
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        let newValues;
-                        if (isSelected) {
-                          newValues = selectedValues.filter(v => v !== option.value);
-                        } else {
-                          if (selectedValues.length < (currentQuestion.maxSelections || 3)) {
-                            newValues = [...selectedValues, option.value];
-                          } else {
-                            return;
-                          }
-                        }
-                        onChange(newValues.join(','));
-                      }}
-                      className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
-                        isSelected 
-                          ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' 
-                          : isDarkMode 
-                            ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200' 
-                            : 'border-gray-200 hover:border-gray-300 text-gray-900'
-                      }`}
-                    >
-                      <div className={`w-3 h-3 rounded border flex items-center justify-center ${
-                        isSelected 
-                          ? 'border-blue-500 bg-blue-500' 
-                          : isDarkMode 
-                            ? 'border-gray-500' 
-                            : 'border-gray-300'
-                      }`}>
-                        {isSelected && (
-                          <div className="w-1.5 h-1.5 bg-white" />
-                        )}
-                      </div>
-                      <span className="font-medium">{option.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+//               {/* Options container */}
+//               <div className="flex gap-2 flex-1 justify-center">
+//                 {visibleOptions.map((option: any) => {
+//                   const isSelected = selectedValues.includes(option.value);
+//                   return (
+//                     <button
+//                       key={option.value}
+//                       onClick={() => {
+//                         let newValues;
+//                         if (isSelected) {
+//                           newValues = selectedValues.filter(v => v !== option.value);
+//                         } else {
+//                           if (selectedValues.length < (currentQuestion.maxSelections || 3)) {
+//                             newValues = [...selectedValues, option.value];
+//                           } else {
+//                             return;
+//                           }
+//                         }
+//                         onChange(newValues.join(','));
+//                       }}
+//                       className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
+//                         isSelected 
+//                           ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' 
+//                           : isDarkMode 
+//                             ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200' 
+//                             : 'border-gray-200 hover:border-gray-300 text-gray-900'
+//                       }`}
+//                     >
+//                       <div className={`w-3 h-3 rounded border flex items-center justify-center ${
+//                         isSelected 
+//                           ? 'border-blue-500 bg-blue-500' 
+//                           : isDarkMode 
+//                             ? 'border-gray-500' 
+//                             : 'border-gray-300'
+//                       }`}>
+//                         {isSelected && (
+//                           <div className="w-1.5 h-1.5 bg-white" />
+//                         )}
+//                       </div>
+//                       <span className="font-medium">{option.label}</span>
+//                     </button>
+//                   );
+//                 })}
+//               </div>
               
-              {/* Next button */}
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
-                disabled={currentPage >= totalPages - 1}
-                aria-label="Next options"
-                className={`p-1 rounded ${
-                  currentPage >= totalPages - 1 
-                    ? 'text-gray-400 cursor-not-allowed' 
-                    : isDarkMode 
-                      ? 'text-gray-300 hover:text-gray-100' 
-                      : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+//               {/* Next button */}
+//               <button
+//                 onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+//                 disabled={currentPage >= totalPages - 1}
+//                 aria-label="Next options"
+//                 className={`p-1 rounded ${
+//                   currentPage >= totalPages - 1 
+//                     ? 'text-gray-400 cursor-not-allowed' 
+//                     : isDarkMode 
+//                       ? 'text-gray-300 hover:text-gray-100' 
+//                       : 'text-gray-600 hover:text-gray-900'
+//                 }`}
+//               >
+//                 <ChevronRight className="h-4 w-4" />
+//               </button>
+//             </div>
             
-            <div className="flex gap-2">
-              <Button 
-                onClick={onSubmit}
-                disabled={selectedValues.length === 0}
-                className="flex-1"
-              >
-                Continue ({selectedValues.length} selected)
-              </Button>
-            </div>
-          </div>
-        );
+//             <div className="flex gap-2">
+//               <Button 
+//                 onClick={onSubmit}
+//                 disabled={selectedValues.length === 0}
+//                 className="flex-1"
+//               >
+//                 Continue ({selectedValues.length} selected)
+//               </Button>
+//             </div>
+//           </div>
+//         );
 
-      case 'textarea':
-        return (
-          <div className="flex gap-2 w-full">
-            <Textarea
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder={currentQuestion.placeholder}
-              rows={4}
-              className={`flex-1 resize-none ${
-                isDarkMode 
-                  ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
-                  : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
-              }`}
-            />
-            {!hideSubmitButton && (
-              <Button 
-                onClick={onSubmit}
-                disabled={!value.trim()}
-                className="flex-shrink-0 self-start"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        );
+//       case 'textarea':
+//         return (
+//           <div className="flex gap-2 w-full">
+//             <Textarea
+//               value={value}
+//               onChange={(e) => onChange(e.target.value)}
+//               placeholder={currentQuestion.placeholder}
+//               rows={4}
+//               className={`flex-1 resize-none ${
+//                 isDarkMode 
+//                   ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
+//                   : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
+//               }`}
+//             />
+//             {!hideSubmitButton && (
+//               <Button 
+//                 onClick={onSubmit}
+//                 disabled={!value.trim()}
+//                 className="flex-shrink-0 self-start"
+//               >
+//                 <Send className="h-4 w-4" />
+//               </Button>
+//             )}
+//           </div>
+//         );
 
-      case 'yesNoMaybe':
-        return (
-          <div className="space-y-3 w-full">
-            <div className="flex gap-2 flex-wrap">
-              {currentQuestion.options?.map((option: any) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    onChange(option.value);
-                    setTimeout(onSubmit, 100);
-                  }}
-                  className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
-                    value === option.value 
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' 
-                      : isDarkMode 
-                        ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200' 
-                        : 'border-gray-200 hover:border-gray-300 text-gray-900'
-                  }`}
-                >
-                  <div className={`w-3 h-3 rounded-full border flex items-center justify-center ${
-                    value === option.value 
-                      ? 'border-blue-500 bg-blue-500' 
-                      : isDarkMode 
-                        ? 'border-gray-500' 
-                        : 'border-gray-300'
-                  }`}>
-                    {value === option.value && (
-                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                    )}
-                  </div>
-                  <span className="font-medium">{option.label}</span>
-                </button>
-              ))}
-            </div>
+//       case 'yesNoMaybe':
+//         return (
+//           <div className="space-y-3 w-full">
+//             <div className="flex gap-2 flex-wrap">
+//               {currentQuestion.options?.map((option: any) => (
+//                 <button
+//                   key={option.value}
+//                   onClick={() => {
+//                     onChange(option.value);
+//                     setTimeout(onSubmit, 100);
+//                   }}
+//                   className={`px-3 py-2 rounded-lg border text-sm transition-all flex items-center gap-2 ${
+//                     value === option.value 
+//                       ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' 
+//                       : isDarkMode 
+//                         ? 'border-gray-600 hover:border-gray-500 bg-gray-800/50 hover:bg-gray-700/50 text-gray-200' 
+//                         : 'border-gray-200 hover:border-gray-300 text-gray-900'
+//                   }`}
+//                 >
+//                   <div className={`w-3 h-3 rounded-full border flex items-center justify-center ${
+//                     value === option.value 
+//                       ? 'border-blue-500 bg-blue-500' 
+//                       : isDarkMode 
+//                         ? 'border-gray-500' 
+//                         : 'border-gray-300'
+//                   }`}>
+//                     {value === option.value && (
+//                       <div className="w-1.5 h-1.5 rounded-full bg-white" />
+//                     )}
+//                   </div>
+//                   <span className="font-medium">{option.label}</span>
+//                 </button>
+//               ))}
+//             </div>
             
-            {/* Spacer to maintain consistent container height */}
-            <div className="h-8" />
-          </div>
-        );
+//             {/* Spacer to maintain consistent container height */}
+//             <div className="h-8" />
+//           </div>
+//         );
 
-      case 'fileUpload':
-        return (
-          <div className="space-y-3 w-full">
-            <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-              isDarkMode 
-                ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' 
-                : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
-            }`}>
-              <input
-                type="file"
-                accept={currentQuestion.acceptedFileTypes?.join(',') || 'image/*'}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    // For demo purposes, just set the filename
-                    onChange(file.name);
-                    // In real implementation, you'd handle file upload here
-                    console.log('File selected:', file);
-                  }
-                }}
-                className="hidden"
-                id="file-upload"
-              />
-              <label 
-                htmlFor="file-upload" 
-                className={`cursor-pointer flex flex-col items-center gap-2 ${
-                  isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                }`}
-              >
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                }`}>
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </div>
-                <div>
-                  <span className="font-medium">
-                    {value ? `Selected: ${value}` : 'Click to upload file'}
-                  </span>
-                  <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {currentQuestion.placeholder || 'Upload your file'}
-                  </p>
-                  {currentQuestion.maxFileSize && (
-                    <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                      Max size: {currentQuestion.maxFileSize}
-                    </p>
-                  )}
-                </div>
-              </label>
-            </div>
+//       case 'fileUpload':
+//         return (
+//           <div className="space-y-3 w-full">
+//             <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+//               isDarkMode 
+//                 ? 'border-gray-600 hover:border-gray-500 bg-gray-800/30' 
+//                 : 'border-gray-300 hover:border-gray-400 bg-gray-50/50'
+//             }`}>
+//               <input
+//                 type="file"
+//                 accept={currentQuestion.acceptedFileTypes?.join(',') || 'image/*'}
+//                 onChange={(e) => {
+//                   const file = e.target.files?.[0];
+//                   if (file) {
+//                     // For demo purposes, just set the filename
+//                     onChange(file.name);
+//                     // In real implementation, you'd handle file upload here
+//                     console.log('File selected:', file);
+//                   }
+//                 }}
+//                 className="hidden"
+//                 id="file-upload"
+//               />
+//               <label 
+//                 htmlFor="file-upload" 
+//                 className={`cursor-pointer flex flex-col items-center gap-2 ${
+//                   isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                 }`}
+//               >
+//                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+//                   isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+//                 }`}>
+//                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+//                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+//                   </svg>
+//                 </div>
+//                 <div>
+//                   <span className="font-medium">
+//                     {value ? `Selected: ${value}` : 'Click to upload file'}
+//                   </span>
+//                   <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+//                     {currentQuestion.placeholder || 'Upload your file'}
+//                   </p>
+//                   {currentQuestion.maxFileSize && (
+//                     <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+//                       Max size: {currentQuestion.maxFileSize}
+//                     </p>
+//                   )}
+//                 </div>
+//               </label>
+//             </div>
             
-            {value && (
-              <div className="flex gap-2">
-                {!hideSubmitButton && (
-                  <Button 
-                    onClick={onSubmit}
-                    className="flex-1"
-                  >
-                    Continue with "{value}"
-                  </Button>
-                )}
-                <Button 
-                  variant="outline"
-                  onClick={() => onChange('')}
-                  className={`${
-                    isDarkMode 
-                      ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Clear
-                </Button>
-              </div>
-            )}
-          </div>
-        );
+//             {value && (
+//               <div className="flex gap-2">
+//                 {!hideSubmitButton && (
+//                   <Button 
+//                     onClick={onSubmit}
+//                     className="flex-1"
+//                   >
+//                     Continue with "{value}"
+//                   </Button>
+//                 )}
+//                 <Button 
+//                   variant="outline"
+//                   onClick={() => onChange('')}
+//                   className={`${
+//                     isDarkMode 
+//                       ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
+//                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//                   }`}
+//                 >
+//                   Clear
+//                 </Button>
+//               </div>
+//             )}
+//           </div>
+//         );
 
-      default: // textarea for all free-hand text responses
-        return (
-          <div className="space-y-2 w-full">
-            {currentQuestion.suggestions && (
-              <div className="flex flex-wrap gap-1">
-                {currentQuestion.suggestions.map((suggestion: string, i: number) => (
-                  <button
-                    key={i}
-                    onClick={() => onChange(suggestion)}
-                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border text-gray-900"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Textarea
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                placeholder={currentQuestion.placeholder}
-                rows={4}
-                className={`flex-1 resize-none ${
-                  isDarkMode 
-                    ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
-                    : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
-                }`}
-              />
-              {!hideSubmitButton && (
-                <Button 
-                  onClick={onSubmit}
-                  disabled={!value.trim()}
-                  className="flex-shrink-0 self-start"
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        );
-    }
-  };
+//       default: // textarea for all free-hand text responses
+//         return (
+//           <div className="space-y-2 w-full">
+//             {currentQuestion.suggestions && (
+//               <div className="flex flex-wrap gap-1">
+//                 {currentQuestion.suggestions.map((suggestion: string, i: number) => (
+//                   <button
+//                     key={i}
+//                     onClick={() => onChange(suggestion)}
+//                     className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border text-gray-900"
+//                   >
+//                     {suggestion}
+//                   </button>
+//                 ))}
+//               </div>
+//             )}
+//             <div className="flex gap-2">
+//               <Textarea
+//                 value={value}
+//                 onChange={(e) => onChange(e.target.value)}
+//                 placeholder={currentQuestion.placeholder}
+//                 rows={4}
+//                 className={`flex-1 resize-none ${
+//                   isDarkMode 
+//                     ? 'text-gray-100 placeholder:text-gray-400 bg-gray-600 border-gray-500' 
+//                     : 'text-gray-900 placeholder:text-gray-500 bg-white border-gray-300'
+//                 }`}
+//               />
+//               {!hideSubmitButton && (
+//                 <Button 
+//                   onClick={onSubmit}
+//                   disabled={!value.trim()}
+//                   className="flex-shrink-0 self-start"
+//                 >
+//                   <Send className="h-4 w-4" />
+//                 </Button>
+//               )}
+//             </div>
+//           </div>
+//         );
+//     }
+//   };
 
-  return renderInput();
-}
+//   return renderInput();
+// }
 
 // Color Picker Popup Component
 interface ColorPickerPopupProps {
@@ -1136,282 +1363,282 @@ interface ColorPickerPopupProps {
   isDarkMode: boolean;
 }
 
-function ColorPickerPopup({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  initialPrimary = '#2563eb', 
-  initialSecondary = '#1e40af',
-  isDarkMode 
-}: ColorPickerPopupProps) {
-  const [primaryColor, setPrimaryColor] = useState(initialPrimary);
-  const [secondaryColor, setSecondaryColor] = useState(initialSecondary);
-  const [hasSelectedColors, setHasSelectedColors] = useState(false);
+// function ColorPickerPopup({ 
+//   isOpen, 
+//   onClose, 
+//   onSubmit, 
+//   initialPrimary = '#2563eb', 
+//   initialSecondary = '#1e40af',
+//   isDarkMode 
+// }: ColorPickerPopupProps) {
+//   const [primaryColor, setPrimaryColor] = useState(initialPrimary);
+//   const [secondaryColor, setSecondaryColor] = useState(initialSecondary);
+//   const [hasSelectedColors, setHasSelectedColors] = useState(false);
 
-  if (!isOpen) return null;
+//   if (!isOpen) return null;
 
-  const handleSubmit = () => {
-    onSubmit(primaryColor, secondaryColor);
-    onClose();
-  };
+//   const handleSubmit = () => {
+//     onSubmit(primaryColor, secondaryColor);
+//     onClose();
+//   };
 
-  const handlePreview = () => {
-    setHasSelectedColors(true);
-  };
+//   const handlePreview = () => {
+//     setHasSelectedColors(true);
+//   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`rounded-xl shadow-2xl border max-w-2xl w-full ${
-        isDarkMode 
-          ? 'bg-gray-800 border-gray-600' 
-          : 'bg-white border-gray-300'
-      }`}>
-        {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b ${
-          isDarkMode ? 'border-gray-600' : 'border-gray-200'
-        }`}>
-          <h3 className={`text-lg font-semibold ${
-            isDarkMode ? 'text-gray-50' : 'text-gray-900'
-          }`}>
-            Choose Your Color Scheme
-          </h3>
-          <button
-            onClick={onClose}
-            className={`p-1 rounded hover:bg-gray-100 ${
-              isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
-            }`}
-            aria-label="Close color picker"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+//   return (
+//     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+//       <div className={`rounded-xl shadow-2xl border max-w-2xl w-full ${
+//         isDarkMode 
+//           ? 'bg-gray-800 border-gray-600' 
+//           : 'bg-white border-gray-300'
+//       }`}>
+//         {/* Header */}
+//         <div className={`flex items-center justify-between p-4 border-b ${
+//           isDarkMode ? 'border-gray-600' : 'border-gray-200'
+//         }`}>
+//           <h3 className={`text-lg font-semibold ${
+//             isDarkMode ? 'text-gray-50' : 'text-gray-900'
+//           }`}>
+//             Choose Your Color Scheme
+//           </h3>
+//           <button
+//             onClick={onClose}
+//             className={`p-1 rounded hover:bg-gray-100 ${
+//               isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+//             }`}
+//             aria-label="Close color picker"
+//           >
+//             <X className="h-5 w-5" />
+//           </button>
+//         </div>
 
-        {/* Color Pickers */}
-        <div className="p-6">
-          {!hasSelectedColors && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Primary Color Picker */}
-                <div className="space-y-3">
-                  <div className="text-center">
-                    <h4 className={`font-medium mb-2 ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                    }`}>
-                      Primary Color
-                    </h4>
-                    <div 
-                      className="w-16 h-16 rounded-lg border-2 border-gray-300 mx-auto mb-3 shadow-sm"
-                      style={{ backgroundColor: primaryColor }}
-                    />
-                  </div>
+//         {/* Color Pickers */}
+//         <div className="p-6">
+//           {!hasSelectedColors && (
+//             <div className="space-y-6">
+//               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+//                 {/* Primary Color Picker */}
+//                 <div className="space-y-3">
+//                   <div className="text-center">
+//                     <h4 className={`font-medium mb-2 ${
+//                       isDarkMode ? 'text-gray-200' : 'text-gray-700'
+//                     }`}>
+//                       Primary Color
+//                     </h4>
+//                     <div 
+//                       className="w-16 h-16 rounded-lg border-2 border-gray-300 mx-auto mb-3 shadow-sm"
+//                       style={{ backgroundColor: primaryColor }}
+//                     />
+//                   </div>
                   
-                  {/* Full-sized color picker */}
-                  <div className="relative">
-                    <input
-                      type="color"
-                      value={primaryColor}
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      className="w-full h-32 rounded-lg border cursor-pointer"
-                      style={{
-                        WebkitAppearance: 'none',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                      aria-label="Select primary color"
-                    />
-                  </div>
+//                   {/* Full-sized color picker */}
+//                   <div className="relative">
+//                     <input
+//                       type="color"
+//                       value={primaryColor}
+//                       onChange={(e) => setPrimaryColor(e.target.value)}
+//                       className="w-full h-32 rounded-lg border cursor-pointer"
+//                       style={{
+//                         WebkitAppearance: 'none',
+//                         border: 'none',
+//                         borderRadius: '8px',
+//                         cursor: 'pointer'
+//                       }}
+//                       aria-label="Select primary color"
+//                     />
+//                   </div>
                   
-                  {/* Color value display */}
-                  <div className={`text-center text-sm font-mono ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    {primaryColor.toUpperCase()}
-                  </div>
-                </div>
+//                   {/* Color value display */}
+//                   <div className={`text-center text-sm font-mono ${
+//                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                   }`}>
+//                     {primaryColor.toUpperCase()}
+//                   </div>
+//                 </div>
 
-                {/* Secondary Color Picker */}
-                <div className="space-y-3">
-                  <div className="text-center">
-                    <h4 className={`font-medium mb-2 ${
-                      isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                    }`}>
-                      Secondary Color
-                    </h4>
-                    <div 
-                      className="w-16 h-16 rounded-lg border-2 border-gray-300 mx-auto mb-3 shadow-sm"
-                      style={{ backgroundColor: secondaryColor }}
-                    />
-                  </div>
+//                 {/* Secondary Color Picker */}
+//                 <div className="space-y-3">
+//                   <div className="text-center">
+//                     <h4 className={`font-medium mb-2 ${
+//                       isDarkMode ? 'text-gray-200' : 'text-gray-700'
+//                     }`}>
+//                       Secondary Color
+//                     </h4>
+//                     <div 
+//                       className="w-16 h-16 rounded-lg border-2 border-gray-300 mx-auto mb-3 shadow-sm"
+//                       style={{ backgroundColor: secondaryColor }}
+//                     />
+//                   </div>
                   
-                  {/* Full-sized color picker */}
-                  <div className="relative">
-                    <input
-                      type="color"
-                      value={secondaryColor}
-                      onChange={(e) => setSecondaryColor(e.target.value)}
-                      className="w-full h-32 rounded-lg border cursor-pointer"
-                      style={{
-                        WebkitAppearance: 'none',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer'
-                      }}
-                      aria-label="Select secondary color"
-                    />
-                  </div>
+//                   {/* Full-sized color picker */}
+//                   <div className="relative">
+//                     <input
+//                       type="color"
+//                       value={secondaryColor}
+//                       onChange={(e) => setSecondaryColor(e.target.value)}
+//                       className="w-full h-32 rounded-lg border cursor-pointer"
+//                       style={{
+//                         WebkitAppearance: 'none',
+//                         border: 'none',
+//                         borderRadius: '8px',
+//                         cursor: 'pointer'
+//                       }}
+//                       aria-label="Select secondary color"
+//                     />
+//                   </div>
                   
-                  {/* Color value display */}
-                  <div className={`text-center text-sm font-mono ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    {secondaryColor.toUpperCase()}
-                  </div>
-                </div>
-              </div>
+//                   {/* Color value display */}
+//                   <div className={`text-center text-sm font-mono ${
+//                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                   }`}>
+//                     {secondaryColor.toUpperCase()}
+//                   </div>
+//                 </div>
+//               </div>
 
-              {/* Preview Section */}
-              <div className="p-4 rounded-lg border-2" style={{ 
-                borderColor: primaryColor,
-                background: `linear-gradient(135deg, ${primaryColor}10, ${secondaryColor}10)`
-              }}>
-                <div className="text-center">
-                  <h5 className={`font-medium mb-2 ${
-                    isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                  }`}>
-                    Live Preview
-                  </h5>
-                  <div className="flex items-center justify-center gap-3">
-                    <div 
-                      className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
-                      style={{ backgroundColor: primaryColor }}
-                    />
-                    <span className={`text-sm ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                      +
-                    </span>
-                    <div 
-                      className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
-                      style={{ backgroundColor: secondaryColor }}
-                    />
-                  </div>
-                </div>
-              </div>
+//               {/* Preview Section */}
+//               <div className="p-4 rounded-lg border-2" style={{ 
+//                 borderColor: primaryColor,
+//                 background: `linear-gradient(135deg, ${primaryColor}10, ${secondaryColor}10)`
+//               }}>
+//                 <div className="text-center">
+//                   <h5 className={`font-medium mb-2 ${
+//                     isDarkMode ? 'text-gray-200' : 'text-gray-700'
+//                   }`}>
+//                     Live Preview
+//                   </h5>
+//                   <div className="flex items-center justify-center gap-3">
+//                     <div 
+//                       className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
+//                       style={{ backgroundColor: primaryColor }}
+//                     />
+//                     <span className={`text-sm ${
+//                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                     }`}>
+//                       +
+//                     </span>
+//                     <div 
+//                       className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
+//                       style={{ backgroundColor: secondaryColor }}
+//                     />
+//                   </div>
+//                 </div>
+//               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                  className={`flex-1 ${
-                    isDarkMode 
-                      ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handlePreview}
-                  className="flex-1"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Preview Selection
-                </Button>
-              </div>
-            </div>
-          )}
+//               {/* Action Buttons */}
+//               <div className="flex gap-3">
+//                 <Button
+//                   variant="outline"
+//                   onClick={onClose}
+//                   className={`flex-1 ${
+//                     isDarkMode 
+//                       ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
+//                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//                   }`}
+//                 >
+//                   Cancel
+//                 </Button>
+//                 <Button
+//                   onClick={handlePreview}
+//                   className="flex-1"
+//                   style={{ backgroundColor: primaryColor }}
+//                 >
+//                   Preview Selection
+//                 </Button>
+//               </div>
+//             </div>
+//           )}
 
-          {/* Selected Colors Confirmation View */}
-          {hasSelectedColors && (
-            <div className="text-center space-y-6">
-              <div>
-                <h4 className={`text-lg font-semibold mb-4 ${
-                  isDarkMode ? 'text-gray-200' : 'text-gray-700'
-                }`}>
-                  Your Selected Color Scheme
-                </h4>
+//           {/* Selected Colors Confirmation View */}
+//           {hasSelectedColors && (
+//             <div className="text-center space-y-6">
+//               <div>
+//                 <h4 className={`text-lg font-semibold mb-4 ${
+//                   isDarkMode ? 'text-gray-200' : 'text-gray-700'
+//                 }`}>
+//                   Your Selected Color Scheme
+//                 </h4>
                 
-                {/* Large Color Preview */}
-                <div className="flex items-center justify-center gap-6 mb-6">
-                  <div className="text-center">
-                    <div 
-                      className="w-20 h-20 rounded-xl border-2 border-gray-300 mx-auto mb-2 shadow-lg"
-                      style={{ backgroundColor: primaryColor }}
-                    />
-                    <p className={`text-sm font-medium ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                      Primary
-                    </p>
-                    <p className={`text-xs font-mono ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {primaryColor.toUpperCase()}
-                    </p>
-                  </div>
+//                 {/* Large Color Preview */}
+//                 <div className="flex items-center justify-center gap-6 mb-6">
+//                   <div className="text-center">
+//                     <div 
+//                       className="w-20 h-20 rounded-xl border-2 border-gray-300 mx-auto mb-2 shadow-lg"
+//                       style={{ backgroundColor: primaryColor }}
+//                     />
+//                     <p className={`text-sm font-medium ${
+//                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                     }`}>
+//                       Primary
+//                     </p>
+//                     <p className={`text-xs font-mono ${
+//                       isDarkMode ? 'text-gray-400' : 'text-gray-500'
+//                     }`}>
+//                       {primaryColor.toUpperCase()}
+//                     </p>
+//                   </div>
                   
-                  <div className="text-center">
-                    <div 
-                      className="w-20 h-20 rounded-xl border-2 border-gray-300 mx-auto mb-2 shadow-lg"
-                      style={{ backgroundColor: secondaryColor }}
-                    />
-                    <p className={`text-sm font-medium ${
-                      isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                      Secondary
-                    </p>
-                    <p className={`text-xs font-mono ${
-                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {secondaryColor.toUpperCase()}
-                    </p>
-                  </div>
-                </div>
+//                   <div className="text-center">
+//                     <div 
+//                       className="w-20 h-20 rounded-xl border-2 border-gray-300 mx-auto mb-2 shadow-lg"
+//                       style={{ backgroundColor: secondaryColor }}
+//                     />
+//                     <p className={`text-sm font-medium ${
+//                       isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                     }`}>
+//                       Secondary
+//                     </p>
+//                     <p className={`text-xs font-mono ${
+//                       isDarkMode ? 'text-gray-400' : 'text-gray-500'
+//                     }`}>
+//                       {secondaryColor.toUpperCase()}
+//                     </p>
+//                   </div>
+//                 </div>
                 
-                {/* Edit Colors Button */}
-                <Button
-                  variant="outline"
-                  onClick={() => setHasSelectedColors(false)}
-                  className={`${
-                    isDarkMode 
-                      ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Edit Colors
-                </Button>
-              </div>
+//                 {/* Edit Colors Button */}
+//                 <Button
+//                   variant="outline"
+//                   onClick={() => setHasSelectedColors(false)}
+//                   className={`${
+//                     isDarkMode 
+//                       ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
+//                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//                   }`}
+//                 >
+//                   Edit Colors
+//                 </Button>
+//               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <Button
-                  variant="outline"
-                  onClick={onClose}
-                  className={`flex-1 ${
-                    isDarkMode 
-                      ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSubmit}
-                  className="flex-1"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Choose
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+//               {/* Action Buttons */}
+//               <div className="flex gap-3">
+//                 <Button
+//                   variant="outline"
+//                   onClick={onClose}
+//                   className={`flex-1 ${
+//                     isDarkMode 
+//                       ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
+//                       : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//                   }`}
+//                 >
+//                   Cancel
+//                 </Button>
+//                 <Button
+//                   onClick={handleSubmit}
+//                   className="flex-1"
+//                   style={{ backgroundColor: primaryColor }}
+//                 >
+//                   Choose
+//                 </Button>
+//               </div>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
 
 // Full Form Popup Component
 interface FullFormPopupProps {
@@ -1423,136 +1650,136 @@ interface FullFormPopupProps {
   isDarkMode: boolean;
 }
 
-function FullFormPopup({ 
-  isOpen, 
-  onClose, 
-  onSubmit, 
-  questions, 
-  initialAnswers,
-  isDarkMode 
-}: FullFormPopupProps) {
-  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
+// function FullFormPopup({ 
+//   isOpen, 
+//   onClose, 
+//   onSubmit, 
+//   questions, 
+//   initialAnswers,
+//   isDarkMode 
+// }: FullFormPopupProps) {
+//   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
 
-  // Update internal state when initialAnswers prop changes
-  useEffect(() => {
-    setAnswers(initialAnswers);
-  }, [initialAnswers]);
+//   // Update internal state when initialAnswers prop changes
+//   useEffect(() => {
+//     setAnswers(initialAnswers);
+//   }, [initialAnswers]);
 
-  if (!isOpen) return null;
+//   if (!isOpen) return null;
 
-  const handleSubmit = () => {
-    // Check if all questions have answers
-    const missingAnswers = questions.filter(q => !answers[q.id] || answers[q.id].trim() === '');
-    if (missingAnswers.length > 0) {
-      alert(`Please answer all questions. Missing: ${missingAnswers.map(q => q.question.slice(0, 30) + '...').join(', ')}`);
-      return;
-    }
+//   const handleSubmit = () => {
+//     // Check if all questions have answers
+//     const missingAnswers = questions.filter(q => !answers[q.id] || answers[q.id].trim() === '');
+//     if (missingAnswers.length > 0) {
+//       alert(`Please answer all questions. Missing: ${missingAnswers.map(q => q.question.slice(0, 30) + '...').join(', ')}`);
+//       return;
+//     }
     
-    onSubmit(answers);
-    onClose();
-  };
+//     onSubmit(answers);
+//     onClose();
+//   };
 
-  const updateAnswer = (questionId: string, value: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: value }));
-  };
+//   const updateAnswer = (questionId: string, value: string) => {
+//     setAnswers(prev => ({ ...prev, [questionId]: value }));
+//   };
 
-  // Check if all questions have been answered
-  const allQuestionsAnswered = questions.every(q => answers[q.id] && answers[q.id].trim() !== '');
+//   // Check if all questions have been answered
+//   const allQuestionsAnswered = questions.every(q => answers[q.id] && answers[q.id].trim() !== '');
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className={`rounded-xl shadow-2xl border max-w-4xl w-full max-h-[90vh] overflow-hidden ${
-        isDarkMode 
-          ? 'bg-gray-800 border-gray-600' 
-          : 'bg-white border-gray-300'
-      }`}>
-        {/* Header */}
-        <div className={`flex items-center justify-between p-4 border-b ${
-          isDarkMode ? 'border-gray-600' : 'border-gray-200'
-        }`}>
-          <h3 className={`text-lg font-semibold ${
-            isDarkMode ? 'text-gray-50' : 'text-gray-900'
-          }`}>
-            Complete All Questions ({questions.length} total)
-          </h3>
-          <button
-            onClick={onClose}
-            className={`p-1 rounded hover:bg-gray-100 ${
-              isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
-            }`}
-            aria-label="Close full form"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+//   return (
+//     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+//       <div className={`rounded-xl shadow-2xl border max-w-4xl w-full max-h-[90vh] overflow-hidden ${
+//         isDarkMode 
+//           ? 'bg-gray-800 border-gray-600' 
+//           : 'bg-white border-gray-300'
+//       }`}>
+//         {/* Header */}
+//         <div className={`flex items-center justify-between p-4 border-b ${
+//           isDarkMode ? 'border-gray-600' : 'border-gray-200'
+//         }`}>
+//           <h3 className={`text-lg font-semibold ${
+//             isDarkMode ? 'text-gray-50' : 'text-gray-900'
+//           }`}>
+//             Complete All Questions ({questions.length} total)
+//           </h3>
+//           <button
+//             onClick={onClose}
+//             className={`p-1 rounded hover:bg-gray-100 ${
+//               isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+//             }`}
+//             aria-label="Close full form"
+//           >
+//             <X className="h-5 w-5" />
+//           </button>
+//         </div>
 
-        {/* Form Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-          <div className="space-y-6">
-            {questions.map((question, index) => (
-              <div key={question.id} className={`p-4 rounded-lg border ${
-                isDarkMode 
-                  ? 'border-gray-600 bg-gray-700/30' 
-                  : 'border-gray-200 bg-gray-50/50'
-              }`}>
-                <div className="mb-3">
-                  <h4 className={`font-medium mb-1 ${
-                    isDarkMode ? 'text-gray-100' : 'text-gray-900'
-                  }`}>
-                    Question {index + 1}
-                  </h4>
-                  <p className={`text-sm ${
-                    isDarkMode ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    {question.question}
-                  </p>
-                </div>
+//         {/* Form Content */}
+//         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+//           <div className="space-y-6">
+//             {questions.map((question, index) => (
+//               <div key={question.id} className={`p-4 rounded-lg border ${
+//                 isDarkMode 
+//                   ? 'border-gray-600 bg-gray-700/30' 
+//                   : 'border-gray-200 bg-gray-50/50'
+//               }`}>
+//                 <div className="mb-3">
+//                   <h4 className={`font-medium mb-1 ${
+//                     isDarkMode ? 'text-gray-100' : 'text-gray-900'
+//                   }`}>
+//                     Question {index + 1}
+//                   </h4>
+//                   <p className={`text-sm ${
+//                     isDarkMode ? 'text-gray-300' : 'text-gray-600'
+//                   }`}>
+//                     {question.question}
+//                   </p>
+//                 </div>
                 
-                <DynamicInput
-                  currentQuestion={question}
-                  value={answers[question.id] || ''}
-                  onChange={(value) => {
-                    updateAnswer(question.id, value);
-                  }}
-                  onSubmit={() => {}} // No individual submit in full form
-                  isLoading={false}
-                  isDarkMode={isDarkMode}
-                  hideSubmitButton={true}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
+//                 <DynamicInput
+//                   currentQuestion={question}
+//                   value={answers[question.id] || ''}
+//                   onChange={(value) => {
+//                     updateAnswer(question.id, value);
+//                   }}
+//                   onSubmit={() => {}} // No individual submit in full form
+//                   isLoading={false}
+//                   isDarkMode={isDarkMode}
+//                   hideSubmitButton={true}
+//                 />
+//               </div>
+//             ))}
+//           </div>
+//         </div>
 
-        {/* Footer */}
-        <div className={`p-4 border-t ${
-          isDarkMode ? 'border-gray-600' : 'border-gray-200'
-        }`}>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              className={`flex-1 ${
-                isDarkMode 
-                  ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={!allQuestionsAnswered}
-              className="flex-1"
-            >
-              Submit All Answers
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+//         {/* Footer */}
+//         <div className={`p-4 border-t ${
+//           isDarkMode ? 'border-gray-600' : 'border-gray-200'
+//         }`}>
+//           <div className="flex gap-3">
+//             <Button
+//               variant="outline"
+//               onClick={onClose}
+//               className={`flex-1 ${
+//                 isDarkMode 
+//                   ? 'border-gray-600 text-gray-200 hover:bg-gray-700' 
+//                   : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+//               }`}
+//             >
+//               Cancel
+//             </Button>
+//             <Button
+//               onClick={handleSubmit}
+//               disabled={!allQuestionsAnswered}
+//               className="flex-1"
+//             >
+//               Submit All Answers
+//             </Button>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
 
 // ============================================================================
 // OPTIONS MENU COMPONENT WITH COLLAPSIBLE SUB-MENUS
@@ -1565,7 +1792,7 @@ interface OptionsMenuProps {
   useIteratorTest: boolean;
   historyPanelSide: 'left' | 'right';
   savedLogicResults: SavedLogicResult[];
-  savedTools: SavedTool[];
+  savedTools: ProductToolDefinition[]; // Corrected type to ProductToolDefinition[]
   selectedModel: string;
   availableModels: Array<{ id: string; name: string }>;
   onToggleDarkMode: () => void;
@@ -1574,7 +1801,7 @@ interface OptionsMenuProps {
   onToggleHistoryPanel: () => void;
   onResetWorkflow: () => void;
   onShowLogicSelect: () => void;
-  onShowToolsSelect: () => void;
+  onShowToolsSelect: () => void; // Ensure this is correctly defined and used
   onTestBrainstorming: () => void;
   onTestToolCreation: () => void;
   onTestMultiPart: () => void;
@@ -1896,6 +2123,23 @@ export default function TestUIPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showColorPickerPopup, setShowColorPickerPopup] = useState(false);
   
+  // Missing state declarations for handleStyleUpdate function
+  const [aiResponseText, setAiResponseText] = useState<string>('');
+  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [aiCurrentQuestion, setAiCurrentQuestion] = useState<{
+    id: string;
+    message: string;
+    inputType: string;
+    placeholder?: string;
+    options?: Array<{ value: string; label: string; colors?: string[]; }>;
+    allowCustom?: boolean;
+    maxSelections?: number;
+    suggestions?: string[];
+    acceptedFileTypes?: string[];
+    maxFileSize?: string;
+    questions?: any[];
+  } | null>(null);
+  
   // Behavior tracking state
   const [responseStartTime, setResponseStartTime] = useState<number>(Date.now());
   const [behaviorTracker, setBehaviorTracker] = useState<any>(null);
@@ -1941,7 +2185,7 @@ export default function TestUIPage() {
     id: string;
     message: string;
     inputType: string;
-    options?: Array<{ value: string; label: string }>;
+    options?: Array<{ value: string; label: string; colors?: string[]; }>;
     placeholder?: string;
     allowCustom?: boolean;
     maxSelections?: number;
@@ -1990,9 +2234,12 @@ export default function TestUIPage() {
   
   // NEW: Local storage state for saved logic results and tools
   const [savedLogicResults, setSavedLogicResults] = useState<SavedLogicResult[]>([]);
-  const [savedTools, setSavedTools] = useState<SavedTool[]>([]);
   const [showLogicSelect, setShowLogicSelect] = useState(false);
-  const [showToolsSelect, setShowToolsSelect] = useState(false);
+  
+  // NEW: State for list of all tools from IndexedDB
+  const [savedToolsFromDB, setSavedToolsFromDB] = useState<ProductToolDefinition[]>([]);
+  const [showToolsSelect, setShowToolsSelect] = useState(false); // Restored for the modal
+
   const [selectedModel, setSelectedModel] = useState('gpt-4.1'); // Default to flagship model
 
   // Available models for testing
@@ -2023,6 +2270,36 @@ export default function TestUIPage() {
     };
     
     mediaQuery.addEventListener('change', handleChange);
+
+    // Load initial data from IndexedDB
+    const loadInitialData = async () => {
+      console.log("Attempting to load last active tool and all tools from IndexedDB...");
+      const lastActiveTool = await loadLastActiveToolFromDB();
+      if (lastActiveTool) {
+        setProductToolDefinition(lastActiveTool);
+        setToolData((prev: any) => ({
+          ...prev, 
+          title: lastActiveTool.metadata.title,
+          description: lastActiveTool.metadata.description,
+          colorScheme: typeof lastActiveTool.colorScheme === 'string' ? lastActiveTool.colorScheme : (lastActiveTool.colorScheme?.primary || 'professional-blue'),
+          customColors: typeof lastActiveTool.colorScheme !== 'string' ? [lastActiveTool.colorScheme?.primary, lastActiveTool.colorScheme?.secondary].filter(Boolean) as string[] : undefined,
+          features: lastActiveTool.metadata.features || [],
+        }));
+      } else {
+        console.log("No last active tool found, starting fresh.");
+      }
+
+      const logicResultsFromDB = await loadLogicResultsFromDB();
+      setSavedLogicResults(logicResultsFromDB);
+      console.log(`Loaded ${logicResultsFromDB.length} logic results from IndexedDB initially.`);
+
+      // NEW: Load all saved tools for the "View Saved Tools" list
+      const allToolsFromDB = await loadAllToolsFromDB();
+      setSavedToolsFromDB(allToolsFromDB);
+      console.log(`Loaded ${allToolsFromDB.length} tools into savedToolsFromDB initially.`);
+    };
+    loadInitialData();
+    
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
@@ -2141,13 +2418,22 @@ export default function TestUIPage() {
                 const data = JSON.parse(line.slice(6));
                 
                 if (data.type === 'partial' && data.data) {
-                  // Update AI message with partial response
+                  // Update AI message with partial response with smooth transition
                   if (data.data.message) {
                     partialMessage = data.data.message;
-                    setLastAIMessage(partialMessage + '...');
+                    
+                    // Use transition for smooth streaming updates
+                    await transitionToNewContent(() => {
+                      setLastAIMessage(partialMessage + '...');
+                    });
                   }
                 } else if (data.type === 'complete') {
-                  // Final response
+                  // Final response with transition
+                  await transitionToNewContent(() => {
+                    if (data.data?.message) {
+                      setLastAIMessage(data.data.message);
+                    }
+                  });
                   return data;
                 } else if (data.type === 'error') {
                   throw new Error(data.message || 'Streaming failed');
@@ -2351,10 +2637,10 @@ export default function TestUIPage() {
           // Handle AI-generated colors by finding the actual color data
           if (currentQuestion && currentQuestion.options) {
             const selectedOption = currentQuestion.options.find((opt: any) => opt.value === value);
-            if (selectedOption && selectedOption.colors) {
+            if (selectedOption && (selectedOption as any).colors) {
               updated.colorScheme = 'custom';
-              updated.customColors = selectedOption.colors;
-              console.log('🎨 Applied AI-generated colors:', selectedOption.colors);
+              updated.customColors = (selectedOption as any).colors;
+              console.log('🎨 Applied AI-generated colors:', (selectedOption as any).colors);
             }
           }
           // If it's a custom color from color picker, find the custom color data
@@ -2395,10 +2681,10 @@ export default function TestUIPage() {
             // Handle AI-generated colors by finding the actual color data
             if (currentQuestion && currentQuestion.options) {
               const selectedOption = currentQuestion.options.find((opt: any) => opt.value === value);
-              if (selectedOption && selectedOption.colors) {
+              if (selectedOption && (selectedOption as any).colors) {
                 updated.colorScheme = 'custom';
-                updated.customColors = selectedOption.colors;
-                console.log('🎨 Applied AI-generated colors (smart detection):', selectedOption.colors);
+                updated.customColors = (selectedOption as any).colors;
+                console.log('🎨 Applied AI-generated colors (smart detection):', (selectedOption as any).colors);
               }
             }
             // Handle custom colors
@@ -2448,10 +2734,10 @@ export default function TestUIPage() {
           // Handle AI-generated colors by finding the actual color data
           if (multiPartQuestions[multiPartIndex] && multiPartQuestions[multiPartIndex].options) {
             const selectedOption = multiPartQuestions[multiPartIndex].options.find((opt: any) => opt.value === value);
-            if (selectedOption && selectedOption.colors) {
+            if (selectedOption && (selectedOption as any).colors) {
               updated.colorScheme = 'custom';
-              updated.customColors = selectedOption.colors;
-              console.log('🎨 Applied AI-generated colors in iterator:', selectedOption.colors);
+              updated.customColors = (selectedOption as any).colors;
+              console.log('🎨 Applied AI-generated colors in iterator:', (selectedOption as any).colors);
             }
           }
           // If it's a custom color from color picker, find the custom color data
@@ -2471,10 +2757,10 @@ export default function TestUIPage() {
             // Handle AI-generated colors by finding the actual color data
             if (multiPartQuestions[multiPartIndex] && multiPartQuestions[multiPartIndex].options) {
               const selectedOption = multiPartQuestions[multiPartIndex].options.find((opt: any) => opt.value === value);
-              if (selectedOption && selectedOption.colors) {
+              if (selectedOption && (selectedOption as any).colors) {
                 updated.colorScheme = 'custom';
-                updated.customColors = selectedOption.colors;
-                console.log('🎨 Applied AI-generated colors (smart detection in iterator):', selectedOption.colors);
+                updated.customColors = (selectedOption as any).colors;
+                console.log('🎨 Applied AI-generated colors (smart detection in iterator):', (selectedOption as any).colors);
               }
             }
             // Handle custom colors
@@ -2572,7 +2858,10 @@ export default function TestUIPage() {
 
   const processWithAI = async (answers: Record<string, string>) => {
     try {
-      setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
+      // Use transition for AI message update
+      await transitionToNewContent(() => {
+        setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
+      });
       
       // Extract key information from answers
       const expertise = answers['business-description'] || answers['welcome-iterator'] || 'business tools';
@@ -2599,7 +2888,8 @@ export default function TestUIPage() {
         userInput: userMessage,
         conversationHistory: updatedMessageHistory, // Use proper AI message history
         collectedAnswers: answers,
-        currentStep
+        currentStep,
+        productToolDefinition: productToolDefinition || null // Include current tool for style updates
       });
 
       if (result.success && result.response) {
@@ -2612,6 +2902,18 @@ export default function TestUIPage() {
           timestamp: new Date(),
           type: 'ai_response'
         }]);
+        
+        // NEW: Check for style update request
+        if (result.response.shouldUpdateStyle && result.response.styleUpdateContext) {
+          console.log('🎨 AI requested style update in processWithAI. Context:', result.response.styleUpdateContext);
+          await handleStyleUpdate(
+            result.response.styleUpdateContext.toolDefinitionId,
+            result.response.styleUpdateContext.dataStyleId,
+            result.response.styleUpdateContext.newTailwindClasses
+          );
+          setCurrentInput(''); // Clear user input after processing style update
+          return; // Stop further processing
+        }
         
         // Check if AI wants to create a tool - use enhanced brainstorming workflow
         if (result.response.toolCreationContext) {
@@ -2648,7 +2950,11 @@ export default function TestUIPage() {
       
     } catch (error) {
       console.error('Error in AI processing:', error);
-      setLastAIMessage(`AI processing encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you manually.`);
+      
+      // Use transition for error message
+      await transitionToNewContent(() => {
+        setLastAIMessage(`AI processing encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you manually.`);
+      });
       
       // Fallback to manual question
       const fallbackQuestion = {
@@ -2666,7 +2972,11 @@ export default function TestUIPage() {
   const handleAIFreeformInput = async (input: string) => {
     try {
       console.log('🔧 handleAIFreeformInput called with input:', input);
-      setLastAIMessage("Thinking about your question...");
+      
+      // Use transition for AI thinking message
+      await transitionToNewContent(() => {
+        setLastAIMessage("Thinking about your question...");
+      });
       
       // Build updated message history including this new user message
       const updatedMessageHistory = [...aiMessageHistory, {
@@ -2679,16 +2989,18 @@ export default function TestUIPage() {
       // Track user message in state
       setAiMessageHistory(updatedMessageHistory);
       
-      // Call the test UI API with current context
+      // Call the test UI API with current context INCLUDING productToolDefinition
       const requestBody = {
         userInput: input,
         conversationHistory: updatedMessageHistory, // Use the immediately updated history
         collectedAnswers,
-        currentStep
+        currentStep,
+        productToolDefinition: productToolDefinition || null // Include current tool for style updates
       };
       
       console.log('🔧 Sending request to API:', requestBody);
       console.log('🔧 AI message count so far:', updatedMessageHistory.filter(msg => msg.role === 'assistant').length);
+      console.log('🔧 Current productToolDefinition ID:', productToolDefinition?.id || 'none');
       
       // Use streaming request for real-time feedback
       const result = await handleStreamingAIRequest(requestBody);
@@ -2701,6 +3013,17 @@ export default function TestUIPage() {
           timestamp: new Date(),
           type: 'ai_response'
         }]);
+        
+        // Check if AI wants to update styles first
+        if (result.response.shouldUpdateStyle && result.response.styleUpdateContext) {
+          console.log('🎨 AI requested style update in handleAIFreeformInput. Context:', result.response.styleUpdateContext);
+          await handleStyleUpdate(
+            result.response.styleUpdateContext.toolDefinitionId,
+            result.response.styleUpdateContext.dataStyleId,
+            result.response.styleUpdateContext.newTailwindClasses
+          );
+          return; // Exit early since style update handles its own flow
+        }
         
         // Check if AI wants to create a tool - use enhanced brainstorming workflow
         if (result.response.toolCreationContext) {
@@ -2737,7 +3060,11 @@ export default function TestUIPage() {
       
     } catch (error) {
       console.error('Error in AI freeform input:', error);
-      setLastAIMessage(`I encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you continue building your tool.`);
+      
+      // Use transition for error message
+      await transitionToNewContent(() => {
+        setLastAIMessage(`I encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you continue building your tool.`);
+      });
       
       // Fallback question
       const fallbackQuestion = {
@@ -2890,7 +3217,7 @@ export default function TestUIPage() {
     id: string;
     message: string;
     inputType: string;
-    options?: any[];
+    options?: Array<{ value: string; label: string; colors?: string[]; }>;
     placeholder?: string;
     allowCustom?: boolean;
     maxSelections?: number;
@@ -2949,8 +3276,10 @@ export default function TestUIPage() {
 
   // Initialize localStorage data
   useEffect(() => {
-    setSavedLogicResults(getSavedLogicResults());
-    setSavedTools(getSavedTools());
+    // setSavedLogicResults(getSavedLogicResults()); // REMOVED localStorage call
+    // setSavedTools(getSavedTools()); // REMOVED localStorage call
+
+    // Data is now loaded in the previous useEffect block from IndexedDB
   }, []);
 
   // Track when a question becomes active (user starts responding)
@@ -2961,232 +3290,337 @@ export default function TestUIPage() {
   }, [currentQuestion, isInMultiPart, multiPartIndex]);
 
   // NEW: Enhanced Tool Creation Functions for Logic Architect Integration
-  const callToolCreationAgent = async (context: any, productToolDefinition?: ProductToolDefinition) => {
-    console.log('🛠️ Calling Tool Creation Agent...');
-    setIsGeneratingTool(true);
+  const callToolCreationAgent = async (context: any, existingToolDefinition?: ProductToolDefinition) => {
+    console.log('📞 Calling Tool Creation Agent with context:', context);
     
+    // Use transition for initial message
+    await transitionToNewContent(() => {
+      setLastAIMessage('Connecting to the Tool Creation Agent... Please wait a moment.');
+    });
+    
+    setIsGeneratingTool(true);
+    setProductToolDefinition(null); // Clear previous tool during generation
+
     try {
+      // Extract userIntent and build context for API
+      const userIntent = context.userIntent || context.coreWConcept || 'Create a custom business tool';
+      
+      const requestBody: any = {
+        userIntent,
+        context: {
+          targetAudience: context.targetAudience,
+          industry: context.industry,
+          toolType: context.toolType,
+          features: context.features,
+          businessDescription: context.businessDescription,
+          colors: context.colors,
+          collectedAnswers: context.collectedAnswers,
+          brandAnalysis: context.brandAnalysis,
+          conversationHistory: context.conversationHistory,
+          selectedWorkflow: context.selectedWorkflow,
+          uploadedFiles: context.uploadedFiles,
+          brainstormingResult: context.brainstormingResult || context,
+          logicArchitectInsights: context.logicArchitectInsights || (context.coreWConcept ? context : null)
+        }
+      };
+
+      if (existingToolDefinition) {
+        requestBody.existingTool = existingToolDefinition;
+      }
+
       const response = await fetch('/api/ai/create-tool', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userIntent: context.userIntent || 'Create a business calculator',
-          context: {
-            targetAudience: context.targetAudience || 'business professionals',
-            industry: context.industry || '',
-            toolType: context.toolType || 'calculator',
-            features: context.features || [],
-            businessDescription: context.businessDescription || '',
-            colors: context.colors || [],
-            collectedAnswers: context.collectedAnswers || {},
-            brandAnalysis: context.brandAnalysis,
-            conversationHistory: context.conversationHistory || [],
-            selectedWorkflow: context.selectedWorkflow || [],
-            uploadedFiles: context.uploadedFiles || [],
-            brainstormingResult: context.brainstormingResult || latestBrainstormingResult,
-            logicArchitectInsights: context.logicArchitectInsights || latestBrainstormingResult
-          },
-          selectedModel: selectedModel, // Add selected model to API call
-          existingTool: productToolDefinition,
-          updateType: context.updateType || 'general'
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      const result = await response.json();
-      
-      if (result.success && result.tool) {
-        console.log('✅ Tool Creation Agent completed successfully');
-        setProductToolDefinition(result.tool);
-        
-        // Save to localStorage for development
-        saveCreatedTool(result.tool);
-        
-        // Update saved tools list
-        setSavedTools(getSavedTools());
-        
-        return result.tool;
-      } else {
-        // Enhanced error handling for component validation errors
-        if (result.invalidComponents && result.invalidComponents.length > 0) {
-          const errorDetails = `Invalid component types detected:\n${result.invalidComponents.join('\n')}`;
-          console.error('❌ Component validation failed:', result.invalidComponents);
-          if (result.suggestions) {
-            console.log('💡 Suggestions:', result.suggestions);
-          }
-          throw new Error(`Tool creation failed: ${errorDetails}\n\nThe AI generated invalid component types. This has been logged for improvement.`);
-        }
-        
-        // Handle syntax errors separately
-        if (result.syntaxErrors && result.syntaxErrors.length > 0) {
-          const syntaxDetails = `Component syntax errors detected:\n${result.syntaxErrors.join('\n')}`;
-          console.error('❌ Component syntax validation failed:', result.syntaxErrors);
-          if (result.suggestions) {
-            console.log('💡 Suggestions:', result.suggestions);
-          }
-          throw new Error(`Tool creation failed: ${syntaxDetails}\n\nThe AI generated invalid component syntax. This has been logged for improvement.`);
-        }
-        throw new Error(result.message || 'Tool creation failed');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create tool');
       }
+
+      const apiResponse = await response.json();
+      console.log('✅ Tool Creation Agent returned:', apiResponse);
+      
+      // Handle API response structure: {success: true, tool: ProductToolDefinition, message: string}
+      if (!apiResponse.success || !apiResponse.tool) {
+        throw new Error(apiResponse.message || 'Tool creation failed');
+      }
+
+      const newToolDefinition: ProductToolDefinition = apiResponse.tool;
+      console.log('✅ Extracted tool definition:', newToolDefinition.metadata.title);
+      
+      setProductToolDefinition(newToolDefinition);
+      
+      // Use transition for success message
+      await transitionToNewContent(() => {
+        setLastAIMessage('✨ Your new tool has been generated! You can see it in the canvas.');
+      });
+      
+      setToolData({
+        title: newToolDefinition.metadata.title,
+        description: newToolDefinition.metadata.description,
+        colorScheme: typeof newToolDefinition.colorScheme === 'string' 
+          ? newToolDefinition.colorScheme 
+          : (newToolDefinition.colorScheme?.primary || 'professional-blue'),
+        customColors: typeof newToolDefinition.colorScheme !== 'string' 
+          ? [newToolDefinition.colorScheme?.primary, newToolDefinition.colorScheme?.secondary].filter(Boolean) as string[] 
+          : undefined,
+        features: newToolDefinition.metadata.features || [],
+      });
+
+      await saveLastActiveToolToDB(newToolDefinition);
+      await saveToolToDBList(newToolDefinition); // Add to the list of all tools
+
+      // Refresh the list of all tools
+      const allToolsFromDB = await loadAllToolsFromDB();
+      setSavedToolsFromDB(allToolsFromDB);
+
+      // Save to local storage (legacy, if still used for anything, otherwise remove)
+      // saveCreatedTool(newToolDefinition); // This was the old localStorage SavedTool[]
+      
+      // Update behavior tracker
+      const tracker = getBehaviorTracker();
+      tracker?.trackToolGeneration({
+        toolDefinitionId: newToolDefinition.id,
+        toolName: newToolDefinition.metadata.title,
+        toolType: newToolDefinition.metadata.type,
+        context: context, 
+        success: true
+      });
+
     } catch (error) {
       console.error('❌ Tool Creation Agent error:', error);
-      throw error;
+      
+      // Use transition for error message
+      await transitionToNewContent(() => {
+        setLastAIMessage(error instanceof Error ? error.message : 'An unknown error occurred during tool creation.');
+      });
+      
+      setIsGeneratingTool(false);
+      // Update behavior tracker for failure
+      const tracker = getBehaviorTracker();
+      tracker?.trackToolGeneration({
+        toolDefinitionId: existingToolDefinition?.id || 'unknown',
+        toolName: existingToolDefinition?.metadata.title || 'unknown',
+        toolType: existingToolDefinition?.metadata.type || 'unknown',
+        context: context,
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
     } finally {
       setIsGeneratingTool(false);
     }
   };
 
-  const createToolWithBrainstorming = async (context: any) => {
-    console.log('🧠 Starting tool creation with brainstorming...');
-    
-    try {
-      // STEP 0: Start canvas transition and UI updates IMMEDIATELY
-      console.log('🎨 Starting canvas transition and brainstorming UI...');
-      
-      // Show brainstorming panel and start transition
-      setShowBrainstormingPanel(true);
-      setIsBrainstorming(true);
-      setBrainstormingThoughts([]);
-      setIsGeneratingTool(true); // Start generating state early
-      setLastAIMessage('🧠 Let me brainstorm some creative ideas for your tool...');
-      
-      // Start canvas transition immediately
+  // NEW FUNCTION: Handle style updates for the current tool (LOCAL UPDATE)
+  const handleStyleUpdate = async (toolDefinitionId: string, dataStyleId: string, newTailwindClasses: string) => {
+    if (!productToolDefinition || productToolDefinition.id !== toolDefinitionId) {
+      // Use transition for error message
       await transitionToNewContent(() => {
-        // This will start the fade effect while brainstorming happens
-        console.log('🎨 Canvas transition started during brainstorming');
+        setLastAIMessage("Style update requested for a different tool than the one loaded. Please load the correct tool.");
       });
-      
-      // Step 1: Logic Architect Brainstorming with Streaming
-      const brainstormingResponse = await fetch('/api/ai/logic-architect/brainstorm', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      console.warn("Style update requested for tool ID", toolDefinitionId, "but current tool is", productToolDefinition?.id);
+      return;
+    }
+
+    console.log(`🖌️ Updating style locally for tool: ${toolDefinitionId}, element: ${dataStyleId}, classes: ${newTailwindClasses}`);
+    
+    // Use transition for loading message
+    await transitionToNewContent(() => {
+      setLastAIMessage('🎨 Updating tool style...');
+    });
+
+    try {
+      // Create updated tool definition with new style
+      const updatedToolDefinition: ProductToolDefinition = {
+        ...productToolDefinition,
+        currentStyleMap: {
+          ...productToolDefinition.currentStyleMap,
+          [dataStyleId]: newTailwindClasses
         },
-        body: JSON.stringify({
-          toolType: context.toolType || 'calculator',
-          targetAudience: context.targetAudience || 'business professionals', 
-          industry: context.industry || '',
-          businessDescription: context.businessDescription || '',
-          availableData: {
-            collectedAnswers: context.collectedAnswers || {},
-            features: context.features || [],
-            colors: context.colors || [],
-            brandAnalysis: context.brandAnalysis,
-            uploadedFiles: context.uploadedFiles,
-            conversationHistory: context.conversationHistory
-          }
-        }),
+        updatedAt: Date.now()
+      };
+
+      // Update local state
+      setProductToolDefinition(updatedToolDefinition);
+      
+      // Persist to IndexedDB
+      await saveLastActiveToolToDB(updatedToolDefinition);
+      await saveToolToDBList(updatedToolDefinition);
+      
+      console.log(`🎨 Style updated successfully for element '${dataStyleId}' with classes: ${newTailwindClasses}`);
+      console.log('🎨 Updated currentStyleMap:', updatedToolDefinition.currentStyleMap);
+      
+      // Use transition for success message
+      await transitionToNewContent(() => {
+        setLastAIMessage(`✅ Style updated! Changed ${dataStyleId} to use: ${newTailwindClasses}`);
       });
 
-      // Handle streaming brainstorming response
-      if (brainstormingResponse.headers.get('content-type')?.includes('text/event-stream')) {
-        const reader = brainstormingResponse.body?.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+    } catch (error) {
+      console.error('❌ Error updating tool style locally:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      
+      // Use transition for error message
+      await transitionToNewContent(() => {
+        setLastAIMessage(`❌ Failed to update style: ${errorMessage}`);
+      });
+    }
+  };
 
-        if (!reader) throw new Error('No brainstorming reader available');
+  const createToolWithBrainstorming = async (context: any) => {
+    console.log('🚀 Starting tool creation with brainstorming session...');
+    
+    // Use transition for initial message
+    await transitionToNewContent(() => {
+      setLastAIMessage('🧠 Engaging Logic Architect for brainstorming... This may take a moment.');
+    });
+    
+    setIsBrainstorming(true);
+    setShowBrainstormingPanel(true);
+    setBrainstormingThoughts([]);
+    setLatestBrainstormingResult(null);
+    setProductToolDefinition(null); // Clear previous tool
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+    try {
+      // Structure request according to brainstorm API schema
+      const brainstormRequest = {
+        toolType: context.toolType || context.userIntent || 'custom-calculator',
+        targetAudience: context.targetAudience || 'business professionals',
+        industry: context.industry,
+        businessContext: context.businessDescription || context.userIntent,
+        availableData: {
+          collectedAnswers: context.collectedAnswers,
+          features: context.features,
+          colors: context.colors,
+          brandAnalysis: context.brandAnalysis,
+          uploadedFiles: context.uploadedFiles,
+          conversationHistory: context.conversationHistory
+        }
+      };
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+      const response = await fetch('/api/ai/logic-architect/brainstorm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(brainstormRequest),
+      });
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6));
+      if (!response.ok || !response.body) {
+        const errorData = response.body ? await response.json() : {};
+        throw new Error(errorData.message || `Brainstorming API error: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n'); // FIXED: was '\\n', now correct '\n'
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const json = JSON.parse(line.slice(6));
+              console.log('🔧 Brainstorming stream chunk:', json); // Debug log
+              setBrainstormingThoughts(prev => [...prev, { ...json, timestamp: Date.now() }]);
+              
+              if (json.type === 'complete' && json.data?.toolCreationContext) {
+                console.log('🔧 Brainstorming complete with toolCreationContext:', json.data.toolCreationContext);
+                setLatestBrainstormingResult(json.data.toolCreationContext);
                 
-                // Add thought to panel
-                setBrainstormingThoughts(prev => [...prev, {
-                  type: data.type,
-                  data: data.data,
-                  timestamp: Date.now()
-                }]);
+                // Save logic result to database
+                const logicResult: SavedLogicResult = {
+                  id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  timestamp: Date.now(),
+                  date: new Date().toLocaleDateString(),
+                  toolType: context.toolType || 'custom-tool',
+                  targetAudience: context.targetAudience || 'business users',
+                  industry: context.industry,
+                  result: json.data.toolCreationContext
+                };
+                await saveLogicResultToDB(logicResult);
                 
-                if (data.type === 'complete') {
-                  console.log('🧠 Logic Architect brainstorming complete:', data.data);
-                  setLatestBrainstormingResult(data.data);
-                  
-                  // Save logic result to localStorage
-                  saveLogicResult(
-                    context.toolType || 'calculator',
-                    context.targetAudience || 'business professionals',
-                    context.industry,
-                    data.data
-                  );
-                  
-                  // Update saved logic results list
-                  setSavedLogicResults(getSavedLogicResults());
-                  
-                  // Update context with brainstorming results
-                  context.brainstormingResult = data.data;
-                  context.logicArchitectInsights = data.data;
-                  break;
-                }
-              } catch (parseError) {
-                console.warn('Failed to parse brainstorming data:', line);
+                // Refresh logic results list
+                const logicResultsFromDB = await loadLogicResultsFromDB();
+                setSavedLogicResults(logicResultsFromDB);
+                
+                // Use transition for completion message
+                await transitionToNewContent(() => {
+                  setLastAIMessage('✅ Brainstorming complete! Proceeding to tool generation...');
+                });
+                
+                // Call tool creation agent with the brainstormed context
+                console.log('🔧 About to call callToolCreationAgent with context:', json.data.toolCreationContext);
+                await callToolCreationAgent(json.data.toolCreationContext); 
+                console.log('🔧 callToolCreationAgent completed successfully');
+                // No need to save to IndexedDB here, callToolCreationAgent will handle it
+              } else if (json.type === 'complete' && json.data) {
+                console.log('🔧 Brainstorming complete with generic data:', json.data);
+                // Handle case where brainstorming result is in different format
+                setLatestBrainstormingResult(json.data);
+                
+                // Save logic result to database (generic format)
+                const logicResult: SavedLogicResult = {
+                  id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  timestamp: Date.now(),
+                  date: new Date().toLocaleDateString(),
+                  toolType: context.toolType || json.data.toolType || 'custom-tool',
+                  targetAudience: context.targetAudience || json.data.targetAudience || 'business users',
+                  industry: context.industry || json.data.industry,
+                  result: json.data
+                };
+                await saveLogicResultToDB(logicResult);
+                
+                // Refresh logic results list
+                const logicResultsFromDB = await loadLogicResultsFromDB();
+                setSavedLogicResults(logicResultsFromDB);
+                
+                // Use transition for completion message
+                await transitionToNewContent(() => {
+                  setLastAIMessage('✅ Brainstorming complete! Proceeding to tool generation...');
+                });
+                
+                console.log('🔧 About to call callToolCreationAgent with generic data:', json.data);
+                await callToolCreationAgent(json.data);
+                console.log('🔧 callToolCreationAgent completed successfully (generic path)');
+              } else if (json.type === 'error') {
+                console.error('🔧 Brainstorming error:', json.message);
+                // Use transition for error message
+                await transitionToNewContent(() => {
+                  setLastAIMessage(`⚠️ Brainstorming error: ${json.message}`);
+                });
+              } else if (json.type === 'partial' && json.data?.thought) {
+                console.log('🔧 Brainstorming partial thought:', json.data.thought);
+                // Use transition for thinking updates
+                await transitionToNewContent(() => {
+                  setLastAIMessage(`🧠 Thinking: ${json.data.thought}`);
+                });
               }
+            } catch (e) {
+              console.warn('Failed to parse brainstorming stream chunk:', line, e);
             }
           }
         }
-      } else {
-        // Non-streaming fallback
-        const brainstormingData = await brainstormingResponse.json();
-        if (brainstormingData.success) {
-          setLatestBrainstormingResult(brainstormingData.result);
-          context.brainstormingResult = brainstormingData.result;
-          context.logicArchitectInsights = brainstormingData.result;
-          
-          // Save logic result
-          saveLogicResult(
-            context.toolType || 'calculator',
-            context.targetAudience || 'business professionals',
-            context.industry,
-            brainstormingData.result
-          );
-          setSavedLogicResults(getSavedLogicResults());
-        }
       }
+    } catch (error) {
+      console.error('❌ Brainstorming or subsequent tool creation error:', error);
       
-      setIsBrainstorming(false);
-      setLastAIMessage('✨ Great! I\'ve got some amazing ideas. Now let me create your tool...');
-      
-      // Step 2: Call Tool Creation Agent with enriched context
-      setLastAIMessage('🛠️ Creating your tool with the brainstormed ideas...');
-      
-      // Debug: Log the context being passed to tool creation
-      console.log('🔧 Context being passed to Tool Creation Agent:', {
-        brainstormingResult: context.brainstormingResult,
-        logicArchitectInsights: context.logicArchitectInsights,
-        coreWConcept: context.brainstormingResult?.coreWConcept || context.logicArchitectInsights?.coreWConcept
+      // Use transition for error message
+      await transitionToNewContent(() => {
+        setLastAIMessage(error instanceof Error ? error.message : 'An error occurred during the brainstorming and tool creation process.');
       });
       
-      const tool = await callToolCreationAgent(context);
-      
-      // Add final completion thought to brainstorming panel
-      setBrainstormingThoughts(prev => [...prev, {
-        type: 'complete',
-        data: {
-          coreWConcept: `Tool Created: ${tool.metadata.title}`,
-          message: `✅ Successfully created "${tool.metadata.title}" based on brainstormed concept`
-        },
-        timestamp: Date.now()
-      }]);
-      
-      setLastAIMessage(`🎉 Your "${tool.metadata.title}" is ready! Check out the preview and let me know if you'd like any adjustments.`);
-      
-      return tool;
-      
-    } catch (error) {
-      console.error('❌ Tool creation with brainstorming failed:', error);
+      setBrainstormingThoughts(prev => [...prev, { type: 'error', message: (error as Error).message, data: {}, timestamp: Date.now() }]);
+    } finally {
       setIsBrainstorming(false);
-      setIsGeneratingTool(false);
-      setLastAIMessage(`Sorry, there was an error creating your tool: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw error;
+      // setShowBrainstormingPanel(false); // Keep panel open to show results/errors
     }
   };
 
@@ -3194,15 +3628,33 @@ export default function TestUIPage() {
   const CanvasTool = ({ isDarkMode, className = '', productToolDefinition, isGenerating, generatingMessage }: any) => {
     if (isGenerating && generatingMessage) {
       return (
-        <div className={`p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
-          <div className={`border-2 border-dashed rounded-lg p-8 text-center ${
-            isDarkMode ? 'border-gray-600' : 'border-gray-300'
-          }`}>
-            <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
-            <h3 className="text-lg font-medium mb-2">Creating Your Tool</h3>
-            <p className="text-sm opacity-70">
-              {generatingMessage}
-            </p>
+        <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
+          {/* Show current tool blurred in background */}
+          {productToolDefinition && productToolDefinition.componentCode && (
+            <div className="filter blur-sm opacity-50 pointer-events-none">
+              <DynamicComponentRenderer
+                componentCode={productToolDefinition.componentCode}
+                metadata={{
+                  title: productToolDefinition.metadata.title,
+                  description: productToolDefinition.metadata.description,
+                  slug: productToolDefinition.slug
+                }}
+                onError={(error) => console.error('Canvas render error:', error)}
+              />
+            </div>
+          )}
+          
+          {/* Loading overlay */}
+          <div className="absolute inset-6 flex items-center justify-center bg-black/10 backdrop-blur-sm rounded-lg">
+            <div className={`border-2 border-dashed rounded-lg p-8 text-center backdrop-blur-md bg-white/90 dark:bg-gray-800/90 ${
+              isDarkMode ? 'border-gray-600' : 'border-gray-300'
+            }`}>
+              <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
+              <h3 className="text-lg font-medium mb-2">Creating Your Tool</h3>
+              <p className="text-sm opacity-70">
+                {generatingMessage}
+              </p>
+            </div>
           </div>
         </div>
       );
@@ -3247,7 +3699,8 @@ export default function TestUIPage() {
   }) => {
     const [isHovered, setIsHovered] = useState(false);
 
-    if (!productToolDefinition) return null;
+    // Add additional safety checks
+    if (!productToolDefinition || !productToolDefinition.metadata) return null;
 
     return (
       <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20">
@@ -3294,7 +3747,7 @@ export default function TestUIPage() {
               {/* Tool Title */}
               <div className="space-y-1">
                 <h3 className="text-lg font-semibold leading-tight">
-                  {productToolDefinition.metadata.title}
+                  {productToolDefinition.metadata?.title || 'Untitled Tool'}
                 </h3>
                 <div className="flex items-center gap-2">
                   <Badge 
@@ -3303,7 +3756,7 @@ export default function TestUIPage() {
                       isDarkMode ? 'border-gray-500 text-gray-300' : 'border-gray-400 text-gray-600'
                     }`}
                   >
-                    {productToolDefinition.metadata.type}
+                    {productToolDefinition.metadata?.type || 'Tool'}
                   </Badge>
                   <Badge 
                     variant="outline" 
@@ -3311,7 +3764,7 @@ export default function TestUIPage() {
                       isDarkMode ? 'border-gray-500 text-gray-300' : 'border-gray-400 text-gray-600'
                     }`}
                   >
-                    {productToolDefinition.metadata.category}
+                    {productToolDefinition.metadata?.category || 'General'}
                   </Badge>
                 </div>
               </div>
@@ -3321,11 +3774,11 @@ export default function TestUIPage() {
                 <p className={`text-sm leading-relaxed ${
                   isDarkMode ? 'text-gray-300' : 'text-gray-700'
                 }`}>
-                  {productToolDefinition.metadata.description}
+                  {productToolDefinition.metadata?.description || 'No description available'}
                 </p>
                 
-                {productToolDefinition.metadata.shortDescription && 
-                 productToolDefinition.metadata.shortDescription !== productToolDefinition.metadata.description && (
+                {productToolDefinition.metadata?.shortDescription && 
+                 productToolDefinition.metadata?.shortDescription !== productToolDefinition.metadata?.description && (
                   <p className={`text-xs ${
                     isDarkMode ? 'text-gray-400' : 'text-gray-500'
                   }`}>
@@ -3343,7 +3796,7 @@ export default function TestUIPage() {
                     Target Audience:
                   </span>
                   <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
-                    {productToolDefinition.metadata.targetAudience}
+                    {productToolDefinition.metadata?.targetAudience || 'General'}
                   </span>
                 </div>
                 
@@ -3352,7 +3805,7 @@ export default function TestUIPage() {
                     Industry:
                   </span>
                   <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
-                    {productToolDefinition.metadata.industry}
+                    {productToolDefinition.metadata?.industry || 'General'}
                   </span>
                 </div>
                 
@@ -3361,7 +3814,7 @@ export default function TestUIPage() {
                     Difficulty:
                   </span>
                   <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
-                    {productToolDefinition.metadata.difficultyLevel}
+                    {productToolDefinition.metadata?.difficultyLevel || 'N/A'}
                   </span>
                 </div>
 
@@ -3370,13 +3823,13 @@ export default function TestUIPage() {
                     Est. Time:
                   </span>
                   <span className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
-                    {productToolDefinition.metadata.estimatedCompletionTime} min
+                    {productToolDefinition.metadata?.estimatedCompletionTime || 'N/A'} min
                   </span>
                 </div>
               </div>
 
               {/* Features tags */}
-              {productToolDefinition.metadata.features && productToolDefinition.metadata.features.length > 0 && (
+              {productToolDefinition.metadata?.features && productToolDefinition.metadata.features.length > 0 && (
                 <div className="space-y-2">
                   <p className={`text-xs font-medium ${
                     isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -3465,7 +3918,7 @@ export default function TestUIPage() {
                   useIteratorTest={useIteratorTest}
                   historyPanelSide={historyPanelSide}
                   savedLogicResults={savedLogicResults}
-                  savedTools={savedTools}
+                  savedTools={savedToolsFromDB} // FIXED: Pass actual saved tools from DB
                   selectedModel={selectedModel}
                   availableModels={availableModels}
                   onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
@@ -3477,7 +3930,7 @@ export default function TestUIPage() {
                   onToggleHistoryPanel={() => setHistoryPanelSide(historyPanelSide === 'left' ? 'right' : 'left')}
                   onResetWorkflow={resetWorkflow}
                   onShowLogicSelect={() => setShowLogicSelect(true)}
-                  onShowToolsSelect={() => setShowToolsSelect(true)}
+                  onShowToolsSelect={() => setShowToolsSelect(true)} // FIXED: Actually show the tools panel
                   onTestBrainstorming={async () => {
                     try {
                       const testContext = {
@@ -3494,6 +3947,11 @@ export default function TestUIPage() {
                   }}
                   onTestToolCreation={async () => {
                     try {
+                      // Use transition for start message
+                      await transitionToNewContent(() => {
+                        setLastAIMessage('🎲 Randomly selecting a tool type for testing...');
+                      });
+                      
                       // 🎲 10 Creative Calculator Types for Random Testing
                       const calculatorTypes = [
                         {
@@ -3584,9 +4042,19 @@ export default function TestUIPage() {
                       
                       console.log(`🎲 Testing with random calculator: ${selectedCalculator.toolType} (${randomIndex + 1}/10)`);
                       
+                      // Use transition for selection message
+                      await transitionToNewContent(() => {
+                        setLastAIMessage(`🎯 Selected: ${selectedCalculator.toolType.replace(/-/g, ' ')} for ${selectedCalculator.targetAudience}. Creating tool...`);
+                      });
+                      
                       await callToolCreationAgent(selectedCalculator);
                     } catch (error) {
                       console.error('Test tool creation failed:', error);
+                      
+                      // Use transition for error message
+                      await transitionToNewContent(() => {
+                        setLastAIMessage(`❌ Test tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                      });
                     }
                   }}
                   onTestMultiPart={async () => {
@@ -3731,9 +4199,33 @@ export default function TestUIPage() {
                 {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
               </div>
               <div className="flex-1 overflow-y-auto px-4 pb-4">
-                <p className="text-sm text-gray-700 dark:text-gray-400 leading-relaxed font-medium">
-                  {lastAIMessage}
-                </p>
+                <div 
+                  className={`text-sm leading-relaxed font-medium transition-all duration-300 ease-in-out ${
+                    isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                  }`}
+                  style={{ 
+                    opacity: transitionOpacity,
+                    transform: `translateY(${transitionOpacity === 1 ? '0' : '10px'})` 
+                  }}
+                >
+                  {lastAIMessage && (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      {lastAIMessage}
+                    </div>
+                  )}
+                  {isLoading && !lastAIMessage && (
+                    <div className={`flex items-center gap-2 ${
+                      isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                      <div className="flex gap-1">
+                        <div className="w-2 h-2 bg-current rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                      </div>
+                      <span className="text-xs">AI is thinking...</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -3791,14 +4283,14 @@ export default function TestUIPage() {
                           const currentQuestion = multiPartQuestions[multiPartIndex];
                           if (currentQuestion && currentQuestion.options) {
                             const selectedOption = currentQuestion.options.find((opt: any) => opt.value === value);
-                            if (selectedOption && selectedOption.colors) {
+                            if (selectedOption && (selectedOption as any).colors) {
                               // For AI-generated colors, update with actual hex values
                               setToolData((prev: any) => ({
                                 ...prev,
                                 colorScheme: 'custom',
-                                customColors: selectedOption.colors
+                                customColors: (selectedOption as any).colors
                               }));
-                              console.log('🎨 Iterator live preview update with AI colors:', selectedOption.colors);
+                              console.log('🎨 Iterator live preview update with AI colors:', (selectedOption as any).colors);
                               return;
                             }
                           }
@@ -3898,14 +4390,14 @@ export default function TestUIPage() {
                         // Enhanced preview update for live color changes
                         if (currentQuestion && currentQuestion.options) {
                           const selectedOption = currentQuestion.options.find((opt: any) => opt.value === value);
-                          if (selectedOption && selectedOption.colors) {
+                          if (selectedOption && (selectedOption as any).colors) {
                             // For AI-generated colors, update with actual hex values
                             setToolData((prev: any) => ({
                               ...prev,
                               colorScheme: 'custom',
-                              customColors: selectedOption.colors
+                              customColors: (selectedOption as any).colors
                             }));
-                            console.log('🎨 Live preview update with AI colors:', selectedOption.colors);
+                            console.log('🎨 Live preview update with AI colors:', (selectedOption as any).colors);
                             return;
                           }
                         }
@@ -4207,81 +4699,108 @@ export default function TestUIPage() {
 
       {/* NEW: Saved Tools Panel */}
       {showToolsSelect && (
-        <div className={`fixed top-4 right-4 w-80 max-h-96 rounded-xl shadow-2xl border z-50 ${
-          isDarkMode 
-            ? 'bg-gray-800 border-gray-600' 
-            : 'bg-white border-gray-300'
-        }`}>
-          <div className={`flex items-center justify-between p-4 border-b ${
-            isDarkMode ? 'border-gray-600' : 'border-gray-200'
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-xl shadow-2xl border max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col ${
+            isDarkMode 
+              ? 'bg-gray-800 border-gray-600' 
+              : 'bg-white border-gray-300'
           }`}>
-            <h3 className={`text-lg font-semibold ${
-              isDarkMode ? 'text-gray-50' : 'text-gray-900'
+            <div className={`flex items-center justify-between p-4 border-b ${
+              isDarkMode ? 'border-gray-600' : 'border-gray-200'
             }`}>
-              🛠️ Saved Tools
-            </h3>
-            <button
-              onClick={() => setShowToolsSelect(false)}
-              className={`p-1 rounded hover:bg-gray-100 ${
-                isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
-              }`}
-              aria-label="Close saved tools panel"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-          
-          <div className="p-4 overflow-y-auto max-h-80">
-            {savedTools.length === 0 ? (
-              <div className={`text-center ${
-                isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              <h3 className={`text-lg font-semibold ${
+                isDarkMode ? 'text-gray-50' : 'text-gray-900'
               }`}>
-                <Calculator className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No saved tools yet</p>
-                <p className="text-xs mt-1">Create tools to see them saved here</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {savedTools.map((savedTool) => (
-                  <div
-                    key={savedTool.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                      isDarkMode 
-                        ? 'border-gray-600 bg-gray-700/30 hover:bg-gray-700/50' 
-                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                    }`}
-                    onClick={() => {
-                      console.log('Loading saved tool:', savedTool.tool);
-                      setProductToolDefinition(savedTool.tool);
-                      setShowToolsSelect(false);
-                    }}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className={`text-sm font-medium ${
-                          isDarkMode ? 'text-gray-200' : 'text-gray-800'
-                        }`}>
-                          {savedTool.title}
-                        </h4>
-                        <p className={`text-xs ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          {savedTool.tool.metadata.description?.slice(0, 60)}...
-                        </p>
-                        <p className={`text-xs ${
-                          isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                        }`}>
-                          {savedTool.date}
-                        </p>
+                Saved Tools ({savedToolsFromDB.length})
+              </h3>
+              <button
+                onClick={() => setShowToolsSelect(false)}
+                className={`p-1 rounded hover:bg-gray-100 ${
+                  isDarkMode ? 'hover:bg-gray-700 text-gray-300' : 'text-gray-500'
+                }`}
+                aria-label="Close saved tools"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-grow">
+              {savedToolsFromDB.length === 0 ? (
+                <p className={`text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  No tools saved yet. Create some tools to see them here!
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {savedToolsFromDB.map((toolDef) => (
+                    <li 
+                      key={toolDef.id} 
+                      className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                        isDarkMode 
+                          ? 'border-gray-700 hover:bg-gray-700/50' 
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                      onClick={async () => {
+                        console.log("Loading tool from list:", toolDef.metadata.title);
+                        setProductToolDefinition(toolDef);
+                        // Update toolData for canvas preview
+                        setToolData({
+                          title: toolDef.metadata.title,
+                          description: toolDef.metadata.description,
+                          colorScheme: typeof toolDef.colorScheme === 'string' 
+                            ? toolDef.colorScheme 
+                            : (toolDef.colorScheme?.primary || 'professional-blue'),
+                          customColors: typeof toolDef.colorScheme !== 'string' 
+                            ? [toolDef.colorScheme?.primary, toolDef.colorScheme?.secondary].filter(Boolean) as string[] 
+                            : undefined,
+                          features: toolDef.metadata.features || [],
+                        });
+                        await saveLastActiveToolToDB(toolDef); // Set as last active
+                        setShowToolsSelect(false);
+                      }}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className={`font-medium ${isDarkMode ? 'text-gray-100' : 'text-gray-900'}`}>
+                            {toolDef.metadata.title}
+                          </h4>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            ID: {toolDef.id} - Version: {toolDef.version} - Type: {toolDef.metadata.type}
+                          </p>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Last Updated: {new Date(toolDef.updatedAt || 0).toLocaleString()}
+                          </p>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className={isDarkMode ? 'text-red-400 hover:text-red-300' : 'text-red-500 hover:text-red-700'}
+                          onClick={async (e) => {
+                            e.stopPropagation(); // Prevent li onClick from firing
+                            if (confirm(`Are you sure you want to delete "${toolDef.metadata.title}"?`)) {
+                              await deleteToolFromDBList(toolDef.id);
+                              const refreshedTools = await loadAllToolsFromDB();
+                              setSavedToolsFromDB(refreshedTools);
+                            }
+                          }}
+                        >
+                          Delete
+                        </Button>
                       </div>
-                      <Badge variant="outline" className="text-xs">
-                        Load
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className={`p-4 border-t ${isDarkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+              <Button
+                variant="outline"
+                onClick={() => setShowToolsSelect(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            </div>
           </div>
         </div>
       )}

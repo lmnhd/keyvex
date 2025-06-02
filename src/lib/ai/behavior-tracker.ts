@@ -8,7 +8,7 @@ export interface UserInteraction {
   timestamp: number;
   
   // Interaction details
-  interactionType: 'question_response' | 'tool_selection' | 'workflow_choice' | 'custom_input' | 'edit_previous';
+  interactionType: 'question_response' | 'tool_selection' | 'workflow_choice' | 'custom_input' | 'edit_previous' | 'tool_generation_result';
   questionId?: string;
   questionType?: string; // 'select', 'multiSelect', 'colorSelect', etc.
   userResponse: string;
@@ -255,6 +255,46 @@ export class UserBehaviorTracker {
       editedPrevious: false,
       switchedToChat: true
     });
+  }
+  
+  /**
+   * NEW: Track the result of a tool generation attempt
+   */
+  trackToolGeneration(params: {
+    toolDefinitionId: string;
+    toolName: string;
+    toolType: string;
+    context: any; // The context/prompt used for generation
+    success: boolean;
+    error?: string; // Error message if not successful
+    componentCode?: string; // Optional: the generated code if successful
+    duration?: number; // Optional: time taken for generation
+  }): void {
+    this.trackInteraction({
+      interactionType: 'tool_generation_result',
+      userResponse: params.success ? 'success' : 'failure', // Or more detailed status
+      responseTime: params.duration || 0, // Use generation duration if available
+      // Add specific fields for tool generation if needed in UserInteraction,
+      // or store them in a generic 'details' object.
+      // For now, we'll rely on the basic fields and log context.
+      // Consider adding 'details: params' if more data needs to be stored directly.
+      // For simplicity here, critical info like success/error is mapped.
+      // The 'context' and other params might be logged server-side or via a different mechanism
+      // if not directly fitting into UserInteraction structure without major changes.
+      // Let's put stringified details for now if we need more than success/failure status.
+      // For example:
+      // userResponse: JSON.stringify({ success: params.success, toolName: params.toolName, error: params.error }),
+      currentStep: 0, // Not applicable or could be set based on workflow context
+      totalSteps: 0, // Not applicable
+      workflowType: 'ai_mode', // Assuming tool generation is an AI-driven workflow
+      isMultiPart: false,
+      usedSuggestions: false,
+      usedCustomInput: false,
+      editedPrevious: false,
+      switchedToChat: false,
+    });
+    // Log extended details separately if needed, e.g., to a dedicated analytics stream
+    console.log('Tool Generation Tracked:', params);
   }
   
   private calculateConfidence(responseTime: number, usedCustomInput: boolean): number {

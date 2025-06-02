@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+import { getPrimaryModel, getFallbackModel, getProcessConfig, getProviders } from '@/lib/ai/models/model-config';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { 
   TOOL_CREATION_PROMPT, 
@@ -109,6 +109,10 @@ const productToolDefinitionSchema = z.object({
   // React component code as string
   componentCode: z.string(),
   
+  // Style information
+  initialStyleMap: z.record(z.string()).optional(), // Generated once by AI
+  currentStyleMap: z.record(z.string()).optional(),  // Active, editable style map
+
   // Simplified color scheme
   colorScheme: z.object({
     primary: z.string(),
@@ -131,7 +135,7 @@ const productToolDefinitionSchema = z.object({
     enabled: z.boolean(),
     completions: z.number(),
     averageTime: z.number()
-  })
+  }).optional()
 });
 
 // Helper function to create model instance
@@ -174,12 +178,46 @@ export async function POST(request: NextRequest) {
     // }
 
     // STEP 2: Get the primary model for tool creation
+    console.log('🔍 Debug: Available models for toolCreator process');
+    const processConfig = getProcessConfig('toolCreator');
+    console.log('🔍 Process config:', processConfig);
+    
+    if (processConfig) {
+      const providers = getProviders();
+      console.log('🔍 Available providers:', Object.keys(providers));
+      const openaiModels = providers.openai?.models;
+      console.log('🔍 OpenAI models available:', openaiModels ? Object.keys(openaiModels) : 'none');
+    }
+    
     const model = selectedModel ? { provider: 'openai', model: selectedModel } : getPrimaryModel('toolCreator');
     if (!model) {
+      console.error('❌ No model configuration found for toolCreator process');
       return NextResponse.json({ 
         success: false, 
         message: 'Tool creation model not available' 
       }, { status: 503 });
+    }
+
+    console.log('🎯 Using model configuration:', { provider: model.provider, model: model.model });
+
+    // If the primary model fails, try fallback
+    let modelInstance;
+    try {
+      modelInstance = createModelInstance(model.provider, model.model);
+      console.log('✅ Model instance created successfully for:', model.model);
+    } catch (modelError) {
+      console.warn('⚠️ Primary model failed, trying fallback...', modelError);
+      const fallbackModel = getFallbackModel('toolCreator');
+      if (fallbackModel) {
+        console.log('🔄 Using fallback model:', fallbackModel.model);
+        modelInstance = createModelInstance(fallbackModel.provider, fallbackModel.model);
+      } else {
+        console.error('❌ No fallback model available');
+        return NextResponse.json({ 
+          success: false, 
+          message: 'No available models for tool creation' 
+        }, { status: 503 });
+      }
     }
 
     // STEP 3: Build prompts using consolidated builder functions
@@ -189,8 +227,6 @@ export async function POST(request: NextRequest) {
     console.log('🎯 Sending request to model:', model.model);
 
     // Create model instance and generate tool using AI SDK
-    const modelInstance = createModelInstance(model.provider, model.model);
-
     const { object: productTool } = await generateObject({
       model: modelInstance,
       schema: productToolDefinitionSchema,
@@ -215,8 +251,18 @@ export async function POST(request: NextRequest) {
       const componentCode = productTool.componentCode;
       console.log('✅ Using AI-generated import-free component code');
 
+      // Ensure analytics field is present for type compatibility
+      const toolWithAnalytics: ProductToolDefinition = {
+        ...productTool,
+        analytics: productTool.analytics || {
+          enabled: true,
+          completions: 0,
+          averageTime: 0
+        }
+      };
+
       // Process the tool with the generated code
-      const processedTool = await processToolCreation(productTool, context, componentCode);
+      const processedTool = await processToolCreation(toolWithAnalytics, context, componentCode);
       console.log('✅ Successfully processed tool:', processedTool.metadata.title);
 
       return NextResponse.json({

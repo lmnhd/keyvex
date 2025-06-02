@@ -19,6 +19,7 @@ interface DynamicComponentRendererProps {
     description: string;
     slug: string;
   };
+  currentStyleMap?: Record<string, string>;
   onError?: (error: Error) => void;
   isLoading?: boolean;
 }
@@ -26,11 +27,12 @@ interface DynamicComponentRendererProps {
 export default function DynamicComponentRenderer({
   componentCode,
   metadata,
+  currentStyleMap,
   onError,
   isLoading = false
 }: DynamicComponentRendererProps) {
   const [renderError, setRenderError] = useState<string | null>(null);
-  const [componentInstance, setComponentInstance] = useState<React.ComponentType | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Safely compile and render the component code
   const compiledComponent = useMemo(() => {
@@ -164,6 +166,22 @@ export default function DynamicComponentRenderer({
     }
   }, [componentCode, onError]);
 
+  // Effect to apply styles from currentStyleMap
+  useEffect(() => {
+    if (currentStyleMap && wrapperRef.current) {
+      console.log('[Dynamic Component] Applying styles from currentStyleMap:', currentStyleMap);
+      for (const [dataStyleId, classNameString] of Object.entries(currentStyleMap)) {
+        const element = wrapperRef.current.querySelector(`[data-style-id="${dataStyleId}"]`) as HTMLElement;
+        if (element) {
+          console.log(`[Dynamic Component] Styling element [data-style-id="${dataStyleId}"] with classes: "${classNameString}"`);
+          element.className = classNameString;
+        } else {
+          console.warn(`[Dynamic Component] Element with data-style-id="${dataStyleId}" not found for styling.`);
+        }
+      }
+    }
+  }, [currentStyleMap, compiledComponent]);
+
   // Error boundary for runtime errors
   const ErrorBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [hasError, setHasError] = useState(false);
@@ -244,7 +262,7 @@ export default function DynamicComponentRenderer({
     <div className="w-full">
       {/* Dynamic Component - Removed metadata banner to save space */}
       <ErrorBoundary>
-        <div className="dynamic-component-wrapper">
+        <div className="dynamic-component-wrapper" ref={wrapperRef}>
           {React.createElement(compiledComponent)}
         </div>
       </ErrorBoundary>

@@ -3,7 +3,7 @@
 export const TEST_UI_ASSISTANT_PROMPT = `<purpose>
     You are a TEST UI ASSISTANT specialized in conversation flow testing and UI component generation for business tool creation.
     
-    Your mission is to analyze user input and generate appropriate questions using various input components, while knowing when to skip questions and create tools directly.
+    Your mission is to analyze user input and generate appropriate questions using various input components, while knowing when to skip questions and create tools directly, OR when to update the style of an existing tool.
 </purpose>
 
 <tool-creation-rules>
@@ -44,12 +44,57 @@ export const TEST_UI_ASSISTANT_PROMPT = `<purpose>
             "targetAudience": "[extract from request or use 'Business professionals']",
             "industry": "[extract from context or use 'General business']",
             "toolType": "[what kind of tool they want]", 
-            "features": ["[relevant features based on request]"],
-            "businessDescription": "[based on what they told you]"
+            "features": ["[relevant features based on request]"]
           }
         }
     </creation-response-format>
 </tool-creation-rules>
+
+<style-update-rules>
+    <info>
+        This section guides you on how to respond when the user wants to update the visual style of an element in the currently displayed tool.
+        The user might say things like: "make the title bigger", "change the button color to green", "I want the background of the results section to be light gray".
+        You need to identify the target element (often by a descriptive name like 'main-title', 'submit-button', 'results-background') and the new Tailwind CSS classes.
+    </info>
+
+    <immediate-triggers>
+        If the user's input clearly indicates a style change for a specific element, and you have a 'productToolDefinition' in the current context, INITIATE A STYLE UPDATE.
+        - "Change the [element description] to [style description]"
+        - "Make the [element description] [tailwind classes]"
+        - "I want the [element description] to have [style description]"
+        - "Update the style of [element description]"
+    </immediate-triggers>
+
+    <style-update-examples>
+        - User: "Make the main title text larger and bold" (Current tool ID: tool-123, Target element data-style-id: main-title)
+          AI Response should set 'shouldUpdateStyle: true' and 'styleUpdateContext: { toolDefinitionId: "tool-123", dataStyleId: "main-title", newTailwindClasses: "text-2xl font-bold" }'
+        - User: "Change the primary button background to blue-600" (Current tool ID: tool-xyz, Target element data-style-id: primary-action-button)
+          AI Response should set 'shouldUpdateStyle: true' and 'styleUpdateContext: { toolDefinitionId: "tool-xyz", dataStyleId: "primary-action-button", newTailwindClasses: "bg-blue-600 hover:bg-blue-700 text-white" }' (ensure you provide complete and sensible class sets)
+    </style-update-examples>
+
+    <reasoning-for-style-update>
+        - You must infer the 'dataStyleId' of the element the user is referring to. Assume the 'componentCode' for the current tool has 'data-style-id' attributes on stylable elements (e.g., 'main-title', 'submit-button', 'input-label-name', 'results-card').
+        - You must translate the user's style request into valid Tailwind CSS classes.
+        - If the user is vague (e.g., "make it prettier"), ask for clarification about WHICH element and WHAT style.
+        - If no 'productToolDefinition' is present in the context, you cannot update styles. Ask the user to create or load a tool first.
+    </reasoning-for-style-update>
+
+    <style-update-response-format>
+        When initiating a style update, respond with 'shouldUpdateStyle: true' and populate 'styleUpdateContext':
+        {
+          "id": "style-update-request",
+          "message": "Got it! I'll update the style for the [element description]...",
+          "inputType": "textarea", // Or an appropriate input type if follow-up is needed, but typically style updates are direct actions.
+          "shouldUpdateStyle": true,
+          "styleUpdateContext": {
+            "toolDefinitionId": "[ID of the current productToolDefinition in context]",
+            "dataStyleId": "[inferred-data-style-id-of-element]",
+            "newTailwindClasses": "[complete-new-tailwind-class-string]"
+          },
+          "reasoning": "User requested a style change for [element description]. Translating to Tailwind: [newTailwindClasses] for data-style-id: [inferred-data-style-id-of-element]."
+        }
+    </style-update-response-format>
+</style-update-rules>
 
 <conversation-behavior>
     <core-principles>
@@ -227,7 +272,8 @@ export function createAdaptivePrompt(
   userInput: string,
   userProfile: any,
   conversationHistory: any[],
-  collectedAnswers: any
+  collectedAnswers: any,
+  productToolDefinition?: any
 ): string {
   // Count AI messages in conversation history
   const aiMessageCount = conversationHistory.filter((msg: any) => 
@@ -248,30 +294,98 @@ export function createAdaptivePrompt(
     /tool\s*$/i
   ];
   
-  const isDirectCreationRequest = creationPatterns.some(pattern => pattern.test(userInput));
-  
-  if (isDirectCreationRequest) {
-    basePrompt += `
+  const isCreationRequest = creationPatterns.some(pattern => pattern.test(userInput));
 
-🚨🚨🚨 CRITICAL: The user just said "${userInput}" - this is a DIRECT TOOL CREATION REQUEST!
-CREATE THE TOOL IMMEDIATELY! Do NOT ask any questions! Use shouldCreateTool: true!`;
-  } else if (aiMessageCount >= 2) {
-    basePrompt += `
-
-🚨 IMPORTANT: You've already asked ${aiMessageCount} questions. 
-Time to create their tool on this response!`;
-  } else {
-    basePrompt += `
-
-📊 Context: This is response #${aiMessageCount + 1}. You have ${3 - aiMessageCount - 1} more questions before you should create their tool.`;
+  if (isCreationRequest) {
+    // If it's an explicit creation request, prioritize that part of the prompt
+    // (This logic might need refinement based on how prompts are structured and combined)
+    // For now, we assume TEST_UI_ASSISTANT_PROMPT contains everything and the model will prioritize.
   }
 
+  // Add current product tool context if available (CRITICAL for style updates)
+  if (productToolDefinition) {
+    basePrompt += `
+
+<current-product-tool-context>
+    <tool-id>${productToolDefinition.id}</tool-id>
+    <tool-title>${productToolDefinition.metadata?.title || 'Untitled'}</tool-title>
+    <tool-description>${productToolDefinition.metadata?.description || 'No description'}</tool-description>
+    <current-color-scheme>
+        <primary>${productToolDefinition.colorScheme?.primary || '#3b82f6'}</primary>
+        <secondary>${productToolDefinition.colorScheme?.secondary || '#1e40af'}</secondary>
+        <background>${productToolDefinition.colorScheme?.background || '#ffffff'}</background>
+    </current-color-scheme>
+    <component-code-preview>${(productToolDefinition.componentCode || '').substring(0, 300)}${(productToolDefinition.componentCode || '').length > 300 ? '...' : ''}</component-code-preview>
+    <current-style-map>${JSON.stringify(productToolDefinition.currentStyleMap || {}, null, 2)}</current-style-map>
+    <available-style-ids>
+        Common data-style-id values include: main-container, main-title, main-description, submit-button, primary-button, input-field, results-section, results-card, background
+    </available-style-ids>
+</current-product-tool-context>`;
+  }
+
+  // Add user profile context if available
+  if (userProfile) {
+    basePrompt += `
+
+<user-profile-context>
+    <total-interactions>${userProfile.totalInteractions}</total-interactions>
+    <average-response-time>${userProfile.averageResponseTime?.toFixed(0) || 'N/A'}</average-response-time>
+    <exploration-tendency>${userProfile.explorationTendency?.toFixed(2) || 'N/A'}</exploration-tendency>
+    <prefers-structured>${userProfile.prefersStructuredQuestions}</prefers-structured>
+    <likely-to-edit>${userProfile.likelyToEditAnswers}</likely-to-edit>
+    <preferred-complexity>${userProfile.preferredComplexity || 'medium'}</preferred-complexity>
+    <suggested-workflow>${userProfile.suggestedWorkflow || 'flexible'}</suggested-workflow>
+    <adaptive-suggestions>
+        <prefer-quick-mode>${userProfile.averageResponseTime < 5000 && !userProfile.likelyToEditAnswers}</prefer-quick-mode>
+        <show-advanced-options>${userProfile.explorationTendency > 0.5}</show-advanced-options>
+    </adaptive-suggestions>
+</user-profile-context>`;
+  }
+
+  // Add conversation history context
+  if (conversationHistory && conversationHistory.length > 0) {
+    basePrompt += `
+
+<conversation-history>`;
+    conversationHistory.slice(-5).forEach(msg => { // Last 5 messages
+      const role = msg.role || (msg.type === 'user_input' ? 'user' : 'assistant');
+      const content = msg.content || msg.message || (typeof msg.data === 'string' ? msg.data : JSON.stringify(msg.data));
+      basePrompt += `
+  <message role="${role}">${content.substring(0, 200)}${content.length > 200 ? '...' : ''}</message>`;
+    });
+    basePrompt += `
+</conversation-history>`;
+  }
+
+  // Add collected answers context
+  if (collectedAnswers && Object.keys(collectedAnswers).length > 0) {
+    basePrompt += `
+
+<collected-answers>`;
+    for (const [key, value] of Object.entries(collectedAnswers)) {
+      basePrompt += `
+  <answer question-id="${key}">${String(value).substring(0, 100)}${String(value).length > 100 ? '...' : ''}</answer>`;
+    }
+    basePrompt += `
+</collected-answers>`;
+  }
+  
+  // Final instruction to the AI
   basePrompt += `
 
-User just said: "${userInput}"
-Previous answers collected: ${Object.keys(collectedAnswers).length}
+<current-user-input>
+${userInput}
+</current-user-input>
 
-${isDirectCreationRequest ? '🎯 DIRECT CREATION MODE: Skip questions, create tool now!' : 'Use your best judgment - if they\'re asking for something to be created, do it!'}`;
+<final-instruction>
+Based on ALL the provided context (purpose, rules, user profile, history, collected answers, current tool definition, and current input), generate the most appropriate JSON response according to the defined schemas.
+
+IMPORTANT STYLE UPDATE LOGIC:
+- If the user is asking to change colors, styles, or appearance AND there is a current-product-tool-context available, you MUST use the <style-update-rules> and set "shouldUpdateStyle": true with proper "styleUpdateContext".
+- For style updates, use the tool-id from current-product-tool-context and infer the appropriate data-style-id based on what the user is asking to change (background, title, button, etc.).
+- For tool creation requests, use the <tool-creation-rules>.
+- Otherwise, ask a relevant question to guide the user.
+</final-instruction>`;
 
   return basePrompt;
 } 

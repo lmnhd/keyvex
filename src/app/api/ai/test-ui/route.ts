@@ -71,6 +71,12 @@ const uiComponentResponseSchema = z.object({
     features: z.array(z.string()).optional(),
     businessDescription: z.string().optional(),
     updateType: z.enum(['color', 'title', 'description', 'features', 'components', 'general']).optional()
+  }).optional(),
+  shouldUpdateStyle: z.boolean().optional(), // NEW: Signal to call style update API
+  styleUpdateContext: z.object({          // NEW: Context for style update
+    toolDefinitionId: z.string(),         // ID of the ProductToolDefinition to update
+    dataStyleId: z.string(),              // The 'data-style-id' of the element to update
+    newTailwindClasses: z.string()        // The new Tailwind classes to apply
   }).optional()
 });
 
@@ -562,7 +568,7 @@ export async function POST(request: NextRequest) {
       const model = primaryModel ? createModelInstance(primaryModel.provider, primaryModel.modelInfo.id) : openai('gpt-4o');
 
       // Create adaptive prompt based on user profile
-      const adaptivePrompt = createAdaptivePrompt(userInput, userProfile, conversationHistory || [], collectedAnswers || {});
+      const adaptivePrompt = createAdaptivePrompt(userInput, userProfile, conversationHistory || [], collectedAnswers || {}, productToolDefinition);
 
       console.log('🔧 Generating AI response with adaptive prompt');
 

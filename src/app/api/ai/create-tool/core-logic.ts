@@ -312,27 +312,35 @@ export async function processToolCreation(
   context: any,
   compiledComponentCode: string
 ): Promise<ProductToolDefinition> {
-  // Use the pre-compiled component code
-  productTool.componentCode = compiledComponentCode;
+  // The initialStyleMap should now be directly available on productTool from the AI output
+  // Ensure currentStyleMap is initialized as a copy of initialStyleMap
+  const initialStyleMapToUse = productTool.initialStyleMap || {};
 
-  // Enrich with intelligent defaults
-  // Detect appropriate color scheme from context
-  const colorScheme = detectColorScheme(context);
-  
-  // Enhance color scheme if not fully specified
-  if (!productTool.colorScheme || Object.keys(productTool.colorScheme).length < 5) {
-    const selectedColorScheme = DEFAULT_COLOR_SCHEMES[colorScheme] || DEFAULT_COLOR_SCHEMES.professional;
-    productTool.colorScheme = selectedColorScheme;
-  }
-  
-  // Ensure analytics tracking is enabled for lead generation
-  if (!productTool.analytics?.completions) {
-    productTool.analytics = {
+  // Create a new object to avoid mutating the input directly if it's from a cache or state
+  const processedTool: ProductToolDefinition = {
+    ...productTool,
+    // componentCode is already part of productTool from AI
+    // compiledComponentCode might be the same as productTool.componentCode if AI gives JS directly
+    // For now, let's assume productTool.componentCode is the definitive one.
+    initialStyleMap: initialStyleMapToUse,
+    currentStyleMap: { ...initialStyleMapToUse }, // Initialize currentStyleMap as a copy
+    updatedAt: Date.now(),
+    // Ensure analytics field is present with defaults if not provided
+    analytics: productTool.analytics || {
       enabled: true,
       completions: 0,
       averageTime: 0
-    };
-  }
+    }
+  };
 
-  return productTool;
+  // TODO: Implement actual database saving logic here for the processedTool
+  // For now, just log and return
+  console.log('[core-logic] Processed tool definition:', processedTool.metadata.title);
+  console.log('[core-logic] Initial Style Map:', processedTool.initialStyleMap);
+
+  // No Babel compilation step here if componentCode is already JS
+  // If componentCode were JSX, Babel would be needed as previously envisioned.
+  // The current prompt instructs AI to give React.createElement() directly.
+
+  return processedTool;
 } 
