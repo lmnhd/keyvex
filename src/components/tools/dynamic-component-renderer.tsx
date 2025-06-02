@@ -39,6 +39,11 @@ export default function DynamicComponentRenderer({
     if (!componentCode) return null;
 
     try {
+      // Check for basic syntax issues first
+      if (!componentCode.trim()) {
+        throw new Error('Component code is empty');
+      }
+
       // Extract component name from the compiled code
       let componentName = 'GeneratedComponent';
       const functionMatch = componentCode.match(/function\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
@@ -54,7 +59,7 @@ export default function DynamicComponentRenderer({
         useCallback,
         useMemo,
         Card,
-        CardHeader, 
+        CardHeader,
         CardTitle,
         CardContent,
         Input,
@@ -64,16 +69,25 @@ export default function DynamicComponentRenderer({
         AlertCircle,
       };
 
-      // Execute the pre-compiled JavaScript
+      // Validate the component code doesn't contain obvious syntax errors
+      if (componentCode.includes('undefined') || componentCode.includes('null,') || componentCode.includes(',,')) {
+        throw new Error('Component code contains syntax errors (undefined values or double commas)');
+      }
+
+      // Execute the pre-compiled JavaScript with better error wrapping
       const executableCode = `
-        // Destructure all context variables
-        const { ${Object.keys(contextVars).join(', ')} } = contextVars;
-        
-        // Execute the pre-compiled component code
-        ${componentCode}
-        
-        // Return the component function
-        return ${componentName};
+        try {
+          // Destructure all context variables
+          const { ${Object.keys(contextVars).join(', ')} } = contextVars;
+
+          // Execute the pre-compiled component code
+          ${componentCode}
+          
+          // Return the component function
+          return ${componentName};
+        } catch (syntaxError) {
+          throw new Error('Syntax error in component code: ' + syntaxError.message);
+        }
       `;
 
       const componentFunction = new Function('contextVars', executableCode);
@@ -88,12 +102,14 @@ export default function DynamicComponentRenderer({
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('Component compilation error:', errorMsg);
+      console.error('Component code that failed:', componentCode);
       setRenderError(`Component execution failed: ${errorMsg}`);
-      
+
       if (onError) {
         onError(error instanceof Error ? error : new Error(errorMsg));
       }
-      
+
       return null;
     }
   }, [componentCode, onError]);

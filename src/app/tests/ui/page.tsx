@@ -3634,9 +3634,9 @@ export default function TestUIPage() {
     if (isGenerating && generatingMessage) {
       return (
         <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
-          {/* Show current tool blurred in background */}
+          {/* Show current tool heavily blurred in background */}
           {productToolDefinition && productToolDefinition.componentCode && (
-            <div className="filter blur-sm opacity-50 pointer-events-none">
+            <div className="filter blur-md opacity-30 pointer-events-none absolute inset-0 p-6">
               <DynamicComponentRenderer
                 componentCode={productToolDefinition.componentCode}
                 metadata={{
@@ -3651,12 +3651,12 @@ export default function TestUIPage() {
           )}
           
           {/* Loading overlay */}
-          <div className="absolute inset-6 flex items-center justify-center bg-black/10 backdrop-blur-sm rounded-lg">
-            <div className={`border-2 border-dashed rounded-lg p-8 text-center backdrop-blur-md bg-white/90 dark:bg-gray-800/90 ${
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+            <div className={`border-2 border-dashed rounded-lg p-8 text-center backdrop-blur-md bg-white/95 dark:bg-gray-800/95 shadow-xl ${
               isDarkMode ? 'border-gray-600' : 'border-gray-300'
             }`}>
               <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
-              <h3 className="text-lg font-medium mb-2">Creating Your Tool</h3>
+              <h3 className="text-lg font-medium mb-2">Now Building</h3>
               <p className="text-sm opacity-70">
                 {generatingMessage}
               </p>
