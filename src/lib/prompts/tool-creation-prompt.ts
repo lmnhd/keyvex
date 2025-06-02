@@ -237,7 +237,9 @@ export const TOOL_CREATION_PROMPT = `<purpose>
             - Keys are the exact string values you used for 'data-style-id' attributes in your 'componentCode'.
             - Values are the complete Tailwind CSS class strings that should be initially applied to those elements.
         - Every element in 'componentCode' that has a 'data-style-id' MUST have a corresponding entry in 'initialStyleMap'.
-        - Example: If componentCode has '<div data-style-id="my-container" className="p-4 bg-white">', then initialStyleMap must include '"my-container": "p-4 bg-white"'.
+        - Example: If componentCode has React.createElement('div', { className: 'p-4 bg-white', 'data-style-id': 'my-container' }), then initialStyleMap must include '"my-container": "p-4 bg-white"'.
+        - REQUIRED data-style-id elements: 'background' (main container), 'title' (main title), 'primary-button' (main action button)
+        - Additional data-style-id elements as needed for customizable parts
         - Ensure the class strings in 'initialStyleMap' are valid and complete Tailwind classes.
     </style-map-requirements>
     
@@ -308,12 +310,12 @@ export const TOOL_CREATION_PROMPT = `<purpose>
             setTimePeriod(1);
           };
 
-          return React.createElement('div', { className: 'max-w-3xl mx-auto p-6' },
+          return React.createElement('div', { className: 'max-w-3xl mx-auto p-6', 'data-style-id': 'background' },
             React.createElement(Card, { className: 'shadow-lg', style: { borderColor: '#3b82f6' } },
               // SPACE-EFFICIENT HEADER - Brief title with info popover
               React.createElement(CardHeader, { className: 'pb-4' },
                 React.createElement('div', { className: 'flex items-center gap-2' },
-                  React.createElement(CardTitle, { className: 'text-xl font-semibold' }, 'ROI Calculator'),
+                  React.createElement(CardTitle, { className: 'text-xl font-semibold', 'data-style-id': 'title' }, 'ROI Calculator'),
                   React.createElement('div', { className: 'group relative' },
                     React.createElement('div', {
                       className: 'w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300'
@@ -407,13 +409,21 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                   }, 'Reset Calculator'),
                   React.createElement(Button, {
                     style: { backgroundColor: '#3b82f6' },
-                    className: 'flex-1 text-white hover:opacity-90'
+                    className: 'flex-1 text-white hover:opacity-90',
+                    'data-style-id': 'primary-button'
                   }, 'Save Results')
                 )
               )
             )
           );
         }
+        
+        // CORRESPONDING initialStyleMap for this component:
+        // {
+        //   "background": "max-w-3xl mx-auto p-6",
+        //   "title": "text-xl font-semibold", 
+        //   "primary-button": "flex-1 text-white hover:opacity-90"
+        // }
     </component-example>
     
     <common-mistake-warning>

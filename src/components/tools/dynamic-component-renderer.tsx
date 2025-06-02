@@ -39,54 +39,14 @@ export default function DynamicComponentRenderer({
     if (!componentCode) return null;
 
     try {
-      console.log('[Dynamic Component] Executing pre-compiled component...');
-      
-      // The componentCode is now pre-compiled JavaScript (not JSX)
-      // We just need to execute it safely with proper context
-      
-      // Step 1: Pre-validate the code for common syntax errors
-      console.log('[Dynamic Component] 🔍 Pre-validating component code...');
-      
-      // Check for malformed regex patterns
-      const regexPatterns = componentCode.match(/\/[^\/\n]*\/?/g);
-      if (regexPatterns) {
-        regexPatterns.forEach((pattern, index) => {
-          try {
-            // Try to validate each potential regex pattern
-            if (pattern.startsWith('/') && !pattern.endsWith('/')) {
-              console.warn(`[Dynamic Component] ⚠️ Potential malformed regex found: ${pattern}`);
-            }
-          } catch (e) {
-            console.warn(`[Dynamic Component] ⚠️ Regex validation warning for pattern ${index}:`, e);
-          }
-        });
-      }
-      
-      // Check for other common syntax issues
-      const syntaxChecks = [
-        { pattern: /\/\*([^*]|\*(?!\/))*$/g, name: 'unclosed block comment' },
-        { pattern: /\/\/.*[\r\n].*\/\//g, name: 'potential comment issues' },
-        { pattern: /['""][^'"]*$/g, name: 'unclosed string literal' },
-        { pattern: /\{[^}]*$/g, name: 'unclosed brace' }
-      ];
-      
-      syntaxChecks.forEach(check => {
-        const matches = componentCode.match(check.pattern);
-        if (matches && matches.length > 0) {
-          console.warn(`[Dynamic Component] ⚠️ Potential ${check.name} detected:`, matches);
-        }
-      });
-      
-      // Step 2: Extract component name from the compiled code
+      // Extract component name from the compiled code
       let componentName = 'GeneratedComponent';
       const functionMatch = componentCode.match(/function\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
       if (functionMatch) {
         componentName = functionMatch[1];
       }
 
-      console.log('[Dynamic Component] 🎯 Component name:', componentName);
-
-      // Step 3: Create execution context with all React dependencies
+      // Create execution context with all React dependencies
       const contextVars = {
         React,
         useState,
@@ -104,7 +64,7 @@ export default function DynamicComponentRenderer({
         AlertCircle,
       };
 
-      // Step 4: Execute the pre-compiled JavaScript with enhanced error handling
+      // Execute the pre-compiled JavaScript
       const executableCode = `
         // Destructure all context variables
         const { ${Object.keys(contextVars).join(', ')} } = contextVars;
@@ -116,46 +76,18 @@ export default function DynamicComponentRenderer({
         return ${componentName};
       `;
 
-      console.log('[Dynamic Component] 🔧 Executing pre-compiled code...');
-      console.log('[Dynamic Component] 📄 Code preview (first 200 chars):', componentCode.substring(0, 200) + '...');
+      const componentFunction = new Function('contextVars', executableCode);
+      const Component = componentFunction(contextVars);
 
-      // Step 5: Execute and get the component with try-catch for better error reporting
-      let Component;
-      try {
-        const componentFunction = new Function('contextVars', executableCode);
-        Component = componentFunction(contextVars);
-      } catch (executionError) {
-        // Enhanced error reporting for specific error types
-        const errorMessage = executionError instanceof Error ? executionError.message : String(executionError);
-        
-        if (errorMessage.includes('Invalid regular expression')) {
-          console.error('[Dynamic Component] 🚨 REGEX ERROR: The AI generated malformed regular expression code');
-          console.error('[Dynamic Component] 📋 Code causing regex error:', componentCode);
-          throw new Error(`Malformed regular expression in generated code: ${errorMessage}`);
-        } else if (errorMessage.includes('Unexpected token')) {
-          console.error('[Dynamic Component] 🚨 SYNTAX ERROR: Invalid JavaScript syntax in generated code');
-          console.error('[Dynamic Component] 📋 Code with syntax error:', componentCode);
-          throw new Error(`JavaScript syntax error in generated code: ${errorMessage}`);
-        } else {
-          console.error('[Dynamic Component] 🚨 EXECUTION ERROR:', errorMessage);
-          console.error('[Dynamic Component] 📋 Full component code:', componentCode);
-          throw executionError;
-        }
-      }
-
-      // Step 6: Validate the result
       if (typeof Component !== 'function') {
         throw new Error(`Expected function, got ${typeof Component}. Component name: ${componentName}`);
       }
 
-      console.log('[Dynamic Component] ✅ Successfully executed pre-compiled component:', componentName);
       setRenderError(null);
       return Component;
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('[Dynamic Component] ❌ Execution failed:', errorMsg);
-      
       setRenderError(`Component execution failed: ${errorMsg}`);
       
       if (onError) {
@@ -169,43 +101,10 @@ export default function DynamicComponentRenderer({
   // Effect to apply styles from currentStyleMap
   useEffect(() => {
     if (currentStyleMap && wrapperRef.current) {
-      console.log('[Dynamic Component] Applying styles from currentStyleMap:', currentStyleMap);
       for (const [dataStyleId, classNameString] of Object.entries(currentStyleMap)) {
         const element = wrapperRef.current.querySelector(`[data-style-id="${dataStyleId}"]`) as HTMLElement;
         if (element) {
-          console.log(`[Dynamic Component] Styling element [data-style-id="${dataStyleId}"] with classes: "${classNameString}"`);
           element.className = classNameString;
-        } else {
-          console.warn(`[Dynamic Component] Element with data-style-id="${dataStyleId}" not found for styling.`);
-          
-          // FALLBACK: Apply common styles to main container when specific elements aren't found
-          if (dataStyleId === 'background') {
-            console.log(`[Dynamic Component] 🔄 Fallback: Applying background style to main container`);
-            const mainContainer = wrapperRef.current.querySelector('div:first-child') as HTMLElement;
-            if (mainContainer) {
-              // Remove old background classes and add new ones
-              const currentClasses = mainContainer.className.split(' ').filter(cls => !cls.startsWith('bg-'));
-              mainContainer.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
-              console.log(`[Dynamic Component] ✅ Applied background to main container: ${mainContainer.className}`);
-            } else {
-              // Last resort: apply to wrapper itself
-              const currentClasses = wrapperRef.current.className.split(' ').filter(cls => !cls.startsWith('bg-'));
-              wrapperRef.current.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
-              console.log(`[Dynamic Component] ✅ Applied background to wrapper: ${wrapperRef.current.className}`);
-            }
-          }
-          
-          // Add more fallbacks for other common style types
-          if (dataStyleId === 'text' || dataStyleId === 'title') {
-            console.log(`[Dynamic Component] 🔄 Fallback: Applying text style to headings and text elements`);
-            const textElements = wrapperRef.current.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span');
-            textElements.forEach((textEl) => {
-              const htmlEl = textEl as HTMLElement;
-              const currentClasses = htmlEl.className.split(' ').filter(cls => !cls.startsWith('text-'));
-              htmlEl.className = [...currentClasses, ...classNameString.split(' ')].join(' ');
-            });
-            console.log(`[Dynamic Component] ✅ Applied text styles to ${textElements.length} elements`);
-          }
         }
       }
     }
@@ -220,7 +119,6 @@ export default function DynamicComponentRenderer({
       const handleError = (event: ErrorEvent) => {
         setHasError(true);
         setError(new Error(event.message));
-        console.error('Runtime error in dynamic component:', event.error);
       };
 
       window.addEventListener('error', handleError);
@@ -289,7 +187,6 @@ export default function DynamicComponentRenderer({
 
   return (
     <div className="w-full">
-      {/* Dynamic Component - Removed metadata banner to save space */}
       <ErrorBoundary>
         <div className="dynamic-component-wrapper" ref={wrapperRef}>
           {React.createElement(compiledComponent)}
