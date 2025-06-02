@@ -222,7 +222,7 @@ export async function POST(request: NextRequest) {
         toolType: toolDefinition.metadata.type,
         context: context,
         success: true,
-        processingTime: Date.now() - startTime
+        duration: Date.now() - startTime
       });
     }
 

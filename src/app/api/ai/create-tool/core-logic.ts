@@ -8,7 +8,7 @@ import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config'
 import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
 import * as babel from '@babel/core';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { buildToolCreationUserPrompt } from '@/lib/prompts/tool-creation-prompt';
+import { buildToolCreationUserPrompt, TOOL_CREATION_PROMPT } from '@/lib/prompts/tool-creation-prompt';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -94,9 +94,7 @@ function createModelInstance(provider: string, modelId: string) {
 
 // Helper function to get system prompt
 function getToolCreationSystemPrompt(): string {
-  return `You are a TOOL CREATION SPECIALIST, an expert AI agent focused on generating professional, business-focused interactive tools that capture leads and provide genuine value.
-    
-    Your mission is to create ProductToolDefinition objects that are practical, professional, and immediately usable by business professionals. Focus on tools that solve real problems and generate qualified leads.`;
+  return TOOL_CREATION_PROMPT;
 }
 
 // ProductToolDefinition schema for structured output
@@ -410,6 +408,10 @@ export async function processToolCreation(
     const model = modelConfig ? createModelInstance(modelConfig.provider, modelConfig.modelInfo.id) : openai('gpt-4o');
     
     console.log('🏭 TRACE: Using model:', modelConfig?.modelInfo?.id || 'gpt-4o');
+    
+    // FORCE gpt-4o for debugging
+    const debugModel = openai('gpt-4o');
+    console.log('🏭 TRACE: ⚠️ FORCING gpt-4o for debugging purposes');
 
     // Load external brainstorming context if available
     let brainstormingContext = null;
@@ -445,17 +447,23 @@ export async function processToolCreation(
     // Get the system prompt
     const systemPrompt = getToolCreationSystemPrompt();
     console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
+    console.log('🏭 TRACE: System prompt preview (first 500 chars):', systemPrompt.substring(0, 500));
 
     // Generate tool definition using AI
     console.log('🏭 TRACE: Calling AI model...');
     const result = await generateObject({
-      model,
+      model: debugModel,
       schema: productToolDefinitionSchema,
       prompt: userPrompt,
       system: systemPrompt,
       temperature: 0.7,
       maxRetries: 3
     });
+    
+    console.log('🏭 TRACE: ⚠️ ACTUAL PROMPT SENT TO AI:');
+    console.log('🏭 TRACE: System prompt full text:', systemPrompt);
+    console.log('🏭 TRACE: User prompt full text:', userPrompt);
+    console.log('🏭 TRACE: ==========================================');
 
     console.log('🏭 TRACE: AI model response received');
     console.log('🏭 TRACE: Raw AI response object keys:', Object.keys(result.object));
