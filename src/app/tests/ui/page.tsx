@@ -844,8 +844,6 @@ export default function TestUIPage() {
     }
   };
 
- 
-
   const handleColorPickerSubmit = (primaryColor: string, secondaryColor: string) => {
     // Generate custom color entry
     const customColorNumber = customColors.length + 1;
@@ -1087,8 +1085,6 @@ export default function TestUIPage() {
     }
   }, [currentQuestion, isInMultiPart, multiPartIndex]);
 
-
-
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Progress Header */}
@@ -1196,12 +1192,19 @@ export default function TestUIPage() {
                         setLastAIMessage("Creating a sample ROI calculator tool...");
                       });
 
-                      const newTool = await callToolCreationAgent({
+                      console.log('🧪 TRACE: TEST TOOL CREATION START');
+                      const testContext = {
                         userIntent: 'Create a sample ROI calculator',
                         toolType: 'calculator',
                         targetAudience: 'business professionals',
                         industry: 'general business'
-                      }, undefined, undefined);
+                      };
+                      console.log('🧪 TRACE: Test context being passed:', JSON.stringify(testContext, null, 2));
+
+                      const newTool = await callToolCreationAgent(testContext, undefined, undefined);
+                      
+                      console.log('🧪 TRACE: callToolCreationAgent returned:', newTool?.id);
+                      console.log('🧪 TRACE: Tool metadata title:', newTool?.metadata?.title);
                       
                       if (newTool) {
                         console.log('🛠️ Setting new tool in state:', newTool.metadata.title);
@@ -1216,7 +1219,7 @@ export default function TestUIPage() {
                         setSavedTools(getSavedTools()); // Refresh saved tools list
                       }
                     } catch (error) {
-                      console.error('Tool creation test failed:', error);
+                      console.error('🧪 TRACE: Tool creation test failed:', error);
                       await transitionToNewContent(() => {
                         setLastAIMessage(`❌ Tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
                       });

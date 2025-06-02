@@ -878,93 +878,120 @@ export function buildToolCreationUserPrompt(
   existingTool?: any,
   updateType?: string
 ): string {
+  console.log('📝 TRACE: buildToolCreationUserPrompt START');
+  console.log('📝 TRACE: userIntent:', userIntent);
+  console.log('📝 TRACE: context keys:', Object.keys(context || {}));
+  console.log('📝 TRACE: context values:', JSON.stringify(context, null, 2));
+  console.log('📝 TRACE: existingTool:', existingTool?.id || 'none');
+  console.log('📝 TRACE: updateType:', updateType);
+  
   if (existingTool && updateType) {
-    return `<tool-update-request>
+    console.log('📝 TRACE: Building update prompt');
+    const updatePrompt = `<tool-update-request>
          <user-intent>${userIntent}</user-intent>
          <current-tool>${JSON.stringify(existingTool)}</current-tool>
          <update-type>${updateType}</update-type>
          <context>${JSON.stringify(context)}</context>
       </tool-update-request>`;
+    console.log('📝 TRACE: Update prompt built, length:', updatePrompt.length);
+    return updatePrompt;
   }
 
   // Helper function to safely get string values, avoiding "undefined" literals
   const safeValue = (value: any, fallback: string = 'Not specified') => {
+    console.log('📝 TRACE: safeValue called with:', value, 'type:', typeof value);
     if (value === undefined || value === null || value === '') {
+      console.log('📝 TRACE: safeValue returning fallback:', fallback);
       return fallback;
     }
     if (Array.isArray(value)) {
-      return value.length > 0 ? value.join(', ') : fallback;
+      const result = value.length > 0 ? value.join(', ') : fallback;
+      console.log('📝 TRACE: safeValue array result:', result);
+      return result;
     }
-    return String(value);
+    if (typeof value === 'object') {
+      const result = JSON.stringify(value);
+      console.log('📝 TRACE: safeValue object result:', result);
+      return result;
+    }
+    const result = String(value);
+    console.log('📝 TRACE: safeValue string result:', result);
+    return result;
   };
 
-  return `<tool-creation-request>
-         <user-intent>${userIntent}</user-intent>
-         
-         <conversation-context>
-            ${context ? `
-            <target-audience>${safeValue(context.targetAudience)}</target-audience>
-            <industry>${safeValue(context.industry)}</industry>
-            <tool-type>${safeValue(context.toolType)}</tool-type>
-            <features-requested>${safeValue(context.features)}</features-requested>
-            <business-description>${safeValue(context.businessDescription)}</business-description>
-            <brand-colors>${safeValue(context.colors)}</brand-colors>
-            
-            <collected-answers>
-               ${context.collectedAnswers && Object.keys(context.collectedAnswers).length > 0 ? 
-                 Object.entries(context.collectedAnswers).map(([key, value]) => 
-                   `<answer key="${key}">${safeValue(value, 'No answer provided')}</answer>`
-                 ).join('\n               ') : 
-                 '<answer>No specific answers collected yet</answer>'
-               }
-            </collected-answers>
-            
-            ${context.brandAnalysis ? `
-            <brand-analysis>
-               <style>${safeValue(context.brandAnalysis.style, 'Not analyzed')}</style>
-               <personality>${safeValue(context.brandAnalysis.personality, 'Not analyzed')}</personality>
-               <brand-colors>${context.brandAnalysis.colors?.length > 0 ? 
-                 context.brandAnalysis.colors.map((c: any) => c.name || c.hex || String(c)).join(', ') : 
-                 'Not analyzed'
-               }</brand-colors>
-               <recommendations>${safeValue(context.brandAnalysis.recommendations, 'None')}</recommendations>
-            </brand-analysis>
-            ` : ''}
-            
-            ${context.conversationHistory?.length ? `
-            <recent-conversation>
-               ${context.conversationHistory.slice(-3).map((msg: any, i: number) => 
-                 `<message position="${i + 1}" role="${msg.role || 'Message'}">${
-                   msg.content || msg.message || 'No message content'
-                 }</message>`
-               ).join('\n               ')}
-            </recent-conversation>
-            ` : ''}
-            
-            ${context.uploadedFiles?.length ? `
-            <uploaded-files>
-               ${context.uploadedFiles.map((file: any) => 
-                 `<file description="${safeValue(file.description, 'Uploaded file')}"${file.hasLogo ? ' type="LOGO_BRAND_ASSET"' : ''}></file>`
-               ).join('\n               ')}
-               <note>Consider uploaded logo/brand assets for styling and branding consistency.</note>
-            </uploaded-files>
-            ` : ''}
-            ` : '<context>No additional context provided</context>'}
-         </conversation-context>
-         
-         <creation-instructions>
-            <instruction>Use ALL the information above to create a highly personalized, professional tool</instruction>
-            <instruction>Solve a real problem for the specified target audience</instruction>
-            <instruction>Incorporate the requested features and business context</instruction>
-            <instruction>Use the specified colors for professional branding</instruction>
-            <instruction>Reflect the specific answers and preferences collected during conversation</instruction>
-            <instruction>Create meaningful component relationships and calculations</instruction>
-            <instruction>Provide genuine business value, not just random components</instruction>
-            <instruction>Make it professional, practical, and valuable for the target audience</instruction>
-            <instruction>CRITICAL: Ensure all generated values in the component are properly defined - avoid undefined values in function parameters, object properties, or array elements</instruction>
-            <instruction>CRITICAL: Generate valid, descriptive slug and id values that don't contain "undefined" - use the tool purpose and type to create meaningful identifiers</instruction>
-         </creation-instructions>
-      </tool-creation-request>`;
+  // Extract context values with safe defaults
+  console.log('📝 TRACE: Extracting context values...');
+  const targetAudience = safeValue(context.targetAudience);
+  const industry = safeValue(context.industry);
+  const toolType = safeValue(context.toolType);
+  const features = safeValue(context.features);
+  const businessDescription = safeValue(context.businessDescription);
+  const brandAnalysis = safeValue(context.brandAnalysis);
+  const collectedAnswers = safeValue(context.collectedAnswers, '{}');
+  const brainstormingResult = safeValue(context.brainstormingResult);
+  const logicArchitectInsights = safeValue(context.logicArchitectInsights);
+
+  console.log('📝 TRACE: Extracted values:');
+  console.log('📝 TRACE: - targetAudience:', targetAudience);
+  console.log('📝 TRACE: - industry:', industry);
+  console.log('📝 TRACE: - toolType:', toolType);
+  console.log('📝 TRACE: - features:', features);
+  console.log('📝 TRACE: - businessDescription:', businessDescription);
+  console.log('📝 TRACE: - brandAnalysis:', brandAnalysis);
+  console.log('📝 TRACE: - brainstormingResult:', brainstormingResult);
+  console.log('📝 TRACE: - logicArchitectInsights:', logicArchitectInsights);
+
+  // Check if any extracted values contain "undefined" strings
+  const extractedValues = { targetAudience, industry, toolType, features, businessDescription, brandAnalysis, brainstormingResult, logicArchitectInsights };
+  const undefinedContainingFields = [];
+  for (const [key, value] of Object.entries(extractedValues)) {
+    if (String(value).includes('undefined')) {
+      undefinedContainingFields.push(`${key}: ${value}`);
+    }
+  }
+  
+  if (undefinedContainingFields.length > 0) {
+    console.error('📝 TRACE: ⚠️ UNDEFINED STRINGS detected in extracted values:', undefinedContainingFields);
+  } else {
+    console.log('📝 TRACE: ✅ No undefined strings in extracted values');
+  }
+
+  console.log('📝 TRACE: Building main tool creation prompt...');
+  const prompt = `<tool-creation-request>
+    <user-intent>${userIntent}</user-intent>
+    <target-audience>${targetAudience}</target-audience>
+    <industry-context>${industry}</industry-context>
+    <tool-type>${toolType}</tool-type>
+    <desired-features>${features}</desired-features>
+    <business-description>${businessDescription}</business-description>
+    <brand-analysis>${brandAnalysis}</brand-analysis>
+    <collected-user-data>${collectedAnswers}</collected-user-data>
+    <brainstorming-insights>${brainstormingResult}</brainstorming-insights>
+    <logic-architect-insights>${logicArchitectInsights}</logic-architect-insights>
+  </tool-creation-request>`;
+
+  console.log('📝 TRACE: Prompt built successfully, length:', prompt.length);
+  console.log('📝 TRACE: Prompt preview (first 1000 chars):', prompt.substring(0, 1000));
+  
+  // Final check for undefined strings in the built prompt
+  if (prompt.includes('undefined')) {
+    console.error('📝 TRACE: ⚠️ UNDEFINED STRING detected in final prompt!');
+    const undefinedMatches = prompt.match(/undefined/g);
+    console.error('📝 TRACE: Found', undefinedMatches?.length || 0, 'instances of "undefined" in prompt');
+    
+    // Find the context around each undefined
+    const lines = prompt.split('\n');
+    lines.forEach((line, index) => {
+      if (line.includes('undefined')) {
+        console.error(`📝 TRACE: Line ${index + 1}: ${line.trim()}`);
+      }
+    });
+  } else {
+    console.log('📝 TRACE: ✅ No undefined strings in final prompt');
+  }
+
+  console.log('📝 TRACE: buildToolCreationUserPrompt COMPLETE');
+  return prompt;
 }
 
 /**

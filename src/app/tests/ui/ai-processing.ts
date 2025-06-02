@@ -72,7 +72,9 @@ export const callToolCreationAgent = async (
   existingToolDefinition?: ProductToolDefinition,
   onStateUpdate?: (updater: () => void) => Promise<void>
 ) => {
-  console.log('📞 Calling Tool Creation Agent with context:', context);
+  console.log('📞 TRACE: callToolCreationAgent START');
+  console.log('📞 TRACE: Raw context input:', JSON.stringify(context, null, 2));
+  console.log('📞 TRACE: existingToolDefinition:', existingToolDefinition?.id || 'none');
   
   // Use transition for initial message if available
   if (onStateUpdate) {
@@ -85,6 +87,7 @@ export const callToolCreationAgent = async (
   try {
     // Extract userIntent and build context for API
     const userIntent = context.userIntent || context.coreWConcept || 'Create a custom business tool';
+    console.log('📞 TRACE: Extracted userIntent:', userIntent);
     
     const requestBody: any = {
       userIntent,
@@ -105,10 +108,16 @@ export const callToolCreationAgent = async (
       }
     };
 
+    console.log('📞 TRACE: Built requestBody for API:', JSON.stringify(requestBody, null, 2));
+    console.log('📞 TRACE: Context.brainstormingResult:', context.brainstormingResult);
+    console.log('📞 TRACE: Context.logicArchitectInsights:', context.logicArchitectInsights);
+
     if (existingToolDefinition) {
       requestBody.existingTool = existingToolDefinition;
+      console.log('📞 TRACE: Added existingTool to requestBody');
     }
 
+    console.log('📞 TRACE: About to call /api/ai/create-tool');
     const response = await fetch('/api/ai/create-tool', {
       method: 'POST',
       headers: {
@@ -117,25 +126,56 @@ export const callToolCreationAgent = async (
       body: JSON.stringify(requestBody),
     });
 
+    console.log('📞 TRACE: API response status:', response.status, response.statusText);
+
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('📞 TRACE: API error response:', errorData);
       throw new Error(errorData.message || 'Failed to create tool');
     }
 
     const apiResponse = await response.json();
-    console.log('✅ Tool Creation Agent returned:', apiResponse);
+    console.log('📞 TRACE: API success response:', JSON.stringify(apiResponse, null, 2));
     
     // Handle API response structure: {success: true, tool: ProductToolDefinition, message: string}
     if (!apiResponse.success || !apiResponse.tool) {
+      console.error('📞 TRACE: Invalid API response structure:', { success: apiResponse.success, hasTool: !!apiResponse.tool });
       throw new Error(apiResponse.message || 'Tool creation failed');
     }
 
     const newToolDefinition: ProductToolDefinition = apiResponse.tool;
-    console.log('✅ Extracted tool definition:', newToolDefinition.metadata.title);
+    console.log('📞 TRACE: Extracted tool definition ID:', newToolDefinition.id);
+    console.log('📞 TRACE: Extracted tool definition slug:', newToolDefinition.slug);
+    console.log('📞 TRACE: Extracted tool definition title:', newToolDefinition.metadata.title);
+    console.log('📞 TRACE: Tool componentCode length:', newToolDefinition.componentCode?.length || 0);
+    console.log('📞 TRACE: Tool initialStyleMap:', newToolDefinition.initialStyleMap);
+    
+    // Check for undefined values in critical fields
+    const undefinedFields = [];
+    if (!newToolDefinition.id || newToolDefinition.id.includes('undefined')) {
+      undefinedFields.push('id: ' + newToolDefinition.id);
+    }
+    if (!newToolDefinition.slug || newToolDefinition.slug.includes('undefined')) {
+      undefinedFields.push('slug: ' + newToolDefinition.slug);
+    }
+    if (!newToolDefinition.metadata?.id || newToolDefinition.metadata.id.includes('undefined')) {
+      undefinedFields.push('metadata.id: ' + newToolDefinition.metadata?.id);
+    }
+    if (!newToolDefinition.metadata?.slug || newToolDefinition.metadata.slug.includes('undefined')) {
+      undefinedFields.push('metadata.slug: ' + newToolDefinition.metadata?.slug);
+    }
+    
+    if (undefinedFields.length > 0) {
+      console.error('📞 TRACE: ⚠️ UNDEFINED VALUES DETECTED in tool definition:', undefinedFields);
+    } else {
+      console.log('📞 TRACE: ✅ No undefined values detected in critical fields');
+    }
     
     // Save to database
+    console.log('📞 TRACE: Saving to database...');
     await saveLastActiveToolToDB(newToolDefinition);
     await saveToolToDBList(newToolDefinition);
+    console.log('📞 TRACE: Database save complete');
 
     // Update behavior tracker
     const tracker = getBehaviorTracker();
@@ -147,10 +187,11 @@ export const callToolCreationAgent = async (
       success: true
     });
 
+    console.log('📞 TRACE: callToolCreationAgent SUCCESS - returning tool');
     return newToolDefinition;
 
   } catch (error) {
-    console.error('❌ Tool Creation Agent error:', error);
+    console.error('📞 TRACE: callToolCreationAgent ERROR:', error);
     
     // Update behavior tracker for failure
     const tracker = getBehaviorTracker();

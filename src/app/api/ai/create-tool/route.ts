@@ -152,139 +152,109 @@ function createModelInstance(provider: string, modelId: string) {
 
 // POST handler - Tool Creation Agent
 export async function POST(request: NextRequest) {
+  console.log('🔧 TRACE: create-tool API route START');
+  
   try {
+    const userId = await requireAuth();
     const body = await request.json();
-    const validatedRequest = toolCreationRequestSchema.parse(body);
-    const { userIntent, context, selectedModel, existingTool, updateType } = validatedRequest;
-
-    // STEP 1: Logic Architect Brainstorming (for new tools only)
-    let logicBrainstorming = null;
     
-    // PRIORITY: Use external brainstorming results if provided (from streaming session)
-    if (context?.brainstormingResult || context?.logicArchitectInsights) {
-      console.log('🎯 Using external brainstorming results from streaming session');
-      logicBrainstorming = context.brainstormingResult || context.logicArchitectInsights;
-      console.log('✅ External brainstorming loaded:', logicBrainstorming?.coreWConcept);
-    }
-    // TEMPORARILY DISABLED: Skip internal Logic Architect due to Anthropic API overload
-    // else if (!existingTool) {
-    //   console.log('🧠 Starting internal Logic Architect brainstorming...');
-    //   try {
-    //     const logicArchitect = new LogicArchitectAgent('anthropic');
-    //     // ... brainstorming logic
-    //   } catch (logicError) {
-    //     console.warn('⚠️ Logic Architect brainstorming failed, continuing with standard creation:', logicError);
-    //   }
-    // }
-
-    // STEP 2: Get the primary model for tool creation
-    console.log('🔍 Debug: Available models for toolCreator process');
-    const processConfig = getProcessConfig('toolCreator');
-    console.log('🔍 Process config:', processConfig);
+    console.log('🔧 TRACE: Received request body:', JSON.stringify(body, null, 2));
+    console.log('🔧 TRACE: userIntent:', body.userIntent);
+    console.log('🔧 TRACE: context keys:', Object.keys(body.context || {}));
+    console.log('🔧 TRACE: context.brainstormingResult:', body.context?.brainstormingResult);
+    console.log('🔧 TRACE: context.logicArchitectInsights:', body.context?.logicArchitectInsights);
     
-    if (processConfig) {
-      const providers = getProviders();
-      console.log('🔍 Available providers:', Object.keys(providers));
-      const openaiModels = providers.openai?.models;
-      console.log('🔍 OpenAI models available:', openaiModels ? Object.keys(openaiModels) : 'none');
-    }
+    const validatedData = toolCreationRequestSchema.parse(body);
+    console.log('🔧 TRACE: Schema validation passed');
+
+    const { userIntent, context, existingTool } = validatedData;
+    console.log('🔧 TRACE: Validated userIntent:', userIntent);
+    console.log('🔧 TRACE: Validated context keys:', Object.keys(context || {}));
+
+    // Track the creation request
+    const tracker = getBehaviorTracker();
+    const startTime = Date.now();
+
+    console.log('🔧 TRACE: About to call processToolCreation core logic');
     
-    const model = selectedModel ? { provider: 'openai', model: selectedModel } : getPrimaryModel('toolCreator');
-    if (!model) {
-      console.error('❌ No model configuration found for toolCreator process');
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Tool creation model not available' 
-      }, { status: 503 });
-    }
+    const toolDefinition = await processToolCreation(
+      userIntent,
+      context,
+      existingTool,
+      userId
+    );
 
-    console.log('🎯 Using model configuration:', { provider: model.provider, model: model.model });
-
-    // If the primary model fails, try fallback
-    let modelInstance;
-    try {
-      modelInstance = createModelInstance(model.provider, model.model);
-      console.log('✅ Model instance created successfully for:', model.model);
-    } catch (modelError) {
-      console.warn('⚠️ Primary model failed, trying fallback...', modelError);
-      const fallbackModel = getFallbackModel('toolCreator');
-      if (fallbackModel) {
-        console.log('🔄 Using fallback model:', fallbackModel.model);
-        modelInstance = createModelInstance(fallbackModel.provider, fallbackModel.model);
+    console.log('🔧 TRACE: processToolCreation returned');
+    console.log('🔧 TRACE: Tool definition ID:', toolDefinition?.id);
+    console.log('🔧 TRACE: Tool definition slug:', toolDefinition?.slug);
+    console.log('🔧 TRACE: Tool definition title:', toolDefinition?.metadata?.title);
+    
+    // Check for undefined values in the returned tool
+    if (toolDefinition) {
+      const undefinedFields = [];
+      if (!toolDefinition.id || toolDefinition.id.includes('undefined')) {
+        undefinedFields.push('id: ' + toolDefinition.id);
+      }
+      if (!toolDefinition.slug || toolDefinition.slug.includes('undefined')) {
+        undefinedFields.push('slug: ' + toolDefinition.slug);
+      }
+      if (!toolDefinition.metadata?.id || toolDefinition.metadata.id.includes('undefined')) {
+        undefinedFields.push('metadata.id: ' + toolDefinition.metadata?.id);
+      }
+      if (!toolDefinition.metadata?.slug || toolDefinition.metadata.slug.includes('undefined')) {
+        undefinedFields.push('metadata.slug: ' + toolDefinition.metadata?.slug);
+      }
+      
+      if (undefinedFields.length > 0) {
+        console.error('🔧 TRACE: ⚠️ UNDEFINED VALUES in API response:', undefinedFields);
       } else {
-        console.error('❌ No fallback model available');
-        return NextResponse.json({ 
-          success: false, 
-          message: 'No available models for tool creation' 
-        }, { status: 503 });
+        console.log('🔧 TRACE: ✅ No undefined values in API response');
       }
     }
 
-    // STEP 3: Build prompts using consolidated builder functions
-    const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
-    const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
+    // Track successful creation
+    if (tracker && toolDefinition) {
+      tracker.trackToolGeneration({
+        toolDefinitionId: toolDefinition.id,
+        toolName: toolDefinition.metadata.title,
+        toolType: toolDefinition.metadata.type,
+        context: context,
+        success: true,
+        processingTime: Date.now() - startTime
+      });
+    }
 
-    console.log('🎯 Sending request to model:', model.model);
-
-    // Create model instance and generate tool using AI SDK
-    const { object: productTool } = await generateObject({
-      model: modelInstance,
-      schema: productToolDefinitionSchema,
-      system: systemPrompt,
-      prompt: userPrompt,
-      temperature: 1.0,
-      maxRetries: 1,
-      maxTokens: 8000  // Increased token limit to prevent component code truncation
+    console.log('🔧 TRACE: Returning successful response');
+    return NextResponse.json({
+      success: true,
+      tool: toolDefinition,
+      message: `Created ${toolDefinition?.metadata?.title || 'tool'} successfully`
     });
 
-    // Ensure required fields
-    if (!productTool.metadata?.title) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Generated tool missing required title' 
-      }, { status: 400 });
-    }
-
-    // STEP 4 & 5: Process tool creation (use generated code directly)
-    try {
-      // AI now generates import-free React.createElement code that can be executed directly
-      // No JSX compilation needed since code uses React.createElement syntax
-      const componentCode = productTool.componentCode;
-      console.log('✅ Using AI-generated import-free component code');
-
-      // Ensure analytics field is present for type compatibility
-      const toolWithAnalytics: ProductToolDefinition = {
-        ...productTool,
-        analytics: productTool.analytics || {
-          enabled: true,
-          completions: 0,
-          averageTime: 0
-        }
-      };
-
-      // Process the tool with the generated code
-      const processedTool = await processToolCreation(toolWithAnalytics, context, componentCode);
-      console.log('✅ Successfully processed tool:', processedTool.metadata.title);
-
-      return NextResponse.json({
-        success: true,
-        tool: processedTool,
-        message: `Created ${processedTool.metadata.title} successfully`
-      });
-    } catch (processingError) {
-      console.error('❌ Tool processing failed:', processingError);
-      return NextResponse.json({
-        success: false,
-        message: `Tool processing failed: ${processingError instanceof Error ? processingError.message : 'Unknown processing error'}`
-      }, { status: 400 });
-    }
-
   } catch (error) {
-    console.error('❌ Tool creation error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      message: error instanceof Error ? error.message : 'Unknown error during tool creation' 
-    }, { status: 500 });
+    console.error('🔧 TRACE: create-tool API ERROR:', error);
+    
+    // Track failed creation
+    const tracker = getBehaviorTracker();
+    if (tracker) {
+      tracker.trackToolGeneration({
+        toolDefinitionId: 'creation-failed',
+        toolName: 'unknown',
+        toolType: 'unknown',
+        context: {},
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }
 

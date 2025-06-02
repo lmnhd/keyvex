@@ -308,39 +308,168 @@ const detectColorScheme = (context: any): ColorSchemeKey => 'professional';
 
 // Enhanced tool processing logic (without JSX compilation)
 export async function processToolCreation(
-  productTool: ProductToolDefinition,
+  userIntent: string,
   context: any,
-  compiledComponentCode: string
+  existingTool?: ProductToolDefinition | null,
+  userId?: string
 ): Promise<ProductToolDefinition> {
-  // The initialStyleMap should now be directly available on productTool from the AI output
-  // Ensure currentStyleMap is initialized as a copy of initialStyleMap
-  const initialStyleMapToUse = productTool.initialStyleMap || {};
+  console.log('🏭 TRACE: processToolCreation START');
+  console.log('🏭 TRACE: userIntent:', userIntent);
+  console.log('🏭 TRACE: context received:', JSON.stringify(context, null, 2));
+  console.log('🏭 TRACE: existingTool:', existingTool?.id || 'none');
+  
+  try {
+    // Get model configuration
+    const modelConfig = getPrimaryModel('toolCreation');
+    const model = modelConfig ? createModelInstance(modelConfig.provider, modelConfig.modelInfo.id) : openai('gpt-4o');
+    
+    console.log('🏭 TRACE: Using model:', modelConfig?.modelInfo?.id || 'gpt-4o');
 
-  // Create a new object to avoid mutating the input directly if it's from a cache or state
-  const processedTool: ProductToolDefinition = {
-    ...productTool,
-    // componentCode is already part of productTool from AI
-    // compiledComponentCode might be the same as productTool.componentCode if AI gives JS directly
-    // For now, let's assume productTool.componentCode is the definitive one.
-    initialStyleMap: initialStyleMapToUse,
-    currentStyleMap: { ...initialStyleMapToUse }, // Initialize currentStyleMap as a copy
-    updatedAt: Date.now(),
-    // Ensure analytics field is present with defaults if not provided
-    analytics: productTool.analytics || {
-      enabled: true,
-      completions: 0,
-      averageTime: 0
+    // Load external brainstorming context if available
+    let brainstormingContext = null;
+    if (context.brainstormingResult || context.logicArchitectInsights) {
+      brainstormingContext = context.brainstormingResult || context.logicArchitectInsights;
+      console.log('🏭 TRACE: ✅ External brainstorming loaded:', JSON.stringify(brainstormingContext, null, 2));
+    } else {
+      console.log('🏭 TRACE: ⚠️ No external brainstorming context available');
     }
-  };
 
-  // TODO: Implement actual database saving logic here for the processedTool
-  // For now, just log and return
-  console.log('[core-logic] Processed tool definition:', processedTool.metadata.title);
-  console.log('[core-logic] Initial Style Map:', processedTool.initialStyleMap);
+    // Determine if this is an update or new creation
+    const isUpdate = !!existingTool;
+    const updateType = context.updateType || 'general';
+    
+    console.log('🏭 TRACE: isUpdate:', isUpdate, 'updateType:', updateType);
 
-  // No Babel compilation step here if componentCode is already JS
-  // If componentCode were JSX, Babel would be needed as previously envisioned.
-  // The current prompt instructs AI to give React.createElement() directly.
+    // Build the user prompt with all available context
+    console.log('🏭 TRACE: Building user prompt...');
+    const userPrompt = buildToolCreationUserPrompt(
+      userIntent,
+      {
+        ...context,
+        brainstormingResult: brainstormingContext,
+        logicArchitectInsights: brainstormingContext
+      },
+      existingTool,
+      updateType
+    );
+    
+    console.log('🏭 TRACE: User prompt built, length:', userPrompt.length);
+    console.log('🏭 TRACE: User prompt preview (first 500 chars):', userPrompt.substring(0, 500));
 
-  return processedTool;
+    // Get the system prompt
+    const systemPrompt = getToolCreationSystemPrompt();
+    console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
+
+    // Generate tool definition using AI
+    console.log('🏭 TRACE: Calling AI model...');
+    const result = await generateObject({
+      model,
+      schema: productToolDefinitionSchema,
+      prompt: userPrompt,
+      system: systemPrompt,
+      temperature: 0.7,
+      maxRetries: 3
+    });
+
+    console.log('🏭 TRACE: AI model response received');
+    console.log('🏭 TRACE: Raw AI response object keys:', Object.keys(result.object));
+    console.log('🏭 TRACE: AI response ID:', result.object.id);
+    console.log('🏭 TRACE: AI response slug:', result.object.slug);
+    console.log('🏭 TRACE: AI response metadata.title:', result.object.metadata?.title);
+    
+    // Check for undefined values in AI response
+    const aiUndefinedFields = [];
+    if (!result.object.id || String(result.object.id).includes('undefined')) {
+      aiUndefinedFields.push('id: ' + result.object.id);
+    }
+    if (!result.object.slug || String(result.object.slug).includes('undefined')) {
+      aiUndefinedFields.push('slug: ' + result.object.slug);
+    }
+    if (!result.object.metadata?.id || String(result.object.metadata.id).includes('undefined')) {
+      aiUndefinedFields.push('metadata.id: ' + result.object.metadata?.id);
+    }
+    if (!result.object.metadata?.slug || String(result.object.metadata.slug).includes('undefined')) {
+      aiUndefinedFields.push('metadata.slug: ' + result.object.metadata?.slug);
+    }
+    
+    if (aiUndefinedFields.length > 0) {
+      console.error('🏭 TRACE: ⚠️ UNDEFINED VALUES in AI response:', aiUndefinedFields);
+      console.error('🏭 TRACE: Raw AI response with undefined values:', JSON.stringify(result.object, null, 2));
+    } else {
+      console.log('🏭 TRACE: ✅ No undefined values in AI response');
+    }
+
+    // Transform AI response to ProductToolDefinition
+    console.log('🏭 TRACE: Transforming AI response to ProductToolDefinition...');
+    const toolDefinition: ProductToolDefinition = {
+      id: result.object.id,
+      slug: result.object.slug,
+      version: result.object.version || '1.0.0',
+      status: result.object.status || 'draft',
+      createdAt: result.object.createdAt || Date.now(),
+      updatedAt: Date.now(),
+      createdBy: userId || 'ai-agent',
+      
+      metadata: {
+        ...result.object.metadata,
+        // Ensure critical fields are properly set
+        id: result.object.metadata.id || result.object.id,
+        slug: result.object.metadata.slug || result.object.slug
+      },
+      
+      componentCode: result.object.componentCode,
+      initialStyleMap: result.object.initialStyleMap || {},
+      currentStyleMap: result.object.currentStyleMap || result.object.initialStyleMap || {},
+      colorScheme: result.object.colorScheme,
+      analytics: result.object.analytics || {
+        enabled: true,
+        completions: 0,
+        averageTime: 0
+      }
+    };
+
+    console.log('🏭 TRACE: Final tool definition created');
+    console.log('🏭 TRACE: Final ID:', toolDefinition.id);
+    console.log('🏭 TRACE: Final slug:', toolDefinition.slug);
+    console.log('🏭 TRACE: Final metadata.id:', toolDefinition.metadata.id);
+    console.log('🏭 TRACE: Final metadata.slug:', toolDefinition.metadata.slug);
+    console.log('🏭 TRACE: Final metadata.title:', toolDefinition.metadata.title);
+    console.log('🏭 TRACE: ComponentCode length:', toolDefinition.componentCode?.length || 0);
+    console.log('🏭 TRACE: InitialStyleMap keys:', Object.keys(toolDefinition.initialStyleMap || {}));
+
+    // Final check for undefined values in the final tool definition
+    const finalUndefinedFields = [];
+    if (!toolDefinition.id || String(toolDefinition.id).includes('undefined')) {
+      finalUndefinedFields.push('id: ' + toolDefinition.id);
+    }
+    if (!toolDefinition.slug || String(toolDefinition.slug).includes('undefined')) {
+      finalUndefinedFields.push('slug: ' + toolDefinition.slug);
+    }
+    if (!toolDefinition.metadata?.id || String(toolDefinition.metadata.id).includes('undefined')) {
+      finalUndefinedFields.push('metadata.id: ' + toolDefinition.metadata?.id);
+    }
+    if (!toolDefinition.metadata?.slug || String(toolDefinition.metadata.slug).includes('undefined')) {
+      finalUndefinedFields.push('metadata.slug: ' + toolDefinition.metadata?.slug);
+    }
+    
+    if (finalUndefinedFields.length > 0) {
+      console.error('🏭 TRACE: ⚠️ UNDEFINED VALUES in final tool definition:', finalUndefinedFields);
+      console.error('🏭 TRACE: This is the source of the Component contains undefined values error!');
+      // Throw an error to prevent returning corrupted data
+      throw new Error(`Tool definition contains undefined values: ${finalUndefinedFields.join(', ')}`);
+    } else {
+      console.log('🏭 TRACE: ✅ Final tool definition is clean - no undefined values');
+    }
+
+    console.log('🏭 TRACE: processToolCreation SUCCESS - returning clean tool definition');
+    return toolDefinition;
+
+  } catch (error) {
+    console.error('🏭 TRACE: processToolCreation ERROR:', error);
+    console.error('🏭 TRACE: Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('🏭 TRACE: Error message:', error instanceof Error ? error.message : String(error));
+    console.error('🏭 TRACE: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    throw new Error(`Tool creation failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 } 
