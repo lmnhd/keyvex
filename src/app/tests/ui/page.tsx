@@ -1136,11 +1136,11 @@ export default function TestUIPage() {
             setQuestionQueue([sampleQuestion]);
           } else {
             console.warn('⚠️ Tool validation FAILED - corrupted tool detected during startup');
-            console.warn('⚠️ Tool ID:', lastTool?.id);
-            console.warn('⚠️ Tool Title:', lastTool?.metadata?.title);
+            console.warn('⚠️ Tool ID:', (lastTool as any)?.id);
+            console.warn('⚠️ Tool Title:', (lastTool as any)?.metadata?.title);
             
             // Clear the corrupted tool automatically
-            await clearCorruptedToolFromStorage(lastTool?.id || 'unknown');
+            await clearCorruptedToolFromStorage((lastTool as any)?.id || 'unknown');
             
             // Load initial state instead
             console.log('📱 Loading clean initial state after clearing corrupted tool');
