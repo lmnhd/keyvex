@@ -170,7 +170,29 @@ const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition 
     return false;
   }
 
-  // NEW: Test component code for JavaScript execution safety
+  // ENHANCED: Check if componentCode actually contains a React component
+  const componentCode = String(tool.componentCode || '');
+  
+  // Must contain React.createElement (our required pattern)
+  if (!componentCode.includes('React.createElement')) {
+    console.warn('⚠️ Tool validation failed: componentCode does not contain React.createElement');
+    return false;
+  }
+  
+  // Must contain a function declaration that returns React elements
+  const functionPattern = /function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*return\s+React\.createElement/;
+  if (!functionPattern.test(componentCode)) {
+    console.warn('⚠️ Tool validation failed: componentCode does not contain a proper React component function');
+    return false;
+  }
+  
+  // Must contain React hooks (useState is required for our components)
+  if (!componentCode.includes('useState')) {
+    console.warn('⚠️ Tool validation failed: componentCode does not contain React hooks (useState)');
+    return false;
+  }
+
+  // NEW: Test component code for JavaScript execution safety AND React component structure
   try {
     console.log('🔧 TRACE: Testing component code JavaScript execution...');
     
@@ -181,11 +203,38 @@ const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition 
       const useState = () => [null, () => {}];
       const useEffect = () => {};
       const Card = () => null;
+      const CardHeader = () => null;
+      const CardTitle = () => null;
+      const CardContent = () => null;
       const Button = () => null;
+      const Input = () => null;
+      const Label = () => null;
       
       try {
-        ${tool.componentCode}
-        return { success: true };
+        ${componentCode}
+        
+        // Enhanced check: Try to find and call the component function
+        const functionNames = [];
+        const funcRegex = /function\\s+(\\w+)\\s*\\([^)]*\\)/g;
+        let match;
+        while ((match = funcRegex.exec(\`${componentCode.replace(/`/g, '\\`')}\`)) !== null) {
+          functionNames.push(match[1]);
+        }
+        
+        if (functionNames.length === 0) {
+          return { success: false, error: 'No function declarations found' };
+        }
+        
+        // Try to call the first function (should be the React component)
+        const componentFunction = eval(functionNames[0]);
+        if (typeof componentFunction !== 'function') {
+          return { success: false, error: 'Component is not a function' };
+        }
+        
+        // Try to execute the component function (should return React elements)
+        const result = componentFunction();
+        
+        return { success: true, componentName: functionNames[0] };
       } catch (error) {
         return { success: false, error: error.message };
       }
@@ -198,7 +247,7 @@ const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition 
       return false;
     }
     
-    console.log('🔧 TRACE: ✅ Component code execution test passed');
+    console.log('🔧 TRACE: ✅ Component code execution test passed, component name:', testResult.componentName);
   } catch (executionError) {
     console.warn('⚠️ Tool validation failed: Component code is corrupted:', executionError);
     return false;
@@ -1433,6 +1482,7 @@ export default function TestUIPage() {
         <InteractionPanel
           isDarkMode={isDarkMode}
           isLoading={isLoading}
+          isGeneratingTool={isGeneratingTool}
           lastAIMessage={lastAIMessage}
           currentQuestion={currentQuestion}
           isInMultiPart={isInMultiPart}

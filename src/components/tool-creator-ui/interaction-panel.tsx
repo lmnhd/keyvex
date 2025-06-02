@@ -12,6 +12,7 @@ import { DynamicInput } from '@/components/tool-creator-ui/inputs';
 export interface InteractionPanelProps {
   isDarkMode: boolean;
   isLoading: boolean;
+  isGeneratingTool?: boolean;
   lastAIMessage: string;
   currentQuestion: any;
   isInMultiPart: boolean;
@@ -40,6 +41,7 @@ export interface InteractionPanelProps {
 export function InteractionPanel({
   isDarkMode,
   isLoading,
+  isGeneratingTool = false,
   lastAIMessage,
   currentQuestion,
   isInMultiPart,
@@ -112,20 +114,28 @@ export function InteractionPanel({
         isDarkMode ? 'bg-gray-800' : 'bg-white'
       }`}>
         <div className="min-h-[168px] flex flex-col">
-          {/* Show loading state when agent is building response */}
-          {isLoading && !currentQuestion && !isInMultiPart ? (
+          {/* Show loading state when agent is building response or generating tools */}
+          {(isLoading || isGeneratingTool) && !currentQuestion && !isInMultiPart ? (
             <div className="flex-1 flex items-center justify-center">
               <div className={`flex flex-col items-center gap-3 text-center ${
                 isDarkMode ? 'text-gray-300' : 'text-gray-600'
               }`}>
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span className="text-sm font-medium">Building response...</span>
+                  <span className="text-sm font-medium">
+                    {isGeneratingTool 
+                      ? "Creating your tool..." 
+                      : "Building response..."
+                    }
+                  </span>
                 </div>
                 <div className={`text-xs ${
                   isDarkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>
-                  AI is generating your next question
+                  {isGeneratingTool 
+                    ? "AI is generating React component code" 
+                    : "AI is generating your next question"
+                  }
                 </div>
               </div>
             </div>
