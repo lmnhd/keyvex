@@ -3014,6 +3014,11 @@ export default function TestUIPage() {
           type: 'ai_response'
         }]);
         
+        // Debug: Log the full AI response to understand its format
+        console.log('🔍 Full AI response object:', result.response);
+        console.log('🔍 shouldUpdateStyle value:', result.response.shouldUpdateStyle);
+        console.log('🔍 styleUpdateContext value:', result.response.styleUpdateContext);
+        
         // Check if AI wants to update styles first
         if (result.response.shouldUpdateStyle && result.response.styleUpdateContext) {
           console.log('🎨 AI requested style update in handleAIFreeformInput. Context:', result.response.styleUpdateContext);

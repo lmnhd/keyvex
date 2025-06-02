@@ -582,6 +582,11 @@ export async function POST(request: NextRequest) {
         });
 
         response = result.object;
+        
+        // Debug: Log what the AI generated
+        console.log('🤖 AI generated response object:', JSON.stringify(response, null, 2));
+        console.log('🤖 shouldUpdateStyle:', response.shouldUpdateStyle);
+        console.log('🤖 styleUpdateContext:', response.styleUpdateContext);
       } catch (aiError) {
         console.error('❌ AI generation failed:', aiError);
         
