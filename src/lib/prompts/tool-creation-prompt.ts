@@ -354,8 +354,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       value: initialInvestment,
                       onChange: (e) => setInitialInvestment(Number(e.target.value)),
                       placeholder: '10000',
-                      className: 'w-full',
-                      style: { color: '#1f2937' }
+                      className: 'w-full'
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
@@ -366,8 +365,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       value: finalValue,
                       onChange: (e) => setFinalValue(Number(e.target.value)),
                       placeholder: '15000',
-                      className: 'w-full',
-                      style: { color: '#1f2937' }
+                      className: 'w-full'
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
@@ -379,8 +377,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                       onChange: (e) => setTimePeriod(Number(e.target.value)),
                       placeholder: '2',
                       className: 'w-full',
-                      min: '1',
-                      style: { color: '#1f2937' }
+                      min: '1'
                     })
                   )
                 ),
@@ -796,6 +793,42 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - NEVER assume light text will be readable - test contrast
         - Use className instead of inline styles when possible for consistency
     </color-safety-rules>
+    
+    <input-styling-requirements>
+        🚨 CRITICAL: INPUT COMPONENTS HAVE SPECIAL STYLING RULES!
+        
+        ❌ NEVER set inline text colors on Input components:
+        React.createElement(Input, {
+          style: { color: '#1f2937' }  // ← NEVER DO THIS!
+        })
+        
+        ✅ ALWAYS let the framework handle Input text colors:
+        React.createElement(Input, {
+          className: 'w-full',  // ← Framework handles text contrast automatically
+          placeholder: 'Enter value'
+        })
+        
+        🎯 WHY: Input components automatically adapt text color based on:
+        - Light/dark mode detection
+        - Background color contrast 
+        - System accessibility settings
+        
+        ⚠️ Hard-coded text colors OVERRIDE this automatic behavior and cause:
+        - Dark text on dark backgrounds (invisible text)
+        - Poor accessibility 
+        - Broken user experience
+        
+        🛡️ SAFE INPUT PATTERN - Use this for ALL Input elements:
+        React.createElement(Input, {
+          id: 'inputId',
+          type: 'text|number|email',
+          value: stateVariable,
+          onChange: handlerFunction,
+          placeholder: 'Descriptive placeholder text',
+          className: 'w-full',  // ← Only styling needed
+          // ❌ NO style: { color: '...' } ❌
+        })
+    </input-styling-requirements>
     
     <labeling-examples>
         <bad-example>
