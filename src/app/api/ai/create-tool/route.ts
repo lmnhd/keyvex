@@ -233,7 +233,8 @@ export async function POST(request: NextRequest) {
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 1.0,
-      maxRetries: 1
+      maxRetries: 1,
+      maxTokens: 8000  // Increased token limit to prevent component code truncation
     });
 
     // Ensure required fields

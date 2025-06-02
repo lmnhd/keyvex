@@ -2273,30 +2273,87 @@ export default function TestUIPage() {
 
     // Load initial data from IndexedDB
     const loadInitialData = async () => {
-      console.log("Attempting to load last active tool and all tools from IndexedDB...");
-      const lastActiveTool = await loadLastActiveToolFromDB();
-      if (lastActiveTool) {
-        setProductToolDefinition(lastActiveTool);
-        setToolData((prev: any) => ({
-          ...prev, 
-          title: lastActiveTool.metadata.title,
-          description: lastActiveTool.metadata.description,
-          colorScheme: typeof lastActiveTool.colorScheme === 'string' ? lastActiveTool.colorScheme : (lastActiveTool.colorScheme?.primary || 'professional-blue'),
-          customColors: typeof lastActiveTool.colorScheme !== 'string' ? [lastActiveTool.colorScheme?.primary, lastActiveTool.colorScheme?.secondary].filter(Boolean) as string[] : undefined,
-          features: lastActiveTool.metadata.features || [],
-        }));
-      } else {
-        console.log("No last active tool found, starting fresh.");
+      try {
+        console.log("Attempting to load last active tool and all tools from IndexedDB...");
+        
+        // Safely load last active tool with error handling
+        let lastActiveTool: ProductToolDefinition | null = null;
+        try {
+          lastActiveTool = await loadLastActiveToolFromDB();
+          if (lastActiveTool) {
+            // Validate the tool data before using it
+            if (!lastActiveTool.componentCode || !lastActiveTool.metadata) {
+              console.warn("⚠️ Last active tool is missing required data, skipping:", lastActiveTool);
+              // Clear the corrupted tool from storage
+              localStorage.removeItem(LAST_ACTIVE_TOOL_KEY);
+              lastActiveTool = null;
+            } else {
+              console.log("✅ Successfully loaded last active tool:", lastActiveTool.metadata.title);
+              
+              // Try to safely set the tool definition with validation
+              try {
+                setProductToolDefinition(lastActiveTool);
+                setToolData((prev: any) => ({
+                  ...prev, 
+                  title: lastActiveTool!.metadata.title,
+                  description: lastActiveTool!.metadata.description,
+                  colorScheme: typeof lastActiveTool!.colorScheme === 'string' ? lastActiveTool!.colorScheme : (lastActiveTool!.colorScheme?.primary || 'professional-blue'),
+                  customColors: typeof lastActiveTool!.colorScheme !== 'string' ? [lastActiveTool!.colorScheme?.primary, lastActiveTool!.colorScheme?.secondary].filter(Boolean) as string[] : undefined,
+                  features: lastActiveTool!.metadata.features || [],
+                }));
+              } catch (toolSetError) {
+                console.error("❌ Error setting tool data, clearing corrupted tool:", toolSetError);
+                localStorage.removeItem(LAST_ACTIVE_TOOL_KEY);
+                setProductToolDefinition(null);
+              }
+            }
+          } else {
+            console.log("No last active tool found, starting fresh.");
+          }
+        } catch (toolLoadError) {
+          console.error("❌ Error loading last active tool:", toolLoadError);
+          // Clear potentially corrupted storage
+          localStorage.removeItem(LAST_ACTIVE_TOOL_KEY);
+          setProductToolDefinition(null);
+        }
+
+        // Safely load logic results with error handling
+        try {
+          const logicResultsFromDB = await loadLogicResultsFromDB();
+          setSavedLogicResults(logicResultsFromDB);
+          console.log(`✅ Loaded ${logicResultsFromDB.length} logic results from IndexedDB.`);
+        } catch (logicError) {
+          console.error("❌ Error loading logic results:", logicError);
+          setSavedLogicResults([]); // Set empty array as fallback
+        }
+
+        // Safely load all saved tools with error handling
+        try {
+          const allToolsFromDB = await loadAllToolsFromDB();
+          // Filter out any corrupted tools
+          const validTools = allToolsFromDB.filter(tool => {
+            try {
+              return tool && tool.componentCode && tool.metadata && tool.metadata.title;
+            } catch (filterError) {
+              console.warn("⚠️ Filtering out corrupted tool:", tool, filterError);
+              return false;
+            }
+          });
+          setSavedToolsFromDB(validTools);
+          console.log(`✅ Loaded ${validTools.length} valid tools from IndexedDB (${allToolsFromDB.length - validTools.length} corrupted tools filtered out).`);
+        } catch (allToolsError) {
+          console.error("❌ Error loading all tools:", allToolsError);
+          setSavedToolsFromDB([]); // Set empty array as fallback
+        }
+
+      } catch (globalError) {
+        console.error("❌ Critical error in loadInitialData:", globalError);
+        // Reset to safe state
+        setProductToolDefinition(null);
+        setSavedLogicResults([]);
+        setSavedToolsFromDB([]);
+        localStorage.removeItem(LAST_ACTIVE_TOOL_KEY);
       }
-
-      const logicResultsFromDB = await loadLogicResultsFromDB();
-      setSavedLogicResults(logicResultsFromDB);
-      console.log(`Loaded ${logicResultsFromDB.length} logic results from IndexedDB initially.`);
-
-      // NEW: Load all saved tools for the "View Saved Tools" list
-      const allToolsFromDB = await loadAllToolsFromDB();
-      setSavedToolsFromDB(allToolsFromDB);
-      console.log(`Loaded ${allToolsFromDB.length} tools into savedToolsFromDB initially.`);
     };
     loadInitialData();
     
@@ -2535,7 +2592,7 @@ export default function TestUIPage() {
           setCollectedAnswers(newAnswers);
           
           // Continue with main workflow
-          await processMockWorkflow(newAnswers);
+          await processMockWorkflowStep(newAnswers);
           setMultiPartAnswers({});
         }
       } else if (currentQuestion) {
@@ -2566,7 +2623,7 @@ export default function TestUIPage() {
         setCollectedAnswers(newAnswers);
 
         // Update tool data based on answer
-        updateToolData(answerId, currentInput);
+        updateToolDataFromAnswers(answerId, currentInput);
 
         // Move to next question or complete queue
         if (currentQuestionIndex < questionQueue.length - 1) {
@@ -2577,7 +2634,7 @@ export default function TestUIPage() {
         } else {
           // Queue complete, process with AI or move to next mock step
           if (useMockData) {
-            await processMockWorkflow(newAnswers);
+            await processMockWorkflowStep(newAnswers);
           } else {
             await processWithAI(newAnswers);
             // setQuestionQueue([]); // DISABLED: This was clearing AI-generated questions
@@ -2588,7 +2645,7 @@ export default function TestUIPage() {
       } else {
         // Handle free-form input
         if (useMockData) {
-          await handleMockFreeformInput(currentInput);
+          await handleMockFreeformResponse(currentInput);
         } else {
           await handleAIFreeformInput(currentInput);
         }
@@ -2616,7 +2673,7 @@ export default function TestUIPage() {
     }
   };
 
-  const updateToolData = (answerId: string, value: string) => {
+  const updateToolDataFromAnswers = (answerId: string, value: string) => {
     setToolData((prev: any) => {
       const updated = { ...prev };
       
@@ -3633,26 +3690,28 @@ export default function TestUIPage() {
   const CanvasTool = ({ isDarkMode, className = '', productToolDefinition, isGenerating, generatingMessage }: any) => {
     if (isGenerating && generatingMessage) {
       return (
-        <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
+        <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className} min-h-[400px]`}>
           {/* Show current tool heavily blurred in background */}
           {productToolDefinition && productToolDefinition.componentCode && (
-            <div className="filter blur-md opacity-30 pointer-events-none absolute inset-0 p-6">
-              <DynamicComponentRenderer
-                componentCode={productToolDefinition.componentCode}
-                metadata={{
-                  title: productToolDefinition.metadata.title,
-                  description: productToolDefinition.metadata.description,
-                  slug: productToolDefinition.slug
-                }}
-                currentStyleMap={productToolDefinition.currentStyleMap}
-                onError={(error) => console.error('Canvas render error:', error)}
-              />
+            <div className="absolute inset-0 filter blur-md opacity-30 pointer-events-none overflow-hidden">
+              <div className="p-6">
+                <DynamicComponentRenderer
+                  componentCode={productToolDefinition.componentCode}
+                  metadata={{
+                    title: productToolDefinition.metadata.title,
+                    description: productToolDefinition.metadata.description,
+                    slug: productToolDefinition.slug
+                  }}
+                  currentStyleMap={productToolDefinition.currentStyleMap}
+                  onError={(error) => console.error('Canvas render error:', error)}
+                />
+              </div>
             </div>
           )}
           
-          {/* Loading overlay */}
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-sm">
-            <div className={`border-2 border-dashed rounded-lg p-8 text-center backdrop-blur-md bg-white/95 dark:bg-gray-800/95 shadow-xl ${
+          {/* Loading overlay - centered and properly positioned */}
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className={`border-2 border-dashed rounded-lg p-8 text-center bg-white/95 dark:bg-gray-800/95 shadow-xl backdrop-blur-sm ${
               isDarkMode ? 'border-gray-600' : 'border-gray-300'
             }`}>
               <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
@@ -4747,22 +4806,51 @@ export default function TestUIPage() {
                           : 'border-gray-200 hover:bg-gray-50'
                       }`}
                       onClick={async () => {
-                        console.log("Loading tool from list:", toolDef.metadata.title);
-                        setProductToolDefinition(toolDef);
-                        // Update toolData for canvas preview
-                        setToolData({
-                          title: toolDef.metadata.title,
-                          description: toolDef.metadata.description,
-                          colorScheme: typeof toolDef.colorScheme === 'string' 
-                            ? toolDef.colorScheme 
-                            : (toolDef.colorScheme?.primary || 'professional-blue'),
-                          customColors: typeof toolDef.colorScheme !== 'string' 
-                            ? [toolDef.colorScheme?.primary, toolDef.colorScheme?.secondary].filter(Boolean) as string[] 
-                            : undefined,
-                          features: toolDef.metadata.features || [],
-                        });
-                        await saveLastActiveToolToDB(toolDef); // Set as last active
-                        setShowToolsSelect(false);
+                        try {
+                          console.log("Loading tool from list:", toolDef.metadata.title);
+                          
+                          // Validate tool before attempting to load it
+                          if (!toolDef.componentCode || !toolDef.metadata) {
+                            console.error("❌ Tool is missing required data:", toolDef);
+                            alert("This tool appears to be corrupted and cannot be loaded. Please delete it and create a new one.");
+                            return;
+                          }
+                          
+                          // Test if tool component can be compiled before setting it
+                          try {
+                            // Quick validation of component code
+                            if (typeof toolDef.componentCode !== 'string' || toolDef.componentCode.length < 100) {
+                              throw new Error("Component code is invalid or too short");
+                            }
+                            
+                            setProductToolDefinition(toolDef);
+                            
+                            // Update toolData for canvas preview
+                            setToolData({
+                              title: toolDef.metadata.title,
+                              description: toolDef.metadata.description,
+                              colorScheme: typeof toolDef.colorScheme === 'string' 
+                                ? toolDef.colorScheme 
+                                : (toolDef.colorScheme?.primary || 'professional-blue'),
+                              customColors: typeof toolDef.colorScheme !== 'string' 
+                                ? [toolDef.colorScheme?.primary, toolDef.colorScheme?.secondary].filter(Boolean) as string[] 
+                                : undefined,
+                              features: toolDef.metadata.features || [],
+                            });
+                            
+                            await saveLastActiveToolToDB(toolDef); // Set as last active
+                            setShowToolsSelect(false);
+                            console.log("✅ Successfully loaded tool:", toolDef.metadata.title);
+                            
+                          } catch (componentError: unknown) {
+                            console.error("❌ Error with tool component:", componentError);
+                            alert(`This tool has a corrupted component and cannot be loaded: ${componentError instanceof Error ? componentError.message : 'Unknown error'}`);
+                          }
+                          
+                        } catch (globalError) {
+                          console.error("❌ Critical error loading tool:", globalError);
+                          alert("An unexpected error occurred while loading this tool. Please try again or delete it if the problem persists.");
+                        }
                       }}
                     >
                       <div className="flex justify-between items-center">
