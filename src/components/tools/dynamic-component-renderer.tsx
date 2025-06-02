@@ -64,12 +64,34 @@ export default function DynamicComponentRenderer({
         }, 'Component has syntax errors');
       }
 
-      // Check for undefined values that might cause issues
-      if (componentCode.includes('undefined,') || componentCode.includes(', undefined')) {
-        console.warn('⚠️ Component code contains undefined values');
+      // More specific check for problematic undefined values (not just any "undefined" string)
+      // Only flag if undefined appears as a parameter or in an array/object context
+      const problematicUndefinedPatterns = [
+        /,\s*undefined\s*,/g,           // undefined as array element: [a, undefined, b]
+        /,\s*undefined\s*\)/g,          // undefined as function parameter: func(a, undefined)
+        /\(\s*undefined\s*,/g,          // undefined as first parameter: func(undefined, b)
+        /:\s*undefined\s*,/g,           // undefined as object value: {key: undefined,}
+        /=\s*undefined\s*;/g,           // undefined assignment: var x = undefined;
+      ];
+      
+      const hasProblematicUndefined = problematicUndefinedPatterns.some(pattern => 
+        pattern.test(componentCode)
+      );
+      
+      if (hasProblematicUndefined) {
+        console.warn('⚠️ Component code contains problematic undefined values in function calls or data structures');
         return () => React.createElement('div', { 
           className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center' 
-        }, 'Component contains undefined values');
+        }, [
+          React.createElement('div', { key: 'icon', className: 'flex items-center justify-center mb-2' }, 
+            React.createElement(AlertCircle, { className: 'h-5 w-5' })
+          ),
+          React.createElement('div', { key: 'title', className: 'font-medium mb-1' }, 'Component Data Issue'),
+          React.createElement('div', { key: 'message', className: 'text-sm' }, 'Component contains undefined values in data structures'),
+          React.createElement('div', { key: 'suggestion', className: 'text-xs mt-2 text-red-600' }, 
+            'Try regenerating the tool or contact support if this persists'
+          )
+        ]);
       }
 
       // Extract component name from the compiled code

@@ -119,6 +119,19 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     4.  'initialStyleMap' (IMPORTANT): An object mapping 'data-style-id' attributes from your 'componentCode' to their initial Tailwind CSS class strings. Example: { "title-text": "text-2xl font-bold text-blue-600", "main-container": "p-4 bg-gray-100 rounded-lg" }
     
     The componentCode and initialStyleMap are CRITICAL for dynamic styling later.
+    
+    🚨 CRITICAL: ID and SLUG GENERATION REQUIREMENTS:
+    - The 'id' field must be a unique identifier like "tool-roi-calculator-001" or "tool-lead-qualifier-002"
+    - The 'slug' field must be a URL-friendly version like "roi-calculator" or "lead-qualifier"
+    - NEVER use "undefined" in any part of the id or slug
+    - Base the id/slug on the actual tool purpose and type (e.g., for an ROI calculator: id: "tool-roi-calculator-001", slug: "roi-business-calculator")
+    - Use kebab-case format for slugs (lowercase with hyphens)
+    - Ensure both metadata.id and metadata.slug match the main id and slug fields
+    - Example valid formats:
+      * id: "tool-solar-savings-calculator-001"
+      * slug: "solar-savings-calculator"
+      * metadata.id: "tool-solar-savings-calculator-001"
+      * metadata.slug: "solar-savings-calculator"
 </output-format>
 
 <component-code-requirements>
@@ -874,37 +887,56 @@ export function buildToolCreationUserPrompt(
       </tool-update-request>`;
   }
 
+  // Helper function to safely get string values, avoiding "undefined" literals
+  const safeValue = (value: any, fallback: string = 'Not specified') => {
+    if (value === undefined || value === null || value === '') {
+      return fallback;
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(', ') : fallback;
+    }
+    return String(value);
+  };
+
   return `<tool-creation-request>
          <user-intent>${userIntent}</user-intent>
          
          <conversation-context>
             ${context ? `
-            <target-audience>${context.targetAudience || 'Not specified'}</target-audience>
-            <industry>${context.industry || 'Not specified'}</industry>
-            <tool-type>${context.toolType || 'Not specified'}</tool-type>
-            <features-requested>${context.features?.join(', ') || 'Not specified'}</features-requested>
-            <business-description>${context.businessDescription || 'Not specified'}</business-description>
-            <brand-colors>${context.colors?.join(', ') || 'Not specified'}</brand-colors>
+            <target-audience>${safeValue(context.targetAudience)}</target-audience>
+            <industry>${safeValue(context.industry)}</industry>
+            <tool-type>${safeValue(context.toolType)}</tool-type>
+            <features-requested>${safeValue(context.features)}</features-requested>
+            <business-description>${safeValue(context.businessDescription)}</business-description>
+            <brand-colors>${safeValue(context.colors)}</brand-colors>
             
             <collected-answers>
-               ${context.collectedAnswers ? Object.entries(context.collectedAnswers).map(([key, value]) => 
-                 `<answer key="${key}">${value}</answer>`
-               ).join('\n               ') : '<answer>No specific answers collected yet</answer>'}
+               ${context.collectedAnswers && Object.keys(context.collectedAnswers).length > 0 ? 
+                 Object.entries(context.collectedAnswers).map(([key, value]) => 
+                   `<answer key="${key}">${safeValue(value, 'No answer provided')}</answer>`
+                 ).join('\n               ') : 
+                 '<answer>No specific answers collected yet</answer>'
+               }
             </collected-answers>
             
             ${context.brandAnalysis ? `
             <brand-analysis>
-               <style>${context.brandAnalysis.style || 'Not analyzed'}</style>
-               <personality>${context.brandAnalysis.personality?.join(', ') || 'Not analyzed'}</personality>
-               <brand-colors>${context.brandAnalysis.colors?.map((c: any) => `${c.name || c.hex || c}`).join(', ') || 'Not analyzed'}</brand-colors>
-               <recommendations>${context.brandAnalysis.recommendations?.join('; ') || 'None'}</recommendations>
+               <style>${safeValue(context.brandAnalysis.style, 'Not analyzed')}</style>
+               <personality>${safeValue(context.brandAnalysis.personality, 'Not analyzed')}</personality>
+               <brand-colors>${context.brandAnalysis.colors?.length > 0 ? 
+                 context.brandAnalysis.colors.map((c: any) => c.name || c.hex || String(c)).join(', ') : 
+                 'Not analyzed'
+               }</brand-colors>
+               <recommendations>${safeValue(context.brandAnalysis.recommendations, 'None')}</recommendations>
             </brand-analysis>
             ` : ''}
             
             ${context.conversationHistory?.length ? `
             <recent-conversation>
                ${context.conversationHistory.slice(-3).map((msg: any, i: number) => 
-                 `<message position="${i + 1}" role="${msg.role || 'Message'}">${msg.content || msg.message || JSON.stringify(msg).slice(0, 100)}</message>`
+                 `<message position="${i + 1}" role="${msg.role || 'Message'}">${
+                   msg.content || msg.message || 'No message content'
+                 }</message>`
                ).join('\n               ')}
             </recent-conversation>
             ` : ''}
@@ -912,7 +944,7 @@ export function buildToolCreationUserPrompt(
             ${context.uploadedFiles?.length ? `
             <uploaded-files>
                ${context.uploadedFiles.map((file: any) => 
-                 `<file description="${file.description}"${file.hasLogo ? ' type="LOGO_BRAND_ASSET"' : ''}></file>`
+                 `<file description="${safeValue(file.description, 'Uploaded file')}"${file.hasLogo ? ' type="LOGO_BRAND_ASSET"' : ''}></file>`
                ).join('\n               ')}
                <note>Consider uploaded logo/brand assets for styling and branding consistency.</note>
             </uploaded-files>
@@ -929,6 +961,8 @@ export function buildToolCreationUserPrompt(
             <instruction>Create meaningful component relationships and calculations</instruction>
             <instruction>Provide genuine business value, not just random components</instruction>
             <instruction>Make it professional, practical, and valuable for the target audience</instruction>
+            <instruction>CRITICAL: Ensure all generated values in the component are properly defined - avoid undefined values in function parameters, object properties, or array elements</instruction>
+            <instruction>CRITICAL: Generate valid, descriptive slug and id values that don't contain "undefined" - use the tool purpose and type to create meaningful identifiers</instruction>
          </creation-instructions>
       </tool-creation-request>`;
 }
