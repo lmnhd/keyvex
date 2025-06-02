@@ -14,7 +14,7 @@ const LOGIC_STORAGE_KEY = 'keyvex_logic_architect_results';
 const TOOLS_STORAGE_KEY = 'keyvex_created_tools';
 
 // Use the same data structures as tests/ui page
-interface SavedLogicResult {
+export interface SavedLogicResult {
   id: string;
   timestamp: number;
   date: string;
@@ -24,7 +24,7 @@ interface SavedLogicResult {
   result: any;
 }
 
-interface SavedTool {
+export interface SavedTool {
   id: string;
   timestamp: number;
   date: string;
@@ -33,7 +33,7 @@ interface SavedTool {
 }
 
 // Combined type for display purposes
-type SavedItem = (SavedLogicResult & { source: 'brainstorm' }) | (SavedTool & { source: 'tool' });
+export type SavedItem = (SavedLogicResult & { source: 'brainstorm' }) | (SavedTool & { source: 'tool' });
 
 export default function SavedToolsTestPage() {
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);

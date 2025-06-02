@@ -1,5 +1,83 @@
 // Test UI Assistant Prompt - For conversation flow testing and UI component generation
+/*
+================================================================================
+MODEL-PROMPT-NOTES: Input Component Selection Guidelines
+================================================================================
 
+When generating dynamic questions for users, the AI model should select the 
+appropriate input component based on these guidelines:
+
+1. CHECKBOX COMPONENT (multiSelect):
+   - Use when: Finite set of options (typically 3-8 choices)
+   - Use when: Multiple values can be selected simultaneously
+   - Use when: No custom values needed (closed set)
+   - Example: "Which features do you want?" → Charts, Export, Sharing, etc.
+   - Layout: Horizontal inline chips with checkboxes
+   - Max selections: Usually 3-4 to maintain simplicity
+
+2. SELECT COMPONENT (select):
+   - Use when: Endless possible options but providing top 5-8 common choices
+   - Use when: Only ONE value can be selected
+   - Use when: Custom value input is needed as fallback
+   - Example: "What's your industry?" → Technology, Healthcare, + Custom option
+   - Layout: Dropdown with "Enter Custom Value" button
+   - Always include custom value option for flexibility
+
+3. RADIO COMPONENT (yesNoMaybe):
+   - Use when: Simple binary or ternary choices
+   - Use when: Finite set of 2-4 mutually exclusive options
+   - Use when: Options are simple single words or short phrases
+   - Example: "How confident are you?" → Very Confident, Need Help, Somewhat Sure
+   - Layout: Horizontal inline buttons with radio circles
+   - Keep labels short and clear
+   - MAX 3 OPTIONS: This component is for very mundane, simplistic responses
+   - For more complex single choices, use SELECT component instead
+
+4. COLOR COMPONENT (colorSelect):
+   - Use when: Selecting brand colors or visual themes
+   - Use when: Visual representation helps decision making
+   - Example: "Choose your color scheme" → Professional Blue, Modern Green, etc.
+   - Layout: Horizontal chips with color dots + labels
+   - Always include custom color option
+
+5. TEXT INPUT COMPONENT (text):
+   - Use when: Open-ended single-line responses needed
+   - Use when: Providing suggestion chips helps but custom input required
+   - Example: "What should we call your tool?" → with suggestions like "ROI Calculator"
+   - Layout: Input field with optional suggestion chips above
+   - Keep suggestions to 4-6 options max
+
+6. TEXTAREA COMPONENT (textarea):
+   - Use when: Multi-line descriptive text needed
+   - Use when: Detailed explanations or descriptions required
+   - Example: "Describe your business and target audience"
+   - Layout: Fixed 2-row textarea (no scrolling)
+   - Keep compact - avoid long-form content
+
+7. MULTI-PART COMPONENT (multiPart):
+   - Use when: Need to collect 3-5 related pieces of information
+   - Use when: Each sub-question uses different input types
+   - Example: Collecting audience + industry + metrics in sequence
+   - Flow: One question at a time, auto-advance through sequence
+   - Keep total sub-questions to 3-5 max
+
+DESIGN PRINCIPLES:
+- All components must fit in uniform container (no size changes)
+- No scrolling required - everything visible at once
+- Horizontal layouts preferred for space efficiency
+- Simple, short labels (avoid long descriptions)
+- Always provide escape hatch (custom options) when possible
+- Maintain consistent visual hierarchy and spacing
+
+COMPONENT SIZING:
+- Checkboxes/radios: 3x3px indicators
+- Color dots: 3x3px circles
+- Button padding: px-3 py-2 for consistency
+- Textarea: Fixed 2 rows maximum
+- Container: Uniform height regardless of content
+
+================================================================================
+*/
 export const TEST_UI_ASSISTANT_PROMPT = `<purpose>
     You are a TEST UI ASSISTANT specialized in conversation flow testing and UI component generation for business tool creation.
     

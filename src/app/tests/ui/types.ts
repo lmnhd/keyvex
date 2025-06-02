@@ -61,7 +61,7 @@ export interface OptionsMenuProps {
   useIteratorTest: boolean;
   historyPanelSide: 'left' | 'right';
   savedLogicResults: SavedLogicResult[];
-  savedTools: ProductToolDefinition[];
+  savedTools: SavedTool[];
   selectedModel: string;
   availableModels: Array<{ id: string; name: string }>;
   onToggleDarkMode: () => void;

@@ -1,88 +1,95 @@
 'use client';
 
 import React from 'react';
-import { Card, CardContent } from '@/components/ui/card';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import DynamicComponentRenderer from '@/components/tools/dynamic-component-renderer';
+import { Calculator, Loader2 } from 'lucide-react';
 
 // ============================================================================
 // SIMPLIFIED CANVAS TOOL FOR REACT COMPONENTS
 // ============================================================================
 
 interface CanvasToolProps {
-  // For React component-based tools
-  productToolDefinition?: ProductToolDefinition;
-  
-  // Common props
-  isDarkMode?: boolean;
+  isDarkMode: boolean;
   className?: string;
-  onComplete?: (results: any) => void;
-  
-  // Generation state
+  productToolDefinition?: ProductToolDefinition | null;
   isGenerating?: boolean;
   generatingMessage?: string;
 }
 
 export function CanvasTool({ 
-  productToolDefinition,
-  isDarkMode = false,
-  className = '',
-  onComplete,
-  isGenerating,
-  generatingMessage
+  isDarkMode, 
+  className = '', 
+  productToolDefinition, 
+  isGenerating, 
+  generatingMessage 
 }: CanvasToolProps) {
-  
-  // Show generation state
-  if (isGenerating) {
+  if (isGenerating && generatingMessage) {
     return (
-      <div className={`w-full min-h-full flex items-center justify-center py-8 px-8 ${className}`}>
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-8 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <h3 className="text-lg font-semibold mb-2">Creating Your Tool</h3>
-            <p className="text-gray-600">{generatingMessage || 'Generating React component...'}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-  
-  // Show React component if available
-  if (productToolDefinition?.componentCode) {
-    // TODO: Implement safe React component execution
-    return (
-      <div className={`w-full min-h-full flex items-center justify-center py-8 px-8 ${className}`}>
-        <Card className="w-full max-w-2xl">
-          <CardContent className="p-8 text-center">
-            <h3 className="text-lg font-semibold mb-2">{productToolDefinition.metadata.title}</h3>
-            <p className="text-gray-600 mb-4">{productToolDefinition.metadata.description}</p>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-800">
-                🚧 React component execution coming soon!
-              </p>
-              <p className="text-sm text-yellow-700 mt-2">
-                Generated component code is ready, implementing safe execution environment...
-              </p>
+      <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className} min-h-[400px]`}>
+        {/* Show current tool heavily blurred in background */}
+        {productToolDefinition && productToolDefinition.componentCode && (
+          <div className="absolute inset-0 filter blur-md opacity-30 pointer-events-none overflow-hidden">
+            <div className="p-6">
+              <DynamicComponentRenderer
+                componentCode={productToolDefinition.componentCode}
+                metadata={{
+                  title: productToolDefinition.metadata.title,
+                  description: productToolDefinition.metadata.description,
+                  slug: productToolDefinition.slug
+                }}
+                currentStyleMap={productToolDefinition.currentStyleMap}
+                onError={(error: Error) => console.error('Canvas render error:', error)}
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        )}
+        
+        {/* Loading overlay - centered and properly positioned */}
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className={`border-2 border-dashed rounded-lg p-8 text-center bg-white/95 dark:bg-gray-800/95 shadow-xl backdrop-blur-sm ${
+            isDarkMode ? 'border-gray-600' : 'border-gray-300'
+          }`}>
+            <Loader2 className="h-12 w-12 mx-auto mb-4 animate-spin text-blue-500" />
+            <h3 className="text-lg font-medium mb-2">Now Building</h3>
+            <p className="text-sm opacity-70">
+              {generatingMessage}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
-  
-  // Default empty state
+
+  if (productToolDefinition && productToolDefinition.componentCode) {
+    return (
+      <div className={`p-6 ${className}`}>
+        <DynamicComponentRenderer
+          componentCode={productToolDefinition.componentCode}
+          metadata={{
+            title: productToolDefinition.metadata.title,
+            description: productToolDefinition.metadata.description,
+            slug: productToolDefinition.slug
+          }}
+          currentStyleMap={productToolDefinition.currentStyleMap}
+          onError={(error: Error) => console.error('Canvas render error:', error)}
+        />
+      </div>
+    );
+  }
+
+  // Default placeholder when no tool is generated yet
   return (
-    <div className={`w-full min-h-full flex items-center justify-center py-8 px-8 ${className}`}>
-      <Card className="w-full max-w-2xl">
-        <CardContent className="p-8 text-center">
-          <div className="text-gray-400 mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-gray-500 mb-2">No Tool Generated</h3>
-          <p className="text-gray-400">Start a conversation to create your business tool</p>
-        </CardContent>
-      </Card>
+    <div className={`p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className}`}>
+      <div className={`border-2 border-dashed rounded-lg p-8 text-center ${
+        isDarkMode ? 'border-gray-600' : 'border-gray-300'
+      }`}>
+        <Calculator className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <h3 className="text-lg font-medium mb-2">Canvas Ready</h3>
+        <p className="text-sm opacity-70">
+          Your generated tool will appear here. Use the options menu to test tool creation!
+        </p>
+      </div>
     </div>
   );
 }

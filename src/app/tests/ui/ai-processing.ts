@@ -208,95 +208,306 @@ export const handleStyleUpdate = async (
 
 export const createToolWithBrainstorming = async (
   context: any,
-  onBrainstormingUpdate?: (thoughts: any[]) => void,
-  onBrainstormingComplete?: (result: any) => void
+  setShowBrainstormingPanel: (show: boolean) => void,
+  setIsBrainstorming: (loading: boolean) => void,
+  setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void,
+  setIsGeneratingTool: (generating: boolean) => void,
+  setLastAIMessage: (message: string) => void,
+  setLatestBrainstormingResult: (result: any) => void,
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void,
+  setSavedLogicResults: (results: any[]) => void,
+  getSavedLogicResults: () => any[],
+  transitionToNewContent: (updateFunction: () => void) => Promise<void>
 ) => {
-  console.log('🚀 Starting tool creation with brainstorming session...');
+  console.log('🧠 Starting tool creation with brainstorming...');
   
   try {
-    // Structure request according to brainstorm API schema
-    const brainstormRequest = {
-      toolType: context.toolType || context.userIntent || 'custom-calculator',
-      targetAudience: context.targetAudience || 'business professionals',
-      industry: context.industry,
-      businessContext: context.businessDescription || context.userIntent,
-      availableData: {
-        collectedAnswers: context.collectedAnswers,
-        features: context.features,
-        colors: context.colors,
-        brandAnalysis: context.brandAnalysis,
-        uploadedFiles: context.uploadedFiles,
-        conversationHistory: context.conversationHistory
-      }
-    };
-
-    const response = await fetch('/api/ai/logic-architect/brainstorm', {
+    // STEP 0: Start canvas transition and UI updates IMMEDIATELY
+    console.log('🎨 Starting canvas transition and brainstorming UI...');
+    
+    // Show brainstorming panel and start transition
+    setShowBrainstormingPanel(true);
+    setIsBrainstorming(true);
+    setBrainstormingThoughts(() => []);
+    setIsGeneratingTool(true); // Start generating state early
+    setLastAIMessage('🧠 Let me brainstorm some creative ideas for your tool...');
+    
+    // Start canvas transition immediately
+    await transitionToNewContent(() => {
+      // This will start the fade effect while brainstorming happens
+      console.log('🎨 Canvas transition started during brainstorming');
+    });
+    
+    // Step 1: Logic Architect Brainstorming with Streaming
+    const brainstormingResponse = await fetch('/api/ai/logic-architect/brainstorm', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(brainstormRequest),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        toolType: context.toolType || 'calculator',
+        targetAudience: context.targetAudience || 'business professionals', 
+        industry: context.industry || '',
+        businessDescription: context.businessDescription || '',
+        availableData: {
+          collectedAnswers: context.collectedAnswers || {},
+          features: context.features || [],
+          colors: context.colors || [],
+          brandAnalysis: context.brandAnalysis,
+          uploadedFiles: context.uploadedFiles,
+          conversationHistory: context.conversationHistory
+        }
+      }),
     });
 
-    if (!response.ok || !response.body) {
-      const errorData = response.body ? await response.json() : {};
-      throw new Error(errorData.message || `Brainstorming API error: ${response.statusText}`);
-    }
+    // Handle streaming brainstorming response
+    if (brainstormingResponse.headers.get('content-type')?.includes('text/event-stream')) {
+      const reader = brainstormingResponse.body?.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let latestBrainstormingResult = null;
+      if (!reader) throw new Error('No brainstorming reader available');
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const json = JSON.parse(line.slice(6));
-            console.log('🔧 Brainstorming stream chunk:', json);
-            
-            // Update thoughts via callback
-            if (onBrainstormingUpdate) {
-              onBrainstormingUpdate([{ ...json, timestamp: Date.now() }]);
-            }
-            
-            if (json.type === 'complete' && json.data?.toolCreationContext) {
-              console.log('🔧 Brainstorming complete with toolCreationContext:', json.data.toolCreationContext);
-              latestBrainstormingResult = json.data.toolCreationContext;
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
               
-              // Save logic result to database
-              const logicResult: SavedLogicResult = {
-                id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                timestamp: Date.now(),
-                date: new Date().toLocaleDateString(),
-                toolType: context.toolType || 'custom-calculator',
-                targetAudience: context.targetAudience || 'business professionals',
-                industry: context.industry,
-                result: json.data.toolCreationContext
-              };
+              // Add thought to panel
+              setBrainstormingThoughts(prev => [...prev, {
+                type: data.type,
+                data: data.data,
+                timestamp: Date.now()
+              }]);
               
-              await saveLogicResultToDB(logicResult);
-              
-              if (onBrainstormingComplete) {
-                onBrainstormingComplete(json.data.toolCreationContext);
+              if (data.type === 'complete') {
+                console.log('🧠 Logic Architect brainstorming complete:', data.data);
+                setLatestBrainstormingResult(data.data);
+                
+                // Save logic result to localStorage
+                saveLogicResult(
+                  context.toolType || 'calculator',
+                  context.targetAudience || 'business professionals',
+                  context.industry,
+                  data.data
+                );
+                
+                // Update saved logic results list
+                setSavedLogicResults(getSavedLogicResults());
+                
+                // Update context with brainstorming results
+                context.brainstormingResult = data.data;
+                context.logicArchitectInsights = data.data;
+                break;
               }
+            } catch (parseError) {
+              console.warn('Failed to parse brainstorming data:', line);
             }
-          } catch (parseError) {
-            console.error('Failed to parse brainstorming stream data:', parseError);
           }
         }
       }
+    } else {
+      // Non-streaming fallback
+      const brainstormingData = await brainstormingResponse.json();
+      if (brainstormingData.success) {
+        setLatestBrainstormingResult(brainstormingData.result);
+        context.brainstormingResult = brainstormingData.result;
+        context.logicArchitectInsights = brainstormingData.result;
+        
+        // Save logic result
+        saveLogicResult(
+          context.toolType || 'calculator',
+          context.targetAudience || 'business professionals',
+          context.industry,
+          brainstormingData.result
+        );
+        setSavedLogicResults(getSavedLogicResults());
+      }
     }
-
-    return latestBrainstormingResult;
-
+    
+    setIsBrainstorming(false);
+    setLastAIMessage('✨ Great! I\'ve got some amazing ideas. Now let me create your tool...');
+    
+    // Step 2: Call Tool Creation Agent with enriched context
+    setLastAIMessage('🛠️ Creating your tool with the brainstormed ideas...');
+    
+    // Debug: Log the context being passed to tool creation
+    console.log('🔧 Context being passed to Tool Creation Agent:', {
+      brainstormingResult: context.brainstormingResult,
+      logicArchitectInsights: context.logicArchitectInsights,
+      coreWConcept: context.brainstormingResult?.coreWConcept || context.logicArchitectInsights?.coreWConcept
+    });
+    
+    const tool = await callToolCreationAgent(context.userIntent, context, undefined);
+    
+    // Add final completion thought to brainstorming panel
+    setBrainstormingThoughts(prev => [...prev, {
+      type: 'complete',
+      data: {
+        coreWConcept: `Tool Created: ${tool.metadata.title}`,
+        message: `✅ Successfully created "${tool.metadata.title}" based on brainstormed concept`
+      },
+      timestamp: Date.now()
+    }]);
+    
+    setLastAIMessage(`🎉 Your "${tool.metadata.title}" is ready! Check out the preview and let me know if you'd like any adjustments.`);
+    
+    return tool;
+    
   } catch (error) {
-    console.error('❌ Brainstorming error:', error);
+    console.error('❌ Tool creation with brainstorming failed:', error);
+    setIsBrainstorming(false);
+    setIsGeneratingTool(false);
+    setLastAIMessage(`Sorry, there was an error creating your tool: ${error instanceof Error ? error.message : 'Unknown error'}`);
     throw error;
   }
-}; 
+};
+
+export const processWithAI = async (answers: Record<string, string>, conversationHistory: any[], currentStep: any, setLastAIMessage: (message: string) => void, handleAIGeneratedQuestion: (question: any) => void, setShowBrainstormingPanel: (show: boolean) => void, setIsBrainstorming: (loading: boolean) => void, setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, setIsGeneratingTool: (generating: boolean) => void, setLatestBrainstormingResult: (result: any) => void, saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, setSavedLogicResults: (results: any[]) => void, getSavedLogicResults: () => any[], transitionToNewContent: (updateFunction: () => void) => Promise<void>) => {
+  try {
+    setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
+    
+    // Extract key information from answers
+    const expertise = answers['business-description'] || answers['welcome-iterator'] || 'business tools';
+    const toolType = answers['tool-type'] || 'calculator';
+    const targetAudience = answers['target-audience'] || answers['role-title'] || 'business professionals';
+    const industry = answers['industry-focus'] || 'general business';
+    
+    // Call the test UI API with streaming support
+    const result = await handleStreamingAIRequest({
+      userInput: `Based on my responses: ${expertise}. I'm creating a ${toolType} for ${targetAudience} in ${industry}.`,
+      conversationHistory: conversationHistory || [],
+      collectedAnswers: answers,
+      currentStep
+    });
+
+    if (result.success && result.response) {
+      console.log('🔧 AI API response received:', result.response);
+      
+      // Check if AI wants to create a tool - use enhanced brainstorming workflow
+      if (result.response.toolCreationContext) {
+        console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+        return; // Exit early since tool creation handles its own flow
+      }
+      
+      const aiQuestion = {
+        id: result.response.id || 'ai-freeform-response',
+        message: result.response.message,
+        inputType: result.response.inputType,
+        options: result.response.options,
+        placeholder: result.response.placeholder,
+        suggestions: result.response.suggestions,
+        maxSelections: result.response.maxSelections,
+        allowCustom: result.response.allowCustom,
+        acceptedFileTypes: result.response.acceptedFileTypes,
+        maxFileSize: result.response.maxFileSize,
+        questions: result.response.questions
+      };
+      
+      console.log('🔧 About to call handleAIGeneratedQuestion with:', aiQuestion);
+      handleAIGeneratedQuestion(aiQuestion);
+      
+      console.log('AI response processed', { 
+        inputType: aiQuestion.inputType,
+        hasOptions: !!aiQuestion.options?.length 
+      });
+      
+    } else {
+      throw new Error(result.message || 'Failed to get AI response');
+    }
+    
+  } catch (error) {
+    console.error('Error in AI processing:', error);
+    setLastAIMessage(`AI processing encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you manually.`);
+    
+    // Fallback to manual question
+    const fallbackQuestion = {
+      id: 'manual-fallback',
+      message: "Let's continue building your tool. What specific features or calculations should your tool include?",
+      inputType: 'textarea',
+      placeholder: 'Describe the features, calculations, or functionality you want...',
+      rows: 4
+    };
+    
+    handleAIGeneratedQuestion(fallbackQuestion);
+  }
+};
+
+export const handleAIFreeformInput = async (input: string, conversationHistory: any[], collectedAnswers: any, currentStep: any, setLastAIMessage: (message: string) => void, handleAIGeneratedQuestion: (question: any) => void, setShowBrainstormingPanel: (show: boolean) => void, setIsBrainstorming: (loading: boolean) => void, setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, setIsGeneratingTool: (generating: boolean) => void, setLatestBrainstormingResult: (result: any) => void, saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, setSavedLogicResults: (results: any[]) => void, getSavedLogicResults: () => any[], transitionToNewContent: (updateFunction: () => void) => Promise<void>) => {
+  try {
+    console.log('🔧 handleAIFreeformInput called with input:', input);
+    setLastAIMessage("Thinking about your question...");
+    
+    // Call the test UI API with current context
+    const requestBody = {
+      userInput: input,
+      conversationHistory: conversationHistory || [],
+      collectedAnswers,
+      currentStep
+    };
+    
+    console.log('🔧 Sending request to API:', requestBody);
+    
+    // Use streaming request for real-time feedback
+    const result = await handleStreamingAIRequest(requestBody);
+
+    if (result.success && result.response) {
+      // Check if AI wants to create a tool - use enhanced brainstorming workflow
+      if (result.response.toolCreationContext) {
+        console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+        return; // Exit early since tool creation handles its own flow
+      }
+      
+      const aiQuestion = {
+        id: result.response.id || 'ai-freeform-response',
+        message: result.response.message,
+        inputType: result.response.inputType,
+        options: result.response.options,
+        placeholder: result.response.placeholder,
+        suggestions: result.response.suggestions,
+        maxSelections: result.response.maxSelections,
+        allowCustom: result.response.allowCustom,
+        acceptedFileTypes: result.response.acceptedFileTypes,
+        maxFileSize: result.response.maxFileSize,
+        questions: result.response.questions
+      };
+      
+      handleAIGeneratedQuestion(aiQuestion);
+      
+      console.log('AI freeform response processed', { 
+        inputType: aiQuestion.inputType,
+        isTestCommand: result.isTestCommand,
+        detectedCommand: result.detectedCommand
+      });
+      
+    } else {
+      throw new Error(result.message || 'Failed to get AI response');
+    }
+    
+  } catch (error) {
+    console.error('Error in AI freeform input:', error);
+    setLastAIMessage(`I encountered an issue: ${error instanceof Error ? error.message : 'Unknown error'}. Let me help you continue building your tool.`);
+    
+    // Fallback question
+    const fallbackQuestion = {
+      id: 'ai-freeform-fallback',
+      message: "What would you like to focus on for your tool?",
+      inputType: 'textarea',
+      placeholder: 'Tell me what you\'d like to work on next for your business tool...',
+      rows: 3
+    };
+    
+    handleAIGeneratedQuestion(fallbackQuestion);
+  }
+};
+
