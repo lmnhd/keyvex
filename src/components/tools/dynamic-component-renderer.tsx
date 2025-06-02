@@ -153,21 +153,33 @@ export default function DynamicComponentRenderer({
         try {
           ${componentCode}
           
-          // Find the main component function
-          const componentNames = Object.getOwnPropertyNames(this || {}).filter(name => 
-            typeof this[name] === 'function' && 
-            name[0] === name[0].toUpperCase() &&
-            name !== 'Function' &&
-            name !== 'Object'
-          );
+          // Find the main component function using regex
+          const functionPattern = /function\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{/;
+          const match = \`${componentCode.replace(/`/g, '\\`')}\`.match(functionPattern);
           
-          if (componentNames.length === 0) {
-            throw new Error('No valid React component function found');
+          if (!match || !match[1]) {
+            throw new Error('No valid React component function found - no function declaration detected');
           }
           
-          return this[componentNames[0]] || (() => React.createElement('div', {}, 'Component not found'));
+          const componentName = match[1];
+          console.log('🔍 TRACE: Found component function name:', componentName);
+          
+          // Try to get the component function
+          let componentFunc;
+          try {
+            componentFunc = eval(componentName);
+          } catch (evalError) {
+            throw new Error('No valid React component function found - function "' + componentName + '" is not accessible: ' + evalError.message);
+          }
+          
+          if (typeof componentFunc !== 'function') {
+            throw new Error('No valid React component function found - "' + componentName + '" is not a function');
+          }
+          
+          console.log('🔍 TRACE: Successfully extracted component function:', componentName);
+          return componentFunc;
         } catch (error) {
-          console.error('Component execution error:', error);
+          console.error('🔍 TRACE: Component extraction error:', error);
           return () => React.createElement('div', {
             className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center'
           }, 'Component failed to load: ' + error.message);
