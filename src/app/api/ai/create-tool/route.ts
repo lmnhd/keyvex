@@ -14,6 +14,8 @@ import {
 } from '@/lib/prompts/tool-creation-prompt';
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
 import { processToolCreation } from './core-logic';
+import { requireAuth } from '@/lib/auth/debug';
+import { getBehaviorTracker } from '@/lib/ai/behavior-tracker';
 
 // Simple color scheme detection (inline replacement)
 const DEFAULT_COLOR_SCHEMES = {

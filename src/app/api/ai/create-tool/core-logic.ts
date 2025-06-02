@@ -1,9 +1,14 @@
 // Create Tool Core Logic - Reusable business logic for Lambda compatibility
 
 import { z } from 'zod';
+import { generateObject } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
 import * as babel from '@babel/core';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { buildToolCreationUserPrompt } from '@/lib/prompts/tool-creation-prompt';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -74,6 +79,87 @@ export interface CreateToolContext {
   request: CreateToolRequest;
   startTime: number;
 }
+
+// Helper function to create model instance
+function createModelInstance(provider: string, modelId: string) {
+  switch (provider) {
+    case 'openai':
+      return openai(modelId);
+    case 'anthropic':
+      return anthropic(modelId);
+    default:
+      return openai('gpt-4o');
+  }
+}
+
+// Helper function to get system prompt
+function getToolCreationSystemPrompt(): string {
+  return `You are a TOOL CREATION SPECIALIST, an expert AI agent focused on generating professional, business-focused interactive tools that capture leads and provide genuine value.
+    
+    Your mission is to create ProductToolDefinition objects that are practical, professional, and immediately usable by business professionals. Focus on tools that solve real problems and generate qualified leads.`;
+}
+
+// ProductToolDefinition schema for structured output
+const productToolDefinitionSchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  version: z.string(),
+  status: z.enum(['draft', 'published', 'archived']),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  createdBy: z.string(),
+  
+  metadata: z.object({
+    id: z.string(),
+    slug: z.string(),
+    title: z.string(),
+    description: z.string(),
+    shortDescription: z.string(),
+    type: z.string(),
+    category: z.string(),
+    targetAudience: z.string(),
+    industry: z.string(),
+    tags: z.array(z.string()),
+    estimatedCompletionTime: z.number(),
+    difficultyLevel: z.enum(['beginner', 'intermediate', 'advanced']),
+    features: z.array(z.string()),
+    icon: z.object({
+      type: z.enum(['lucide', 'emoji']),
+      value: z.string()
+    })
+  }),
+  
+  // React component code as string
+  componentCode: z.string(),
+  
+  // Style information
+  initialStyleMap: z.record(z.string()).optional(), // Generated once by AI
+  currentStyleMap: z.record(z.string()).optional(),  // Active, editable style map
+
+  // Simplified color scheme
+  colorScheme: z.object({
+    primary: z.string(),
+    secondary: z.string(),
+    background: z.string(),
+    surface: z.string(),
+    text: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      muted: z.string()
+    }),
+    border: z.string(),
+    success: z.string(),
+    warning: z.string(),
+    error: z.string()
+  }),
+  
+  // Simple analytics
+  analytics: z.object({
+    enabled: z.boolean(),
+    completions: z.number(),
+    averageTime: z.number()
+  }).optional()
+});
 
 // Main processing function
 export async function processCreateToolRequest(

@@ -69,7 +69,7 @@ export default function DynamicComponentRenderer({
       ];
 
       let hasProblematicUndefined = false;
-      const foundPatterns = [];
+      const foundPatterns: string[] = [];
       
       console.log('🔍 TRACE: Checking for problematic undefined patterns...');
       for (const pattern of problematicUndefinedPatterns) {
