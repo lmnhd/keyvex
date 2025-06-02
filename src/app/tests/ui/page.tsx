@@ -3644,6 +3644,7 @@ export default function TestUIPage() {
                   description: productToolDefinition.metadata.description,
                   slug: productToolDefinition.slug
                 }}
+                currentStyleMap={productToolDefinition.currentStyleMap}
                 onError={(error) => console.error('Canvas render error:', error)}
               />
             </div>
@@ -3675,6 +3676,7 @@ export default function TestUIPage() {
               description: productToolDefinition.metadata.description,
               slug: productToolDefinition.slug
             }}
+            currentStyleMap={productToolDefinition.currentStyleMap}
             onError={(error) => console.error('Canvas render error:', error)}
           />
         </div>
