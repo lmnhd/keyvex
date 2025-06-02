@@ -139,6 +139,51 @@ const getSavedTools = (): SavedTool[] => {
   }
 };
 
+// Validation function to check if a ProductToolDefinition is valid
+const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition => {
+  if (!tool || typeof tool !== 'object') {
+    console.warn('Tool validation failed: not an object');
+    return false;
+  }
+  
+  // Check required fields
+  if (!tool.id || typeof tool.id !== 'string') {
+    console.warn('Tool validation failed: missing or invalid id');
+    return false;
+  }
+  
+  if (!tool.metadata || typeof tool.metadata !== 'object') {
+    console.warn('Tool validation failed: missing or invalid metadata');
+    return false;
+  }
+  
+  if (!tool.metadata.title || typeof tool.metadata.title !== 'string') {
+    console.warn('Tool validation failed: missing or invalid metadata.title');
+    return false;
+  }
+  
+  if (!tool.componentCode || typeof tool.componentCode !== 'string') {
+    console.warn('Tool validation failed: missing or invalid componentCode');
+    return false;
+  }
+  
+  // Check if componentCode is not corrupted (basic sanity check)
+  if (tool.componentCode.length < 50) {
+    console.warn('Tool validation failed: componentCode too short (likely corrupted)');
+    return false;
+  }
+  
+  // Check for obvious corruption patterns
+  if (tool.componentCode.includes('undefined,undefined') || 
+      tool.componentCode.includes(',,') ||
+      tool.componentCode.includes('null,null')) {
+    console.warn('Tool validation failed: componentCode contains corruption patterns');
+    return false;
+  }
+  
+  console.log('✅ Tool validation passed');
+  return true;
+};
 
 export default function TestUIPage() {
   const [useMockData, setUseMockData] = useState(true);
@@ -1005,11 +1050,30 @@ export default function TestUIPage() {
       try {
         const lastTool = await loadLastActiveToolFromDB();
         if (lastTool) {
-          console.log('📱 Loading last active tool on startup:', lastTool.metadata.title);
-          setProductToolDefinition(lastTool);
+          console.log('📱 Loading last active tool on startup:', lastTool.metadata?.title || 'Unknown Tool');
+          
+          // Validate the tool before setting it
+          if (isValidProductToolDefinition(lastTool)) {
+            setProductToolDefinition(lastTool);
+            console.log('✅ Tool validation passed, tool loaded successfully');
+          } else {
+            console.warn('⚠️ Corrupted tool detected on startup, skipping load');
+            // Clear the corrupted tool from IndexedDB
+            try {
+              await saveLastActiveToolToDB(null as any); // Clear corrupted data
+            } catch (clearError) {
+              console.warn('Could not clear corrupted tool:', clearError);
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to load last active tool:', error);
+        // Clear potentially corrupted data
+        try {
+          await saveLastActiveToolToDB(null as any);
+        } catch (clearError) {
+          console.warn('Could not clear corrupted data after error:', clearError);
+        }
       }
     };
     
