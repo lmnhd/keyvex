@@ -633,14 +633,17 @@ export async function processToolCreation(
       }
     }
     
-    // 6. Validate required data-style-id attributes
+    // 6. Validate required data-style-id attributes - RELAXED: Not all tools need dynamic styling
     if (!toolDefinition.componentCode.includes('data-style-id')) {
-      validationErrors.push('Component code missing required data-style-id attributes for dynamic styling');
+      console.log('🛡️ VALIDATION: ⚠️ Component missing data-style-id attributes (dynamic styling disabled)');
+      // This is a warning, not an error - tools can function without dynamic styling
     }
     
-    // 7. Validate initialStyleMap completeness
-    if (!toolDefinition.initialStyleMap || Object.keys(toolDefinition.initialStyleMap).length === 0) {
-      validationErrors.push('Tool missing required initialStyleMap for dynamic styling');
+    // 7. Validate initialStyleMap completeness - RELAXED: Allow empty style maps
+    // Note: initialStyleMap can be empty for simple tools that don't require custom styling
+    if (toolDefinition.initialStyleMap === null || toolDefinition.initialStyleMap === undefined) {
+      console.log('🛡️ VALIDATION: ⚠️ initialStyleMap is null/undefined, setting to empty object');
+      toolDefinition.initialStyleMap = {};
     }
     
     // 8. Check for common syntax errors that cause crashes
