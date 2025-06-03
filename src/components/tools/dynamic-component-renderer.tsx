@@ -106,6 +106,8 @@ export default function DynamicComponentRenderer({
           const React = { createElement: () => null };
           const useState = () => [null, () => {}];
           const useEffect = () => {};
+          const useCallback = () => {};
+          const useMemo = () => {};
           const Card = () => null;
           const CardHeader = () => null;
           const CardTitle = () => null;
@@ -154,7 +156,7 @@ export default function DynamicComponentRenderer({
       // Create the component function with proper error boundaries
       console.log('🔍 TRACE: Creating component function...');
       const componentFunction = new Function(
-        'React', 'useState', 'useEffect', 
+        'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
         'Card', 'CardHeader', 'CardTitle', 'CardContent', 
         'Button', 'Input', 'Label', 
         `
@@ -199,7 +201,7 @@ export default function DynamicComponentRenderer({
 
       // Get the component with all required dependencies
       const ComponentImpl = componentFunction(
-        React, useState, useEffect, 
+        React, useState, useEffect, useCallback, useMemo,
         Card, CardHeader, CardTitle, CardContent, 
         Button, Input, Label
       );
