@@ -760,398 +760,122 @@ export async function processToolCreation(
     // 🛡️ COMPREHENSIVE TOOL VALIDATION - Prevent saving bad tools AND collect issues for UI
     console.log('🛡️ VALIDATION: Running comprehensive tool validation...');
     
-    // 1. Check for forbidden ShadCN component usage IF componentSet is 'legacy'
-    if (finalToolDefinition.componentSet === 'legacy') {
-      const shadcnKeywords = [
-        'Card', 'CardHeader', 'CardContent', 'CardTitle', 'CardDescription', 'CardFooter',
-        'Input', 'Button', 'Select', 'Label', 'Textarea', 'RadioGroup', 'Checkbox', 'Slider', 'Toggle',
-        'Accordion', 'Dialog', 'Tooltip', 'Progress' // Add other ShadCN component names if they have distinct capitalized names
-      ];
-      let foundForbiddenLegacy = ''
-      for (const keyword of shadcnKeywords) {
-        if (finalToolDefinition.componentCode.includes(keyword)) {
-          // Check if it's a standalone keyword, e.g. `React.createElement(Input, ...)` vs. `someInputVariable`
-          // This regex looks for the keyword followed by a non-alphanumeric char (like comma, paren, space) or end of line.
-          const regex = new RegExp(`\\b${keyword}\\b`);
-          if (regex.test(finalToolDefinition.componentCode)){
-            foundForbiddenLegacy = keyword;
-            break;
-          }
-        }
-      }
-      if (foundForbiddenLegacy) {
-        trackIssue(
-          `Tool uses forbidden ShadCN component '${foundForbiddenLegacy}' while in legacy mode`,
-          'component-structure',
-          'error',
-          `ShadCN components (e.g., ${foundForbiddenLegacy}) are not allowed when componentSet is 'legacy'. Use basic HTML elements only.`,
-          foundForbiddenLegacy,
-          false
-        );
-      }
-    } else {
-      // If componentSet is 'shadcn', we might want to add checks to ensure they are used *correctly* in the future,
-      // but for now, we won't flag their mere presence as an error.
-      console.log('🛡️ VALIDATION: componentSet is \'shadcn\'. Skipping check for forbidden ShadCN components (as they are allowed).');
-    }
-    
-    // 2. Test JavaScript execution safety (same as DynamicComponentRenderer)
-    try {
-      console.log('🛡️ VALIDATION: Testing JavaScript execution safety...');
-      const testFunction = new Function(`
-        "use strict";
-        const React = { createElement: () => null };
-        const useState = () => [null, () => {}];
-        const useEffect = () => {};
-        const useCallback = () => {};
-        const useMemo = () => {};
-        const Button = () => null;
-        const Input = () => null;
-        const Label = () => null;
-        
-        try {
-          ${finalToolDefinition.componentCode}
-          return { success: true };
-        } catch (error) {
-          return { success: false, error: error.message };
-        }
-      `);
-      
-      const testResult = testFunction();
-      if (!testResult.success) {
-        trackIssue(
-          'Component code execution failed',
-          'execution',
-          'error',
-          `JavaScript execution test failed: ${testResult.error}`,
-          finalToolDefinition.componentCode.substring(0, 200),
-          false
-        );
-      } else {
-        console.log('🛡️ VALIDATION: ✅ JavaScript execution test passed');
-      }
-    } catch (error) {
-      trackIssue(
-        'Component code validation failed',
-        'execution',
-        'error',
-        `Validation threw error: ${error instanceof Error ? error.message : String(error)}`,
-        finalToolDefinition.componentCode.substring(0, 200),
-        false
-      );
-    }
-    
-    // 3. Check for React component function pattern - ENHANCED: More robust detection
-    const functionPatterns = [
-      /function\s+\w+\s*\([^)]*\)\s*\{/,           // Traditional function declaration
-      /const\s+\w+\s*=\s*\([^)]*\)\s*=>\s*\{/,    // Arrow function with const
-      /const\s+\w+\s*=\s*function\s*\([^)]*\)\s*\{/, // Function expression with const
-    ];
-    
-    let hasValidFunction = false;
-    let foundFunctionName = '';
-    
-    for (const pattern of functionPatterns) {
-      const match = finalToolDefinition.componentCode.match(pattern);
-      if (match) {
-        hasValidFunction = true;
-        foundFunctionName = match[0];
-        break;
-      }
-    }
-    
-    // DEBUG: Log component code details for troubleshooting
-    console.log('🛡️ VALIDATION: Component code preview (first 500 chars):', finalToolDefinition.componentCode.substring(0, 500));
-    console.log('🛡️ VALIDATION: Function pattern search result:', { hasValidFunction, foundFunctionName });
-    
-    if (!hasValidFunction) {
-      // ENHANCED: Try more flexible pattern detection
-      const flexiblePattern = /function\s+\w+|const\s+\w+\s*=/;
-      const flexibleMatch = finalToolDefinition.componentCode.match(flexiblePattern);
-      
-      if (flexibleMatch) {
-        console.log('🛡️ VALIDATION: Found function-like pattern with flexible search:', flexibleMatch[0]);
-        hasValidFunction = true;
-      } else {
-        console.error('🛡️ VALIDATION: No function declarations found. Component code sample:');
-        console.error(finalToolDefinition.componentCode.substring(0, 1000));
-        trackIssue(
-          'Component code does not contain a valid React component function declaration',
-          'component-structure',
-          'error',
-          'No function declarations found in component code',
-          finalToolDefinition.componentCode.substring(0, 300),
-          false
-        );
-      }
-    } else {
-      console.log('🛡️ VALIDATION: ✅ Found valid React component function:', foundFunctionName.substring(0, 50) + '...');
-    }
-    
-    // 4. Check for required React patterns - REVERTED: React.createElement() ONLY
-    console.log('🛡️ VALIDATION: Checking for React.createElement requirement...');
-    const hasReactCreateElement = finalToolDefinition.componentCode.includes('React.createElement');
-    console.log('🛡️ VALIDATION: React.createElement check result:', hasReactCreateElement);
-    
-    if (!hasReactCreateElement) {
-      console.error('🛡️ VALIDATION: ❌ CRITICAL - Component does NOT contain React.createElement!');
-      console.error('🛡️ VALIDATION: Component code sample (first 1000 chars):');
-      console.error(finalToolDefinition.componentCode.substring(0, 1000));
-      trackIssue(
-        'Component code does not use React.createElement (required pattern)',
-        'component-structure',
-        'error',
-        'All components must use React.createElement syntax instead of JSX',
-        finalToolDefinition.componentCode.substring(0, 500),
-        false
-      );
-    } else {
-      console.log('🛡️ VALIDATION: ✅ Component properly uses React.createElement syntax');
-    }
-    
-    // 5. Check for React state hooks (required for interactive tools)
-    if (!finalToolDefinition.componentCode.includes('useState')) {
-      trackIssue(
-        'Component code does not contain React state hooks',
-        'component-structure',
-        'warning',
-        'Interactive tools should include useState for user interactions',
-        'useState not found',
-        false
-      );
-    }
-    
-    // 6. Check for problematic undefined patterns
-    const problematicPatterns = [
-      /,\s*undefined\s*,/g,     // undefined in arrays/function calls
-      /,\s*undefined\s*\)/g,    // undefined as last parameter
-      /\(\s*undefined\s*,/g,    // undefined as first parameter
-      /:\s*undefined\s*,/g,     // undefined as object value
-      /=\s*undefined\s*;/g      // undefined assignment
-    ];
-    
-    for (const pattern of problematicPatterns) {
-      const matches = finalToolDefinition.componentCode.match(pattern);
-      if (matches) {
-        trackIssue(
-          'Component code contains problematic undefined patterns',
-          'undefined-values',
-          'error',
-          'Undefined values in data structures cause runtime errors',
-          matches.slice(0, 3).join('; '),
-          false
-        );
-        break;
-      }
-    }
-    
-    // 7. Check for missing React keys - CHANGED: Warning only, not blocking
-    const missingKeysPatterns = [
-      /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement[^\]]*\]/g,
-      /\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/g,
-    ];
-    
-    let hasMissingKeys = false;
-    const foundMissingKeyPatterns: string[] = [];
-    
-    for (const pattern of missingKeysPatterns) {
-      const matches = finalToolDefinition.componentCode.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          if (match.includes('[') && match.includes('React.createElement') && !match.includes('key:')) {
-            hasMissingKeys = true;
-            foundMissingKeyPatterns.push(match.substring(0, 100) + '...');
-          }
-        }
-      }
-      if (hasMissingKeys) break;
-    }
-    
-    if (hasMissingKeys) {
-      console.warn('🛡️ VALIDATION: ⚠️ Component has arrays without React keys (may cause console warnings)');
-      trackIssue(
-        'Missing React keys in array elements',
-        'react-keys',
-        'warning',
-        'Arrays containing React elements should have unique key props',
-        foundMissingKeyPatterns.slice(0, 2).join('; '),
-        true // This is auto-fixable
-      );
-    }
-    
-    // 8. Validate required data-style-id attributes - RELAXED: Not all tools need dynamic styling
-    if (!finalToolDefinition.componentCode.includes('data-style-id')) {
-      console.log('🛡️ VALIDATION: ⚠️ Component missing data-style-id attributes (dynamic styling disabled)');
-      trackIssue(
-        'Component missing data-style-id attributes',
-        'style-mapping',
-        'info',
-        'Dynamic styling will be disabled for this component',
-        'data-style-id not found',
-        true
-      );
-    }
-    
-    // 9. STRICT: Validate initialStyleMap completeness and quality
-    if (!finalToolDefinition.initialStyleMap || Object.keys(finalToolDefinition.initialStyleMap).length === 0) {
-      trackIssue(
-        'Component missing initialStyleMap or has empty style mapping',
-        'style-mapping',
-        'error',
-        'AI must generate initialStyleMap with data-style-id to CSS class mappings for dynamic styling',
-        'Empty or missing initialStyleMap',
-        false
-      );
-    } else {
-      // Validate that initialStyleMap entries are meaningful
-      const styleMapEntries = Object.entries(finalToolDefinition.initialStyleMap);
-      const invalidEntries = styleMapEntries.filter(([key, value]) => {
-        return !key.trim() || !value.trim() || value === 'undefined' || value === 'null';
-      });
-      
-      if (invalidEntries.length > 0) {
-        trackIssue(
-          'initialStyleMap contains invalid or empty entries',
-          'style-mapping',
-          'error',
-          `Found ${invalidEntries.length} invalid style map entries: ${invalidEntries.map(([k, v]) => `"${k}": "${v}"`).join(', ')}`,
-          invalidEntries.slice(0, 3).map(([k, v]) => `"${k}": "${v}"`).join('; '),
-          false
-        );
-      }
-      
-      // Check for data-style-id attributes in componentCode that don't have corresponding initialStyleMap entries
-      const dataStyleIdPattern = /data-style-id=['"]([^'"]+)['"]/g;
-      const foundDataStyleIds = new Set<string>();
-      let match;
-      while ((match = dataStyleIdPattern.exec(finalToolDefinition.componentCode)) !== null) {
-        foundDataStyleIds.add(match[1]);
-      }
-      
-      const styleMapKeys = new Set(Object.keys(finalToolDefinition.initialStyleMap));
-      const missingMappings = Array.from(foundDataStyleIds).filter(id => !styleMapKeys.has(id));
-      
-      if (missingMappings.length > 0) {
-        trackIssue(
-          'Component has data-style-id attributes without corresponding initialStyleMap entries',
-          'style-mapping',
-          'error',
-          `Missing style mappings for: ${missingMappings.join(', ')}`,
-          missingMappings.slice(0, 5).join(', '),
-          true // This could potentially be auto-fixable
-        );
-      }
-    }
-    
-    // 10. STRICT: Ensure React hooks for interactivity
-    if (!finalToolDefinition.componentCode.includes('useState')) {
-      trackIssue(
-        'Component does not contain React hooks (useState)',
-        'component-structure',
-        'error',
-        'Business tools must be interactive and use React state hooks',
-        'No useState detected',
-        false
-      );
-    }
-    
-    // 10.5. STRICT: Ensure meaningful interactivity
-    const hasEventHandlers = /on\w+\s*:\s*\([^)]*\)\s*=>/.test(finalToolDefinition.componentCode) || 
-                             /on\w+\s*:\s*handle\w+/.test(finalToolDefinition.componentCode);
-    if (!hasEventHandlers) {
-      trackIssue(
-        'Component lacks event handlers for user interaction',
-        'component-structure',
-        'error',
-        'Business tools must have onClick, onChange, or other event handlers for meaningful interactivity',
-        'No event handlers detected',
-        false
-      );
-    }
-    
-    // 11. STRICT: Validate data-style-id attributes are present
-    const dataStyleIdCount = (finalToolDefinition.componentCode.match(/data-style-id=/g) || []).length;
-    if (dataStyleIdCount === 0) {
-      trackIssue(
-        'Component does not contain any data-style-id attributes',
-        'style-mapping',
-        'error',
-        'Components must include data-style-id attributes for dynamic styling support',
-        'No data-style-id attributes found',
-        false
-      );
-    }
-    
-    // 12. STRICT: Check for proper React keys in arrays (now required, not just a warning)
-    const hasArraysWithoutKeys = /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/.test(finalToolDefinition.componentCode);
-    if (hasArraysWithoutKeys) {
-      trackIssue(
-        'Component has React arrays without proper keys',
-        'react-keys',
-        'error',
-        'All React elements in arrays must have unique key props',
-        'Missing keys in React arrays',
-        true // Auto-fixable
-      );
-    }
-    
-    // 13. Check for common syntax errors that cause crashes
-    if (finalToolDefinition.componentCode.includes('import ') || finalToolDefinition.componentCode.includes('export ')) {
-      trackIssue(
-        'Component code contains import/export statements',
-        'syntax',
-        'error',
-        'Import/export statements are forbidden in dynamic execution',
-        'import/export detected',
-        false
-      );
-    }
-    
-    // 14. Check for template strings with variable interpolation (causes ReferenceError in dynamic execution)
-    const templateStringPattern = /`[^`]*\$\{[^}]+\}[^`]*`/;
-    if (templateStringPattern.test(finalToolDefinition.componentCode)) {
-      trackIssue(
-        'Component code contains template strings with variable interpolation',
-        'syntax',
-        'error',
-        'Template strings with ${} cause ReferenceError in dynamic execution context - use string concatenation instead',
-        'Template string detected',
-        false
-      );
-    }
-    
-    // Determine if validation passes
-    const hasBlockingErrors = validationBlockers.length > 0;
-    
-    // If validation failed with blocking errors, throw error to prevent saving bad tool
-    if (hasBlockingErrors) {
-      console.error('🛡️ VALIDATION: ❌ Tool validation FAILED with blocking errors:', validationBlockers);
-      throw new Error(`Tool validation failed with ${validationBlockers.length} blocking error(s): ${validationBlockers.map(b => b.issue).join('; ')}`);
-    }
-    
-    console.log('🛡️ VALIDATION: ✅ Tool validation PASSED - safe to save');
-    if (validationIssues.length > 0) {
-      console.log('🛡️ VALIDATION: ⚠️ Found', validationIssues.length, 'non-blocking issues');
-    }
-
-    const validationResult: ToolValidationResult = {
-      isValid: !hasBlockingErrors,
-      issues: validationIssues,
-      blockers: validationBlockers,
-      // NEW: Metadata for Final Polish stage tracking
-      timestamp: Date.now(),
-      attempt: 1,
+    // Use the extracted validation function instead of inline validation
+    let currentTool = finalToolDefinition;
+    let validationResult = performFullValidation(currentTool, {
+      toolId: currentTool.id,
+      toolTitle: currentTool.metadata.title,
+      attemptNumber: 1,
       sessionPhase: 'initial_creation',
-      userContext: {
-        selectedModel: selectedModel,
-        hasExternalBrainstorming: !!brainstormingContext,
-        toolComplexity: context.toolComplexity || 'unknown'
-      }
-    };
+      selectedModel: selectedModel,
+      hasExternalBrainstorming: !!brainstormingContext,
+      toolComplexity: context.toolComplexity || 'unknown'
+    });
 
+    // 🔧 ITERATOR SYSTEM: If validation fails with blocking errors, try to fix with AI
+    if (!validationResult.isValid) {
+      console.log('🔧 ITERATOR: Initial validation failed - attempting AI corrections...');
+      console.log(`🔧 ITERATOR: ${validationResult.blockers.length} blocking errors to resolve`);
+      
+      // Convert validation result issues to ValidationIssue format for fixer
+      const validationIssuesForFixer: ValidationIssue[] = validationResult.issues.map(issue => ({
+        id: issue.id,
+        toolId: currentTool.id,
+        toolTitle: currentTool.metadata.title,
+        severity: issue.severity,
+        category: issue.category as 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+        issue: issue.issue,
+        details: issue.details,
+        codeSnippet: issue.codeSnippet,
+        timestamp: Date.now(),
+        resolved: false,
+        autoFixable: issue.autoFixable
+      }));
+
+      // Configure iterator behavior 
+      const iteratorConfig: Partial<ToolFixerConfig> = {
+        maxAttempts: 3, // Configurable max attempts
+        temperature: 0.3, // Lower temperature for more focused corrections
+        enableLogging: true,
+        // Optional: Use different model for fixing if needed
+        // modelOverride: 'gpt-4o-mini' // Could use cheaper model for fixes
+      };
+
+      try {
+        // Attempt to fix the tool using AI iterator
+        const fixResult = await fixToolWithAI(
+          currentTool,
+          validationIssuesForFixer,
+          userIntent, // Pass original user intent for context
+          iteratorConfig
+        );
+
+        if (fixResult.success && fixResult.fixedTool) {
+          console.log('🔧 ITERATOR: ✅ Tool successfully fixed by AI!');
+          console.log(`🔧 ITERATOR: Fixed in ${fixResult.attempts} attempts`);
+          console.log(`🔧 ITERATOR: ${fixResult.improvements?.issuesFixed || 0} issues fixed, ${fixResult.improvements?.blockersResolved || 0} blockers resolved`);
+          
+          // Use the fixed tool and its validation result
+          currentTool = fixResult.fixedTool;
+          validationResult = fixResult.validation!;
+          
+          // Update validation metadata to reflect iteration success
+          validationResult.sessionPhase = 'iteration';
+          validationResult.attempt = fixResult.attempts;
+          
+        } else {
+          // Iterator failed - log details but continue with original tool
+          console.error('🔧 ITERATOR: ❌ Tool fixing failed after maximum attempts');
+          console.error(`🔧 ITERATOR: Error: ${fixResult.error}`);
+          console.error(`🔧 ITERATOR: Attempts: ${fixResult.attempts}`);
+          
+          if (fixResult.improvements) {
+            console.log(`🔧 ITERATOR: Partial improvements: ${fixResult.improvements.issuesFixed} issues fixed, ${fixResult.improvements.blockersResolved} blockers resolved`);
+          }
+          
+          // Use the best partial result if available, otherwise original
+          if (fixResult.fixedTool && fixResult.validation) {
+            console.log('🔧 ITERATOR: Using best partial fix result');
+            currentTool = fixResult.fixedTool;
+            validationResult = fixResult.validation;
+            validationResult.sessionPhase = 'iteration';
+            validationResult.attempt = fixResult.attempts;
+          }
+          
+          // If we still have blocking errors, throw error to prevent saving bad tool
+          if (validationResult.blockers.length > 0) {
+            console.error('🛡️ VALIDATION: ❌ Tool validation FAILED even after AI correction attempts');
+            throw new Error(`Tool validation failed after ${fixResult.attempts} correction attempts. ${validationResult.blockers.length} blocking error(s) remain: ${validationResult.blockers.map(b => b.issue).join('; ')}`);
+          }
+        }
+        
+      } catch (iteratorError) {
+        console.error('🔧 ITERATOR: Iterator system error:', iteratorError);
+        
+        // If iterator system itself fails, fall back to original validation behavior
+        if (validationResult.blockers.length > 0) {
+          console.error('🛡️ VALIDATION: ❌ Tool validation FAILED and iterator system failed');
+          throw new Error(`Tool validation failed with ${validationResult.blockers.length} blocking error(s) and iterator system error: ${iteratorError instanceof Error ? iteratorError.message : String(iteratorError)}`);
+        }
+      }
+    }
+    
+    // Final validation check - ensure we have a valid tool
+    if (!validationResult.isValid) {
+      console.error('🛡️ VALIDATION: ❌ Tool validation still invalid after all attempts');
+      throw new Error(`Tool validation failed with ${validationResult.blockers.length} blocking error(s): ${validationResult.blockers.map(b => b.issue).join('; ')}`);
+    }
+    
+    // Success! Tool is valid (either initially or after AI fixes)
+    console.log('🛡️ VALIDATION: ✅ Tool validation PASSED - safe to save');
+    if (validationResult.issues.length > 0) {
+      console.log('🛡️ VALIDATION: ⚠️ Found', validationResult.issues.length, 'non-blocking issues');
+    }
+    
+    // Log final tool status
     console.log('🏭 TRACE: processToolCreation SUCCESS - returning tool with validation results');
     return {
-      tool: finalToolDefinition,
+      tool: currentTool, // Use currentTool (may be original or fixed version)
       validation: validationResult
     };
 
