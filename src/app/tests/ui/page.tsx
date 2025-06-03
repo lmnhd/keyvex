@@ -70,256 +70,42 @@ import {
   handleStyleUpdate,
   createToolWithBrainstorming,
   handleAIFreeformInput,
-  processWithAI
+  processWithAI,
+  createToolWithSavedBrainstorm
 } from './ai-processing';
+import { clearAllSavedData, getSavedLogicResults, getSavedTools, saveCreatedTool, saveLogicResult } from './local-storage';
+import { 
+  isValidProductToolDefinition, 
+  clearCorruptedToolFromStorage, 
+  createSampleQuestion, 
+  createMockQuestion 
+} from './validation-utils';
+import { 
+  updateToolDataFromAnswers, 
+  updateToolDataFromMultiPart, 
+  processMockWorkflowStep, 
+  handleMockFreeformResponse,
+  handleColorPickerData,
+  resetWorkflowState,
+  extractAIContextFromAnswers,
+  createAIQuestion,
+  createFallbackQuestion
+} from './workflow-utils';
+import {
+  transitionToNewContent as transitionHelper,
+  trackQuestion,
+  handleAnswerUpdate as handleAnswerUpdateHelper,
+  handleSwitchToChat as handleSwitchToChatHelper,
+  handleEditingModeCleanup,
+  resetWorkflow as resetWorkflowHelper,
+  initializeBehaviorTracking,
+  trackQuestionActivation,
+  trackInteractionBehavior
+} from './handler-utils';
 
 // Local Storage Utilities for Development
 const LOGIC_STORAGE_KEY = 'keyvex_logic_architect_results';
 const TOOLS_STORAGE_KEY = 'keyvex_created_tools';
-
-const saveLogicResult = (toolType: string, targetAudience: string, industry: string | undefined, result: any) => {
-  try {
-    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-    const existing: SavedLogicResult[] = saved ? JSON.parse(saved) : [];
-    
-    const newResult: SavedLogicResult = {
-      id: `logic_${Date.now()}`,
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-      toolType,
-      targetAudience,
-      industry,
-      result
-    };
-    
-    existing.unshift(newResult); // Add to beginning
-    localStorage.setItem(LOGIC_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
-    console.log('💾 Saved logic result to localStorage:', newResult.id);
-  } catch (error) {
-    console.error('Failed to save logic result:', error);
-  }
-};
-
-const saveCreatedTool = (tool: ProductToolDefinition) => {
-  try {
-    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
-    const existing: SavedTool[] = saved ? JSON.parse(saved) : [];
-    
-    const newTool: SavedTool = {
-      id: `tool_${Date.now()}`,
-      timestamp: Date.now(),
-      date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-      title: tool.metadata.title,
-      tool
-    };
-    
-    existing.unshift(newTool); // Add to beginning
-    localStorage.setItem(TOOLS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
-    console.log('💾 Saved created tool to localStorage:', newTool.id);
-  } catch (error) {
-    console.error('Failed to save created tool:', error);
-  }
-};
-
-const getSavedLogicResults = (): SavedLogicResult[] => {
-  try {
-    const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch (error) {
-    console.error('Failed to load logic results:', error);
-    return [];
-  }
-};
-
-const getSavedTools = (): SavedTool[] => {
-  try {
-    const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : [];
-  } catch (error) {
-    console.error('Failed to load saved tools:', error);
-    return [];
-  }
-};
-
-// Enhanced validation function to check if a ProductToolDefinition is valid
-const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition => {
-  console.log('🔧 TRACE: Validating tool definition...');
-  console.log('🔧 TRACE: Tool ID:', tool?.id);
-  console.log('🔧 TRACE: Tool metadata title:', tool?.metadata?.title);
-  console.log('🔧 TRACE: ComponentCode length:', tool?.componentCode?.length || 0);
-  
-  if (!tool || typeof tool !== 'object') {
-    console.warn('⚠️ Tool validation failed: Not an object');
-    return false;
-  }
-  
-  // Check for required fields
-  if (!tool.id || !tool.metadata || !tool.componentCode) {
-    console.warn('⚠️ Tool validation failed: Missing required fields', {
-      hasId: !!tool.id,
-      hasMetadata: !!tool.metadata, 
-      hasComponentCode: !!tool.componentCode
-    });
-    return false;
-  }
-  
-  // Check for undefined values in critical fields
-  if (String(tool.id).includes('undefined') || 
-      String(tool.slug || '').includes('undefined') ||
-      String(tool.metadata?.id || '').includes('undefined') ||
-      String(tool.metadata?.title || '').includes('undefined')) {
-    console.warn('⚠️ Tool validation failed: Contains undefined values in critical fields');
-    return false;
-  }
-
-  // ENHANCED: Check if componentCode actually contains a React component
-  const componentCode = String(tool.componentCode || '');
-  
-  // Must contain React.createElement (our required pattern)
-  if (!componentCode.includes('React.createElement')) {
-    console.warn('⚠️ Tool validation failed: componentCode does not contain React.createElement');
-    return false;
-  }
-  
-  // Must contain a function declaration that returns React elements
-  const functionPattern = /function\s+\w+\s*\([^)]*\)\s*\{[\s\S]*return\s+React\.createElement/;
-  if (!functionPattern.test(componentCode)) {
-    console.warn('⚠️ Tool validation failed: componentCode does not contain a proper React component function');
-    return false;
-  }
-  
-  // Must contain React hooks (useState is required for our components)
-  if (!componentCode.includes('useState')) {
-    console.warn('⚠️ Tool validation failed: componentCode does not contain React hooks (useState)');
-    return false;
-  }
-
-  // 🛡️ NEW: Check for Card component usage (will cause runtime errors)
-  if (componentCode.includes('Card') || 
-      componentCode.includes('CardHeader') ||
-      componentCode.includes('CardContent') ||
-      componentCode.includes('CardTitle')) {
-    console.warn('⚠️ Tool validation failed: Component uses forbidden Card components');
-    return false;
-  }
-
-  // NEW: Test component code for JavaScript execution safety AND React component structure
-  try {
-    console.log('🔧 TRACE: Testing component code JavaScript execution...');
-    
-    // Create a safe test environment to check if the componentCode will execute
-    const testFunction = new Function(`
-      "use strict";
-      const React = { createElement: () => null };
-      const useState = () => [null, () => {}];
-      const useEffect = () => {};
-      const useCallback = () => {};
-      const useMemo = () => {};
-      const Button = () => null;
-      const Input = () => null;
-      const Label = () => null;
-      
-      try {
-        ${componentCode}
-        
-        // Enhanced check: Try to find and call the component function
-        const functionNames = [];
-        const funcRegex = /function\\s+(\\w+)\\s*\\([^)]*\\)/g;
-        let match;
-        while ((match = funcRegex.exec(\`${componentCode.replace(/`/g, '\\`')}\`)) !== null) {
-          functionNames.push(match[1]);
-        }
-        
-        if (functionNames.length === 0) {
-          return { success: false, error: 'No function declarations found' };
-        }
-        
-        // Try to call the first function (should be the React component)
-        const componentFunction = eval(functionNames[0]);
-        if (typeof componentFunction !== 'function') {
-          return { success: false, error: 'Component is not a function' };
-        }
-        
-        // Try to execute the component function (should return React elements)
-        const result = componentFunction();
-        
-        return { success: true, componentName: functionNames[0] };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    `);
-    
-    const testResult = testFunction();
-    
-    if (!testResult.success) {
-      console.warn('⚠️ Tool validation failed: Component code execution error:', testResult.error);
-      return false;
-    }
-    
-    console.log('🔧 TRACE: ✅ Component code execution test passed, component name:', testResult.componentName);
-  } catch (executionError) {
-    console.warn('⚠️ Tool validation failed: Component code is corrupted:', executionError);
-    return false;
-  }
-  
-  console.log('🔧 TRACE: ✅ Tool validation passed');
-  return true;
-};
-
-// NEW: Add automatic cleanup of corrupted tools from IndexedDB
-const clearCorruptedToolFromStorage = async (toolId: string) => {
-  try {
-    console.log('🧹 TRACE: Clearing corrupted tool from storage:', toolId);
-    
-    // Clear from IndexedDB using the correct imported function
-    await clearLastActiveToolFromDB();
-    
-    // Clear from localStorage backup
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('tool_') || key === 'lastActiveToolId') {
-        try {
-          const toolData = JSON.parse(localStorage.getItem(key) || '{}');
-          if (toolData.id === toolId) {
-            localStorage.removeItem(key);
-            console.log('🧹 TRACE: Removed corrupted tool from localStorage:', key);
-          }
-        } catch (e) {
-          // If parsing fails, the localStorage item is also corrupted, remove it
-          localStorage.removeItem(key);
-          console.log('🧹 TRACE: Removed corrupted localStorage item:', key);
-        }
-      }
-    });
-    
-    console.log('🧹 TRACE: ✅ Corrupted tool cleanup completed');
-  } catch (error) {
-    console.error('🧹 TRACE: ⚠️ Error during corrupted tool cleanup:', error);
-  }
-};
-
-// Helper function to create a sample question for an existing tool
-const createSampleQuestion = (tool: ProductToolDefinition) => {
-  return {
-    id: `sample_${Date.now()}`,
-    message: `Sample question for ${tool.metadata.title}`,
-    inputType: 'text' as const,
-    placeholder: 'Enter your input here...',
-    isInMultiPart: false,
-    multiPartQuestions: []
-  };
-};
-
-// Helper function to create a mock question for initial state
-const createMockQuestion = () => {
-  return {
-    id: `mock_${Date.now()}`,
-    message: 'What type of business tool would you like to create?',
-    inputType: 'text' as const,
-    placeholder: 'Describe your tool idea...',
-    isInMultiPart: false,
-    multiPartQuestions: []
-  };
-};
 
 export default function TestUIPage() {
   const [useMockData, setUseMockData] = useState(true);
@@ -423,6 +209,15 @@ export default function TestUIPage() {
   const [showLogicSelect, setShowLogicSelect] = useState(false);
   const [showToolsSelect, setShowToolsSelect] = useState(false);
 
+  // NEW: Saved brainstorm selection mode
+  const [useSavedBrainstorm, setUseSavedBrainstorm] = useState(false);
+  const [selectedSavedBrainstorm, setSelectedSavedBrainstorm] = useState<SavedLogicResult | null>(null);
+
+  // NEW: Model selection state
+  const [communicationModel, setCommunicationModel] = useState('gpt-4o');
+  const [logicArchitectModel, setLogicArchitectModel] = useState('gpt-4o');
+  const [createToolModel, setCreateToolModel] = useState('gpt-4o');
+
   // Initialize dark mode based on system preference
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -476,6 +271,95 @@ export default function TestUIPage() {
       setTotalSteps(mockWorkflow.length);
     }
   }, [useIteratorTest]);
+
+  // Initialize saved data from localStorage
+  useEffect(() => {
+    console.log('📊 Loading saved data from localStorage...');
+    const savedLogic = getSavedLogicResults(LOGIC_STORAGE_KEY);
+    const savedToolsList = getSavedTools(TOOLS_STORAGE_KEY);
+    console.log('📊 Found saved logic results:', savedLogic.length);
+    console.log('📊 Found saved tools:', savedToolsList.length);
+    
+    // Debug: Log the actual data
+    console.log('📊 Saved logic results data:', savedLogic);
+    console.log('📊 localStorage keys:', Object.keys(localStorage).filter(key => key.includes('keyvex')));
+    
+    // Check if we have old data that might be incompatible with new validation
+    const hasOldData = savedLogic.length > 0 || savedToolsList.length > 0;
+    
+    if (hasOldData) {
+      console.log('🔄 Found existing saved data. Checking compatibility with new validation system...');
+      console.log('🔄 Due to enhanced validation (no JSX, no imports, stricter component structure), clearing old data...');
+      
+      // Clear all old data and start fresh
+      clearAllSavedData(LOGIC_STORAGE_KEY, TOOLS_STORAGE_KEY).then(() => {
+        console.log('🔄 Creating fresh test data compatible with new validation system...');
+        
+        // Create new test data that's compatible with current validation
+        const testLogicResult = {
+          toolType: 'ROI Calculator',
+          targetAudience: 'business professionals', 
+          industry: 'finance',
+          result: {
+            coreWConcept: 'Advanced ROI Calculator for Investment Analysis',
+            targetMetrics: ['ROI percentage', 'payback period', 'net present value', 'break-even point'],
+            calculationLogic: 'Multi-factor ROI analysis with risk assessment and time value calculations',
+            keyInputs: ['initial_investment', 'monthly_revenue', 'monthly_costs', 'investment_period'],
+            outputFormat: 'comprehensive dashboard with charts and projections',
+            industryFocus: 'finance',
+            complexityLevel: 'advanced'
+          }
+        };
+        
+        saveLogicResult(
+          testLogicResult.toolType,
+          testLogicResult.targetAudience,
+          testLogicResult.industry,
+          testLogicResult.result,
+          LOGIC_STORAGE_KEY
+        );
+        
+        // Update state with fresh data
+        const freshSavedLogic = getSavedLogicResults(LOGIC_STORAGE_KEY);
+        setSavedLogicResults(freshSavedLogic);
+        setSavedTools([]);
+        
+        console.log('✅ Fresh test data created. New count:', freshSavedLogic.length);
+      });
+    } else {
+      // No old data, just set current state and create test data if needed
+      setSavedLogicResults(savedLogic);
+      setSavedTools(savedToolsList);
+      
+      if (savedLogic.length === 0) {
+        console.log('📊 No saved logic results found. Creating fresh test data...');
+        const testLogicResult = {
+          toolType: 'Business Calculator',
+          targetAudience: 'entrepreneurs',
+          industry: 'general business',
+          result: {
+            coreWConcept: 'Business Metrics Calculator for Startup Analysis',
+            targetMetrics: ['revenue projection', 'growth rate', 'customer acquisition cost'],
+            calculationLogic: 'Calculate key business metrics for startup planning and analysis',
+            keyInputs: ['monthly_revenue', 'customer_count', 'acquisition_cost', 'retention_rate'],
+            outputFormat: 'interactive dashboard with trend analysis'
+          }
+        };
+        
+        saveLogicResult(
+          testLogicResult.toolType,
+          testLogicResult.targetAudience,
+          testLogicResult.industry,
+          testLogicResult.result,
+          LOGIC_STORAGE_KEY
+        );
+        
+        const updatedSavedLogic = getSavedLogicResults(LOGIC_STORAGE_KEY);
+        setSavedLogicResults(updatedSavedLogic);
+        console.log('📊 Created fresh test logic result. New count:', updatedSavedLogic.length);
+      }
+    }
+  }, []); // Run once on mount
 
   const currentQuestion = isInMultiPart 
     ? multiPartQuestions[multiPartIndex] || null 
@@ -703,7 +587,7 @@ export default function TestUIPage() {
           if (useMockData) {
             await processMockWorkflow(newAnswers);
           } else {
-            await processWithAI(newAnswers, conversationHistory, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+            await processWithAI(newAnswers, conversationHistory, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
             // setQuestionQueue([]); // DISABLED: This was clearing AI-generated questions
             setCurrentQuestionIndex(0);
             setCurrentInput('');
@@ -714,7 +598,7 @@ export default function TestUIPage() {
         if (useMockData) {
           await handleMockFreeformInput(currentInput);
         } else {
-          await handleAIFreeformInput(currentInput, conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+          await handleAIFreeformInput(currentInput, conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
         }
       }
 
@@ -1244,6 +1128,74 @@ export default function TestUIPage() {
     }
   }, [currentQuestion, isInMultiPart, multiPartIndex]);
 
+  // Handler for creating tool with saved brainstorm
+  const handleTestToolCreationWithSavedBrainstorm = async () => {
+    if (!selectedSavedBrainstorm) {
+      setLastAIMessage('❌ No saved brainstorm selected. Please choose a saved brainstorm first.');
+      return;
+    }
+
+    await createToolWithSavedBrainstorm(
+      selectedSavedBrainstorm,
+      setIsGeneratingTool,
+      setLastAIMessage,
+      transitionToNewContent,
+      setProductToolDefinition,
+      (tool) => saveCreatedTool(tool, TOOLS_STORAGE_KEY),
+      setSavedTools,
+      () => getSavedTools(TOOLS_STORAGE_KEY),
+      isValidProductToolDefinition,
+      createToolModel
+    );
+  };
+
+  // Handler for manually clearing all saved data
+  const handleClearAllSavedData = async () => {
+    console.log('🧹 Manual clear all saved data requested...');
+    const success = await clearAllSavedData(LOGIC_STORAGE_KEY, TOOLS_STORAGE_KEY);
+    
+    if (success) {
+      // Reset state to empty
+      setSavedLogicResults([]);
+      setSavedTools([]);
+      setSelectedSavedBrainstorm(null);
+      setUseSavedBrainstorm(false);
+      setProductToolDefinition(null);
+      
+      setLastAIMessage('🧹 All saved data cleared successfully! Starting fresh with new validation system.');
+      
+      // Create fresh test data
+      setTimeout(() => {
+        const testLogicResult = {
+          toolType: 'Sample Calculator',
+          targetAudience: 'business users',
+          industry: 'general',
+          result: {
+            coreWConcept: 'Sample Calculator for Testing New Validation System',
+            targetMetrics: ['calculation result', 'accuracy score'],
+            calculationLogic: 'Simple calculation with validation-compliant structure',
+            keyInputs: ['input_value', 'multiplier'],
+            outputFormat: 'clean numerical display'
+          }
+        };
+        
+        saveLogicResult(
+          testLogicResult.toolType,
+          testLogicResult.targetAudience,
+          testLogicResult.industry,
+          testLogicResult.result,
+          LOGIC_STORAGE_KEY
+        );
+        
+        const freshData = getSavedLogicResults(LOGIC_STORAGE_KEY);
+        setSavedLogicResults(freshData);
+        console.log('✅ Fresh test data created after manual clear');
+      }, 1000);
+    } else {
+      setLastAIMessage('❌ Failed to clear all saved data. Check console for details.');
+    }
+  };
+
   return (
     <div className={`h-screen flex flex-col ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Progress Header */}
@@ -1291,14 +1243,16 @@ export default function TestUIPage() {
                   historyPanelSide={historyPanelSide}
                   savedLogicResults={savedLogicResults}
                   savedTools={savedTools}
-                  communicationModel={'gpt-4o'} // Default model for communication
-                  logicArchitectModel={'gpt-4o'} // Default model for logic architect
-                  createToolModel={'gpt-4o'} // Default model for tool creation
+                  communicationModel={communicationModel}
+                  logicArchitectModel={logicArchitectModel}
+                  createToolModel={createToolModel}
                   availableModels={[
                     { id: 'gpt-4o', name: 'GPT-4o' },
                     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
                     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' }
                   ]}
+                  useSavedBrainstorm={useSavedBrainstorm}
+                  selectedSavedBrainstorm={selectedSavedBrainstorm}
                   onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
                   onToggleMockData={() => setUseMockData(!useMockData)}
                   onToggleIteratorTest={() => setUseIteratorTest(!useIteratorTest)}
@@ -1306,6 +1260,9 @@ export default function TestUIPage() {
                   onResetWorkflow={resetWorkflow}
                   onShowLogicSelect={() => setShowLogicSelect(true)}
                   onShowToolsSelect={() => setShowToolsSelect(true)}
+                  onToggleSavedBrainstormMode={() => setUseSavedBrainstorm(!useSavedBrainstorm)}
+                  onSelectSavedBrainstorm={setSelectedSavedBrainstorm}
+                  onTestToolCreationWithSavedBrainstorm={handleTestToolCreationWithSavedBrainstorm}
                   onTestBrainstorming={async () => {
                     try {
                       // Create a test context for brainstorming
@@ -1328,9 +1285,9 @@ export default function TestUIPage() {
                         setIsGeneratingTool,
                         setLastAIMessage,
                         setLatestBrainstormingResult,
-                        saveLogicResult,
+                        (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY),
                         setSavedLogicResults,
-                        getSavedLogicResults,
+                        () => getSavedLogicResults(LOGIC_STORAGE_KEY),
                         transitionToNewContent
                       );
 
@@ -1343,8 +1300,8 @@ export default function TestUIPage() {
                         }
                         
                         setProductToolDefinition(newTool);
-                        saveCreatedTool(newTool);
-                        setSavedTools(getSavedTools());
+                        saveCreatedTool(newTool, TOOLS_STORAGE_KEY);
+                        setSavedTools(getSavedTools(TOOLS_STORAGE_KEY));
                         
                         // 🛡️ Save to IndexedDB with validation
                         try {
@@ -1400,8 +1357,8 @@ export default function TestUIPage() {
                           setProductToolDefinition(newTool);
                         });
                         
-                        saveCreatedTool(newTool); // Also save to localStorage for the UI
-                        setSavedTools(getSavedTools()); // Refresh saved tools list
+                        saveCreatedTool(newTool, TOOLS_STORAGE_KEY); // Also save to localStorage for the UI
+                        setSavedTools(getSavedTools(TOOLS_STORAGE_KEY)); // Refresh saved tools list
                         
                         // 🛡️ Save to IndexedDB with validation
                         try {
@@ -1422,36 +1379,27 @@ export default function TestUIPage() {
                     }
                   }}
                   onTestMultiPart={() => {
-                    handleAIFreeformInput('send a test multi-input', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                    handleAIFreeformInput('send a test multi-input', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
                   }}
                   onTestFileUpload={() => {
-                    handleAIFreeformInput('test file upload ui', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                    handleAIFreeformInput('test file upload ui', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
                   }}
                   onTestColorPicker={() => {
-                    handleAIFreeformInput('test color picker', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                    handleAIFreeformInput('test color picker', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
                   }}
                   onTestComponentValidation={() => {
-                    handleAIFreeformInput('test component validation', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                    handleAIFreeformInput('test component validation', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
                   }}
                   onTestStyleUpdate={() => {
                     if (!productToolDefinition) {
                       setLastAIMessage('❌ No tool loaded. Please create a tool first before testing style updates.');
                       return;
                     }
-                    handleAIFreeformInput('make the main title text larger and more prominent', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
+                    handleAIFreeformInput('make the main title text larger and more prominent', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, (toolType, targetAudience, industry, result) => saveLogicResult(toolType, targetAudience, industry, result, LOGIC_STORAGE_KEY), setSavedLogicResults, () => getSavedLogicResults(LOGIC_STORAGE_KEY), transitionToNewContent, productToolDefinition, setProductToolDefinition, TOOLS_STORAGE_KEY);
                   }}
-                  onCommunicationModelChange={(model: string) => {
-                    console.log('Communication model changed to:', model);
-                    // Could implement actual model switching here
-                  }}
-                  onLogicArchitectModelChange={(model: string) => {
-                    console.log('Logic Architect model changed to:', model);
-                    // Could implement actual model switching here
-                  }}
-                  onCreateToolModelChange={(model: string) => {
-                    console.log('Create Tool model changed to:', model);
-                    // Could implement actual model switching here
-                  }}
+                  onCommunicationModelChange={setCommunicationModel}
+                  onLogicArchitectModelChange={setLogicArchitectModel}
+                  onCreateToolModelChange={setCreateToolModel}
                 />
               )}
             </div>
@@ -1667,7 +1615,7 @@ export default function TestUIPage() {
         onLoadTool={(savedTool) => {
           console.log('Loading saved tool:', savedTool.tool);
           setProductToolDefinition(savedTool.tool);
-          setSavedTools(getSavedTools()); // Refresh saved tools list
+          setSavedTools(getSavedTools(TOOLS_STORAGE_KEY)); // Refresh saved tools list
           setShowToolsSelect(false);
         }}
         isDarkMode={isDarkMode}

@@ -328,9 +328,9 @@ export const createToolWithBrainstorming = async (
   setIsGeneratingTool: (generating: boolean) => void,
   setLastAIMessage: (message: string) => void,
   setLatestBrainstormingResult: (result: any) => void,
-  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void,
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any, storageKey: string) => void,
   setSavedLogicResults: (results: any[]) => void,
-  getSavedLogicResults: () => any[],
+  getSavedLogicResults: (storageKey: string) => any[],
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   logicArchitectModel: string = 'default',
   createToolModel: string = 'default'
@@ -414,11 +414,12 @@ export const createToolWithBrainstorming = async (
                   context.toolType || 'calculator',
                   context.targetAudience || 'business professionals',
                   context.industry,
-                  data.data
+                  data.data,
+                  'brainstorming'
                 );
                 
                 // Update saved logic results list
-                setSavedLogicResults(getSavedLogicResults());
+                setSavedLogicResults(getSavedLogicResults('brainstorming'));
                 
                 // Update context with brainstorming results
                 context.brainstormingResult = data.data;
@@ -444,9 +445,10 @@ export const createToolWithBrainstorming = async (
           context.toolType || 'calculator',
           context.targetAudience || 'business professionals',
           context.industry,
-          brainstormingData.result
+          brainstormingData.result,
+          'brainstorming'
         );
-        setSavedLogicResults(getSavedLogicResults());
+        setSavedLogicResults(getSavedLogicResults('brainstorming'));
       }
     }
     
@@ -499,13 +501,13 @@ export const processWithAI = async (
   setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, 
   setIsGeneratingTool: (generating: boolean) => void, 
   setLatestBrainstormingResult: (result: any) => void, 
-  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, 
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any, storageKey: string) => void, 
   setSavedLogicResults: (results: any[]) => void, 
-  getSavedLogicResults: () => any[], 
+  getSavedLogicResults: (storageKey: string) => any[], 
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   productToolDefinition?: ProductToolDefinition | null,
   setProductToolDefinition?: (tool: ProductToolDefinition | null) => void,
-  selectedModel?: string
+  toolsStorageKey?: string
 ) => {
   try {
     setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
@@ -612,13 +614,13 @@ export const handleAIFreeformInput = async (
   setBrainstormingThoughts: (setter: (prev: any[]) => any[]) => void, 
   setIsGeneratingTool: (generating: boolean) => void, 
   setLatestBrainstormingResult: (result: any) => void, 
-  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void, 
+  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any, storageKey: string) => void, 
   setSavedLogicResults: (results: any[]) => void, 
-  getSavedLogicResults: () => any[], 
+  getSavedLogicResults: (storageKey: string) => any[], 
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   productToolDefinition?: ProductToolDefinition | null,
   setProductToolDefinition?: (tool: ProductToolDefinition | null) => void,
-  selectedModel?: string
+  toolsStorageKey?: string
 ) => {
   try {
     console.log('🔧 handleAIFreeformInput called with input:', input);
@@ -631,7 +633,7 @@ export const handleAIFreeformInput = async (
       collectedAnswers,
       currentStep,
       productToolDefinition, // Pass current tool for context
-      selectedModel
+      selectedModel: toolsStorageKey
     };
     
     console.log('🔧 Sending request to API:', requestBody);
@@ -709,6 +711,95 @@ export const handleAIFreeformInput = async (
     };
     
     handleAIGeneratedQuestion(fallbackQuestion);
+  }
+};
+
+// NEW: Create tool using saved brainstorm result (bypasses Logic Architect)
+export const createToolWithSavedBrainstorm = async (
+  savedBrainstorm: SavedLogicResult,
+  setIsGeneratingTool: (generating: boolean) => void,
+  setLastAIMessage: (message: string) => void,
+  transitionToNewContent: (updateFunction: () => void) => Promise<void>,
+  setProductToolDefinition: (tool: ProductToolDefinition | null) => void,
+  saveCreatedTool: (tool: ProductToolDefinition, storageKey: string) => void,
+  setSavedTools: (tools: any[]) => void,
+  getSavedTools: (storageKey: string) => any[],
+  isValidProductToolDefinition: (tool: any) => tool is ProductToolDefinition,
+  createToolModel: string = 'default'
+) => {
+  console.log('🔄 Creating tool with saved brainstorm:', savedBrainstorm.id);
+  
+  try {
+    setIsGeneratingTool(true);
+    setLastAIMessage('🛠️ Creating tool with saved brainstorm result...');
+    
+    // Start canvas transition
+    await transitionToNewContent(() => {
+      setLastAIMessage(`🔄 Using saved brainstorm: "${savedBrainstorm.toolType}" for ${savedBrainstorm.targetAudience}`);
+    });
+    
+    // Create context from saved brainstorm result
+    const context = {
+      userIntent: 'Create a custom business tool',
+      toolType: savedBrainstorm.toolType,
+      targetAudience: savedBrainstorm.targetAudience,
+      industry: savedBrainstorm.industry,
+      businessDescription: `Tool for ${savedBrainstorm.targetAudience} in ${savedBrainstorm.industry || 'general business'}`,
+      // Include the brainstorming result directly to skip Logic Architect
+      brainstormingResult: savedBrainstorm.result,
+      logicArchitectInsights: savedBrainstorm.result,
+      collectedAnswers: {}
+    };
+
+    console.log('🧪 TRACE: SAVED BRAINSTORM TOOL CREATION START');
+    console.log('🧪 TRACE: Using saved brainstorm context:', JSON.stringify(context, null, 2));
+
+    const newTool = await callToolCreationAgent(
+      context, 
+      undefined, 
+      undefined, 
+      createToolModel !== 'default' ? createToolModel : undefined
+    );
+    
+    console.log('🧪 TRACE: callToolCreationAgent returned:', newTool?.id);
+    console.log('🧪 TRACE: Tool metadata title:', newTool?.metadata?.title);
+    
+    if (newTool) {
+      console.log('🛠️ Setting new tool from saved brainstorm:', newTool.metadata.title);
+      
+      // 🛡️ Validate tool before saving to prevent storing corrupted tools
+      if (!isValidProductToolDefinition(newTool)) {
+        console.error('🛡️ VALIDATION: Saved brainstorm tool failed validation - not saving');
+        await transitionToNewContent(() => {
+          setLastAIMessage(`❌ Generated tool failed validation checks. The AI created an invalid tool structure. Please try again.`);
+        });
+        return;
+      }
+      
+      // Update with success message and transition
+      await transitionToNewContent(() => {
+        setLastAIMessage(`✅ Successfully created tool from saved brainstorm: "${newTool.metadata.title}"! 🧠 Used: ${savedBrainstorm.toolType} logic`);
+        setProductToolDefinition(newTool);
+      });
+      
+      saveCreatedTool(newTool, 'saved-brainstorm');
+      setSavedTools(getSavedTools('saved-brainstorm'));
+      
+      // 🛡️ Save to IndexedDB with validation
+      try {
+        await saveLastActiveToolToDB(newTool);
+        console.log('🛡️ VALIDATION: Saved brainstorm tool successfully saved to IndexedDB');
+      } catch (saveError) {
+        console.error('🛡️ VALIDATION: Failed to save saved brainstorm tool to IndexedDB:', saveError);
+      }
+    }
+  } catch (error) {
+    console.error('🧪 TRACE: Saved brainstorm tool creation failed:', error);
+    await transitionToNewContent(() => {
+      setLastAIMessage(`❌ Saved brainstorm tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+    });
+  } finally {
+    setIsGeneratingTool(false);
   }
 };
 

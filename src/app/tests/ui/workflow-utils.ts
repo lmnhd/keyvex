@@ -1,49 +1,136 @@
 // Workflow utilities for tool data manipulation and updates
 
 export const updateToolDataFromAnswers = (answerId: string, value: string, toolData: any) => {
-  const updatedToolData = { ...toolData };
-  
-  // Map answers to tool data properties
-  if (answerId === 'tool-type') {
-    updatedToolData.type = value;
-  } else if (answerId === 'target-audience') {
-    updatedToolData.targetAudience = value;
-  } else if (answerId === 'industry-focus') {
-    updatedToolData.industry = value;
-  } else if (answerId === 'color-scheme') {
-    updatedToolData.colorScheme = value;
-  } else if (answerId === 'key-inputs') {
-    updatedToolData.inputs = value.split(',').map((input: string) => input.trim());
-  } else if (answerId === 'calculations') {
-    updatedToolData.calculations = value;
-  } else if (answerId === 'business-description') {
-    updatedToolData.businessDescription = value;
-  } else if (answerId === 'welcome-iterator') {
-    updatedToolData.businessDescription = value; // Map iterator input to business description
-  } else if (answerId === 'role-title') {
-    updatedToolData.roleTitle = value;
+  // Handle both mock workflow IDs and AI-generated IDs
+  switch (answerId) {
+    case 'tool-type':
+      return { ...toolData, type: value };
+    case 'features-wanted':
+    case 'test-feature-selection':
+      return { ...toolData, features: value.split(',') };
+    case 'color-scheme':
+    case 'test-color-selection':
+    case 'color-preference':
+    case 'preferred-colors':
+      return updateToolDataWithColors(toolData, value);
+    case 'confidence-level':
+      return { ...toolData, confidenceLevel: value };
+    case 'business-description':
+    case 'test-tool-description':
+      return { ...toolData, businessDescription: value };
+    case 'calculator-title':
+    case 'calculator-name':
+    case 'test-tool-naming':
+      return { ...toolData, title: value };
+    case 'final-customization':
+      return { ...toolData, customizations: value };
+    case 'key-inputs':
+      return { ...toolData, inputs: value.split(',').map(s => s.trim()).filter(Boolean) };
+    case 'output-format':
+      return { ...toolData, outputFormat: value.split(',') };
+    default:
+      return smartDetectionForAnswers(answerId, value, toolData);
   }
-  
-  return updatedToolData;
 };
 
 export const updateToolDataFromMultiPart = (questionId: string, value: string, toolData: any) => {
-  const updatedToolData = { ...toolData };
+  switch (questionId) {
+    case 'target-audience':
+      return { ...toolData, targetAudience: value };
+    case 'industry-focus':
+      return { ...toolData, industry: value };
+    case 'calculator-name':
+      return { ...toolData, title: value };
+    case 'key-metrics':
+      return { ...toolData, keyMetrics: value.split(',') };
+    case 'color-preference':
+    case 'preferred-colors':
+      return updateToolDataWithColors(toolData, value);
+    default:
+      return smartDetectionForMultiPart(questionId, value, toolData);
+  }
+};
+
+// Helper function to handle color updates with AI-generated colors support
+const updateToolDataWithColors = (toolData: any, value: string, currentQuestion?: any, multiPartQuestions?: any[], multiPartIndex?: number, customColors?: any[]) => {
+  const updated = { ...toolData, colorScheme: value };
   
-  // Map multi-part questions to tool data
-  if (questionId === 'business-context') {
-    updatedToolData.businessDescription = value;
-  } else if (questionId === 'target-users') {
-    updatedToolData.targetAudience = value;
-  } else if (questionId === 'desired-outcome') {
-    updatedToolData.desiredOutcome = value;
-  } else if (questionId === 'key-metrics') {
-    updatedToolData.keyMetrics = value.split(',').map((metric: string) => metric.trim());
-  } else if (questionId === 'data-inputs') {
-    updatedToolData.dataInputs = value.split(',').map((input: string) => input.trim());
+  // Handle AI-generated colors by finding the actual color data
+  if (currentQuestion && currentQuestion.options) {
+    const selectedOption = currentQuestion.options.find((opt: any) => opt.value === value);
+    if (selectedOption && selectedOption.colors) {
+      updated.colorScheme = 'custom';
+      updated.customColors = selectedOption.colors;
+      console.log('🎨 Applied AI-generated colors:', selectedOption.colors);
+    }
   }
   
-  return updatedToolData;
+  // Handle multiPart AI-generated colors
+  if (multiPartQuestions && multiPartIndex !== undefined && multiPartQuestions[multiPartIndex] && multiPartQuestions[multiPartIndex].options) {
+    const selectedOption = multiPartQuestions[multiPartIndex].options.find((opt: any) => opt.value === value);
+    if (selectedOption && selectedOption.colors) {
+      updated.colorScheme = 'custom';
+      updated.customColors = selectedOption.colors;
+      console.log('🎨 Applied AI-generated colors in iterator:', selectedOption.colors);
+    }
+  }
+  
+  // Handle custom colors from color picker
+  if (value.startsWith('custom-') && customColors) {
+    const customColor = customColors.find(c => c.value === value);
+    if (customColor) {
+      updated.colorScheme = 'custom';
+      updated.customColors = customColor.colors;
+    }
+  }
+  
+  return updated;
+};
+
+// Smart detection for AI-generated questions
+const smartDetectionForAnswers = (answerId: string, value: string, toolData: any) => {
+  const lowerAnswerId = answerId.toLowerCase();
+  let updated = { ...toolData };
+  
+  if (lowerAnswerId.includes('color') || lowerAnswerId.includes('palette') || lowerAnswerId.includes('scheme')) {
+    updated.colorScheme = value;
+  } else if (lowerAnswerId.includes('feature') || lowerAnswerId.includes('capability')) {
+    updated.features = value.split(',');
+  } else if (lowerAnswerId.includes('name') || lowerAnswerId.includes('title')) {
+    updated.title = value;
+  } else if (lowerAnswerId.includes('description') || lowerAnswerId.includes('business')) {
+    updated.businessDescription = value;
+  } else if (lowerAnswerId.includes('type') || lowerAnswerId.includes('category')) {
+    updated.type = value;
+  }
+  
+  return updated;
+};
+
+// Smart detection for multi-part questions
+const smartDetectionForMultiPart = (questionId: string, value: string, toolData: any) => {
+  const lowerQuestionId = questionId.toLowerCase();
+  let updated = { ...toolData };
+  
+  if (lowerQuestionId.includes('color') || lowerQuestionId.includes('palette') || lowerQuestionId.includes('scheme')) {
+    updated.colorScheme = value;
+  } else if (lowerQuestionId.includes('feature') || lowerQuestionId.includes('capability')) {
+    updated.features = value.split(',');
+  } else if (lowerQuestionId.includes('name') || lowerQuestionId.includes('title')) {
+    updated.title = value;
+  } else if (lowerQuestionId.includes('description') || lowerQuestionId.includes('business')) {
+    updated.businessDescription = value;
+  } else if (lowerQuestionId.includes('type') || lowerQuestionId.includes('category')) {
+    updated.type = value;
+  } else if (lowerQuestionId.includes('audience') || lowerQuestionId.includes('target')) {
+    updated.targetAudience = value;
+  } else if (lowerQuestionId.includes('industry') || lowerQuestionId.includes('sector')) {
+    updated.industry = value;
+  } else if (lowerQuestionId.includes('metric') || lowerQuestionId.includes('output')) {
+    updated.keyMetrics = value.split(',');
+  }
+  
+  return updated;
 };
 
 export const processMockWorkflowStep = async (
@@ -51,25 +138,61 @@ export const processMockWorkflowStep = async (
   currentStep: number,
   currentWorkflow: any[],
   totalSteps: number,
-  transitionCallback?: (updater: () => void) => Promise<void>
+  transitionCallback?: (updater: () => void) => Promise<void>,
+  setters?: {
+    setIsInMultiPart: (value: boolean) => void;
+    setMultiPartQuestions: (questions: any[]) => void;
+    setMultiPartIndex: (index: number) => void;
+    setCurrentInput: (input: string) => void;
+    setLastAIMessage: (message: string) => void;
+    setQuestionQueue: (queue: any[]) => void;
+    setCurrentQuestionIndex: (index: number) => void;
+    setCurrentStep: (step: number) => void;
+    trackQuestion: (question: any) => void;
+  }
 ) => {
   await new Promise(resolve => setTimeout(resolve, 1000));
   
-  if (currentStep < currentWorkflow.length) {
+  if (currentStep < currentWorkflow.length && setters) {
     const nextQuestion = currentWorkflow[currentStep];
     
-    return {
-      nextQuestion,
-      isMultiPart: nextQuestion.inputType === 'multiPart',
-      shouldAdvanceStep: true
-    };
-  } else {
-    return {
-      nextQuestion: null,
-      isMultiPart: false,
-      shouldAdvanceStep: false,
-      isComplete: true
-    };
+    // Check if this is a multiPart question and start it immediately
+    if (nextQuestion.inputType === 'multiPart') {
+      console.log('🔧 DEBUG: Auto-starting multi-part sequence');
+      console.log('🔧 DEBUG: Questions:', nextQuestion.questions);
+      
+      if (transitionCallback) {
+        await transitionCallback(() => {
+          setters.setIsInMultiPart(true);
+          setters.setMultiPartQuestions(nextQuestion.questions || []);
+          setters.setMultiPartIndex(0);
+          setters.setCurrentInput('');
+          setters.setLastAIMessage(`${nextQuestion.message}\n\nQuestion 1 of ${nextQuestion.questions?.length}: ${nextQuestion.questions?.[0]?.question}`);
+        });
+      }
+      
+      // Track the multiPart question for editing functionality
+      setters.trackQuestion(nextQuestion);
+    } else {
+      if (transitionCallback) {
+        await transitionCallback(() => {
+          setters.setQuestionQueue([nextQuestion]);
+          setters.setCurrentQuestionIndex(0);
+          setters.setLastAIMessage(nextQuestion.message);
+          setters.setCurrentInput('');
+        });
+      }
+      
+      // Track the question for editing functionality
+      setters.trackQuestion(nextQuestion);
+    }
+    
+    setters.setCurrentStep(currentStep + 1);
+  } else if (setters) {
+    setters.setLastAIMessage("Perfect! Your calculator is taking shape. You can see the preview updating in real-time. Would you like to refine any aspect or add more features?");
+    setters.setCurrentStep(Math.min(currentStep + 1, totalSteps));
+    setters.setQuestionQueue([]);
+    setters.setCurrentQuestionIndex(0);
   }
 };
 
@@ -81,17 +204,20 @@ export const handleMockFreeformResponse = async (input: string, currentWorkflow:
   if (lowerInput.includes('color') || lowerInput.includes('style')) {
     return {
       message: "Great question about styling! Let me show you some color options that would work well for your calculator.",
-      nextQuestion: currentWorkflow.find(q => q.id === 'color-scheme')
+      question: currentWorkflow.find(q => q.id === 'color-scheme')!,
+      shouldSetQuestion: true
     };
   } else if (lowerInput.includes('input') || lowerInput.includes('field')) {
     return {
       message: "Perfect! Let's define what inputs your users will provide to get their calculations.",
-      nextQuestion: currentWorkflow.find(q => q.id === 'key-inputs')
+      question: currentWorkflow.find(q => q.id === 'key-inputs')!,
+      shouldSetQuestion: true
     };
   } else {
     return {
       message: "I understand! The calculator is looking great. You can continue customizing it, or ask me about specific features you'd like to add or modify.",
-      nextQuestion: null
+      question: null,
+      shouldSetQuestion: false
     };
   }
 };
@@ -105,7 +231,6 @@ export const handleColorPickerData = (primaryColor: string, secondaryColor: stri
     colors: [primaryColor, secondaryColor]
   };
   
-  // Return updated data
   return {
     customColorEntry,
     toolDataUpdate: {
@@ -117,45 +242,33 @@ export const handleColorPickerData = (primaryColor: string, secondaryColor: stri
 
 export const resetWorkflowState = () => {
   return {
-    currentStep: 0,
-    totalSteps: 8,
-    currentQuestionIndex: 0,
+    currentStep: 1,
     questionQueue: [],
-    collectedAnswers: {},
-    toolData: {
-      title: 'Business Calculator',
-      description: 'A customizable calculator for your business needs',
-      type: 'calculator',
-      colorScheme: 'professional-blue',
-      inputs: [],
-      calculations: '',
-      targetAudience: '',
-      industry: ''
-    },
+    currentQuestionIndex: 0,
     currentInput: '',
-    isInMultiPart: false,
-    multiPartQuestions: [],
-    multiPartIndex: 0,
-    multiPartAnswers: {},
+    collectedAnswers: {},
+    customColors: [],
+    conversationHistory: [],
     isEditingPrevious: false,
     editingTarget: null,
-    conversationHistory: [],
-    customColors: []
+    editingOverlayFadingOut: false,
+    questionHistory: [],
+    toolData: {
+      title: 'Business Calculator',
+      description: 'Calculate your business metrics',
+      colorScheme: 'professional-blue',
+      inputs: [],
+      outputFormat: ['percentage']
+    }
   };
 };
 
 export const extractAIContextFromAnswers = (answers: Record<string, string>) => {
-  const expertise = answers['business-description'] || answers['welcome-iterator'] || 'business tools';
-  const toolType = answers['tool-type'] || 'calculator';
-  const targetAudience = answers['target-audience'] || answers['role-title'] || 'business professionals';
-  const industry = answers['industry-focus'] || 'general business';
-  
   return {
-    expertise,
-    toolType,
-    targetAudience,
-    industry,
-    userMessage: `Based on my responses: ${expertise}. I'm creating a ${toolType} for ${targetAudience} in ${industry}.`
+    expertise: answers['business-description'] || answers['welcome-iterator'] || 'business tools',
+    toolType: answers['tool-type'] || 'calculator',
+    targetAudience: answers['target-audience'] || answers['role-title'] || 'business professionals',
+    industry: answers['industry-focus'] || 'general business'
   };
 };
 
@@ -176,27 +289,25 @@ export const createAIQuestion = (response: any) => {
 };
 
 export const createFallbackQuestion = (type: 'manual' | 'ai-freeform' = 'manual') => {
+  if (type === 'ai-freeform') {
+    return {
+      id: 'ai-freeform-fallback',
+      message: "What would you like to focus on for your tool?",
+      inputType: 'textarea',
+      placeholder: 'Tell me what you\'d like to work on next for your business tool...',
+      rows: 3
+    };
+  }
+  
   return {
-    id: `fallback-${type}-${Date.now()}`,
-    message: type === 'ai-freeform' 
-      ? "I'd love to hear more about what you're looking for. Please describe your ideal tool or ask me anything!"
-      : 'What would you like to work on next? Feel free to describe your needs.',
+    id: 'manual-fallback',
+    message: "Let's continue building your tool. What specific features or calculations should your tool include?",
     inputType: 'textarea',
-    placeholder: type === 'ai-freeform' 
-      ? 'Tell me about your tool idea, ask questions, or describe what you need...'
-      : 'Describe what you want to create or any specific requirements...'
+    placeholder: 'Describe the features, calculations, or functionality you want...',
+    rows: 4
   };
 };
 
-// Generic tool data update function
 export const updateToolData = (questionId: string, value: string, toolData: any, setToolData: (updater: (prev: any) => any) => void) => {
-  // Simple tool data update that directly updates the toolData state
-  setToolData((prev: any) => ({
-    ...prev,
-    [questionId]: value,
-    // Also update specific known fields based on questionId patterns
-    ...(questionId.includes('title') && { title: value }),
-    ...(questionId.includes('description') && { description: value }),
-    ...(questionId.includes('color') && { colorScheme: value }),
-  }));
+  setToolData((prev: any) => updateToolDataFromAnswers(questionId, value, prev));
 }; 

@@ -563,15 +563,18 @@ export async function processToolCreation(
       promptOptions = brainstormingContext.promptOptions;
     } else {
       console.log('🏭 TRACE: No logic architect PromptOptions available, analyzing context manually');
-      // Fallback: Analyze context to determine prompt complexity needs manually
+      // 🎨 ENHANCED: Default to premium styling for better-looking tools
+      // Previous logic was too conservative, resulting in basic-looking tools
       promptOptions = {
-        includeComprehensiveColors: context.needsCustomColors || context.industry === 'healthcare' || context.industry === 'finance',
-        includeGorgeousStyling: context.isPremiumTool || context.styleComplexity === 'premium',
-        includeAdvancedLayouts: context.isComplexTool || context.toolComplexity === 'complex',
-        styleComplexity: context.styleComplexity || (context.features?.includes('charts') ? 'premium' : 'basic'),
+        includeComprehensiveColors: true, // Always include comprehensive color guidance
+        includeGorgeousStyling: true, // Always include gorgeous styling library
+        includeAdvancedLayouts: context.isComplexTool || context.toolComplexity === 'complex' || context.features?.includes('charts'),
+        styleComplexity: context.styleComplexity || 'premium', // Default to premium instead of basic
         industryFocus: context.industry,
         toolComplexity: context.toolType?.includes('Calculator') ? 'complex' : 'moderate'
       };
+      
+      console.log('🎨 ENHANCED: Using premium styling defaults for better visual quality');
     }
     
     const systemPrompt = getToolCreationSystemPrompt(promptOptions);
@@ -932,6 +935,19 @@ export async function processToolCreation(
         'error',
         'Import/export statements are forbidden in dynamic execution',
         'import/export detected',
+        false
+      );
+    }
+    
+    // 11. Check for template strings with variable interpolation (causes ReferenceError in dynamic execution)
+    const templateStringPattern = /`[^`]*\$\{[^}]+\}[^`]*`/;
+    if (templateStringPattern.test(toolDefinition.componentCode)) {
+      trackIssue(
+        'Component code contains template strings with variable interpolation',
+        'syntax',
+        'error',
+        'Template strings with ${} cause ReferenceError in dynamic execution context - use string concatenation instead',
+        'Template string detected',
         false
       );
     }

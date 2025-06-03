@@ -264,6 +264,12 @@ const CRITICAL_PROHIBITIONS = `
     - ONLY React.createElement() syntax allowed
     - JSX will cause compilation failure in runtime
     
+    ❌ NEVER USE TEMPLATE STRINGS WITH VARIABLES:
+    - NO backticks with dollar-brace variable interpolation  
+    - NO template literals like: backtick + dollar + brace + progress + brace + "% Complete" + backtick
+    - ALWAYS use string concatenation: progress + '% Complete'
+    - Template strings break variable scoping in the execution context
+    
     ❌ NEVER USE FORBIDDEN COMPONENTS:
     - NO Card, CardHeader, CardContent, CardTitle
     - These components are not available and will cause ReferenceError
@@ -278,15 +284,16 @@ const CRITICAL_PROHIBITIONS = `
     🎯 VALIDATION CHECK: Before finalizing your component code, scan it for:
     1. Any "import" or "export" keywords → REPLACE WITH NOTHING
     2. Any < > brackets → REPLACE WITH React.createElement()
-    3. Any "undefined" values in data structures → REPLACE WITH PROPER VALUES
-    4. Any Card component usage → REPLACE WITH DIV ELEMENTS
-    5. Missing React keys in arrays → ADD UNIQUE KEYS
+    3. Any template strings with backticks and variable interpolation → REPLACE WITH STRING CONCATENATION
+    4. Any "undefined" values in data structures → REPLACE WITH PROPER VALUES
+    5. Any Card component usage → REPLACE WITH DIV ELEMENTS
+    6. Missing React keys in arrays → ADD UNIQUE KEYS
     
     If ANY of these exist, the tool will FAIL validation and be rejected.
     
     🚨 REMEMBER: You are generating code for DYNAMIC EXECUTION without transpilation.
     Think: "Can this code run directly in a JavaScript engine without any compilation step?"
-    If the answer is NO, then rewrite it using only React.createElement() syntax.
+    If the answer is NO, then rewrite it using only React.createElement() syntax and string concatenation.
 </critical-prohibitions>
 `;
 
