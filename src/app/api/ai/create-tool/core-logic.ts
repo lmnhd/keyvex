@@ -10,6 +10,8 @@ import * as babel from '@babel/core';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { getToolCreationSystemPrompt, buildToolCreationUserPrompt, PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
 import { trackValidationIssue } from '@/lib/validation/validation-tracker';
+import { ValidationIssue } from '@/lib/types/validation';
+import { TOOL_FIXER_SYSTEM_PROMPT, buildToolFixerUserPrompt } from '@/lib/prompts/tool-fixer-prompt';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -1813,4 +1815,276 @@ export function performFullValidation(
       }
     };
   }
+}
+
+// ============================================================================
+// TOOL FIXER SYSTEM - AI-Powered Error Correction
+// ============================================================================
+
+/**
+ * Configuration for tool fixing behavior
+ */
+export interface ToolFixerConfig {
+  maxAttempts: number;
+  temperature: number;
+  modelOverride?: string; // Optional model override for fixing
+  enableLogging: boolean;
+}
+
+/**
+ * Default configuration for tool fixing
+ */
+export const DEFAULT_TOOL_FIXER_CONFIG: ToolFixerConfig = {
+  maxAttempts: 3,
+  temperature: 0.3, // Lower temperature for more focused fixes
+  enableLogging: true
+};
+
+/**
+ * Result of a tool fixing attempt
+ */
+export interface ToolFixResult {
+  success: boolean;
+  fixedTool?: ProductToolDefinition;
+  validation?: ToolValidationResult;
+  attempts: number;
+  error?: string;
+  improvements?: {
+    issuesFixed: number;
+    blockersResolved: number;
+    newIssues: number;
+  };
+}
+
+/**
+ * Fix a failed ProductToolDefinition using AI with validation errors as feedback
+ * This is the core function for the iterative correction system
+ */
+export async function fixToolWithAI(
+  failedToolDefinition: ProductToolDefinition,
+  validationIssues: ValidationIssue[],
+  originalUserIntent: string,
+  config: Partial<ToolFixerConfig> = {}
+): Promise<ToolFixResult> {
+  const fixerConfig = { ...DEFAULT_TOOL_FIXER_CONFIG, ...config };
+  
+  console.log('🔧 TOOL FIXER: Starting AI-powered tool correction...');
+  console.log(`🔧 TOOL FIXER: ${validationIssues.length} validation issues to address`);
+  console.log('🔧 TOOL FIXER: Config:', fixerConfig);
+
+  let currentTool = failedToolDefinition;
+  let currentValidation: ToolValidationResult | undefined;
+  let attempts = 0;
+  
+  // Track improvements across attempts
+  const initialIssueCount = validationIssues.length;
+  const initialBlockerCount = validationIssues.filter(issue => issue.severity === 'error').length;
+  
+  for (attempts = 1; attempts <= fixerConfig.maxAttempts; attempts++) {
+    try {
+      console.log(`🔧 TOOL FIXER: Attempt ${attempts}/${fixerConfig.maxAttempts}`);
+      
+      // Determine which model to use for fixing
+      let modelConfig;
+      let modelInstance;
+      
+      if (fixerConfig.modelOverride) {
+        // Use override model if specified
+        const detectedProvider = getModelProvider(fixerConfig.modelOverride);
+        if (detectedProvider !== 'unknown') {
+          modelConfig = { provider: detectedProvider, modelId: fixerConfig.modelOverride };
+          modelInstance = createModelInstance(detectedProvider, fixerConfig.modelOverride);
+          console.log(`🔧 TOOL FIXER: Using override model: ${fixerConfig.modelOverride}`);
+        } else {
+          console.warn(`🔧 TOOL FIXER: Could not detect provider for override model: ${fixerConfig.modelOverride}, using default`);
+          modelConfig = getFallbackModel('toolCreation');
+          modelInstance = createModelInstance(modelConfig?.provider || 'openai', modelConfig?.model || 'gpt-4o');
+        }
+      } else {
+        // Use configured model with preference for more precise models for fixing
+        modelConfig = getPrimaryModel('toolCreation');
+        if (modelConfig && 'modelInfo' in modelConfig) {
+          modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelInfo.id);
+          console.log(`🔧 TOOL FIXER: Using configured model: ${modelConfig.modelInfo.id}`);
+        } else {
+          modelInstance = createModelInstance('openai', 'gpt-4o');
+          console.log('🔧 TOOL FIXER: Using fallback model: gpt-4o');
+        }
+      }
+      
+      // Build the fixer prompt
+      const fixerPrompt = buildToolFixerUserPrompt(
+        currentTool,
+        validationIssues,
+        originalUserIntent,
+        attempts,
+        fixerConfig.maxAttempts
+      );
+      
+      if (fixerConfig.enableLogging) {
+        console.log(`🔧 TOOL FIXER: Fixer prompt length: ${fixerPrompt.length}`);
+        console.log(`🔧 TOOL FIXER: Fixer prompt preview (first 500 chars): ${fixerPrompt.substring(0, 500)}`);
+      }
+      
+      // Call AI to fix the tool
+      console.log('🔧 TOOL FIXER: Calling AI model for corrections...');
+      const result = await generateObject({
+        model: modelInstance,
+        schema: productToolDefinitionSchema,
+        prompt: fixerPrompt,
+        system: TOOL_FIXER_SYSTEM_PROMPT,
+        temperature: fixerConfig.temperature,
+        maxRetries: 2
+      });
+      
+      const fixedToolDefinition = result.object;
+      console.log('🔧 TOOL FIXER: AI correction completed');
+      
+      // Transform to proper ProductToolDefinition (similar to processToolCreation)
+      const transformedTool: ProductToolDefinition = {
+        id: fixedToolDefinition.id || currentTool.id,
+        slug: fixedToolDefinition.slug || currentTool.slug,
+        version: fixedToolDefinition.version || currentTool.version,
+        status: fixedToolDefinition.status || currentTool.status,
+        createdAt: fixedToolDefinition.createdAt || currentTool.createdAt,
+        updatedAt: Date.now(),
+        createdBy: fixedToolDefinition.createdBy || currentTool.createdBy,
+        metadata: {
+          id: fixedToolDefinition.metadata?.id || currentTool.metadata.id,
+          slug: fixedToolDefinition.metadata?.slug || currentTool.metadata.slug,
+          title: fixedToolDefinition.metadata?.title || currentTool.metadata.title,
+          description: fixedToolDefinition.metadata?.description || currentTool.metadata.description,
+          shortDescription: fixedToolDefinition.metadata?.shortDescription || currentTool.metadata.shortDescription,
+          type: fixedToolDefinition.metadata?.type || currentTool.metadata.type,
+          category: fixedToolDefinition.metadata?.category || currentTool.metadata.category,
+          targetAudience: fixedToolDefinition.metadata?.targetAudience || currentTool.metadata.targetAudience,
+          industry: fixedToolDefinition.metadata?.industry || currentTool.metadata.industry,
+          tags: fixedToolDefinition.metadata?.tags || currentTool.metadata.tags,
+          estimatedCompletionTime: fixedToolDefinition.metadata?.estimatedCompletionTime || currentTool.metadata.estimatedCompletionTime,
+          difficultyLevel: fixedToolDefinition.metadata?.difficultyLevel || currentTool.metadata.difficultyLevel,
+          features: fixedToolDefinition.metadata?.features || currentTool.metadata.features,
+          icon: fixedToolDefinition.metadata?.icon || currentTool.metadata.icon
+        },
+        componentSet: fixedToolDefinition.componentSet || currentTool.componentSet,
+        componentCode: fixedToolDefinition.componentCode || currentTool.componentCode,
+        colorScheme: fixedToolDefinition.colorScheme || currentTool.colorScheme,
+        initialStyleMap: fixedToolDefinition.initialStyleMap || {},
+        currentStyleMap: fixedToolDefinition.currentStyleMap || fixedToolDefinition.initialStyleMap || {},
+        analytics: fixedToolDefinition.analytics || currentTool.analytics
+      };
+      
+      // Ensure 'use client'; directive is present
+      if (transformedTool.componentCode) {
+        const trimmedCode = transformedTool.componentCode.trimStart();
+        if (!trimmedCode.startsWith("'use client'") && !trimmedCode.startsWith('"use client"')) {
+          transformedTool.componentCode = "'use client';\n" + transformedTool.componentCode;
+          console.log("🔧 TOOL FIXER: Added 'use client' directive to fixed component");
+        }
+      }
+      
+      // Validate the fixed tool
+      console.log('🔧 TOOL FIXER: Validating fixed tool...');
+      currentValidation = performFullValidation(transformedTool, {
+        toolId: transformedTool.id,
+        toolTitle: transformedTool.metadata.title,
+        attemptNumber: attempts,
+        sessionPhase: 'iteration'
+      });
+      
+      const newIssueCount = currentValidation.issues.length;
+      const newBlockerCount = currentValidation.blockers.length;
+      
+      console.log(`🔧 TOOL FIXER: Validation results - ${newIssueCount} issues (${newBlockerCount} blockers)`);
+      
+      // Check if we've successfully fixed the tool
+      if (currentValidation.isValid) {
+        console.log('🔧 TOOL FIXER: ✅ Tool successfully fixed and validated!');
+        return {
+          success: true,
+          fixedTool: transformedTool,
+          validation: currentValidation,
+          attempts,
+          improvements: {
+            issuesFixed: initialIssueCount - newIssueCount,
+            blockersResolved: initialBlockerCount - newBlockerCount,
+            newIssues: Math.max(0, newIssueCount - initialIssueCount)
+          }
+        };
+      }
+      
+      // Update current tool for next iteration
+      currentTool = transformedTool;
+      
+      // Update validation issues for next attempt
+      validationIssues = currentValidation.issues.map(issue => ({
+        id: issue.id,
+        toolId: transformedTool.id, // Use the actual tool ID
+        toolTitle: transformedTool.metadata.title,
+        severity: issue.severity,
+        category: issue.category as 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+        issue: issue.issue,
+        details: issue.details,
+        codeSnippet: issue.codeSnippet,
+        timestamp: Date.now(),
+        resolved: false,
+        autoFixable: issue.autoFixable
+      }));
+      
+      // Log progress
+      const issuesFixed = initialIssueCount - newIssueCount;
+      const blockersResolved = initialBlockerCount - newBlockerCount;
+      console.log(`🔧 TOOL FIXER: Attempt ${attempts} results: ${issuesFixed} issues fixed, ${blockersResolved} blockers resolved`);
+      
+      // If we're on the last attempt, we'll return whatever we have
+      if (attempts === fixerConfig.maxAttempts) {
+        console.log('🔧 TOOL FIXER: ⚠️ Reached maximum attempts - returning partial fix');
+        return {
+          success: false,
+          fixedTool: transformedTool,
+          validation: currentValidation,
+          attempts,
+          error: `Could not fully fix tool after ${fixerConfig.maxAttempts} attempts. ${newBlockerCount} blockers remain.`,
+          improvements: {
+            issuesFixed: initialIssueCount - newIssueCount,
+            blockersResolved: initialBlockerCount - newBlockerCount,
+            newIssues: Math.max(0, newIssueCount - initialIssueCount)
+          }
+        };
+      }
+      
+      console.log(`🔧 TOOL FIXER: ${newBlockerCount} blockers remain - attempting next fix...`);
+      
+    } catch (error) {
+      console.error(`🔧 TOOL FIXER: Error on attempt ${attempts}:`, error);
+      
+      // If this is the last attempt, return the error
+      if (attempts === fixerConfig.maxAttempts) {
+        return {
+          success: false,
+          attempts,
+          error: `Tool fixing failed after ${attempts} attempts: ${error instanceof Error ? error.message : String(error)}`,
+          improvements: {
+            issuesFixed: 0,
+            blockersResolved: 0,
+            newIssues: 0
+          }
+        };
+      }
+      
+      // Otherwise, continue to next attempt
+      console.log(`🔧 TOOL FIXER: Retrying... (${attempts}/${fixerConfig.maxAttempts})`);
+    }
+  }
+  
+  // This should not be reached, but included for completeness
+  return {
+    success: false,
+    attempts,
+    error: 'Unexpected error in tool fixer loop',
+    improvements: {
+      issuesFixed: 0,
+      blockersResolved: 0,
+      newIssues: 0
+    }
+  };
 } 
