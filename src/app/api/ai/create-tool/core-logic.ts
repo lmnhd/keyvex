@@ -557,6 +557,105 @@ export async function processToolCreation(
       console.log('🏭 TRACE: ✅ Final tool definition is clean - no undefined values');
     }
 
+    // 🛡️ COMPREHENSIVE TOOL VALIDATION - Prevent saving bad tools
+    console.log('🛡️ VALIDATION: Running comprehensive tool validation...');
+    
+    const validationErrors: string[] = [];
+    
+    // 1. Check for Card component usage (will cause ReferenceError since removed from renderer)
+    if (toolDefinition.componentCode.includes('Card') || 
+        toolDefinition.componentCode.includes('CardHeader') ||
+        toolDefinition.componentCode.includes('CardContent') ||
+        toolDefinition.componentCode.includes('CardTitle')) {
+      validationErrors.push('Tool uses forbidden Card components that are no longer available in execution context');
+    }
+    
+    // 2. Test JavaScript execution safety (same as DynamicComponentRenderer)
+    try {
+      console.log('🛡️ VALIDATION: Testing JavaScript execution safety...');
+      const testFunction = new Function(`
+        "use strict";
+        const React = { createElement: () => null };
+        const useState = () => [null, () => {}];
+        const useEffect = () => {};
+        const useCallback = () => {};
+        const useMemo = () => {};
+        const Button = () => null;
+        const Input = () => null;
+        const Label = () => null;
+        
+        try {
+          ${toolDefinition.componentCode}
+          return { success: true };
+        } catch (error) {
+          return { success: false, error: error.message };
+        }
+      `);
+      
+      const testResult = testFunction();
+      if (!testResult.success) {
+        validationErrors.push(`Component code execution failed: ${testResult.error}`);
+      } else {
+        console.log('🛡️ VALIDATION: ✅ JavaScript execution test passed');
+      }
+    } catch (error) {
+      validationErrors.push(`Component code validation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    
+    // 3. Check for React component function pattern
+    const functionPattern = /function\s+\w+\s*\([^)]*\)\s*\{/;
+    if (!functionPattern.test(toolDefinition.componentCode)) {
+      validationErrors.push('Component code does not contain a valid React component function declaration');
+    }
+    
+    // 4. Check for required React patterns
+    if (!toolDefinition.componentCode.includes('React.createElement')) {
+      validationErrors.push('Component code does not use React.createElement (required pattern)');
+    }
+    
+    if (!toolDefinition.componentCode.includes('useState')) {
+      validationErrors.push('Component code does not contain React state hooks (required for interactive tools)');
+    }
+    
+    // 5. Check for problematic undefined patterns
+    const problematicPatterns = [
+      /,\s*undefined\s*,/g,     // undefined in arrays/function calls
+      /,\s*undefined\s*\)/g,    // undefined as last parameter
+      /\(\s*undefined\s*,/g,    // undefined as first parameter
+      /:\s*undefined\s*,/g,     // undefined as object value
+      /=\s*undefined\s*;/g      // undefined assignment
+    ];
+    
+    for (const pattern of problematicPatterns) {
+      if (pattern.test(toolDefinition.componentCode)) {
+        validationErrors.push('Component code contains problematic undefined patterns that cause runtime errors');
+        break;
+      }
+    }
+    
+    // 6. Validate required data-style-id attributes
+    if (!toolDefinition.componentCode.includes('data-style-id')) {
+      validationErrors.push('Component code missing required data-style-id attributes for dynamic styling');
+    }
+    
+    // 7. Validate initialStyleMap completeness
+    if (!toolDefinition.initialStyleMap || Object.keys(toolDefinition.initialStyleMap).length === 0) {
+      validationErrors.push('Tool missing required initialStyleMap for dynamic styling');
+    }
+    
+    // 8. Check for common syntax errors that cause crashes
+    if (toolDefinition.componentCode.includes('import ') || toolDefinition.componentCode.includes('export ')) {
+      validationErrors.push('Component code contains import/export statements (forbidden in dynamic execution)');
+    }
+    
+    // If validation failed, throw error to prevent saving bad tool
+    if (validationErrors.length > 0) {
+      console.error('🛡️ VALIDATION: ❌ Tool validation FAILED:', validationErrors);
+      throw new Error(`Tool validation failed: ${validationErrors.join('; ')}`);
+    }
+    
+    console.log('🛡️ VALIDATION: ✅ Tool validation PASSED - safe to save');
+
     console.log('🏭 TRACE: processToolCreation SUCCESS - returning clean tool definition');
     return toolDefinition;
 

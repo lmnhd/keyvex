@@ -194,6 +194,15 @@ const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition 
     return false;
   }
 
+  // 🛡️ NEW: Check for Card component usage (will cause runtime errors)
+  if (componentCode.includes('Card') || 
+      componentCode.includes('CardHeader') ||
+      componentCode.includes('CardContent') ||
+      componentCode.includes('CardTitle')) {
+    console.warn('⚠️ Tool validation failed: Component uses forbidden Card components');
+    return false;
+  }
+
   // NEW: Test component code for JavaScript execution safety AND React component structure
   try {
     console.log('🔧 TRACE: Testing component code JavaScript execution...');
@@ -204,10 +213,8 @@ const isValidProductToolDefinition = (tool: any): tool is ProductToolDefinition 
       const React = { createElement: () => null };
       const useState = () => [null, () => {}];
       const useEffect = () => {};
-      const Card = () => null;
-      const CardHeader = () => null;
-      const CardTitle = () => null;
-      const CardContent = () => null;
+      const useCallback = () => {};
+      const useMemo = () => {};
       const Button = () => null;
       const Input = () => null;
       const Label = () => null;
@@ -1326,9 +1333,24 @@ export default function TestUIPage() {
                       );
 
                       if (newTool) {
+                        // 🛡️ Validate tool before saving to prevent storing corrupted tools
+                        if (!isValidProductToolDefinition(newTool)) {
+                          console.error('🛡️ VALIDATION: Brainstorming test tool failed validation - not saving');
+                          setLastAIMessage(`❌ Generated tool failed validation checks. The AI created an invalid tool structure. Please try again.`);
+                          return;
+                        }
+                        
                         setProductToolDefinition(newTool);
                         saveCreatedTool(newTool);
                         setSavedTools(getSavedTools());
+                        
+                        // 🛡️ Save to IndexedDB with validation
+                        try {
+                          await saveLastActiveToolToDB(newTool);
+                          console.log('🛡️ VALIDATION: Brainstorming tool successfully saved to IndexedDB');
+                        } catch (saveError) {
+                          console.error('🛡️ VALIDATION: Failed to save brainstorming tool to IndexedDB:', saveError);
+                        }
                       }
                     } catch (error) {
                       console.error('Brainstorming test failed:', error);
@@ -1361,6 +1383,15 @@ export default function TestUIPage() {
                       if (newTool) {
                         console.log('🛠️ Setting new random tool in state:', newTool.metadata.title);
                         
+                        // 🛡️ Validate tool before saving to prevent storing corrupted tools
+                        if (!isValidProductToolDefinition(newTool)) {
+                          console.error('🛡️ VALIDATION: Random test tool failed validation - not saving');
+                          await transitionToNewContent(() => {
+                            setLastAIMessage(`❌ Generated tool failed validation checks. The AI created an invalid tool structure. Please try again.`);
+                          });
+                          return;
+                        }
+                        
                         // Update with success message and transition
                         await transitionToNewContent(() => {
                           setLastAIMessage(`✅ Successfully created random test tool: "${newTool.metadata.title}"! 🎲 Industry: ${randomScenario.context.industry} | Complexity: ${randomScenario.context.complexity}`);
@@ -1369,6 +1400,14 @@ export default function TestUIPage() {
                         
                         saveCreatedTool(newTool); // Also save to localStorage for the UI
                         setSavedTools(getSavedTools()); // Refresh saved tools list
+                        
+                        // 🛡️ Save to IndexedDB with validation
+                        try {
+                          await saveLastActiveToolToDB(newTool);
+                          console.log('🛡️ VALIDATION: Tool successfully saved to IndexedDB');
+                        } catch (saveError) {
+                          console.error('🛡️ VALIDATION: Failed to save tool to IndexedDB:', saveError);
+                        }
                       }
                     } catch (error) {
                       console.error('🧪 TRACE: Random tool creation test failed:', error);
