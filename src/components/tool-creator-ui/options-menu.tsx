@@ -19,7 +19,8 @@ import {
   History,
   Calculator,
   CheckCircle,
-  ChevronDown
+  ChevronDown,
+  Dice6
 } from 'lucide-react';
 
 // Types for the OptionsMenu component
@@ -221,7 +222,7 @@ export function OptionsMenu({
         },
         {
           icon: <Zap className="h-4 w-4" />,
-          label: 'Test Tool Creation Agent',
+          label: 'Test Tool Creation Agent (Random 1 of 10)',
           onClick: () => {
             onTestToolCreation();
             onClose();

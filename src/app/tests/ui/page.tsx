@@ -44,6 +44,7 @@ import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 
 // Import extracted modules
 import { mockWorkflow, iteratorTestWorkflow, getRandomCalculatorType } from './mock-data';
+import { getRandomTestScenario, RandomTestScenario, RANDOM_TEST_SCENARIOS } from './test-calculator-types';
 import { ToolInfoBubble } from '@/components/tool-creator-ui/tool-info-bubble';
 import { 
   SavedLogicResult, 
@@ -1338,30 +1339,30 @@ export default function TestUIPage() {
                       // Set loading states and show loading message
                       setIsLoading(true);
                       setIsGeneratingTool(true);
+                      
+                      // 🎲 Get a random test scenario from our comprehensive test suite
+                      const randomScenario = getRandomTestScenario();
+                      
+                      console.log(`🎲 Testing with random scenario: ${randomScenario.name} (${randomScenario.context.complexity} complexity)`);
+                      
                       await transitionToNewContent(() => {
-                        setLastAIMessage("Creating a sample ROI calculator tool...");
+                        setLastAIMessage(`Creating random test tool: "${randomScenario.name}"...`);
                       });
 
-                      console.log('🧪 TRACE: TEST TOOL CREATION START');
-                      const testContext = {
-                        userIntent: 'Create a sample ROI calculator',
-                        toolType: 'calculator',
-                        targetAudience: 'business professionals',
-                        industry: 'general business'
-                      };
-                      console.log('🧪 TRACE: Test context being passed:', JSON.stringify(testContext, null, 2));
+                      console.log('🧪 TRACE: RANDOM TEST TOOL CREATION START');
+                      console.log('🧪 TRACE: Random scenario context:', JSON.stringify(randomScenario.context, null, 2));
 
-                      const newTool = await callToolCreationAgent(testContext, undefined, undefined);
+                      const newTool = await callToolCreationAgent(randomScenario.context, undefined, undefined);
                       
                       console.log('🧪 TRACE: callToolCreationAgent returned:', newTool?.id);
                       console.log('🧪 TRACE: Tool metadata title:', newTool?.metadata?.title);
                       
                       if (newTool) {
-                        console.log('🛠️ Setting new tool in state:', newTool.metadata.title);
+                        console.log('🛠️ Setting new random tool in state:', newTool.metadata.title);
                         
                         // Update with success message and transition
                         await transitionToNewContent(() => {
-                          setLastAIMessage(`✅ Successfully created "${newTool.metadata.title}"! The tool is now displayed above.`);
+                          setLastAIMessage(`✅ Successfully created random test tool: "${newTool.metadata.title}"! 🎲 Industry: ${randomScenario.context.industry} | Complexity: ${randomScenario.context.complexity}`);
                           setProductToolDefinition(newTool);
                         });
                         
@@ -1369,9 +1370,9 @@ export default function TestUIPage() {
                         setSavedTools(getSavedTools()); // Refresh saved tools list
                       }
                     } catch (error) {
-                      console.error('🧪 TRACE: Tool creation test failed:', error);
+                      console.error('🧪 TRACE: Random tool creation test failed:', error);
                       await transitionToNewContent(() => {
-                        setLastAIMessage(`❌ Tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+                        setLastAIMessage(`❌ Random tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
                       });
                     } finally {
                       setIsLoading(false);
