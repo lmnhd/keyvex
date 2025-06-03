@@ -120,7 +120,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
     
     The componentCode and initialStyleMap are CRITICAL for dynamic styling later.
     
-    🚨 CRITICAL: ID and SLUG GENERATION REQUIREMENTS:
+    🚨 CRITICAL: ID AND SLUG GENERATION REQUIREMENTS:
     - The 'id' field must be a unique identifier like "tool-roi-calculator-001" or "tool-lead-qualifier-002"
     - The 'slug' field must be a URL-friendly version like "roi-calculator" or "lead-qualifier"
     - NEVER use "undefined" in any part of the id or slug
@@ -133,6 +133,126 @@ export const TOOL_CREATION_PROMPT = `<purpose>
       * metadata.id: "tool-solar-savings-calculator-001"
       * metadata.slug: "solar-savings-calculator"
 </output-format>
+
+<contextual-color-scheme-requirements>
+    🎨 CRITICAL: CREATE CONTEXTUALLY APPROPRIATE COLOR SCHEMES!
+    
+    <mood-based-backgrounds>
+        The 'background' and 'surface' colors in your colorScheme MUST fit the tool's purpose and industry mood:
+        
+        🏥 HEALTHCARE/MEDICAL TOOLS:
+        - background: '#f8fafc' (clean medical white-blue)
+        - surface: '#f1f5f9' (sterile light blue-gray)
+        - Conveys: Trust, cleanliness, professionalism
+        
+        🍽️ FOOD/RESTAURANT TOOLS:
+        - background: '#fef7ed' (warm cream/beige)  
+        - surface: '#fef3e2' (soft orange-cream)
+        - Conveys: Warmth, appetite, hospitality
+        
+        💰 FINANCIAL/BUSINESS TOOLS:
+        - background: '#f0f9ff' (professional light blue)
+        - surface: '#e0f2fe' (trustworthy blue-white)
+        - Conveys: Trust, stability, professionalism
+        
+        🌱 ENVIRONMENTAL/GREEN TOOLS:
+        - background: '#f0fdf4' (natural light green)
+        - surface: '#ecfdf5' (eco-friendly mint)
+        - Conveys: Growth, sustainability, nature
+        
+        🏠 REAL ESTATE TOOLS:
+        - background: '#faf5ff' (elegant light purple)
+        - surface: '#f3e8ff' (luxury lavender)
+        - Conveys: Luxury, stability, investment
+        
+        ⚡ FITNESS/ENERGY TOOLS:
+        - background: '#fff7ed' (energetic light orange)
+        - surface: '#ffedd5' (vibrant peach)
+        - Conveys: Energy, vitality, action
+        
+        💼 CORPORATE/CONSULTING TOOLS:
+        - background: '#f8fafc' (clean corporate gray-blue)
+        - surface: '#f1f5f9' (professional slate)
+        - Conveys: Authority, expertise, precision
+        
+        🎓 EDUCATION/TRAINING TOOLS:
+        - background: '#fefce8' (bright light yellow)
+        - surface: '#fef9c3' (academic cream-yellow)
+        - Conveys: Learning, clarity, intelligence
+        
+        🔧 TECHNICAL/ENGINEERING TOOLS:
+        - background: '#f9fafb' (neutral technical gray)
+        - surface: '#f3f4f6' (precise medium gray)
+        - Conveys: Precision, functionality, reliability
+        
+        💎 LUXURY/PREMIUM TOOLS:
+        - background: '#fefbff' (elegant off-white)
+        - surface: '#faf7ff' (sophisticated cream)
+        - Conveys: Exclusivity, premium quality, refinement
+    </mood-based-backgrounds>
+    
+    <primary-accent-guidelines>
+        Choose primary colors that reinforce the tool's emotional context:
+        
+        🔵 Professional Trust: '#2563eb', '#1d4ed8' (classic business blue)
+        🟢 Growth/Success: '#059669', '#047857' (natural green success)
+        🟠 Energy/Action: '#ea580c', '#c2410c' (energetic orange)
+        🟣 Innovation/Premium: '#7c3aed', '#5b21b6' (sophisticated purple)
+        🔴 Urgency/Power: '#dc2626', '#b91c1c' (confident red)
+        🌊 Calm/Healthcare: '#0891b2', '#0e7490' (medical teal)
+        🌿 Environmental: '#16a34a', '#15803d' (eco green)
+        ⚖️ Legal/Financial: '#1e40af', '#1e3a8a' (authoritative navy)
+    </primary-accent-guidelines>
+    
+    <complete-colorScheme-structure>
+        Your colorScheme object must include these fields with contextually appropriate values:
+        
+        {
+          "primary": "[context-appropriate primary color]",
+          "secondary": "[complementary secondary color]", 
+          "background": "[mood-fitting light background]",
+          "surface": "[slightly darker surface color]",
+          "text": {
+            "primary": "#111827",   // Keep consistent for readability
+            "secondary": "#4b5563", // Keep consistent for hierarchy  
+            "muted": "#9ca3af"      // Keep consistent for subtle text
+          },
+          "border": "[subtle border matching background tone]",
+          "success": "#10b981",     // Keep consistent for positive actions
+          "warning": "#f59e0b",     // Keep consistent for cautions
+          "error": "#ef4444"        // Keep consistent for errors
+        }
+        
+        Focus your creativity on: primary, secondary, background, surface, and border colors.
+        Keep text, success, warning, error consistent for UX consistency.
+    </complete-colorScheme-structure>
+    
+    <background-creativity-examples>
+        ❌ BORING GENERIC: background: '#ffffff', surface: '#f9fafb' (every tool looks the same)
+        
+        ✅ CONTEXTUAL CREATIVITY:
+        - Solar Calculator: background: '#fffbeb' (sunny warm), surface: '#fef3c7' (solar glow)
+        - Wedding Planner: background: '#fdf2f8' (romantic pink), surface: '#fce7f3' (soft blush)
+        - Crypto Portfolio: background: '#f0fdfa' (tech mint), surface: '#ccfbf1' (digital aqua)
+        - Pet Care Cost: background: '#fefce8' (happy yellow), surface: '#fef08a' (playful lime)
+        - Restaurant Profit: background: '#fef7ed' (warm kitchen), surface: '#fed7aa' (chef orange)
+        
+        Each background should make users think: "This FEELS right for this type of tool!"
+    </background-creativity-examples>
+    
+    <contextual-matching-rules>
+        🎯 MANDATORY: Ask yourself before choosing colors:
+        1. "What industry/context is this tool for?"
+        2. "What emotions should users feel when using this?"
+        3. "What colors would a professional in this field expect?"
+        4. "Does this color scheme make the tool memorable and appropriate?"
+        
+        🚨 FORBIDDEN: Using the same color scheme for different industries!
+        - Healthcare and restaurants should NOT have the same colors
+        - Financial tools and fitness tools should feel completely different
+        - Each tool should have its own contextual personality through color
+    </contextual-matching-rules>
+</contextual-color-scheme-requirements>
 
 <component-code-requirements>
     <structure>
