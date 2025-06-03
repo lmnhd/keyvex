@@ -55,6 +55,12 @@ export async function openToolDB(): Promise<IDBDatabase> {
 
 export async function saveLastActiveToolToDB(tool: ProductToolDefinition): Promise<void> {
   try {
+    // Add null check to prevent startup crashes
+    if (!tool || !tool.metadata) {
+      console.warn('⚠️ Cannot save null or invalid tool to IndexedDB');
+      return;
+    }
+
     const db = await openToolDB();
     const transaction = db.transaction([TOOL_STORE_NAME], 'readwrite');
     const store = transaction.objectStore(TOOL_STORE_NAME);
@@ -81,6 +87,33 @@ export async function saveLastActiveToolToDB(tool: ProductToolDefinition): Promi
     db.close();
   } catch (error) {
     console.error('❌ Error saving last active tool to IndexedDB:', error);
+  }
+}
+
+// NEW: Separate function to clear the last active tool from IndexedDB
+export async function clearLastActiveToolFromDB(): Promise<void> {
+  try {
+    console.log('🧹 Clearing last active tool from IndexedDB');
+    
+    const db = await openToolDB();
+    const transaction = db.transaction([TOOL_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    
+    await new Promise<void>((resolve, reject) => {
+      const request = store.delete(LAST_ACTIVE_TOOL_KEY);
+      request.onsuccess = () => {
+        console.log('✅ Last active tool cleared from IndexedDB');
+        resolve();
+      };
+      request.onerror = () => {
+        console.error('❌ Error clearing last active tool from IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+    
+    db.close();
+  } catch (error) {
+    console.error('❌ Error clearing last active tool from IndexedDB:', error);
   }
 }
 

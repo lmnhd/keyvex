@@ -61,7 +61,8 @@ import {
   loadLogicResultsFromDB,
   saveToolToDBList,
   loadAllToolsFromDB,
-  deleteToolFromDBList
+  deleteToolFromDBList,
+  clearLastActiveToolFromDB
 } from './db-utils';
 import {
   handleStreamingAIRequest,
@@ -264,7 +265,7 @@ const clearCorruptedToolFromStorage = async (toolId: string) => {
     console.log('🧹 TRACE: Clearing corrupted tool from storage:', toolId);
     
     // Clear from IndexedDB using the correct imported function
-    await saveLastActiveToolToDB(null as any);
+    await clearLastActiveToolFromDB();
     
     // Clear from localStorage backup
     Object.keys(localStorage).forEach(key => {
