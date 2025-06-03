@@ -134,7 +134,9 @@ class ValidationTrackerImpl implements ValidationTracker {
 
   private saveToStorage(): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.issues));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.issues));
+      }
     } catch (error) {
       console.error('Failed to save validation issues to storage:', error);
     }
@@ -142,9 +144,14 @@ class ValidationTrackerImpl implements ValidationTracker {
 
   private loadFromStorage(): void {
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        this.issues = JSON.parse(stored);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem(this.STORAGE_KEY);
+        if (stored) {
+          this.issues = JSON.parse(stored);
+        }
+      } else {
+        // On the server or if localStorage is not available, initialize with empty issues
+        this.issues = [];
       }
     } catch (error) {
       console.error('Failed to load validation issues from storage:', error);

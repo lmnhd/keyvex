@@ -9,7 +9,55 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from '@/components/ui/card';
+import {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch'; // Note: ShadCN calls it Switch, often referred to as Toggle
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  Dialog,
+  DialogPortal,
+  DialogOverlay,
+  DialogClose,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
+import { AlertCircle, Loader2, Info } from 'lucide-react';
 import { trackValidationIssue } from '@/lib/validation/validation-tracker';
 
 interface DynamicComponentRendererProps {
@@ -33,22 +81,6 @@ interface DynamicComponentRendererProps {
   }>) => void; // NEW: Callback for validation issues
   isLoading?: boolean;
 }
-
-// NEW: Simple Select component for AI-generated tools
-const Select: React.FC<{
-  className?: string;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
-  'data-style-id'?: string;
-  children?: React.ReactNode;
-}> = ({ className, value, onChange, 'data-style-id': dataStyleId, children }) => {
-  return React.createElement('select', {
-    className,
-    value,
-    onChange,
-    'data-style-id': dataStyleId
-  }, children);
-};
 
 export default function DynamicComponentRenderer({
   componentCode,
@@ -347,7 +379,19 @@ export default function DynamicComponentRenderer({
       console.log('🔍 TRACE: Creating component function...');
       const componentFunction = new Function(
         'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
-        'Button', 'Input', 'Label', 'Select', 
+        'Button', 'Input', 'Label', 
+        'Card', 'CardHeader', 'CardFooter', 'CardTitle', 'CardDescription', 'CardContent',
+        'Select', 'SelectGroup', 'SelectValue', 'SelectTrigger', 'SelectContent', 'SelectItem', 'SelectLabel', 'SelectSeparator',
+        'Textarea', 
+        'RadioGroup', 'RadioGroupItem',
+        'Checkbox', 
+        'Slider',
+        'Switch', // Using 'Switch'
+        'Accordion', 'AccordionContent', 'AccordionItem', 'AccordionTrigger',
+        'Dialog', 'DialogPortal', 'DialogOverlay', 'DialogClose', 'DialogTrigger', 'DialogContent', 'DialogHeader', 'DialogFooter', 'DialogTitle', 'DialogDescription',
+        'Tooltip', 'TooltipContent', 'TooltipProvider', 'TooltipTrigger',
+        'Progress',
+        'AlertCircle', 'Loader2', 'Info',
         `
         "use strict";
         try {
@@ -391,7 +435,19 @@ export default function DynamicComponentRenderer({
       // Get the component with all required dependencies
       const ComponentImpl = componentFunction(
         React, useState, useEffect, useCallback, useMemo,
-        Button, Input, Label, Select
+        Button, Input, Label,
+        Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent,
+        Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectLabel, SelectSeparator,
+        Textarea,
+        RadioGroup, RadioGroupItem,
+        Checkbox,
+        Slider,
+        Switch, // Using 'Switch'
+        Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+        Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
+        Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+        Progress,
+        AlertCircle, Loader2, Info
       );
       
       console.log('🔍 TRACE: ✅ Component compilation successful');

@@ -145,7 +145,8 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
         "includeAdvancedLayouts": true/false,
         "styleComplexity": "basic|enhanced|premium",
         "industryFocus": "industry name (optional)",
-        "toolComplexity": "simple|moderate|complex"
+        "toolComplexity": "simple|moderate|complex",
+        "componentSet": "shadcn|legacy"
       }
     }
 </required-json-response-format>
@@ -211,13 +212,19 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
             Include the specific industry when colors and styling should be contextually appropriate.
             Examples: "healthcare", "finance", "real-estate", "food-service", "fitness", "tech"
         </guideline>
+
+        <guideline name="componentSet">
+            "shadcn": (Default - use for ~75% of tools) For professional, polished, and modern-looking tools. Best for tools that benefit from a consistent, high-quality UI component library.
+            "legacy": (Use for ~25% of tools) For simpler, "flat" tools, or when a more basic HTML look is desired. Useful for very simple utilities or when mimicking older web styles.
+        </guideline>
     </analysis-guidelines>
     
     <decision-examples>
-        Healthcare ROI Calculator → includeComprehensiveColors: true, styleComplexity: "premium", industryFocus: "healthcare"
-        Simple Tip Calculator → includeComprehensiveColors: false, styleComplexity: "basic", toolComplexity: "simple"
-        Executive Dashboard → includeGorgeousStyling: true, includeAdvancedLayouts: true, styleComplexity: "premium"
-        Quick Lead Qualifier → styleComplexity: "enhanced", toolComplexity: "moderate"
+        Healthcare ROI Calculator → includeComprehensiveColors: true, styleComplexity: "premium", industryFocus: "healthcare", componentSet: "shadcn"
+        Simple Tip Calculator → includeComprehensiveColors: false, styleComplexity: "basic", toolComplexity: "simple", componentSet: "legacy"
+        Executive Dashboard → includeGorgeousStyling: true, includeAdvancedLayouts: true, styleComplexity: "premium", componentSet: "shadcn"
+        Quick Lead Qualifier → styleComplexity: "enhanced", toolComplexity: "moderate", componentSet: "shadcn"
+        Basic Data Entry Form → styleComplexity: "basic", toolComplexity: "simple", componentSet: "legacy"
     </decision-examples>
 </prompt-options-determination>`;
 

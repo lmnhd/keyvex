@@ -484,7 +484,7 @@ Return a JSON array of formula objects.`;
         availableData
       );
 
-      console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 200) + '...');
+      console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 1200) + '...');
 
       const { object } = await generateObject({
         model: this.model,

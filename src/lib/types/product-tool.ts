@@ -55,6 +55,9 @@ export interface ProductToolDefinition {
   // Metadata
   metadata: ProductToolMetadata;
   
+  // Component set used (ShadCN or legacy HTML)
+  componentSet: 'shadcn' | 'legacy';
+  
   // React component code as a string (pre-compiled to JS)
   componentCode: string;
   

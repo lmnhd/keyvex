@@ -48,20 +48,30 @@ export const isValidProductToolDefinition = (tool: any): tool is ProductToolDefi
     return false;
   }
   
-  // Must contain React hooks (useState is required for our components)
+  // STRICT: Components must contain React hooks for interactivity (useState is required)
   if (!componentCode.includes('useState')) {
-    console.warn('⚠️ Tool validation failed: componentCode does not contain React hooks (useState)');
+    console.warn('⚠️ Tool validation failed: componentCode does not contain React hooks (useState) - business tools should be interactive');
     return false;
   }
 
   // 🛡️ Check for forbidden patterns that cause runtime errors
-  if (componentCode.includes('Card') || 
-      componentCode.includes('CardHeader') ||
-      componentCode.includes('CardContent') ||
-      componentCode.includes('CardTitle')) {
-    console.warn('⚠️ Tool validation failed: Component uses forbidden Card components');
-    return false;
+  // ONLY apply this check if the componentSet is 'legacy'
+  if (tool.componentSet === 'legacy') {
+    // Add other ShadCN component names here if they should also be forbidden in legacy mode
+    const forbiddenLegacyKeywords = [
+      'Card', 'CardHeader', 'CardContent', 'CardTitle', 'CardDescription', 'CardFooter',
+      'Input', 'Button', 'Select', 'Label', 'Textarea' // Add more as identified
+    ];
+    for (const keyword of forbiddenLegacyKeywords) {
+      // Use a regex to check for whole word instances to avoid partial matches in variable names
+      const regex = new RegExp(`\\b${keyword}\\b`);
+      if (regex.test(componentCode)) {
+        console.warn(`⚠️ Tool validation failed: Component uses forbidden ShadCN component '${keyword}' in legacy mode`);
+        return false;
+      }
+    }
   }
+  // If componentSet is 'shadcn', using these components is allowed and expected.
 
   // Check for forbidden import/export statements
   if (componentCode.includes('import ') || componentCode.includes('export ')) {

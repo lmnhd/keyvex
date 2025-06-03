@@ -81,62 +81,134 @@ export const STYLE_GUIDES = {
         // VIBRANT, MODERN STYLING PATTERNS
         React.createElement('div', {
           className: 'max-w-4xl mx-auto p-8',
-          'data-style-id': 'main-container'
+          'data-style-id': 'main-container',
+          key: 'main-container-example'
         }, [
-          // GRADIENT HEADER with industry-appropriate colors
+          // UPDATED GRADIENT HEADER with logo, title, subtitle, and info icon tooltip
           React.createElement('div', {
-            className: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white p-8 rounded-xl mb-8 shadow-xl',
-            'data-style-id': 'tool-header'
+            className: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-xl mb-8 shadow-xl flex items-center justify-between',
+            'data-style-id': 'tool-header',
+            key: 'tool-header-example'
           }, [
-            React.createElement('h1', {
-              className: 'text-3xl font-bold mb-2',
-              'data-style-id': 'main-title'
-            }, 'Modern Business Calculator'),
-            React.createElement('p', {
-              className: 'text-blue-100 text-lg',
-              'data-style-id': 'subtitle'
-            }, 'Professional-grade ROI analysis')
-          ]),
-          
-          // ENHANCED INPUT SECTION with generous spacing
-          React.createElement('div', {
-            className: 'bg-white p-8 rounded-xl border shadow-lg space-y-8',
-            'data-style-id': 'input-section'
-          }, [
-            React.createElement('div', {
-              className: 'grid grid-cols-1 md:grid-cols-2 gap-6'
-            }, [
-              React.createElement('div', null, [
-                React.createElement(Label, {
-                  className: 'block text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3'
-                }, 'Initial Investment ($)'),
-                React.createElement(Input, {
-                  className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300',
-                  placeholder: 'e.g. 50,000'
-                })
+            // Logo and Title/Subtitle group
+            React.createElement('div', { className: 'flex items-center space-x-4', key: 'header-left-group-example' }, [
+              React.createElement('div', { 
+                className: 'w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-xl font-bold text-white',
+                'data-style-id': 'placeholder-logo',
+                key: 'placeholder-logo-example' 
+              }, 'L'), // Placeholder Logo (e.g., first letter of company or a generic symbol)
+              React.createElement('div', { key: 'title-subtitle-group-example' }, [
+                React.createElement('h1', {
+                  className: 'text-2xl md:text-3xl font-bold',
+                  'data-style-id': 'main-title',
+                  key: 'main-title-example'
+                }, 'Modern Business Calculator'),
+                React.createElement('p', {
+                  className: 'text-blue-100 text-md md:text-lg',
+                  'data-style-id': 'subtitle',
+                  key: 'subtitle-example'
+                }, 'Professional-grade ROI analysis')
+              ])
+            ]),
+            // INFO ICON WITH TOOLTIP (ShadCN Example)
+            React.createElement(TooltipProvider, { key: 'tooltip-provider-info-example' }, [
+              React.createElement(Tooltip, { key: 'tooltip-info-example' }, [
+                React.createElement(TooltipTrigger, { asChild: true, key: 'tooltip-trigger-info-example' }, [
+                  React.createElement(Button, { 
+                    variant: 'ghost', 
+                    size: 'icon', 
+                    className: 'text-blue-100 hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full',
+                    'data-style-id': 'info-icon-button',
+                    key: 'info-button-example'
+                  }, [
+                    React.createElement(Info, { className: 'h-6 w-6', key: 'info-icon-svg-example' }) // Info is an available icon
+                  ])
+                ]),
+                React.createElement(TooltipContent, { side: 'bottom', align: 'end', className: 'bg-gray-800 text-white p-3 rounded-md shadow-lg max-w-xs text-sm', key: 'tooltip-content-info-example' }, [
+                  React.createElement('p', { className: 'font-semibold mb-1', key: 'tooltip-title-about-example' }, 'About This Tool:'),
+                  React.createElement('p', { className: 'mb-2', key: 'tooltip-description-example' }, 
+                    'This tool helps you analyze Return on Investment. Populate the fields to see your potential ROI. (This is metadata.description)'
+                  ),
+                  React.createElement('p', { className: 'font-semibold mb-1', key: 'tooltip-title-how-to-example' }, 'How to Use:'),
+                  React.createElement('p', { key: 'tooltip-instructions-example' }, 
+                    '1. Enter your initial investment. 2. Input expected returns. 3. Specify the timeframe. (This is where tool usage instructions go.)'
+                  )
+                ])
               ])
             ])
           ]),
           
-          // PREMIUM RESULTS SECTION
+          // ENHANCED INPUT SECTION with generous spacing (ensure keys for array children)
+          React.createElement('div', {
+            className: 'bg-white p-8 rounded-xl border shadow-lg space-y-8',
+            'data-style-id': 'input-section',
+            key: 'input-section-example'
+          }, [
+            React.createElement('div', {
+              className: 'grid grid-cols-1 md:grid-cols-2 gap-6',
+              key: 'input-grid-example'
+            }, [
+              React.createElement('div', { key: 'input-group-1-example' }, [ // Added key
+                React.createElement(Label, {
+                  className: 'block text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3',
+                  key: 'label-1-example'
+                }, 'Initial Investment ($)'),
+                React.createElement(Input, {
+                  className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300',
+                  placeholder: 'e.g. 50,000',
+                  key: 'input-1-example'
+                })
+              ])
+              // Add more input groups as needed, each with a unique key
+            ])
+          ]),
+          
+          // PREMIUM RESULTS SECTION (ensure keys for array children)
           React.createElement('div', {
             className: 'bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-200 shadow-xl',
-            'data-style-id': 'results-section'
+            'data-style-id': 'results-section',
+            key: 'results-section-example'
           }, [
             React.createElement('div', {
               className: 'text-center p-6 bg-white rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300',
-              'data-style-id': 'roi-display'
+              'data-style-id': 'roi-display',
+              key: 'roi-display-example'
             }, [
               React.createElement('div', {
-                className: 'text-4xl font-black text-blue-600 mb-2'
+                className: 'text-4xl font-black text-blue-600 mb-2',
+                key: 'roi-value-example'
               }, '247%'),
               React.createElement('div', {
-                className: 'text-sm font-semibold uppercase tracking-wide text-blue-700'
+                className: 'text-sm font-semibold uppercase tracking-wide text-blue-700',
+                key: 'roi-label-example'
               }, 'ROI Percentage')
             ])
           ])
         ])
     </enhanced-component-example>
+
+    <shadcn-card-with-gradient-example>
+        // EXAMPLE: ShadCN Card with an Industry-Specific Gradient Background
+        // For a Financial Tool, using the 'FINANCIAL' gradient:
+        React.createElement(Card, {
+          className: 'bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-6 rounded-lg shadow-xl',
+          'data-style-id': 'financial-summary-card'
+        }, [
+          React.createElement(CardHeader, { 'data-style-id': 'financial-card-header' }, [
+            React.createElement(CardTitle, { 
+              className: 'text-2xl font-bold',
+              'data-style-id': 'financial-card-title' 
+            }, 'Investment Outlook'),
+            React.createElement(CardDescription, { 
+              className: 'text-blue-200',
+              'data-style-id': 'financial-card-description'
+            }, 'Q4 Projections')
+          ]),
+          React.createElement(CardContent, { 'data-style-id': 'financial-card-content' }, [
+            React.createElement('p', { className: 'text-lg' }, 'Positive growth expected across all major portfolios.')
+          ])
+        ])
+    </shadcn-card-with-gradient-example>
     
     <industry-specific-styling>
         // HEALTHCARE: Clean, medical feel
@@ -189,8 +261,7 @@ export const STYLE_GUIDES = {
         
         ❌ NEVER assume input text color - always specify it explicitly!
         
-        EXAMPLE: className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2...'
-                                                                      ↑ Always include this!
+        EXAMPLE: className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300',
     </input-text-contrast>
 </gorgeous-styling-library>`,
 
@@ -281,7 +352,7 @@ const CRITICAL_PROHIBITIONS = `
     - NO undefined in arrays: [value, undefined, value]
     - Will cause validation errors and component failures
     
-    🎯 VALIDATION CHECK: Before finalizing your component code, scan it for:
+    🎯 VALIDATION CHECK: Before finalizing your componentCode, scan it for:
     1. Any "import" or "export" keywords → REPLACE WITH NOTHING
     2. Any < > brackets → REPLACE WITH React.createElement()
     3. Any template strings with backticks and variable interpolation → REPLACE WITH STRING CONCATENATION
@@ -298,7 +369,35 @@ const CRITICAL_PROHIBITIONS = `
 `;
 
 // ============================================================================
-// CORE PROMPT SECTIONS
+// NEW HEADER REQUIREMENTS 
+// ============================================================================
+const HEADER_REQUIREMENTS = `
+<header-requirements>
+    MANDATORY HEADER ELEMENTS:
+    1.  PLACEHOLDER LOGO: 
+        - Include a simple placeholder logo in the top-left of the header area.
+        - Example: React.createElement(\'div\', { className: \'w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-white font-bold text-xl\', \'data-style-id\': \'placeholder-logo\', key: \'placeholder-logo\' }, \'L\').
+        - Style it with \'data-style-id\': \'placeholder-logo\'.
+    2.  INFO ICON & TOOLTIP:
+        - Place an \'Info\' icon (e.g., React.createElement(Info, { className: \'h-5 w-5\', key: \'info-icon\' })) in the header, typically top-right or next to the title.
+        - This icon MUST be interactive, using a tooltip mechanism.
+        - TOOLTIP CONTENT (CRITICAL):
+            - Part 1: Display the tool\'s full description. This will be dynamically populated by the rendering system using tool.metadata.description. Your generated code should simply allow for text content here.
+            - Part 2: Include a section titled "How to Use:" followed by clear, concise instructions on how to use the tool. For example: "1. Fill in the loan amount. 2. Enter the interest rate. 3. Specify the loan term in years. 4. Click Calculate to see your monthly payment." This part you MUST generate.
+        - SHADCN USAGE: If componentSet is \'shadcn\', you MUST use TooltipProvider, Tooltip, TooltipTrigger, and TooltipContent. The TooltipTrigger should typically wrap a Button component which in turn contains the Info icon. See example in GORGEOUS_STYLING_LIBRARY.
+        - LEGACY USAGE: If componentSet is \'legacy\', you should still include the Info icon. A simple \'title\' attribute on the icon\'s element can serve as a basic tooltip (e.g., React.createElement(Info, { title: "Tool description [from metadata.description] and How to Use: [your instructions here]", key: \'info-icon\' })).
+    3.  HEADER LAYOUT:
+        - Use flexbox (e.g., className: \'flex items-center justify-between\') on the main header container (identified by \'data-style-id\': \'tool-header\') to arrange the logo, title/subtitle group, and info icon group.
+        - The title and subtitle should be grouped together, typically to the right of the logo.
+        - The info icon is typically on the far right.
+</header-requirements>
+`;
+
+// ============================================================================
+// CORE PROMPT SECTIONS - These are NOT directly used by buildToolCreationSystemPrompt
+// but are kept for reference or potential future use. buildToolCreationSystemPrompt
+// re-defines or pulls from constants like BASE_SYSTEM_INSTRUCTIONS, CRITICAL_PROHIBITIONS, STYLE_GUIDES etc.
+// Any changes to general AI instructions should happen in buildToolCreationSystemPrompt or its constituent parts.
 // ============================================================================
 
 const CORE_PROMPT = `<purpose>
@@ -403,6 +502,39 @@ const CORE_PROMPT = `<purpose>
           ])
         ])
         
+        📝 COMMON KEY PATTERNS:
+        - Form fields: key: 'field-{fieldname}' or key: 'input-{fieldname}'
+        - Sections: key: 'section-{name}' or key: 'header-{section}'
+        - List items: key: 'item-{index}' or key: 'row-{index}'
+        - Navigation: key: 'nav-{item}' or key: 'link-{page}'
+        - Grid items / Columns: If a grid's children are an array of divs/components, each child needs a key like 'grid-col-{index}' or 'grid-item-{description}'.
+         
+         // ✅ CORRECT - Form fields in grid with keys
+        React.createElement('div', { className: 'grid grid-cols-2 gap-4' }, [
+          React.createElement('div', { key: 'field-1' }, [
+            React.createElement(Label, { key: 'label-1' }, 'Field 1'),
+            React.createElement(Input, { key: 'input-1', placeholder: 'Enter value' })
+          ]),
+          React.createElement('div', { key: 'field-2' }, [
+            React.createElement(Label, { key: 'label-2' }, 'Field 2'),
+            React.createElement(Input, { key: 'input-2', placeholder: 'Enter value' })
+          ])
+        ])
+        
+        // ❌ INCORRECT - Grid items in an array without keys
+        // If the direct children of a grid (or any element) are passed as an array, EACH child in that array needs a key.
+        React.createElement('div', { className: 'grid grid-cols-3' }, [
+          React.createElement('div', null, [ /* Column 1 Content */ ]), // MISSING KEY!
+          React.createElement('div', null, [ /* Column 2 Content */ ]), // MISSING KEY!
+          React.createElement('div', null, [ /* Column 3 Content */ ])  // MISSING KEY!
+        ])
+        // ✅ CORRECT - Grid items in an array WITH keys
+        React.createElement('div', { className: 'grid grid-cols-3' }, [
+          React.createElement('div', { key: 'grid-col-1-summary' }, [ /* Column 1 Content */ ]),
+          React.createElement('div', { key: 'grid-col-2-details' }, [ /* Column 2 Content */ ]),
+          React.createElement('div', { key: 'grid-col-3-actions' }, [ /* Column 3 Content */ ])
+        ])
+
         🚨🚨🚨 CRITICAL REACT KEYS REQUIREMENT 🚨🚨🚨
         
         MANDATORY: When creating arrays of React elements, EVERY element in the array MUST have a unique "key" prop:
@@ -477,10 +609,10 @@ const CORE_PROMPT = `<purpose>
         The following are available in the execution context (do NOT import them):
         - React (includes React.createElement)
         - useState, useEffect, useCallback, useMemo
-        - Button, Input, Label, Select
-        - Loader2, AlertCircle (for icons)
-        
-        🚨 NOT AVAILABLE: Card, CardHeader, CardContent, CardTitle (removed from execution context)
+        // Basic HTML elements are always available.
+        // Specific UI components (like ShadCN) will be listed if applicable based on current componentSet.
+        // Icons
+        - Loader2, AlertCircle, Info
     </available-context-variables>
     
     <data-style-id-requirements>
@@ -500,7 +632,7 @@ const CORE_PROMPT = `<purpose>
 </component-code-requirements>`;
 
 // ============================================================================
-// PROMPT BUILDER WITH CONDITIONAL SECTIONS
+// SYSTEM PROMPT CONSTRUCTION
 // ============================================================================
 
 export interface PromptOptions {
@@ -510,42 +642,78 @@ export interface PromptOptions {
   styleComplexity?: 'basic' | 'enhanced' | 'premium';
   industryFocus?: string;
   toolComplexity?: 'simple' | 'moderate' | 'complex';
+  componentSet?: 'shadcn' | 'legacy'; 
 }
 
-export function buildToolCreationSystemPrompt(options: PromptOptions = {}): string {
-  const {
-    includeComprehensiveColors = false,
-    includeGorgeousStyling = false,
-    includeAdvancedLayouts = false,
-    styleComplexity = 'basic',
-    industryFocus,
-    toolComplexity = 'moderate'
-  } = options;
+// Define the base instructions that were previously part of CORE_PROMPT or implied.
+const BASE_SYSTEM_INSTRUCTIONS = `You are an expert React developer specializing in creating dynamic, interactive business tools using ONLY React.createElement() syntax. NO JSX ALLOWED. Your primary goal is to generate a single, self-contained React functional component.`;
 
-  let prompt = CORE_PROMPT;
-  
-  // Add critical prohibitions immediately after core prompt to prevent AI drift
-  prompt += CRITICAL_PROHIBITIONS;
+export function buildToolCreationSystemPrompt(options: PromptOptions = {}): string {
+  let systemPrompt = `${BASE_SYSTEM_INSTRUCTIONS}\n${CRITICAL_PROHIBITIONS}`;
+
+  // Component Set Instructions & Available Context Variables Update
+  systemPrompt += `
+<component-set-guidelines>
+`;
+  if (options.componentSet === 'legacy') {
+    systemPrompt += `  <current-component-set>LEGACY HTML ELEMENTS</current-component-set>
+  You MUST generate React component code using basic HTML elements (e.g., 'div', 'input', 'button', 'select', 'label', 'h1', 'p', 'span').
+  Style these elements exclusively using Tailwind CSS classes provided in the 'className' prop.
+  DO NOT use or import any custom React components (e.g., from '@/components/ui/...'). Focus on pure HTML structure with Tailwind styling.
+  All interactivity MUST be handled with standard HTML attributes (e.g., 'onClick', 'onChange') and React state hooks.
+  The following are available in the execution context: React, useState, useEffect, useCallback, useMemo, Loader2, AlertCircle, Info.
+`;
+  } else {
+    // Default to ShadCN if componentSet is 'shadcn' or undefined
+    const shadcnComponentList = `
+  - Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter (from '@/components/ui/card')
+  - Input (from '@/components/ui/input')
+  - Button (from '@/components/ui/button')
+  - Select, SelectTrigger, SelectValue, SelectContent, SelectItem (from '@/components/ui/select')
+  - Label (from '@/components/ui/label')
+  - Textarea (from '@/components/ui/textarea')
+  - RadioGroup, RadioGroupItem (from '@/components/ui/radio-group')
+  - Checkbox (from '@/components/ui/checkbox')
+  - Slider (from '@/components/ui/slider')
+  - Toggle (from '@/components/ui/toggle')
+  - Accordion, AccordionItem, AccordionTrigger, AccordionContent (from '@/components/ui/accordion')
+  - Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter (from '@/components/ui/dialog')
+  - Tooltip, TooltipTrigger, TooltipContent, TooltipProvider (from '@/components/ui/tooltip')
+  - Progress (from '@/components/ui/progress')
+`;
+    systemPrompt += `  <current-component-set>SHADCN UI COMPONENTS</current-component-set>
+  You MUST generate React component code primarily using the following pre-built ShadCN UI components where appropriate:${shadcnComponentList}
+  When using these components, pass them as the first argument to React.createElement (e.g., React.createElement(Input, {...})).
+  You can still use basic HTML elements ('div', 'p', 'span', 'h1', etc.) for layout and simple text display if a ShadCN component is not suitable or available for a specific need.
+  Continue to use 'data-style-id' for all elements that need dynamic styling and provide Tailwind classes in 'className'.
+
+  <shadcn-components-availability>
+  The following ShadCN UI components are available in the execution context (in addition to React, hooks, and basic icons like Loader2, AlertCircle, Info):${shadcnComponentList}  </shadcn-components-availability>
+`;
+  }
+  systemPrompt += `</component-set-guidelines>\n`;
 
   // Add conditional color guidance
-  if (includeComprehensiveColors || styleComplexity === 'premium') {
-    prompt += STYLE_GUIDES.COMPREHENSIVE_COLOR_SCHEMES;
+  if (options.includeComprehensiveColors || options.styleComplexity === 'premium') {
+    systemPrompt += STYLE_GUIDES.COMPREHENSIVE_COLOR_SCHEMES;
   } else {
-    prompt += STYLE_GUIDES.BASIC_COLOR_GUIDANCE;
+    systemPrompt += STYLE_GUIDES.BASIC_COLOR_GUIDANCE;
   }
 
   // Add styling guidance based on complexity
-  if (includeGorgeousStyling || styleComplexity === 'premium') {
-    prompt += STYLE_GUIDES.GORGEOUS_STYLING_LIBRARY;
+  if (options.includeGorgeousStyling || options.styleComplexity === 'premium') {
+    systemPrompt += STYLE_GUIDES.GORGEOUS_STYLING_LIBRARY;
   }
 
   // Add layout guidance for complex tools
-  if (includeAdvancedLayouts || toolComplexity === 'complex') {
-    prompt += STYLE_GUIDES.ADVANCED_LAYOUT_PATTERNS;
+  if (options.includeAdvancedLayouts || options.toolComplexity === 'complex') {
+    systemPrompt += STYLE_GUIDES.ADVANCED_LAYOUT_PATTERNS;
   }
 
-  // Add component types
-  prompt += `
+  // Add new header requirements
+  systemPrompt += HEADER_REQUIREMENTS;
+
+  systemPrompt += `
 <component-types>
     <input-components>${ALLOWED_COMPONENTS.inputs.join(', ')}</input-components>
     <display-components>${ALLOWED_COMPONENTS.displays.join(', ')}</display-components>
@@ -554,20 +722,59 @@ export function buildToolCreationSystemPrompt(options: PromptOptions = {}): stri
     <layout-components>${ALLOWED_COMPONENTS.layout.join(', ')}</layout-components>
 </component-types>
 
-<instructions>
-    <instruction>Create tools that solve real business problems and provide genuine value to users.</instruction>
-    <instruction>Focus on lead generation by naturally collecting contact information in exchange for valuable insights.</instruction>
-    <instruction>Ensure all content, calculations, and styling are business-grade and professional quality.</instruction>
-    <instruction>Use ONLY the allowed component types listed above - no custom types allowed.</instruction>
-    <instruction>NEVER use placeholder text like "heading", "button", "label" - all labels must be specific and meaningful.</instruction>
-    <instruction>Generate BOTH componentCode (React component string) AND the traditional schema structure.</instruction>
-    <instruction>🚨 FINAL CHECK: Scan your componentCode for import/export statements, JSX syntax, undefined values, and forbidden components before submitting.</instruction>
-</instructions>`;
+<json-response-format>
+  You MUST return a valid JSON object with this EXACT structure:
+  {
+    "componentCode": "string (React.createElement code ONLY)",
+    "initialStyleMap": { "data-style-id": "Tailwind CSS classes" },
+    "colorScheme": {
+      "primary": "#hexcode",
+      "secondary": "#hexcode",
+      "background": "#hexcode",
+      "surface": "#hexcode",
+      "text": { "primary": "#hexcode", "secondary": "#hexcode", "muted": "#hexcode" },
+      "border": "#hexcode",
+      "success": "#hexcode",
+      "warning": "#hexcode",
+      "error": "#hexcode"
+    },
+    "metadata": {
+      "title": "string",
+      "description": "string",
+      "shortDescription": "string",
+      "type": "string",
+      "category": "string",
+      "targetAudience": "string",
+      "industry": "string",
+      "tags": ["string"],
+      "estimatedCompletionTime": number, // minutes
+      "difficultyLevel": "beginner|intermediate|advanced",
+      "features": ["string"],
+      "icon": { "type": "lucide|emoji", "value": "string" }
+    }
+  }
+  
+  🚨 CRITICAL REQUIREMENT: initialStyleMap is MANDATORY and must contain ALL data-style-id mappings
+  - Every data-style-id in your componentCode MUST have a corresponding entry in initialStyleMap
+  - initialStyleMap cannot be empty {} - it must contain actual style mappings
+  - Each mapping must be a valid Tailwind CSS class string
+  - Example: "main-container": "max-w-4xl mx-auto p-8 bg-white rounded-lg shadow-lg"
+  - Minimum 3-5 style mappings required for any component
+</json-response-format>
 
-  return prompt;
+<final-instructions>
+  Focus ONLY on generating the React.createElement() code, style map, color scheme, and metadata. No extra explanations or commentary.
+  Ensure all data-style-id attributes in componentCode have corresponding entries in initialStyleMap.
+  The componentCode MUST be a single self-contained React functional component.
+  All Tailwind classes in initialStyleMap MUST be valid and functional.
+  DO NOT use backticks or markdown formatting for the componentCode string in the JSON response.
+  The ENTIRE response MUST be a single JSON object.
+</final-instructions>`;
+
+  return systemPrompt;
 }
 
-// User prompt builder (same as before)
+// User prompt builder (Restoring this function)
 export function buildToolCreationUserPrompt(
   userIntent: string,
   context: any = {},
@@ -592,29 +799,50 @@ export function buildToolCreationUserPrompt(
 
   let prompt = `Create a ${toolType || 'business tool'} with the following requirements:\n\n`;
   
-  prompt += `USER INTENT: ${userIntent}\n\n`;
-  
-  if (targetAudience) prompt += `TARGET AUDIENCE: ${targetAudience}\n`;
-  if (industry) prompt += `INDUSTRY: ${industry}\n`;
-  if (businessDescription) prompt += `BUSINESS CONTEXT: ${businessDescription}\n`;
-  if (features?.length) prompt += `REQUIRED FEATURES: ${features.join(', ')}\n`;
-  if (colors?.length) prompt += `PREFERRED COLORS: ${colors.join(', ')}\n`;
-  
-  if (brainstormingResult) {
-    prompt += `\nBRAINSTORMING INSIGHTS:\n${JSON.stringify(brainstormingResult, null, 2)}\n`;
+  // Prioritize insights if available
+  if (brainstormingResult || logicArchitectInsights) {
+    const insights = brainstormingResult || logicArchitectInsights;
+    // Use a more specific tool type from insights if available
+    prompt = `Create a ${insights.toolType || insights.title || toolType || 'business tool'} based on the following detailed insights and requirements:\n\n`;
+    
+    prompt += `USER INTENT: ${userIntent}\n\n`; // Keep user intent for context
+
+    if (insights === brainstormingResult && brainstormingResult) {
+      prompt += `BRAINSTORMING INSIGHTS (Primary Guide):\n${JSON.stringify(brainstormingResult, null, 2)}\n\n`;
+    } else if (insights === logicArchitectInsights && logicArchitectInsights) {
+      prompt += `LOGIC ARCHITECT INSIGHTS (Primary Guide):\n${JSON.stringify(logicArchitectInsights, null, 2)}\n\n`;
+    }
+
+    // Optionally, add any top-level context items not typically inside insights, if necessary
+    // For example, if there was a very specific instruction from the user that might override something in insights:
+    // if (context.specificOverride) prompt += `SPECIFIC OVERRIDE: ${context.specificOverride}\n`;
+
+  } else {
+    // Fallback to original detailed listing if no insights are present
+    prompt += `USER INTENT: ${userIntent}\n\n`;
+    if (targetAudience) prompt += `TARGET AUDIENCE: ${targetAudience}\n`;
+    if (industry) prompt += `INDUSTRY: ${industry}\n`;
+    if (businessDescription) prompt += `BUSINESS CONTEXT: ${businessDescription}\n`;
+    if (features?.length) prompt += `REQUIRED FEATURES: ${features.join(', ')}\n`;
+    if (colors?.length) prompt += `PREFERRED COLORS: ${colors.join(', ')}\n`;
   }
   
-  if (logicArchitectInsights) {
-    prompt += `\nLOGIC ARCHITECT INSIGHTS:\n${JSON.stringify(logicArchitectInsights, null, 2)}\n`;
-  }
-  
+  // Add other context items if they are not typically part of brainstorming/logic insights
+  // and are still relevant.
   if (collectedAnswers && Object.keys(collectedAnswers).length > 0) {
-    prompt += `\nUSER ANSWERS:\n`;
+    prompt += `\nUSER ANSWERS (For additional context or refinement):\n`;
     Object.entries(collectedAnswers).forEach(([key, value]) => {
       prompt += `${key}: ${value}\n`;
     });
   }
+
+  if (brandAnalysis) {
+    prompt += `\nBRAND ANALYSIS (For styling and tone consideration):\n${JSON.stringify(brandAnalysis, null, 2)}\n`;
+  }
   
+  // conversationHistory, selectedWorkflow, uploadedFiles might be too verbose or handled differently.
+  // Consider if they are essential raw data for the tool creator agent or if insights already distilled them.
+
   if (existingTool && updateType) {
     prompt += `\nUPDATE EXISTING TOOL:\nUpdate Type: ${updateType}\n`;
     prompt += `Current Tool Title: ${existingTool.metadata?.title}\n`;
@@ -622,23 +850,27 @@ export function buildToolCreationUserPrompt(
   
   prompt += `\nGenerate a complete ProductToolDefinition that solves this business need professionally.`;
   
+  // console.log("User Prompt:",prompt); // Keep user-added log if intended
   return prompt;
 }
 
-// Smart prompt selector based on context
-export function getToolCreationSystemPrompt(context?: any): string {
-  if (!context) {
-    return buildToolCreationSystemPrompt();
+// Smart prompt selector based on context (Restoring this function)
+export function getToolCreationSystemPrompt(context?: any): string { // context is promptOptions from core-logic
+  if (!context || Object.keys(context).length === 0) {
+    // If context is null, undefined, or an empty object, build with default PromptOptions
+    return buildToolCreationSystemPrompt({});
   }
 
+  // Assuming context is a valid PromptOptions object or contains the necessary fields
   const options: PromptOptions = {
-    includeComprehensiveColors: context.needsCustomColors || context.industry === 'healthcare' || context.industry === 'finance',
-    includeGorgeousStyling: context.isPremiumTool || context.styleComplexity === 'premium',
-    includeAdvancedLayouts: context.isComplexTool || context.toolComplexity === 'complex',
+    includeComprehensiveColors: context.includeComprehensiveColors ?? (context.needsCustomColors || context.industry === 'healthcare' || context.industry === 'finance'),
+    includeGorgeousStyling: context.includeGorgeousStyling ?? (context.isPremiumTool || context.styleComplexity === 'premium'),
+    includeAdvancedLayouts: context.includeAdvancedLayouts ?? (context.isComplexTool || context.toolComplexity === 'complex'),
     styleComplexity: context.styleComplexity || 'basic',
-    industryFocus: context.industry,
-    toolComplexity: context.toolComplexity || 'moderate'
+    industryFocus: context.industryFocus ?? context.industry, 
+    toolComplexity: context.toolComplexity || 'moderate',
+    componentSet: context.componentSet || 'shadcn' // Ensure componentSet is passed through, default if missing
   };
 
   return buildToolCreationSystemPrompt(options);
-} 
+}

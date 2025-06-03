@@ -328,14 +328,12 @@ export const createToolWithBrainstorming = async (
   setIsGeneratingTool: (generating: boolean) => void,
   setLastAIMessage: (message: string) => void,
   setLatestBrainstormingResult: (result: any) => void,
-  saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any, storageKey: string) => void,
-  setSavedLogicResults: (results: any[]) => void,
-  getSavedLogicResults: (storageKey: string) => any[],
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   logicArchitectModel: string = 'default',
   createToolModel: string = 'default'
 ) => {
-  console.log('🧠 Starting tool creation with brainstorming...');
+  console.log('✨ Starting tool creation with brainstorming...');
+  console.log('🧠 Logic Architect Model:', logicArchitectModel);
   
   try {
     // STEP 0: Start canvas transition and UI updates IMMEDIATELY
@@ -409,17 +407,22 @@ export const createToolWithBrainstorming = async (
                 console.log('🧠 Logic Architect brainstorming complete:', data.data);
                 setLatestBrainstormingResult(data.data);
                 
-                // Save logic result to localStorage
-                saveLogicResult(
-                  context.toolType || 'calculator',
-                  context.targetAudience || 'business professionals',
-                  context.industry,
-                  data.data,
-                  'brainstorming'
-                );
-                
-                // Update saved logic results list
-                setSavedLogicResults(getSavedLogicResults('brainstorming'));
+                // Save logic result to IndexedDB
+                const newBrainstormForDB: SavedLogicResult = {
+                  id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                  timestamp: Date.now(),
+                  date: new Date().toISOString(),
+                  toolType: context.toolType || data.data?.toolType || 'Unknown Tool Type',
+                  targetAudience: context.targetAudience || data.data?.targetAudience || 'General Audience',
+                  industry: context.industry || data.data?.industry,
+                  result: data.data
+                };
+                try {
+                  await saveLogicResultToDB(newBrainstormForDB);
+                  console.log('💾 Brainstorming result saved to IndexedDB:', newBrainstormForDB.id);
+                } catch (dbError) {
+                  console.error('❌ Error saving brainstorming result to IndexedDB:', dbError);
+                }
                 
                 // Update context with brainstorming results
                 context.brainstormingResult = data.data;
@@ -440,15 +443,22 @@ export const createToolWithBrainstorming = async (
         context.brainstormingResult = brainstormingData.result;
         context.logicArchitectInsights = brainstormingData.result;
         
-        // Save logic result
-        saveLogicResult(
-          context.toolType || 'calculator',
-          context.targetAudience || 'business professionals',
-          context.industry,
-          brainstormingData.result,
-          'brainstorming'
-        );
-        setSavedLogicResults(getSavedLogicResults('brainstorming'));
+        // Save logic result to IndexedDB
+        const newBrainstormForDB: SavedLogicResult = {
+          id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+          date: new Date().toISOString(),
+          toolType: context.toolType || brainstormingData.result?.toolType || 'Unknown Tool Type',
+          targetAudience: context.targetAudience || brainstormingData.result?.targetAudience || 'General Audience',
+          industry: context.industry || brainstormingData.result?.industry,
+          result: brainstormingData.result
+        };
+        try {
+          await saveLogicResultToDB(newBrainstormForDB);
+          console.log('💾 Brainstorming result (non-streaming) saved to IndexedDB:', newBrainstormForDB.id);
+        } catch (dbError) {
+          console.error('❌ Error saving brainstorming result (non-streaming) to IndexedDB:', dbError);
+        }
       }
     }
     
@@ -555,7 +565,7 @@ export const processWithAI = async (
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
         console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
-        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, result.response.toolCreationContext.selectedModel);
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, transitionToNewContent, result.response.toolCreationContext.selectedModel);
         return; // Exit early since tool creation handles its own flow
       }
       
@@ -667,7 +677,7 @@ export const handleAIFreeformInput = async (
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
         console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
-        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, result.response.toolCreationContext.selectedModel);
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, transitionToNewContent, result.response.toolCreationContext.selectedModel);
         return; // Exit early since tool creation handles its own flow
       }
       
@@ -721,9 +731,6 @@ export const createToolWithSavedBrainstorm = async (
   setLastAIMessage: (message: string) => void,
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   setProductToolDefinition: (tool: ProductToolDefinition | null) => void,
-  saveCreatedTool: (tool: ProductToolDefinition, storageKey: string) => void,
-  setSavedTools: (tools: any[]) => void,
-  getSavedTools: (storageKey: string) => any[],
   isValidProductToolDefinition: (tool: any) => tool is ProductToolDefinition,
   createToolModel: string = 'default'
 ) => {
@@ -782,15 +789,13 @@ export const createToolWithSavedBrainstorm = async (
         setProductToolDefinition(newTool);
       });
       
-      saveCreatedTool(newTool, 'saved-brainstorm');
-      setSavedTools(getSavedTools('saved-brainstorm'));
-      
-      // 🛡️ Save to IndexedDB with validation
+      // 🛡️ Save to IndexedDB (last active and to list)
       try {
         await saveLastActiveToolToDB(newTool);
-        console.log('🛡️ VALIDATION: Saved brainstorm tool successfully saved to IndexedDB');
+        await saveToolToDBList(newTool); // Ensures it's in the main list
+        console.log('🛡️ VALIDATION: Saved brainstorm tool successfully saved to IndexedDB (active and list):', newTool.id);
       } catch (saveError) {
-        console.error('🛡️ VALIDATION: Failed to save saved brainstorm tool to IndexedDB:', saveError);
+        console.error('🛡️ VALIDATION: Failed to save tool (from saved brainstorm) to IndexedDB:', saveError);
       }
     }
   } catch (error) {
