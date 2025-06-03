@@ -5,12 +5,11 @@
 // Safely renders AI-generated React component code
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 interface DynamicComponentRendererProps {
   componentCode: string;
@@ -108,10 +107,6 @@ export default function DynamicComponentRenderer({
           const useEffect = () => {};
           const useCallback = () => {};
           const useMemo = () => {};
-          const Card = () => null;
-          const CardHeader = () => null;
-          const CardTitle = () => null;
-          const CardContent = () => null;
           const Button = () => null;
           const Input = () => null;
           const Label = () => null;
@@ -157,7 +152,6 @@ export default function DynamicComponentRenderer({
       console.log('🔍 TRACE: Creating component function...');
       const componentFunction = new Function(
         'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
-        'Card', 'CardHeader', 'CardTitle', 'CardContent', 
         'Button', 'Input', 'Label', 
         `
         "use strict";
@@ -202,7 +196,6 @@ export default function DynamicComponentRenderer({
       // Get the component with all required dependencies
       const ComponentImpl = componentFunction(
         React, useState, useEffect, useCallback, useMemo,
-        Card, CardHeader, CardTitle, CardContent, 
         Button, Input, Label
       );
       

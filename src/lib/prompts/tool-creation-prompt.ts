@@ -267,6 +267,63 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - CRITICAL FOR STYLING: For elements that should be dynamically stylable (like text, containers, buttons), add a 'data-style-id' attribute with a unique, descriptive kebab-case string. Example: React.createElement('h1', { className: 'initial-tailwind-classes', 'data-style-id': 'main-title-text' }, 'Tool Title')
     </structure>
     
+    <layout-structure-requirements>
+        🚨 CRITICAL: DO NOT use Card, CardHeader, CardContent, CardTitle components!
+        These use hardcoded ShadCN CSS variables that ignore your colorScheme.
+        
+        <modern-tool-layout-pattern>
+            Use this flexible container structure instead:
+            
+            1. OUTER CONTAINER: max-width wrapper with padding
+               - className: 'max-w-3xl mx-auto p-6' 
+               - data-style-id: 'main-container'
+            
+            2. TOOL BACKGROUND: Main visual container with dynamic styling
+               - Use style={{ backgroundColor: colorScheme.background }} for dynamic backgrounds
+               - Include rounded corners, borders, shadows: 'rounded-xl border shadow-xl overflow-hidden'
+               - data-style-id: 'tool-background'
+            
+            3. HEADER SECTION: Space-efficient header
+               - className: 'px-6 py-4 border-b border-gray-200'
+               - Contains title + info popover (see header-design-requirements)
+            
+            4. CONTENT SECTION: Main tool content
+               - className: 'p-6 space-y-6'
+               - Contains inputs, calculations, results
+        </modern-tool-layout-pattern>
+        
+        <dynamic-background-usage>
+            ✅ CORRECT: Use style attributes for dynamic colors
+            React.createElement('div', {
+              className: 'rounded-xl border shadow-xl overflow-hidden',
+              style: { 
+                backgroundColor: '#f0f9ff',  // Use actual colorScheme.background value
+                borderColor: '#3b82f6'       // Use actual colorScheme.primary value
+              },
+              'data-style-id': 'tool-background'
+            })
+            
+            ❌ WRONG: Hardcoded Tailwind background classes
+            React.createElement('div', {
+              className: 'bg-white rounded-xl border shadow-xl'  // ← Always white!
+            })
+            
+            ❌ WRONG: Using Card components
+            React.createElement(Card, { className: 'shadow-lg' })  // ← Uses bg-card CSS variable
+        </dynamic-background-usage>
+        
+        <result-section-styling>
+            For metric displays and result sections, use inline styles for colored backgrounds:
+            
+            React.createElement('div', {
+              className: 'text-center p-4 rounded-lg',
+              style: { backgroundColor: '#dbeafe' }  // Light blue for metrics
+            })
+            
+            This ensures the backgrounds match your tool's color scheme contextually.
+        </result-section-styling>
+    </layout-structure-requirements>
+    
     <available-context-variables>
         The following are available in the execution context (do NOT import them):
         - React (includes React.createElement)
@@ -274,11 +331,14 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         - useEffect  
         - useCallback
         - useMemo
-        - Card, CardContent, CardHeader, CardTitle
         - Button
         - Input
         - Label
         - Loader2, AlertCircle (for icons)
+        
+        🚨 IMPORTANT: DO NOT use Card, CardContent, CardHeader, CardTitle components!
+        These have hardcoded styling that conflicts with dynamic color schemes.
+        Use flexible div containers instead for full styling control.
     </available-context-variables>
     
     <syntax-requirements>
@@ -424,7 +484,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         // const { useState, useEffect } = React;
         
         // ✅ CORRECT: Access context variables directly
-        // Available in context: React, useState, useEffect, useCallback, Card, CardContent, CardHeader, CardTitle, Button, Input, Label
+        // Available in context: React, useState, useEffect, useCallback, Button, Input, Label
 
         function ROICalculator() {
           // ✅ CORRECT: Use useState directly from context
@@ -443,12 +503,23 @@ export const TOOL_CREATION_PROMPT = `<purpose>
             setTimePeriod(1);
           };
 
-          return React.createElement('div', { className: 'max-w-3xl mx-auto p-6', 'data-style-id': 'background' },
-            React.createElement(Card, { className: 'shadow-lg', style: { borderColor: '#3b82f6' } },
-              // SPACE-EFFICIENT HEADER - Brief title with info popover
-              React.createElement(CardHeader, { className: 'pb-4' },
+          return React.createElement('div', { 
+            className: 'max-w-3xl mx-auto p-6', 
+            'data-style-id': 'main-container' 
+          },
+            // Main tool container with dynamic background
+            React.createElement('div', { 
+              className: 'rounded-xl border shadow-xl overflow-hidden',
+              style: { backgroundColor: '#f0f9ff', borderColor: '#3b82f6' },
+              'data-style-id': 'tool-background'
+            },
+              // HEADER SECTION - Space-efficient with info popover
+              React.createElement('div', { className: 'px-6 py-4 border-b border-gray-200' },
                 React.createElement('div', { className: 'flex items-center gap-2' },
-                  React.createElement(CardTitle, { className: 'text-xl font-semibold', 'data-style-id': 'title' }, 'ROI Calculator'),
+                  React.createElement('h1', { 
+                    className: 'text-xl font-semibold text-gray-900', 
+                    'data-style-id': 'title' 
+                  }, 'ROI Calculator'),
                   React.createElement('div', { className: 'group relative' },
                     React.createElement('div', {
                       className: 'w-4 h-4 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-600 cursor-help hover:bg-gray-300'
@@ -463,39 +534,41 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                   )
                 )
               ),
-              React.createElement(CardContent, { className: 'p-6 space-y-6' },
+              
+              // CONTENT SECTION
+              React.createElement('div', { className: 'p-6 space-y-6' },
                 // Input Section
                 React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
                   React.createElement('div', { className: 'space-y-2' },
-                    React.createElement(Label, { htmlFor: 'initial', className: 'text-sm font-medium' }, 'Initial Investment ($)'),
+                    React.createElement(Label, { htmlFor: 'initial', className: 'text-sm font-medium text-gray-700' }, 'Initial Investment ($)'),
                     React.createElement(Input, {
                       id: 'initial',
                       type: 'number',
                       value: initialInvestment,
                       onChange: (e) => setInitialInvestment(Number(e.target.value)),
-                      placeholder: '10000',
+                      placeholder: 'e.g. 10000',
                       className: 'w-full'
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
-                    React.createElement(Label, { htmlFor: 'final', className: 'text-sm font-medium' }, 'Final Value ($)'),
+                    React.createElement(Label, { htmlFor: 'final', className: 'text-sm font-medium text-gray-700' }, 'Final Value ($)'),
                     React.createElement(Input, {
                       id: 'final',
                       type: 'number',
                       value: finalValue,
                       onChange: (e) => setFinalValue(Number(e.target.value)),
-                      placeholder: '15000',
+                      placeholder: 'e.g. 15000',
                       className: 'w-full'
                     })
                   ),
                   React.createElement('div', { className: 'space-y-2' },
-                    React.createElement(Label, { htmlFor: 'period', className: 'text-sm font-medium' }, 'Time Period (years)'),
+                    React.createElement(Label, { htmlFor: 'period', className: 'text-sm font-medium text-gray-700' }, 'Time Period (years)'),
                     React.createElement(Input, {
                       id: 'period',
                       type: 'number',
                       value: timePeriod,
                       onChange: (e) => setTimePeriod(Number(e.target.value)),
-                      placeholder: '2',
+                      placeholder: 'e.g. 2',
                       className: 'w-full',
                       min: '1'
                     })
@@ -504,23 +577,32 @@ export const TOOL_CREATION_PROMPT = `<purpose>
 
                 // Results Section
                 React.createElement('div', { className: 'border-t pt-6' },
-                  React.createElement('h3', { className: 'text-lg font-semibold mb-4' }, 'Investment Analysis'),
+                  React.createElement('h3', { className: 'text-lg font-semibold mb-4 text-gray-900' }, 'Investment Analysis'),
                   React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-4' },
-                    React.createElement('div', { className: 'text-center p-4 bg-blue-50 rounded-lg' },
+                    React.createElement('div', { 
+                      className: 'text-center p-4 rounded-lg',
+                      style: { backgroundColor: '#dbeafe' }
+                    },
                       React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Total ROI'),
                       React.createElement('p', {
                         className: 'text-2xl font-bold',
                         style: { color: '#3b82f6' }
                       }, roi.toFixed(1) + '%')
                     ),
-                    React.createElement('div', { className: 'text-center p-4 bg-green-50 rounded-lg' },
+                    React.createElement('div', { 
+                      className: 'text-center p-4 rounded-lg',
+                      style: { backgroundColor: '#d1fae5' }
+                    },
                       React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Net Profit'),
                       React.createElement('p', {
                         className: 'text-2xl font-bold',
                         style: { color: '#059669' }
                       }, '$' + totalReturn.toLocaleString())
                     ),
-                    React.createElement('div', { className: 'text-center p-4 bg-purple-50 rounded-lg' },
+                    React.createElement('div', { 
+                      className: 'text-center p-4 rounded-lg',
+                      style: { backgroundColor: '#ede9fe' }
+                    },
                       React.createElement('p', { className: 'text-sm text-gray-600 mb-2' }, 'Annualized ROI'),
                       React.createElement('p', {
                         className: 'text-2xl font-bold',
@@ -531,7 +613,7 @@ export const TOOL_CREATION_PROMPT = `<purpose>
                 ),
 
                 // Action Buttons
-                React.createElement('div', { className: 'flex gap-3' },
+                React.createElement('div', { className: 'flex gap-3 mt-6' },
                   React.createElement(Button, {
                     onClick: handleReset,
                     variant: 'outline',
@@ -550,8 +632,9 @@ export const TOOL_CREATION_PROMPT = `<purpose>
         
         // CORRESPONDING initialStyleMap for this component:
         // {
-        //   "background": "max-w-3xl mx-auto p-6",
-        //   "title": "text-xl font-semibold", 
+        //   "main-container": "max-w-3xl mx-auto p-6",
+        //   "tool-background": "rounded-xl border shadow-xl overflow-hidden",
+        //   "title": "text-xl font-semibold text-gray-900", 
         //   "primary-button": "flex-1 text-white hover:opacity-90"
         // }
     </component-example>
