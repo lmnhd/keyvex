@@ -62,8 +62,10 @@ export interface OptionsMenuProps {
   historyPanelSide: 'left' | 'right';
   savedLogicResults: SavedLogicResult[];
   savedTools: SavedTool[];
-  selectedModel: string;
-  availableModels: Array<{ id: string; name: string }>;
+  communicationModel: string;
+  logicArchitectModel: string;
+  createToolModel: string;
+  availableModels: Array<{ id: string; name: string; provider?: string }>;
   onToggleDarkMode: () => void;
   onToggleMockData: () => void;
   onToggleIteratorTest: () => void;
@@ -78,7 +80,9 @@ export interface OptionsMenuProps {
   onTestColorPicker: () => void;
   onTestComponentValidation: () => void;
   onTestStyleUpdate: () => void;
-  onModelChange: (model: string) => void;
+  onCommunicationModelChange: (model: string) => void;
+  onLogicArchitectModelChange: (model: string) => void;
+  onCreateToolModelChange: (model: string) => void;
 }
 
 export interface MenuSection {

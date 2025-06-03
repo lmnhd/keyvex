@@ -168,6 +168,7 @@ export async function POST(request: NextRequest) {
     const { userIntent, context, existingTool } = validatedData;
     console.log('🔧 TRACE: Validated userIntent:', userIntent);
     console.log('🔧 TRACE: Validated context keys:', Object.keys(context || {}));
+    console.log('🔧 TRACE: Validated selectedModel:', validatedData.selectedModel);
 
     // Track the creation request
     const tracker = getBehaviorTracker();
@@ -175,32 +176,40 @@ export async function POST(request: NextRequest) {
 
     console.log('🔧 TRACE: About to call processToolCreation core logic');
     
-    const toolDefinition = await processToolCreation(
+    const toolCreationResult = await processToolCreation(
       userIntent,
-      context,
+      {
+        ...context,
+        selectedModel: validatedData.selectedModel // Pass selectedModel through context
+      },
       existingTool,
       userId
     );
 
     console.log('🔧 TRACE: processToolCreation returned');
-    console.log('🔧 TRACE: Tool definition ID:', toolDefinition?.id);
-    console.log('🔧 TRACE: Tool definition slug:', toolDefinition?.slug);
-    console.log('🔧 TRACE: Tool definition title:', toolDefinition?.metadata?.title);
+    console.log('🔧 TRACE: Tool definition ID:', toolCreationResult?.tool?.id);
+    console.log('🔧 TRACE: Tool definition slug:', toolCreationResult?.tool?.slug);
+    console.log('🔧 TRACE: Tool definition title:', toolCreationResult?.tool?.metadata?.title);
+    console.log('🔧 TRACE: Validation result:', {
+      isValid: toolCreationResult?.validation?.isValid,
+      issuesCount: toolCreationResult?.validation?.issues?.length || 0,
+      blockersCount: toolCreationResult?.validation?.blockers?.length || 0
+    });
     
     // Check for undefined values in the returned tool
-    if (toolDefinition) {
+    if (toolCreationResult?.tool) {
       const undefinedFields = [];
-      if (!toolDefinition.id || toolDefinition.id.includes('undefined')) {
-        undefinedFields.push('id: ' + toolDefinition.id);
+      if (!toolCreationResult.tool.id || toolCreationResult.tool.id.includes('undefined')) {
+        undefinedFields.push('id: ' + toolCreationResult.tool.id);
       }
-      if (!toolDefinition.slug || toolDefinition.slug.includes('undefined')) {
-        undefinedFields.push('slug: ' + toolDefinition.slug);
+      if (!toolCreationResult.tool.slug || toolCreationResult.tool.slug.includes('undefined')) {
+        undefinedFields.push('slug: ' + toolCreationResult.tool.slug);
       }
-      if (!toolDefinition.metadata?.id || toolDefinition.metadata.id.includes('undefined')) {
-        undefinedFields.push('metadata.id: ' + toolDefinition.metadata?.id);
+      if (!toolCreationResult.tool.metadata?.id || toolCreationResult.tool.metadata.id.includes('undefined')) {
+        undefinedFields.push('metadata.id: ' + toolCreationResult.tool.metadata?.id);
       }
-      if (!toolDefinition.metadata?.slug || toolDefinition.metadata.slug.includes('undefined')) {
-        undefinedFields.push('metadata.slug: ' + toolDefinition.metadata?.slug);
+      if (!toolCreationResult.tool.metadata?.slug || toolCreationResult.tool.metadata.slug.includes('undefined')) {
+        undefinedFields.push('metadata.slug: ' + toolCreationResult.tool.metadata?.slug);
       }
       
       if (undefinedFields.length > 0) {
@@ -211,22 +220,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Track successful creation
-    if (tracker && toolDefinition) {
+    if (tracker && toolCreationResult?.tool) {
       tracker.trackToolGeneration({
-        toolDefinitionId: toolDefinition.id,
-        toolName: toolDefinition.metadata.title,
-        toolType: toolDefinition.metadata.type,
+        toolDefinitionId: toolCreationResult.tool.id,
+        toolName: toolCreationResult.tool.metadata.title,
+        toolType: toolCreationResult.tool.metadata.type,
         context: context,
         success: true,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        validationResults: [{
+          ...toolCreationResult.validation,
+          // Add metadata for Final Polish stage
+          timestamp: Date.now(),
+          attempt: 1, // TODO: Track attempt number for retries
+          sessionPhase: 'initial_creation', // Could be: initial_creation, iteration, final_polish
+          userContext: {
+            selectedModel: validatedData?.selectedModel || 'default',
+            hasExternalBrainstorming: !!(context?.brainstormingResult || context?.logicArchitectInsights),
+            toolComplexity: context?.toolType || 'unknown'
+          }
+        }]
       });
     }
 
-    console.log('🔧 TRACE: Returning successful response');
+    console.log('🔧 TRACE: Returning successful response with validation results');
     return NextResponse.json({
       success: true,
-      tool: toolDefinition,
-      message: `Created ${toolDefinition?.metadata?.title || 'tool'} successfully`
+      tool: toolCreationResult?.tool,
+      validation: toolCreationResult?.validation,
+      message: `Created ${toolCreationResult?.tool?.metadata?.title || 'tool'} successfully`
     });
 
   } catch (error) {
@@ -241,7 +263,8 @@ export async function POST(request: NextRequest) {
         toolType: 'unknown',
         context: {},
         success: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        validationResults: []
       });
     }
 

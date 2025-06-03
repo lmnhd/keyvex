@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { trackValidationIssue } from '@/lib/validation/validation-tracker';
 
 interface DynamicComponentRendererProps {
   componentCode: string;
@@ -17,21 +18,61 @@ interface DynamicComponentRendererProps {
     title: string;
     description: string;
     slug: string;
+    id?: string; // Add optional id for tracking
   };
   currentStyleMap?: Record<string, string>;
   onError?: (error: Error) => void;
+  onValidationIssues?: (issues: Array<{
+    id: string;
+    issue: string;
+    category: string;
+    severity: 'warning' | 'error' | 'info';
+    details?: string;
+    codeSnippet?: string;
+    autoFixable: boolean;
+  }>) => void; // NEW: Callback for validation issues
   isLoading?: boolean;
 }
+
+// NEW: Simple Select component for AI-generated tools
+const Select: React.FC<{
+  className?: string;
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  'data-style-id'?: string;
+  children?: React.ReactNode;
+}> = ({ className, value, onChange, 'data-style-id': dataStyleId, children }) => {
+  return React.createElement('select', {
+    className,
+    value,
+    onChange,
+    'data-style-id': dataStyleId
+  }, children);
+};
 
 export default function DynamicComponentRenderer({
   componentCode,
   metadata,
   currentStyleMap,
   onError,
+  onValidationIssues,
   isLoading = false
 }: DynamicComponentRendererProps) {
   const [renderError, setRenderError] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Helper to track issues with tool metadata
+  const trackIssue = (
+    issue: string,
+    category: 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+    severity: 'warning' | 'error' | 'info' = 'warning',
+    details?: string,
+    codeSnippet?: string,
+    autoFixable: boolean = false
+  ) => {
+    const toolId = metadata.id || metadata.slug || 'unknown';
+    return trackValidationIssue(toolId, metadata.title, issue, category, severity, details, codeSnippet, autoFixable);
+  };
 
   // Safely compile and render the component code
   const compiledComponent = useMemo(() => {
@@ -39,12 +80,37 @@ export default function DynamicComponentRenderer({
     console.log('🔍 TRACE: componentCode length:', componentCode?.length || 0);
     console.log('🔍 TRACE: componentCode preview (first 200 chars):', componentCode?.substring(0, 200) || 'NO CODE');
     
+    // Initialize validation issues collection for this render
+    const validationIssues: Array<{
+      id: string;
+      issue: string;
+      category: string;
+      severity: 'warning' | 'error' | 'info';
+      details?: string;
+      codeSnippet?: string;
+      autoFixable: boolean;
+    }> = [];
+    
     if (!componentCode) return null;
 
     try {
       // Check for basic syntax issues first
       if (!componentCode.trim()) {
         console.warn('⚠️ Component code is empty');
+        const issueId = trackIssue('Component code is empty', 'component-structure', 'error');
+        validationIssues.push({
+          id: issueId,
+          issue: 'Component code is empty',
+          category: 'component-structure',
+          severity: 'error',
+          details: undefined,
+          codeSnippet: undefined,
+          autoFixable: false
+        });
+        
+        // Call validation callback
+        onValidationIssues?.(validationIssues);
+        
         return () => React.createElement('div', { 
           className: 'p-4 border border-yellow-300 rounded bg-yellow-50 text-yellow-700 text-center' 
         }, 'No component code provided');
@@ -53,6 +119,20 @@ export default function DynamicComponentRenderer({
       // Check for null/undefined character sequences that could cause issues
       if (componentCode.includes('\\x00') || componentCode.includes('\\\\x00')) {
         console.warn('⚠️ Component code contains null characters');
+        const issueId = trackIssue('Component code contains null characters', 'syntax', 'error', 'Component appears to be corrupted');
+        validationIssues.push({
+          id: issueId,
+          issue: 'Component code contains null characters',
+          category: 'syntax',
+          severity: 'error',
+          details: 'Component appears to be corrupted',
+          codeSnippet: undefined,
+          autoFixable: false
+        });
+        
+        // Call validation callback
+        onValidationIssues?.(validationIssues);
+        
         return () => React.createElement('div', { 
           className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center' 
         }, 'Component code is corrupted');
@@ -82,6 +162,28 @@ export default function DynamicComponentRenderer({
       
       if (hasProblematicUndefined) {
         console.warn('🔍 TRACE: ⚠️ Problematic undefined patterns found:', foundPatterns);
+        const issueId = trackIssue(
+          'Component contains undefined values in data structures',
+          'undefined-values',
+          'error',
+          `Found patterns: ${foundPatterns.join(', ')}`,
+          foundPatterns.slice(0, 3).join('; '), // First 3 examples
+          false
+        );
+        
+        validationIssues.push({
+          id: issueId,
+          issue: 'Component contains undefined values in data structures',
+          category: 'undefined-values',
+          severity: 'error',
+          details: `Found patterns: ${foundPatterns.join(', ')}`,
+          codeSnippet: foundPatterns.slice(0, 3).join('; '),
+          autoFixable: false
+        });
+        
+        // Call validation callback
+        onValidationIssues?.(validationIssues);
+        
         return () => React.createElement('div', {
           className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
         }, [
@@ -93,7 +195,55 @@ export default function DynamicComponentRenderer({
       
       console.log('🔍 TRACE: ✅ No problematic undefined patterns detected');
 
-      console.log('🔍 TRACE: Proceeding with component compilation');
+      // NEW: Check for missing React keys in arrays
+      console.log('🔍 TRACE: Checking for missing React keys in arrays...');
+      const missingKeysPatterns = [
+        /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement[^\]]*\]/g, // Arrays without keys
+        /\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/g, // createElement without key in array
+      ];
+      
+      let hasMissingKeys = false;
+      const foundMissingKeyPatterns: string[] = [];
+      
+      for (const pattern of missingKeysPatterns) {
+        const matches = componentCode.match(pattern);
+        if (matches) {
+          // Check if the matches actually represent arrays without keys
+          for (const match of matches) {
+            if (match.includes('[') && match.includes('React.createElement') && !match.includes('key:')) {
+              hasMissingKeys = true;
+              foundMissingKeyPatterns.push(match.substring(0, 100) + '...');
+            }
+          }
+        }
+      }
+      
+      if (hasMissingKeys) {
+        console.warn('🔍 TRACE: ⚠️ Missing React keys detected in arrays:', foundMissingKeyPatterns);
+        console.log('🔍 TRACE: ⚠️ Allowing component to render with warning overlay');
+        
+        // Track this as a warning (not blocking)
+        const issueId = trackIssue(
+          'Missing React keys in array elements',
+          'react-keys',
+          'warning',
+          'Arrays containing React elements should have unique key props',
+          foundMissingKeyPatterns.slice(0, 2).join('; '), // First 2 examples
+          true // This is auto-fixable
+        );
+        
+        validationIssues.push({
+          id: issueId,
+          issue: 'Missing React keys in array elements',
+          category: 'react-keys',
+          severity: 'warning',
+          details: 'Arrays containing React elements should have unique key props',
+          codeSnippet: foundMissingKeyPatterns.slice(0, 2).join('; '),
+          autoFixable: true
+        });
+      }
+      
+      console.log('🔍 TRACE: ✅ Proceeding with component compilation');
 
       // TEST JAVASCRIPT EXECUTION FIRST - This is key for catching corrupted tools!
       try {
@@ -110,6 +260,7 @@ export default function DynamicComponentRenderer({
           const Button = () => null;
           const Input = () => null;
           const Label = () => null;
+          const Select = () => null;
           
           try {
             ${componentCode}
@@ -123,6 +274,28 @@ export default function DynamicComponentRenderer({
         
         if (!testResult.success) {
           console.error('🔍 TRACE: ⚠️ JavaScript execution test FAILED:', testResult.error);
+          const issueId = trackIssue(
+            'Component code execution failed',
+            'execution',
+            'error',
+            testResult.error,
+            componentCode.substring(0, 200), // Code snippet
+            false
+          );
+          
+          validationIssues.push({
+            id: issueId,
+            issue: 'Component code execution failed',
+            category: 'execution',
+            severity: 'error',
+            details: testResult.error,
+            codeSnippet: componentCode.substring(0, 200),
+            autoFixable: false
+          });
+          
+          // Call validation callback
+          onValidationIssues?.(validationIssues);
+          
           return () => React.createElement('div', {
             className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
           }, [
@@ -139,6 +312,28 @@ export default function DynamicComponentRenderer({
         console.log('🔍 TRACE: ✅ JavaScript execution test PASSED');
       } catch (executionError) {
         console.error('🔍 TRACE: ⚠️ JavaScript execution test threw error:', executionError);
+        const issueId = trackIssue(
+          'Component execution threw unexpected error',
+          'execution',
+          'error',
+          String(executionError),
+          componentCode.substring(0, 200),
+          false
+        );
+        
+        validationIssues.push({
+          id: issueId,
+          issue: 'Component execution threw unexpected error',
+          category: 'execution',
+          severity: 'error',
+          details: String(executionError),
+          codeSnippet: componentCode.substring(0, 200),
+          autoFixable: false
+        });
+        
+        // Call validation callback
+        onValidationIssues?.(validationIssues);
+        
         return () => React.createElement('div', {
           className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
         }, [
@@ -152,7 +347,7 @@ export default function DynamicComponentRenderer({
       console.log('🔍 TRACE: Creating component function...');
       const componentFunction = new Function(
         'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
-        'Button', 'Input', 'Label', 
+        'Button', 'Input', 'Label', 'Select', 
         `
         "use strict";
         try {
@@ -196,10 +391,16 @@ export default function DynamicComponentRenderer({
       // Get the component with all required dependencies
       const ComponentImpl = componentFunction(
         React, useState, useEffect, useCallback, useMemo,
-        Button, Input, Label
+        Button, Input, Label, Select
       );
       
       console.log('🔍 TRACE: ✅ Component compilation successful');
+      
+      // Call validation callback with any collected issues
+      if (validationIssues.length > 0 || hasMissingKeys) {
+        onValidationIssues?.(validationIssues);
+      }
+      
       return ComponentImpl;
 
     } catch (error) {
@@ -218,7 +419,7 @@ export default function DynamicComponentRenderer({
         ])
       ]);
     }
-  }, [componentCode]);
+  }, [componentCode, onValidationIssues]);
 
   // Effect to apply styles from currentStyleMap
   useEffect(() => {

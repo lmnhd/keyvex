@@ -242,6 +242,55 @@ export const STYLE_GUIDES = {
 };
 
 // ============================================================================
+// CRITICAL PROHIBITIONS - MUST BE FIRST TO PREVENT AI DRIFT
+// ============================================================================
+
+const CRITICAL_PROHIBITIONS = `
+🚨🚨🚨 ABSOLUTE PROHIBITIONS - THESE WILL CAUSE RUNTIME FAILURES 🚨🚨🚨
+
+<critical-prohibitions>
+    ❌ NEVER USE IMPORT OR EXPORT STATEMENTS:
+    - NO "import React from 'react'"
+    - NO "import { useState } from 'react'" 
+    - NO "export default function"
+    - NO "export const"
+    - NO "export function"
+    - ALL dependencies are provided in execution context
+    - ANY import/export will cause immediate validation failure
+    
+    ❌ NEVER USE JSX SYNTAX:
+    - NO <div>, <button>, <input> etc.
+    - NO < > brackets anywhere in component code
+    - ONLY React.createElement() syntax allowed
+    - JSX will cause compilation failure in runtime
+    
+    ❌ NEVER USE FORBIDDEN COMPONENTS:
+    - NO Card, CardHeader, CardContent, CardTitle
+    - These components are not available and will cause ReferenceError
+    - Use regular div elements with appropriate styling instead
+    
+    ❌ NEVER CREATE UNDEFINED VALUES:
+    - NO undefined in object values: {key: undefined}
+    - NO undefined in function parameters: func(undefined, value)
+    - NO undefined in arrays: [value, undefined, value]
+    - Will cause validation errors and component failures
+    
+    🎯 VALIDATION CHECK: Before finalizing your component code, scan it for:
+    1. Any "import" or "export" keywords → REPLACE WITH NOTHING
+    2. Any < > brackets → REPLACE WITH React.createElement()
+    3. Any "undefined" values in data structures → REPLACE WITH PROPER VALUES
+    4. Any Card component usage → REPLACE WITH DIV ELEMENTS
+    5. Missing React keys in arrays → ADD UNIQUE KEYS
+    
+    If ANY of these exist, the tool will FAIL validation and be rejected.
+    
+    🚨 REMEMBER: You are generating code for DYNAMIC EXECUTION without transpilation.
+    Think: "Can this code run directly in a JavaScript engine without any compilation step?"
+    If the answer is NO, then rewrite it using only React.createElement() syntax.
+</critical-prohibitions>
+`;
+
+// ============================================================================
 // CORE PROMPT SECTIONS
 // ============================================================================
 
@@ -249,6 +298,12 @@ const CORE_PROMPT = `<purpose>
     You are a TOOL CREATION SPECIALIST, an expert AI agent focused on generating professional, business-focused interactive tools that capture leads and provide genuine value.
     
     Your mission is to create ProductToolDefinition objects that are practical, professional, and immediately usable by business professionals. Focus on tools that solve real problems and generate qualified leads.
+    
+    🚨🚨🚨 CRITICAL SYNTAX REQUIREMENT 🚨🚨🚨:
+    ⚠️ YOU MUST USE React.createElement() SYNTAX ONLY - NO JSX ALLOWED
+    ⚠️ ANY use of <> brackets will cause RUNTIME FAILURE
+    ⚠️ Only React.createElement() calls are executable in our environment
+    ⚠️ NO IMPORT OR EXPORT STATEMENTS ALLOWED ANYWHERE
 </purpose>
 
 <output-format>
@@ -265,27 +320,176 @@ const CORE_PROMPT = `<purpose>
     - Base the id/slug on the actual tool purpose and type
     - Use kebab-case format for slugs (lowercase with hyphens)
     - Ensure both metadata.id and metadata.slug match the main id and slug fields
+    
+    🚨🚨🚨 SYNTAX REMINDER 🚨🚨🚨:
+    - componentCode MUST use React.createElement() ONLY
+    - NO JSX syntax like <div> or <Button>
+    - NO import or export statements
+    - Every element MUST be React.createElement('div', props, children)
 </output-format>
 
 <component-code-requirements>
     <structure>
         - Generate a complete, working React functional component 
         - Include 'use client'; at the top
-        - DO NOT USE ANY IMPORT STATEMENTS - all dependencies are provided via context
-        - Use React.createElement() syntax instead of JSX
-        - Use React hooks (useState, useEffect) for state management
-        - Function name should be descriptive PascalCase
-        - CRITICAL FOR STYLING: Add 'data-style-id' attributes for dynamic styling
-        - 🚨 DO NOT use Card, CardHeader, CardContent, CardTitle components!
+        - Function name should be descriptive PascalCase (e.g. ROICalculator, BusinessLeadQualifier)
+        - DO NOT USE ANY IMPORT OR EXPORT STATEMENTS - all dependencies are provided via context
+        - CRITICAL FOR STYLING: Add 'data-style-id' attributes for dynamic styling on all styleable elements
     </structure>
+    
+    <react-syntax-requirements>
+        🚨🚨🚨 ABSOLUTE MANDATORY REACT SYNTAX RULES - NO EXCEPTIONS 🚨🚨🚨:
+        
+        ⚠️ CRITICAL: You MUST use React.createElement() syntax ONLY
+        ⚠️ JSX syntax will cause RUNTIME ERRORS and is STRICTLY FORBIDDEN
+        ⚠️ Any use of < > brackets for JSX will result in COMPILATION FAILURE
+        
+        ✅ REQUIRED SYNTAX: React.createElement('div', {className: 'text-lg'}, 'Content')
+        ❌ FORBIDDEN SYNTAX: <div className="text-lg">Content</div>
+        
+        🔥 EXECUTION CONTEXT LIMITATION:
+        - NO JSX transpiler available in runtime
+        - NO Babel transformation available
+        - NO < > syntax allowed anywhere in component code
+        - ONLY React.createElement() calls are executable
+        
+        🚨 MANDATORY EXAMPLES OF CORRECT SYNTAX:
+        
+        // ✅ CORRECT - Simple div with text
+        React.createElement('div', {
+          className: 'p-6 rounded-lg border',
+          style: { backgroundColor: colorScheme.background },
+          'data-style-id': 'main-container'
+        }, 'Text content')
+        
+        // ✅ CORRECT - Nested elements
+        React.createElement('div', { className: 'container' }, [
+          React.createElement('h1', { className: 'title' }, 'Title'),
+          React.createElement('p', { className: 'text' }, 'Paragraph')
+        ])
+        
+        // ✅ CORRECT - Arrays of elements WITH REQUIRED KEYS
+        React.createElement('div', { className: 'list-container' }, [
+          React.createElement('div', { 
+            key: 'item-1', 
+            className: 'list-item' 
+          }, 'First Item'),
+          React.createElement('div', { 
+            key: 'item-2', 
+            className: 'list-item' 
+          }, 'Second Item'),
+          React.createElement('div', { 
+            key: 'item-3', 
+            className: 'list-item' 
+          }, 'Third Item')
+        ])
+        
+        // ✅ CORRECT - Form fields in grid with keys
+        React.createElement('div', { className: 'grid grid-cols-2 gap-4' }, [
+          React.createElement('div', { key: 'field-1' }, [
+            React.createElement(Label, { key: 'label-1' }, 'Field 1'),
+            React.createElement(Input, { key: 'input-1', placeholder: 'Enter value' })
+          ]),
+          React.createElement('div', { key: 'field-2' }, [
+            React.createElement(Label, { key: 'label-2' }, 'Field 2'),
+            React.createElement(Input, { key: 'input-2', placeholder: 'Enter value' })
+          ])
+        ])
+        
+        🚨🚨🚨 CRITICAL REACT KEYS REQUIREMENT 🚨🚨🚨
+        
+        MANDATORY: When creating arrays of React elements, EVERY element in the array MUST have a unique "key" prop:
+        
+        ✅ CORRECT - With keys:
+        [
+          React.createElement('div', { key: 'unique-1', className: 'item' }, 'Item 1'),
+          React.createElement('div', { key: 'unique-2', className: 'item' }, 'Item 2')
+        ]
+        
+        ❌ FORBIDDEN - Without keys (causes React warnings):
+        [
+          React.createElement('div', { className: 'item' }, 'Item 1'),
+          React.createElement('div', { className: 'item' }, 'Item 2')
+        ]
+        
+        🎯 KEYS MUST BE:
+        - Unique within the array
+        - Stable (same key for same logical element)
+        - Descriptive (e.g., 'field-name', 'section-header', 'item-1')
+        
+        📝 COMMON KEY PATTERNS:
+        - Form fields: key: 'field-{fieldname}' or key: 'input-{fieldname}'
+        - Sections: key: 'section-{name}' or key: 'header-{section}'
+        - List items: key: 'item-{index}' or key: 'row-{index}'
+        - Navigation: key: 'nav-{item}' or key: 'link-{page}'
+         
+         // ✅ CORRECT - Component with props
+         React.createElement(Input, {
+           className: 'w-full h-12',
+           placeholder: 'Enter value',
+           value: inputValue,
+           onChange: (e) => setInputValue(e.target.value)
+         })
+         
+         // ✅ CORRECT - Button with click handler
+         React.createElement(Button, {
+           onClick: handleSubmit,
+           className: 'bg-blue-500 text-white px-4 py-2 rounded'
+         }, 'Submit')
+         
+         🚨 EXAMPLES OF FORBIDDEN JSX (DO NOT USE):
+         ❌ <div className="container">Content</div>
+         ❌ <h1>Title</h1>
+         ❌ <Input placeholder="value" />
+         ❌ <Button onClick={handler}>Submit</Button>
+         ❌ ANY use of < and > for elements
+         
+         🎯 REMEMBER: Every single element MUST use React.createElement() syntax
+         🎯 NO EXCEPTIONS - JSX will break the component at runtime
+         🎯 Test your mental model: Can this run without JSX transformation? If no, rewrite it.
+         
+         🚨🚨🚨 FINAL VALIDATION CHECKLIST BEFORE SUBMITTING 🚨🚨🚨:
+         
+         Before you finalize your componentCode, scan it line by line for these FORBIDDEN patterns:
+         
+         ❌ SEARCH FOR: "import " → If found: DELETE the entire line
+         ❌ SEARCH FOR: "export " → If found: DELETE the entire line  
+         ❌ SEARCH FOR: "<" followed by letters → If found: REWRITE using React.createElement()
+         ❌ SEARCH FOR: "Card" components → If found: REPLACE with React.createElement('div', ...)
+         ❌ SEARCH FOR: ", undefined," → If found: REPLACE with proper values
+         
+         ✅ SEARCH FOR: "React.createElement" → This should appear multiple times
+         ✅ SEARCH FOR: "key:" in arrays → All array elements should have keys
+         ✅ SEARCH FOR: "'use client';" → Should be at the very top
+         
+         If your code contains ANY forbidden patterns, it will be REJECTED by validation.
+         Take 30 seconds to scan your code before submitting.
+    </react-syntax-requirements>
     
     <available-context-variables>
         The following are available in the execution context (do NOT import them):
         - React (includes React.createElement)
         - useState, useEffect, useCallback, useMemo
-        - Button, Input, Label
+        - Button, Input, Label, Select
         - Loader2, AlertCircle (for icons)
+        
+        🚨 NOT AVAILABLE: Card, CardHeader, CardContent, CardTitle (removed from execution context)
     </available-context-variables>
+    
+    <data-style-id-requirements>
+        MANDATORY: Add data-style-id attributes to ALL styleable elements for dynamic styling:
+        - Containers: data-style-id="main-container", "input-section", "results-section"
+        - Headers: data-style-id="main-title", "section-title", "tool-header"  
+        - Inputs: data-style-id="input-[fieldname]" (e.g. "input-revenue", "input-costs")
+        - Buttons: data-style-id="submit-button", "reset-button", "export-button"
+        - Results: data-style-id="result-[metric]" (e.g. "result-roi", "result-profit")
+        
+        EXAMPLE with proper data-style-id usage:
+        React.createElement('div', {
+          className: 'max-w-3xl mx-auto p-6',
+          'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
+        }, [...])
+    </data-style-id-requirements>
 </component-code-requirements>`;
 
 // ============================================================================
@@ -312,6 +516,9 @@ export function buildToolCreationSystemPrompt(options: PromptOptions = {}): stri
   } = options;
 
   let prompt = CORE_PROMPT;
+  
+  // Add critical prohibitions immediately after core prompt to prevent AI drift
+  prompt += CRITICAL_PROHIBITIONS;
 
   // Add conditional color guidance
   if (includeComprehensiveColors || styleComplexity === 'premium') {
@@ -347,6 +554,7 @@ export function buildToolCreationSystemPrompt(options: PromptOptions = {}): stri
     <instruction>Use ONLY the allowed component types listed above - no custom types allowed.</instruction>
     <instruction>NEVER use placeholder text like "heading", "button", "label" - all labels must be specific and meaningful.</instruction>
     <instruction>Generate BOTH componentCode (React component string) AND the traditional schema structure.</instruction>
+    <instruction>🚨 FINAL CHECK: Scan your componentCode for import/export statements, JSX syntax, undefined values, and forbidden components before submitting.</instruction>
 </instructions>`;
 
   return prompt;

@@ -6,8 +6,9 @@ import { FrameworkInput, LogicStructure, Question, ResultCategory } from '@/lib/
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateLogicBrainstorming } from '@/lib/prompts/logic-architect-prompt';
+import { PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
 
-// Schema for brainstorming output
+// Schema for brainstorming output with PromptOptions
 const logicBrainstormingSchema = z.object({
   coreWConcept: z.string(),
   keyCalculations: z.array(z.object({
@@ -44,7 +45,16 @@ const logicBrainstormingSchema = z.object({
     dependencies: z.array(z.string()),
     outputFormat: z.string(),
     engagementMoment: z.string().optional()
-  }))
+  })),
+  // NEW: AI-determined prompt options for optimal tool generation
+  promptOptions: z.object({
+    includeComprehensiveColors: z.boolean(),
+    includeGorgeousStyling: z.boolean(),
+    includeAdvancedLayouts: z.boolean(),
+    styleComplexity: z.enum(['basic', 'enhanced', 'premium']),
+    industryFocus: z.string().optional(),
+    toolComplexity: z.enum(['simple', 'moderate', 'complex'])
+  })
 });
 
 // Simplified schemas that match the existing interfaces
@@ -480,8 +490,9 @@ Return a JSON array of formula objects.`;
         model: this.model,
         schema: logicBrainstormingSchema,
         prompt,
-        temperature: 0.9, // Maximum creativity
-        maxRetries: 2
+        temperature: 0.6,
+        maxRetries: 3,
+        maxTokens: 4000,
       });
 
       // POST-PROCESSING: Fix any string arrays that should be actual arrays
@@ -492,6 +503,12 @@ Return a JSON array of formula objects.`;
 
     } catch (error) {
       console.error('❌ Logic brainstorming failed:', error);
+      
+      if (error instanceof Error && error.message.includes('JSON')) {
+        console.log('🔧 JSON parsing failed, providing fallback brainstorming result');
+        return this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
+      }
+      
       throw new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -568,6 +585,34 @@ Return a JSON array of formula objects.`;
       result.calculationLogic = [];
     }
 
+    // 🎯 NEW: Ensure promptOptions has proper defaults if missing or incomplete
+    if (!result.promptOptions || typeof result.promptOptions !== 'object') {
+      console.log('🔧 Adding default promptOptions to brainstorming result');
+      result.promptOptions = {
+        includeComprehensiveColors: false,
+        includeGorgeousStyling: false,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'basic',
+        toolComplexity: 'moderate'
+      };
+    } else {
+      // Fill in any missing promptOptions fields with defaults
+      const defaults = {
+        includeComprehensiveColors: false,
+        includeGorgeousStyling: false,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'basic',
+        toolComplexity: 'moderate'
+      };
+      
+      for (const [key, defaultValue] of Object.entries(defaults)) {
+        if (result.promptOptions[key] === undefined || result.promptOptions[key] === null) {
+          result.promptOptions[key] = defaultValue;
+          console.log(`🔧 Added default value for promptOptions.${key}: ${defaultValue}`);
+        }
+      }
+    }
+
     return result;
   }
 
@@ -597,7 +642,7 @@ Return a JSON array of formula objects.`;
         model: this.model,
         schema: logicBrainstormingSchema,
         prompt,
-        temperature: 0.9, // Maximum creativity
+        temperature: 0.6, // ✅ REDUCED from 0.9 to prevent massive responses
         onError: onError ? (event) => onError(new Error(String(event.error))) : undefined
       });
 
@@ -609,6 +654,93 @@ Return a JSON array of formula objects.`;
       const err = new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       onError?.(err);
     }
+  }
+
+  /**
+   * ✅ NEW: Fallback brainstorming result when JSON parsing fails
+   */
+  private getFallbackBrainstormingResult(toolType: string, targetAudience: string, industry: string): any {
+    console.log('🔧 Generating fallback brainstorming result');
+    
+    return {
+      coreWConcept: `${toolType} for ${targetAudience}`,
+      keyCalculations: [
+        {
+          name: "Primary Calculation",
+          formula: "Input1 * Factor + Input2",
+          description: "Main calculation logic for the tool",
+          variables: ["Input1", "Input2", "Factor"]
+        }
+      ],
+      interactionFlow: [
+        {
+          step: 1,
+          title: "Data Collection",
+          description: "Gather user inputs",
+          userAction: "Enter values",
+          engagementHook: "Discover your results"
+        },
+        {
+          step: 2,
+          title: "Processing",
+          description: "Calculate results",
+          userAction: "Review calculations",
+          engagementHook: "See insights"
+        },
+        {
+          step: 3,
+          title: "Results",
+          description: "Show recommendations",
+          userAction: "Download report",
+          engagementHook: "Get personalized advice"
+        }
+      ],
+      valueProposition: `Professional ${toolType.toLowerCase()} designed for ${targetAudience}`,
+      leadCaptureStrategy: {
+        timing: "After calculation",
+        method: "Email for detailed report",
+        incentive: "Free detailed analysis"
+      },
+      creativeEnhancements: [
+        "Professional reporting",
+        "Comparative analysis",
+        "Industry benchmarks"
+      ],
+      suggestedInputs: [
+        {
+          id: "primary-input",
+          label: "Primary Value",
+          type: "number",
+          required: true,
+          description: "Main input for calculation"
+        },
+        {
+          id: "secondary-input", 
+          label: "Secondary Value",
+          type: "number",
+          required: false,
+          description: "Additional parameter"
+        }
+      ],
+      calculationLogic: [
+        {
+          id: "main-calc",
+          name: "Primary Calculation",
+          formula: "primaryInput * 1.2 + secondaryInput",
+          dependencies: ["primary-input", "secondary-input"],
+          outputFormat: "number",
+          engagementMoment: "Result revelation"
+        }
+      ],
+      promptOptions: {
+        includeComprehensiveColors: industry === 'healthcare' || industry === 'finance',
+        includeGorgeousStyling: false,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'basic' as const,
+        industryFocus: industry,
+        toolComplexity: 'moderate' as const
+      }
+    };
   }
 }
 

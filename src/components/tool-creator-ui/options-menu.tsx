@@ -50,8 +50,10 @@ export interface OptionsMenuProps {
   historyPanelSide: 'left' | 'right';
   savedLogicResults: SavedLogicResult[];
   savedTools: SavedTool[];
-  selectedModel: string;
-  availableModels: Array<{ id: string; name: string }>;
+  communicationModel: string;
+  logicArchitectModel: string;
+  createToolModel: string;
+  availableModels: Array<{ id: string; name: string; provider?: string }>;
   onToggleDarkMode: () => void;
   onToggleMockData: () => void;
   onToggleIteratorTest: () => void;
@@ -66,7 +68,9 @@ export interface OptionsMenuProps {
   onTestColorPicker: () => void;
   onTestComponentValidation: () => void;
   onTestStyleUpdate: () => void;
-  onModelChange: (model: string) => void;
+  onCommunicationModelChange: (model: string) => void;
+  onLogicArchitectModelChange: (model: string) => void;
+  onCreateToolModelChange: (model: string) => void;
 }
 
 export interface MenuSection {
@@ -89,7 +93,9 @@ export function OptionsMenu({
   historyPanelSide,
   savedLogicResults,
   savedTools,
-  selectedModel,
+  communicationModel,
+  logicArchitectModel,
+  createToolModel,
   availableModels,
   onToggleDarkMode,
   onToggleMockData,
@@ -105,7 +111,9 @@ export function OptionsMenu({
   onTestColorPicker,
   onTestComponentValidation,
   onTestStyleUpdate,
-  onModelChange
+  onCommunicationModelChange,
+  onLogicArchitectModelChange,
+  onCreateToolModelChange
 }: OptionsMenuProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['mode-workflow']));
 
@@ -177,6 +185,24 @@ export function OptionsMenu({
       ]
     },
     {
+      id: 'communication-model',
+      title: 'Communication Agent Model',
+      icon: <MessageCircle className="h-4 w-4" />,
+      items: [] // Special section with custom rendering
+    },
+    {
+      id: 'logic-architect-model', 
+      title: 'Logic Architect Agent Model',
+      icon: <Brain className="h-4 w-4" />,
+      items: [] // Special section with custom rendering
+    },
+    {
+      id: 'create-tool-model',
+      title: 'Create Tool Agent Model', 
+      icon: <Zap className="h-4 w-4" />,
+      items: [] // Special section with custom rendering
+    },
+    {
       id: 'test-commands',
       title: 'Test API Commands',
       icon: <MessageSquare className="h-4 w-4" />,
@@ -222,7 +248,7 @@ export function OptionsMenu({
         },
         {
           icon: <Zap className="h-4 w-4" />,
-          label: 'Test Tool Creation Agent (Random 1 of 10)',
+          label: 'Test Tool Creation Agent (Brainstorm + Build)',
           onClick: () => {
             onTestToolCreation();
             onClose();
@@ -277,12 +303,6 @@ export function OptionsMenu({
           }
         }
       ]
-    },
-    {
-      id: 'model-selection',
-      title: 'Model Selection',
-      icon: <Brain className="h-4 w-4" />,
-      items: [] // Special section with custom rendering
     }
   ];
 
@@ -314,30 +334,149 @@ export function OptionsMenu({
             {/* Section Items */}
             {expandedSections.has(section.id) && (
               <div className="pb-2">
-                {/* Special handling for model selection */}
-                {section.id === 'model-selection' ? (
+                {/* Special handling for model selection sections */}
+                {section.id === 'communication-model' ? (
                   <div className="px-8 py-2">
-                    <label htmlFor="model-select" className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Choose Model:
+                    <label htmlFor="communication-model-select" className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Communication Agent (Conversation & Questions):
                     </label>
                     <select
-                      id="model-select"
-                      value={selectedModel}
-                      onChange={(e) => onModelChange(e.target.value)}
+                      id="communication-model-select"
+                      value={communicationModel}
+                      onChange={(e) => onCommunicationModelChange(e.target.value)}
                       className={`w-full p-2 rounded-md border text-sm ${
                         isDarkMode 
                           ? 'bg-gray-700 border-gray-600 text-gray-200' 
                           : 'bg-white border-gray-300 text-gray-700'
                       }`}
                     >
-                      {availableModels.map((model) => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                        </option>
-                      ))}
+                      {/* Group models by provider */}
+                      <optgroup label="OpenAI">
+                        {availableModels
+                          .filter(model => model.provider === 'openai')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        {availableModels
+                          .filter(model => model.provider === 'anthropic')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
                     </select>
                     <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Selected: {availableModels.find(m => m.id === selectedModel)?.name}
+                      Selected: {availableModels.find(m => m.id === communicationModel)?.name}
+                      {availableModels.find(m => m.id === communicationModel)?.provider && (
+                        <span className="ml-1 opacity-70">
+                          ({availableModels.find(m => m.id === communicationModel)?.provider})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                ) : section.id === 'logic-architect-model' ? (
+                  <div className="px-8 py-2">
+                    <label htmlFor="logic-architect-model-select" className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Logic Architect Agent (Brainstorming & Analysis):
+                    </label>
+                    <select
+                      id="logic-architect-model-select"
+                      value={logicArchitectModel}
+                      onChange={(e) => onLogicArchitectModelChange(e.target.value)}
+                      className={`w-full p-2 rounded-md border text-sm ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                          : 'bg-white border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <option value="default">Use Default (from config)</option>
+                      <optgroup label="OpenAI">
+                        {availableModels
+                          .filter(model => model.provider === 'openai')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        {availableModels
+                          .filter(model => model.provider === 'anthropic')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {logicArchitectModel === 'default' ? (
+                        'Using configured default model'
+                      ) : (
+                        <>
+                          Selected: {availableModels.find(m => m.id === logicArchitectModel)?.name}
+                          {availableModels.find(m => m.id === logicArchitectModel)?.provider && (
+                            <span className="ml-1 opacity-70">
+                              ({availableModels.find(m => m.id === logicArchitectModel)?.provider})
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                ) : section.id === 'create-tool-model' ? (
+                  <div className="px-8 py-2">
+                    <label htmlFor="create-tool-model-select" className={`block text-xs font-medium mb-1 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                      Create Tool Agent (Tool Generation):
+                    </label>
+                    <select
+                      id="create-tool-model-select"
+                      value={createToolModel}
+                      onChange={(e) => onCreateToolModelChange(e.target.value)}
+                      className={`w-full p-2 rounded-md border text-sm ${
+                        isDarkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-200' 
+                          : 'bg-white border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <option value="default">Use Default (from config)</option>
+                      <optgroup label="OpenAI">
+                        {availableModels
+                          .filter(model => model.provider === 'openai')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                      <optgroup label="Anthropic">
+                        {availableModels
+                          .filter(model => model.provider === 'anthropic')
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                    <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {createToolModel === 'default' ? (
+                        'Using configured default model'
+                      ) : (
+                        <>
+                          Selected: {availableModels.find(m => m.id === createToolModel)?.name}
+                          {availableModels.find(m => m.id === createToolModel)?.provider && (
+                            <span className="ml-1 opacity-70">
+                              ({availableModels.find(m => m.id === createToolModel)?.provider})
+                            </span>
+                          )}
+                        </>
+                      )}
                     </p>
                   </div>
                 ) : (

@@ -289,7 +289,7 @@
       "description": "Framework and logic structure building",
       "primary": {
         "provider": "openai",
-        "model": "gpt-4",
+        "model": "gpt-4o",
         "reason": "Superior logical reasoning and structured thinking"
       },
       "fallback": {

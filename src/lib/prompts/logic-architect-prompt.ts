@@ -138,9 +138,24 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
           "outputFormat": "string",
           "engagementMoment": "string"
         }
-      ]
+      ],
+      "promptOptions": {
+        "includeComprehensiveColors": true/false,
+        "includeGorgeousStyling": true/false,
+        "includeAdvancedLayouts": true/false,
+        "styleComplexity": "basic|enhanced|premium",
+        "industryFocus": "industry name (optional)",
+        "toolComplexity": "simple|moderate|complex"
+      }
     }
 </required-json-response-format>
+
+<creativity-setting>
+    TEMPERATURE SETTING: HIGH CREATIVITY (CONTROLLED)
+    Fill gaps creatively, suggest bold concepts, and think beyond conventional calculator logic. The goal is to create tools that users actually WANT to complete and share.
+    
+    🚨 CRITICAL: Keep your response CONCISE and STRUCTURED. Focus on quality over quantity.
+</creativity-setting>
 
 <critical-constraints>
     <constraint>The "creativeEnhancements" field MUST be an array of strings, NOT a JSON string representation of an array</constraint>
@@ -150,12 +165,61 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
     <constraint>Focus on tools that take 5-15 minutes to complete</constraint>
     <constraint>Always include clear value exchange for contact information</constraint>
     <constraint>Consider mobile-friendly interaction patterns</constraint>
+    <constraint>🚨 CRITICAL: Keep response length reasonable - aim for 2000-4000 characters total</constraint>
+    <constraint>🚨 CRITICAL: Use concise descriptions and avoid excessive detail in array fields</constraint>
+    <constraint>🚨 CRITICAL: Maximum 3-5 items per array field (keyCalculations, interactionFlow, etc.)</constraint>
 </critical-constraints>
 
-<creativity-setting>
-    TEMPERATURE SETTING: MAXIMUM CREATIVITY
-    Fill gaps creatively, suggest bold concepts, and think beyond conventional calculator logic. The goal is to create tools that users actually WANT to complete and share.
-</creativity-setting>`;
+<prompt-options-determination>
+    <critical-responsibility>
+        You MUST intelligently determine the optimal PromptOptions for tool generation based on your analysis.
+        These options control how comprehensive and sophisticated the tool creation process will be.
+    </critical-responsibility>
+    
+    <analysis-guidelines>
+        <guideline name="includeComprehensiveColors">
+            ✅ TRUE for: Healthcare, Finance, Real Estate, Food/Restaurant, Beauty, Professional Services
+            ✅ TRUE for: Brand-focused tools, industry-specific tools requiring mood-appropriate colors
+            ❌ FALSE for: Generic calculators, simple utility tools, tech-focused tools
+        </guideline>
+        
+        <guideline name="includeGorgeousStyling">  
+            ✅ TRUE for: Premium tools, lead magnets for high-value services, executive/C-suite audiences
+            ✅ TRUE for: Tools with complex calculations, sophisticated business logic, multiple result displays
+            ❌ FALSE for: Quick calculators, simple assessments, basic utility tools
+        </guideline>
+        
+        <guideline name="includeAdvancedLayouts">
+            ✅ TRUE for: Dashboard-style tools, multiple calculation sections, complex result displays
+            ✅ TRUE for: Tools with 6+ inputs, comparative analysis, multi-step workflows
+            ❌ FALSE for: Simple calculators, single-result tools, linear workflows
+        </guideline>
+        
+        <guideline name="styleComplexity">
+            "premium": Executive tools, high-stakes decisions, sophisticated business analysis
+            "enhanced": Professional tools, detailed calculators, multi-faceted results  
+            "basic": Quick calculators, simple assessments, utility tools
+        </guideline>
+        
+        <guideline name="toolComplexity">
+            "complex": Multiple calculation dependencies, conditional logic, advanced formulas
+            "moderate": Standard business calculations, some conditional logic, clear workflow
+            "simple": Single calculation, direct input/output, minimal logic
+        </guideline>
+        
+        <guideline name="industryFocus">
+            Include the specific industry when colors and styling should be contextually appropriate.
+            Examples: "healthcare", "finance", "real-estate", "food-service", "fitness", "tech"
+        </guideline>
+    </analysis-guidelines>
+    
+    <decision-examples>
+        Healthcare ROI Calculator → includeComprehensiveColors: true, styleComplexity: "premium", industryFocus: "healthcare"
+        Simple Tip Calculator → includeComprehensiveColors: false, styleComplexity: "basic", toolComplexity: "simple"
+        Executive Dashboard → includeGorgeousStyling: true, includeAdvancedLayouts: true, styleComplexity: "premium"
+        Quick Lead Qualifier → styleComplexity: "enhanced", toolComplexity: "moderate"
+    </decision-examples>
+</prompt-options-determination>`;
 
 export const generateLogicBrainstorming = (
   toolType: string,

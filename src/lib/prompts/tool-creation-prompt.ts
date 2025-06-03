@@ -52,10 +52,12 @@ Environmental: bg='#f0fdf4', surface='#ecfdf5' (natural green)
 REACT COMPONENT REQUIREMENTS:
 - Use 'use client'; at top
 - Function name: PascalCase (e.g. ROICalculator)
-- NO imports - use React.createElement() syntax only
+- NO imports - use React.createElement() syntax ONLY
 - Available context: React, useState, useEffect, useCallback, useMemo, Button, Input, Label
 - NO Card components (use divs with style={{ backgroundColor: colorScheme.background }})
 - Add data-style-id attributes for dynamic styling
+- REQUIRED: Use React.createElement('div', {className: 'text-lg'}, 'Content') syntax
+- FORBIDDEN: JSX syntax like <div className="text-lg">Content</div> (no transpilation available)
 
 MODERN LAYOUT PATTERN:
 1. Outer container: max-w-3xl mx-auto p-6

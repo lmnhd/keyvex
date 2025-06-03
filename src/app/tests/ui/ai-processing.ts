@@ -70,11 +70,24 @@ export const handleStreamingAIRequest = async (requestBody: any) => {
 export const callToolCreationAgent = async (
   context: any, 
   existingToolDefinition?: ProductToolDefinition,
-  onStateUpdate?: (updater: () => void) => Promise<void>
+  onStateUpdate?: (updater: () => void) => Promise<void>,
+  selectedModel?: string
 ) => {
   console.log('📞 TRACE: callToolCreationAgent START');
   console.log('📞 TRACE: Raw context input:', JSON.stringify(context, null, 2));
   console.log('📞 TRACE: existingToolDefinition:', existingToolDefinition?.id || 'none');
+  console.log('📞 TRACE: selectedModel:', selectedModel || 'not specified');
+  
+  // Enhanced model logging
+  if (selectedModel) {
+    console.log('🚀 Communication Agent Model Selection:');
+    console.log('   🤖 Model Name:', selectedModel);
+    console.log('   🎯 Selection Method: User Selected');
+  } else {
+    console.log('🚀 Communication Agent Model Selection:');
+    console.log('   🤖 Model Name: Default (not specified)');
+    console.log('   🎯 Selection Method: API Default');
+  }
   
   // Use transition for initial message if available
   if (onStateUpdate) {
@@ -104,13 +117,15 @@ export const callToolCreationAgent = async (
         selectedWorkflow: context.selectedWorkflow,
         uploadedFiles: context.uploadedFiles,
         brainstormingResult: context.brainstormingResult || context,
-        logicArchitectInsights: context.logicArchitectInsights || (context.coreWConcept ? context : null)
+        logicArchitectInsights: context.logicArchitectInsights || (context.coreWConcept ? context : null),
+        selectedModel: selectedModel // Pass selected model to context
       }
     };
 
     console.log('📞 TRACE: Built requestBody for API:', JSON.stringify(requestBody, null, 2));
     console.log('📞 TRACE: Context.brainstormingResult:', context.brainstormingResult);
     console.log('📞 TRACE: Context.logicArchitectInsights:', context.logicArchitectInsights);
+    console.log('📞 TRACE: Passing selectedModel to API:', selectedModel);
 
     if (existingToolDefinition) {
       requestBody.existingTool = existingToolDefinition;
@@ -184,7 +199,20 @@ export const callToolCreationAgent = async (
       toolName: newToolDefinition.metadata.title,
       toolType: newToolDefinition.metadata.type,
       context: context, 
-      success: true
+      success: true,
+      validationResults: [{
+        isValid: true, // Assume valid since tool was successfully created
+        issues: [],
+        blockers: [],
+        timestamp: Date.now(),
+        attempt: 1,
+        sessionPhase: 'ai_processing_creation',
+        userContext: {
+          selectedModel: 'ai-processing-default',
+          hasExternalBrainstorming: false,
+          toolComplexity: 'ai-generated'
+        }
+      }]
     });
 
     console.log('📞 TRACE: callToolCreationAgent SUCCESS - returning tool');
@@ -201,7 +229,8 @@ export const callToolCreationAgent = async (
       toolType: existingToolDefinition?.metadata.type || 'unknown',
       context: context,
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error),
+      validationResults: []
     });
 
     throw error;
@@ -302,7 +331,9 @@ export const createToolWithBrainstorming = async (
   saveLogicResult: (toolType: string, targetAudience: string, industry: string | undefined, result: any) => void,
   setSavedLogicResults: (results: any[]) => void,
   getSavedLogicResults: () => any[],
-  transitionToNewContent: (updateFunction: () => void) => Promise<void>
+  transitionToNewContent: (updateFunction: () => void) => Promise<void>,
+  logicArchitectModel: string = 'default',
+  createToolModel: string = 'default'
 ) => {
   console.log('🧠 Starting tool creation with brainstorming...');
   
@@ -334,6 +365,7 @@ export const createToolWithBrainstorming = async (
         targetAudience: context.targetAudience || 'business professionals', 
         industry: context.industry || '',
         businessDescription: context.businessDescription || '',
+        selectedModel: logicArchitectModel !== 'default' ? logicArchitectModel : undefined, // Pass model if not default
         availableData: {
           collectedAnswers: context.collectedAnswers || {},
           features: context.features || [],
@@ -431,7 +463,7 @@ export const createToolWithBrainstorming = async (
       coreWConcept: context.brainstormingResult?.coreWConcept || context.logicArchitectInsights?.coreWConcept
     });
     
-    const tool = await callToolCreationAgent(context, undefined, undefined);
+    const tool = await callToolCreationAgent(context, undefined, undefined, createToolModel);
     
     // Add final completion thought to brainstorming panel
     setBrainstormingThoughts(prev => [...prev, {
@@ -472,7 +504,8 @@ export const processWithAI = async (
   getSavedLogicResults: () => any[], 
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   productToolDefinition?: ProductToolDefinition | null,
-  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void
+  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void,
+  selectedModel?: string
 ) => {
   try {
     setLastAIMessage("Analyzing your responses and generating personalized suggestions...");
@@ -520,7 +553,7 @@ export const processWithAI = async (
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
         console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
-        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, result.response.toolCreationContext.selectedModel);
         return; // Exit early since tool creation handles its own flow
       }
       
@@ -584,7 +617,8 @@ export const handleAIFreeformInput = async (
   getSavedLogicResults: () => any[], 
   transitionToNewContent: (updateFunction: () => void) => Promise<void>,
   productToolDefinition?: ProductToolDefinition | null,
-  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void
+  setProductToolDefinition?: (tool: ProductToolDefinition | null) => void,
+  selectedModel?: string
 ) => {
   try {
     console.log('🔧 handleAIFreeformInput called with input:', input);
@@ -596,7 +630,8 @@ export const handleAIFreeformInput = async (
       conversationHistory: conversationHistory || [],
       collectedAnswers,
       currentStep,
-      productToolDefinition // Pass current tool for context
+      productToolDefinition, // Pass current tool for context
+      selectedModel
     };
     
     console.log('🔧 Sending request to API:', requestBody);
@@ -630,7 +665,7 @@ export const handleAIFreeformInput = async (
       // Check if AI wants to create a tool - use enhanced brainstorming workflow
       if (result.response.toolCreationContext) {
         console.log('🔧 AI requested tool creation, using enhanced brainstorming workflow');
-        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent);
+        const toolResult = await createToolWithBrainstorming(result.response.toolCreationContext, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLastAIMessage, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, result.response.toolCreationContext.selectedModel);
         return; // Exit early since tool creation handles its own flow
       }
       

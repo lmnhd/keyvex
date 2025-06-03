@@ -305,4 +305,101 @@ export default {
   getRecommendedModels,
   getConfigSummary,
   config
-}; 
+};
+
+// Function to get all available models for UI display
+export function getAvailableModelsForUI(): Array<{ id: string; name: string; provider: string }> {
+  try {
+    const providers = config.providers;
+    const availableModels: Array<{ id: string; name: string; provider: string }> = [];
+    
+    // Extract OpenAI models
+    if (providers.openai && providers.openai.models) {
+      Object.entries(providers.openai.models).forEach(([key, model]) => {
+        // Skip deprecated models unless specifically needed
+        if (!('deprecated' in model) || !model.deprecated) {
+          availableModels.push({
+            id: model.id,
+            name: model.name,
+            provider: 'openai'
+          });
+        }
+      });
+    }
+    
+    // Extract Anthropic models
+    if (providers.anthropic && providers.anthropic.models) {
+      Object.entries(providers.anthropic.models).forEach(([key, model]) => {
+        // Skip deprecated models unless specifically needed
+        if (!('deprecated' in model) || !model.deprecated) {
+          availableModels.push({
+            id: model.id,
+            name: model.name,
+            provider: 'anthropic'
+          });
+        }
+      });
+    }
+    
+    // Sort models by provider first, then by name for better organization
+    availableModels.sort((a, b) => {
+      if (a.provider !== b.provider) {
+        // OpenAI first, then Anthropic
+        return a.provider === 'openai' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+    
+    console.log('📋 Available models for UI:', availableModels);
+    return availableModels;
+    
+  } catch (error) {
+    console.error('Error loading available models for UI:', error);
+    // Fallback to basic models if config loading fails
+    return [
+      { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
+      { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', provider: 'anthropic' },
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', provider: 'anthropic' }
+    ];
+  }
+}
+
+// Function to get model provider from model ID
+export function getModelProvider(modelId: string): 'openai' | 'anthropic' | 'unknown' {
+  try {
+    const providers = config.providers;
+    
+    // Check OpenAI models
+    if (providers.openai && providers.openai.models) {
+      for (const model of Object.values(providers.openai.models)) {
+        if (model.id === modelId) {
+          return 'openai';
+        }
+      }
+    }
+    
+    // Check Anthropic models
+    if (providers.anthropic && providers.anthropic.models) {
+      for (const model of Object.values(providers.anthropic.models)) {
+        if (model.id === modelId) {
+          return 'anthropic';
+        }
+      }
+    }
+    
+    // Fallback detection based on common prefixes
+    if (modelId.startsWith('gpt-') || modelId.startsWith('o1') || modelId.startsWith('o3') || modelId.startsWith('o4') || modelId.startsWith('chatgpt-')) {
+      return 'openai';
+    } else if (modelId.startsWith('claude-')) {
+      return 'anthropic';
+    }
+    
+    return 'unknown';
+  } catch (error) {
+    console.error('Error determining model provider:', error);
+    return 'unknown';
+  }
+} 

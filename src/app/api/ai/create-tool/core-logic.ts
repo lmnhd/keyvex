@@ -4,11 +4,12 @@ import { z } from 'zod';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
 import * as babel from '@babel/core';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { getToolCreationSystemPrompt, buildToolCreationUserPrompt } from '@/lib/prompts/tool-creation-prompt-modular';
+import { getToolCreationSystemPrompt, buildToolCreationUserPrompt, PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
+import { trackValidationIssue } from '@/lib/validation/validation-tracker';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -78,6 +79,41 @@ export interface CreateToolStreamingCallbacks {
 export interface CreateToolContext {
   request: CreateToolRequest;
   startTime: number;
+  selectedModel?: string;
+}
+
+// Add validation result interface
+export interface ToolValidationResult {
+  isValid: boolean;
+  issues: Array<{
+    id: string;
+    issue: string;
+    category: string;
+    severity: 'warning' | 'error' | 'info';
+    details?: string;
+    codeSnippet?: string;
+    autoFixable: boolean;
+  }>;
+  blockers: Array<{
+    issue: string;
+    category: string;
+    details?: string;
+  }>;
+  // NEW: Metadata for Final Polish stage tracking
+  timestamp?: number;
+  attempt?: number;
+  sessionPhase?: 'initial_creation' | 'iteration' | 'final_polish' | 'ai_processing_creation';
+  userContext?: {
+    selectedModel?: string;
+    hasExternalBrainstorming?: boolean;
+    toolComplexity?: string;
+  };
+}
+
+// Enhanced return type to include validation
+export interface ToolCreationResult {
+  tool: ProductToolDefinition;
+  validation: ToolValidationResult;
 }
 
 // Helper function to create model instance
@@ -391,23 +427,100 @@ export async function processToolCreation(
   context: any,
   existingTool?: ProductToolDefinition | null,
   userId?: string
-): Promise<ProductToolDefinition> {
+): Promise<ToolCreationResult> {
   console.log('🏭 TRACE: processToolCreation START');
   console.log('🏭 TRACE: userIntent:', userIntent);
   console.log('🏭 TRACE: context received:', JSON.stringify(context, null, 2));
   console.log('🏭 TRACE: existingTool:', existingTool?.id || 'none');
   
+  const validationIssues: ToolValidationResult['issues'] = [];
+  const validationBlockers: ToolValidationResult['blockers'] = [];
+  
+  // Helper function to track issues and collect them for return
+  const trackIssue = (
+    issue: string,
+    category: 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+    severity: 'warning' | 'error' | 'info' = 'warning',
+    details?: string,
+    codeSnippet?: string,
+    autoFixable: boolean = false
+  ) => {
+    const toolId = context.toolId || 'creating';
+    const toolTitle = context.toolTitle || 'New Tool';
+    
+    // Track in global system
+    const issueId = trackValidationIssue(toolId, toolTitle, issue, category, severity, details, codeSnippet, autoFixable);
+    
+    // Also collect for immediate return
+    validationIssues.push({
+      id: issueId,
+      issue,
+      category,
+      severity,
+      details,
+      codeSnippet,
+      autoFixable
+    });
+    
+    // Track blockers separately (errors that prevent tool completion)
+    if (severity === 'error') {
+      validationBlockers.push({
+        issue,
+        category,
+        details
+      });
+    }
+    
+    return issueId;
+  };
+  
   try {
-    // Get model configuration
-    const modelConfig = getPrimaryModel('toolCreation');
-    const model = modelConfig ? createModelInstance(modelConfig.provider, modelConfig.modelInfo.id) : openai('gpt-4o');
+    // Get AI model configuration - UPDATED: Use selectedModel from context or fallback to configured model
+    const selectedModel = context.selectedModel; // Get from context instead of validatedData
+    let modelConfig;
+    let actualModelId = 'gpt-4o'; // Default fallback
+    let actualModelName = 'unknown';
     
-    console.log('🏭 TRACE: Using model:', modelConfig?.modelInfo?.id || 'gpt-4o');
+    if (selectedModel) {
+      // Use the user-selected model
+      console.log('🤖 TRACE: Using user-selected model:', selectedModel);
+      const detectedProvider = getModelProvider(selectedModel);
+      
+      if (detectedProvider !== 'unknown') {
+        modelConfig = { provider: detectedProvider, modelId: selectedModel };
+        actualModelId = selectedModel;
+        actualModelName = selectedModel; // For user-selected, the ID is the name
+        console.log('🤖 TRACE: Detected provider:', detectedProvider, 'for model:', selectedModel);
+      } else {
+        console.warn('🤖 TRACE: Could not detect provider for model:', selectedModel, 'using fallback');
+        modelConfig = getFallbackModel('toolCreation');
+        if (modelConfig && 'modelInfo' in modelConfig) {
+          actualModelId = modelConfig.modelInfo.id;
+          actualModelName = modelConfig.modelInfo.id;
+        }
+      }
+    } else {
+      // Use the configured primary model
+      console.log('🤖 TRACE: Using default configured model');
+      modelConfig = getPrimaryModel('toolCreation');
+      
+      if (modelConfig && 'modelInfo' in modelConfig) {
+        actualModelId = modelConfig.modelInfo.id;
+        actualModelName = modelConfig.modelInfo.id;
+        console.log('🤖 TRACE: Default model info:', modelConfig.modelInfo);
+      } else {
+        console.warn('🤖 TRACE: No model info available, using fallback');
+        actualModelId = 'gpt-4o';
+        actualModelName = 'gpt-4o';
+        modelConfig = { provider: 'openai', modelId: 'gpt-4o' }; // Ensure modelConfig is not null
+      }
+    }
     
-    // FORCE gpt-4o for debugging
-    const debugModel = openai('gpt-4o');
-    console.log('🏭 TRACE: ⚠️ FORCING gpt-4o for debugging purposes');
-
+    console.log('🚀 Create Tool Agent Model Selection:');
+    console.log('   📡 Provider:', modelConfig?.provider);
+    console.log('   🤖 Model Name:', actualModelName);
+    console.log('   🎯 Selection Method:', selectedModel ? 'User Selected' : 'Default Config');
+    
     // Load external brainstorming context if available
     let brainstormingContext = null;
     if (context.brainstormingResult || context.logicArchitectInsights) {
@@ -442,26 +555,51 @@ export async function processToolCreation(
     // Get the system prompt with context-aware selection
     console.log('🏭 TRACE: Building context-aware system prompt...');
     
-    // Analyze context to determine prompt complexity needs
-    const promptContext = {
-      industry: context.industry,
-      toolType: context.toolType,
-      needsCustomColors: context.colors && context.colors.length > 0,
-      isPremiumTool: context.features && context.features.includes('premium'),
-      isComplexTool: context.features && (context.features.includes('charts') || context.features.includes('dashboard')),
-      styleComplexity: context.styleComplexity || (context.features?.includes('charts') ? 'premium' : 'basic'),
-      toolComplexity: context.toolType?.includes('Calculator') ? 'complex' : 'moderate'
-    };
+    // Use PromptOptions from logic architect if available, otherwise analyze context manually
+    let promptOptions: PromptOptions;
     
-    const systemPrompt = getToolCreationSystemPrompt(promptContext);
-    console.log('🏭 TRACE: Context-aware prompt built');
-    console.log('🏭 TRACE: Prompt context:', promptContext);
+    if (brainstormingContext && brainstormingContext.promptOptions) {
+      console.log('🏭 TRACE: Using PromptOptions from logic architect brainstorming');
+      promptOptions = brainstormingContext.promptOptions;
+    } else {
+      console.log('🏭 TRACE: No logic architect PromptOptions available, analyzing context manually');
+      // Fallback: Analyze context to determine prompt complexity needs manually
+      promptOptions = {
+        includeComprehensiveColors: context.needsCustomColors || context.industry === 'healthcare' || context.industry === 'finance',
+        includeGorgeousStyling: context.isPremiumTool || context.styleComplexity === 'premium',
+        includeAdvancedLayouts: context.isComplexTool || context.toolComplexity === 'complex',
+        styleComplexity: context.styleComplexity || (context.features?.includes('charts') ? 'premium' : 'basic'),
+        industryFocus: context.industry,
+        toolComplexity: context.toolType?.includes('Calculator') ? 'complex' : 'moderate'
+      };
+    }
+    
+    const systemPrompt = getToolCreationSystemPrompt(promptOptions);
+    console.log('🏭 TRACE: System prompt built with options:', promptOptions);
     console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
 
     // Generate tool definition using AI
     console.log('🏭 TRACE: Calling AI model...');
+    console.log('🚀 🚀 🚀 ABOUT TO CALL AI MODEL:', actualModelId, '🚀 🚀 🚀');
+    
+    // Create the actual model instance
+    let modelInstance;
+    if (modelConfig && 'modelInfo' in modelConfig && modelConfig.modelInfo) {
+      // Use configured model from getPrimaryModel
+      modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelInfo.id);
+      console.log('🚀 USING CONFIGURED MODEL:', modelConfig.modelInfo.id, 'via provider:', modelConfig.provider);
+    } else if (modelConfig && 'modelId' in modelConfig && modelConfig.modelId) {
+      // Use user-selected model  
+      modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+      console.log('🚀 USING USER-SELECTED MODEL:', modelConfig.modelId, 'via provider:', modelConfig.provider);
+    } else {
+      // Fallback to default
+      modelInstance = openai('gpt-4o');
+      console.log('🚀 USING FALLBACK MODEL: gpt-4o');
+    }
+    
     const result = await generateObject({
-      model: debugModel,
+      model: modelInstance,
       schema: productToolDefinitionSchema,
       prompt: userPrompt,
       system: systemPrompt,
@@ -564,17 +702,22 @@ export async function processToolCreation(
       console.log('🏭 TRACE: ✅ Final tool definition is clean - no undefined values');
     }
 
-    // 🛡️ COMPREHENSIVE TOOL VALIDATION - Prevent saving bad tools
+    // 🛡️ COMPREHENSIVE TOOL VALIDATION - Prevent saving bad tools AND collect issues for UI
     console.log('🛡️ VALIDATION: Running comprehensive tool validation...');
-    
-    const validationErrors: string[] = [];
     
     // 1. Check for Card component usage (will cause ReferenceError since removed from renderer)
     if (toolDefinition.componentCode.includes('Card') || 
         toolDefinition.componentCode.includes('CardHeader') ||
         toolDefinition.componentCode.includes('CardContent') ||
         toolDefinition.componentCode.includes('CardTitle')) {
-      validationErrors.push('Tool uses forbidden Card components that are no longer available in execution context');
+      trackIssue(
+        'Tool uses forbidden Card components',
+        'component-structure',
+        'error',
+        'Card components are no longer available in execution context and will cause runtime errors',
+        'Card, CardHeader, CardContent, CardTitle',
+        false
+      );
     }
     
     // 2. Test JavaScript execution safety (same as DynamicComponentRenderer)
@@ -601,30 +744,109 @@ export async function processToolCreation(
       
       const testResult = testFunction();
       if (!testResult.success) {
-        validationErrors.push(`Component code execution failed: ${testResult.error}`);
+        trackIssue(
+          'Component code execution failed',
+          'execution',
+          'error',
+          `JavaScript execution test failed: ${testResult.error}`,
+          toolDefinition.componentCode.substring(0, 200),
+          false
+        );
       } else {
         console.log('🛡️ VALIDATION: ✅ JavaScript execution test passed');
       }
     } catch (error) {
-      validationErrors.push(`Component code validation failed: ${error instanceof Error ? error.message : String(error)}`);
+      trackIssue(
+        'Component code validation failed',
+        'execution',
+        'error',
+        `Validation threw error: ${error instanceof Error ? error.message : String(error)}`,
+        toolDefinition.componentCode.substring(0, 200),
+        false
+      );
     }
     
-    // 3. Check for React component function pattern
-    const functionPattern = /function\s+\w+\s*\([^)]*\)\s*\{/;
-    if (!functionPattern.test(toolDefinition.componentCode)) {
-      validationErrors.push('Component code does not contain a valid React component function declaration');
+    // 3. Check for React component function pattern - ENHANCED: More robust detection
+    const functionPatterns = [
+      /function\s+\w+\s*\([^)]*\)\s*\{/,           // Traditional function declaration
+      /const\s+\w+\s*=\s*\([^)]*\)\s*=>\s*\{/,    // Arrow function with const
+      /const\s+\w+\s*=\s*function\s*\([^)]*\)\s*\{/, // Function expression with const
+    ];
+    
+    let hasValidFunction = false;
+    let foundFunctionName = '';
+    
+    for (const pattern of functionPatterns) {
+      const match = toolDefinition.componentCode.match(pattern);
+      if (match) {
+        hasValidFunction = true;
+        foundFunctionName = match[0];
+        break;
+      }
     }
     
-    // 4. Check for required React patterns
-    if (!toolDefinition.componentCode.includes('React.createElement')) {
-      validationErrors.push('Component code does not use React.createElement (required pattern)');
+    // DEBUG: Log component code details for troubleshooting
+    console.log('🛡️ VALIDATION: Component code preview (first 500 chars):', toolDefinition.componentCode.substring(0, 500));
+    console.log('🛡️ VALIDATION: Function pattern search result:', { hasValidFunction, foundFunctionName });
+    
+    if (!hasValidFunction) {
+      // ENHANCED: Try more flexible pattern detection
+      const flexiblePattern = /function\s+\w+|const\s+\w+\s*=/;
+      const flexibleMatch = toolDefinition.componentCode.match(flexiblePattern);
+      
+      if (flexibleMatch) {
+        console.log('🛡️ VALIDATION: Found function-like pattern with flexible search:', flexibleMatch[0]);
+        hasValidFunction = true;
+      } else {
+        console.error('🛡️ VALIDATION: No function declarations found. Component code sample:');
+        console.error(toolDefinition.componentCode.substring(0, 1000));
+        trackIssue(
+          'Component code does not contain a valid React component function declaration',
+          'component-structure',
+          'error',
+          'No function declarations found in component code',
+          toolDefinition.componentCode.substring(0, 300),
+          false
+        );
+      }
+    } else {
+      console.log('🛡️ VALIDATION: ✅ Found valid React component function:', foundFunctionName.substring(0, 50) + '...');
     }
     
+    // 4. Check for required React patterns - REVERTED: React.createElement() ONLY
+    console.log('🛡️ VALIDATION: Checking for React.createElement requirement...');
+    const hasReactCreateElement = toolDefinition.componentCode.includes('React.createElement');
+    console.log('🛡️ VALIDATION: React.createElement check result:', hasReactCreateElement);
+    
+    if (!hasReactCreateElement) {
+      console.error('🛡️ VALIDATION: ❌ CRITICAL - Component does NOT contain React.createElement!');
+      console.error('🛡️ VALIDATION: Component code sample (first 1000 chars):');
+      console.error(toolDefinition.componentCode.substring(0, 1000));
+      trackIssue(
+        'Component code does not use React.createElement (required pattern)',
+        'component-structure',
+        'error',
+        'All components must use React.createElement syntax instead of JSX',
+        toolDefinition.componentCode.substring(0, 500),
+        false
+      );
+    } else {
+      console.log('🛡️ VALIDATION: ✅ Component properly uses React.createElement syntax');
+    }
+    
+    // 5. Check for React state hooks (required for interactive tools)
     if (!toolDefinition.componentCode.includes('useState')) {
-      validationErrors.push('Component code does not contain React state hooks (required for interactive tools)');
+      trackIssue(
+        'Component code does not contain React state hooks',
+        'component-structure',
+        'warning',
+        'Interactive tools should include useState for user interactions',
+        'useState not found',
+        false
+      );
     }
     
-    // 5. Check for problematic undefined patterns
+    // 6. Check for problematic undefined patterns
     const problematicPatterns = [
       /,\s*undefined\s*,/g,     // undefined in arrays/function calls
       /,\s*undefined\s*\)/g,    // undefined as last parameter
@@ -634,40 +856,120 @@ export async function processToolCreation(
     ];
     
     for (const pattern of problematicPatterns) {
-      if (pattern.test(toolDefinition.componentCode)) {
-        validationErrors.push('Component code contains problematic undefined patterns that cause runtime errors');
+      const matches = toolDefinition.componentCode.match(pattern);
+      if (matches) {
+        trackIssue(
+          'Component code contains problematic undefined patterns',
+          'undefined-values',
+          'error',
+          'Undefined values in data structures cause runtime errors',
+          matches.slice(0, 3).join('; '),
+          false
+        );
         break;
       }
     }
     
-    // 6. Validate required data-style-id attributes - RELAXED: Not all tools need dynamic styling
-    if (!toolDefinition.componentCode.includes('data-style-id')) {
-      console.log('🛡️ VALIDATION: ⚠️ Component missing data-style-id attributes (dynamic styling disabled)');
-      // This is a warning, not an error - tools can function without dynamic styling
+    // 7. Check for missing React keys - CHANGED: Warning only, not blocking
+    const missingKeysPatterns = [
+      /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement[^\]]*\]/g,
+      /\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/g,
+    ];
+    
+    let hasMissingKeys = false;
+    const foundMissingKeyPatterns: string[] = [];
+    
+    for (const pattern of missingKeysPatterns) {
+      const matches = toolDefinition.componentCode.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          if (match.includes('[') && match.includes('React.createElement') && !match.includes('key:')) {
+            hasMissingKeys = true;
+            foundMissingKeyPatterns.push(match.substring(0, 100) + '...');
+          }
+        }
+      }
+      if (hasMissingKeys) break;
     }
     
-    // 7. Validate initialStyleMap completeness - RELAXED: Allow empty style maps
+    if (hasMissingKeys) {
+      console.warn('🛡️ VALIDATION: ⚠️ Component has arrays without React keys (may cause console warnings)');
+      trackIssue(
+        'Missing React keys in array elements',
+        'react-keys',
+        'warning',
+        'Arrays containing React elements should have unique key props',
+        foundMissingKeyPatterns.slice(0, 2).join('; '),
+        true // This is auto-fixable
+      );
+    }
+    
+    // 8. Validate required data-style-id attributes - RELAXED: Not all tools need dynamic styling
+    if (!toolDefinition.componentCode.includes('data-style-id')) {
+      console.log('🛡️ VALIDATION: ⚠️ Component missing data-style-id attributes (dynamic styling disabled)');
+      trackIssue(
+        'Component missing data-style-id attributes',
+        'style-mapping',
+        'info',
+        'Dynamic styling will be disabled for this component',
+        'data-style-id not found',
+        true
+      );
+    }
+    
+    // 9. Validate initialStyleMap completeness - RELAXED: Allow empty style maps
     // Note: initialStyleMap can be empty for simple tools that don't require custom styling
     if (toolDefinition.initialStyleMap === null || toolDefinition.initialStyleMap === undefined) {
       console.log('🛡️ VALIDATION: ⚠️ initialStyleMap is null/undefined, setting to empty object');
       toolDefinition.initialStyleMap = {};
     }
     
-    // 8. Check for common syntax errors that cause crashes
+    // 10. Check for common syntax errors that cause crashes
     if (toolDefinition.componentCode.includes('import ') || toolDefinition.componentCode.includes('export ')) {
-      validationErrors.push('Component code contains import/export statements (forbidden in dynamic execution)');
+      trackIssue(
+        'Component code contains import/export statements',
+        'syntax',
+        'error',
+        'Import/export statements are forbidden in dynamic execution',
+        'import/export detected',
+        false
+      );
     }
     
-    // If validation failed, throw error to prevent saving bad tool
-    if (validationErrors.length > 0) {
-      console.error('🛡️ VALIDATION: ❌ Tool validation FAILED:', validationErrors);
-      throw new Error(`Tool validation failed: ${validationErrors.join('; ')}`);
+    // Determine if validation passes
+    const hasBlockingErrors = validationBlockers.length > 0;
+    
+    // If validation failed with blocking errors, throw error to prevent saving bad tool
+    if (hasBlockingErrors) {
+      console.error('🛡️ VALIDATION: ❌ Tool validation FAILED with blocking errors:', validationBlockers);
+      throw new Error(`Tool validation failed with ${validationBlockers.length} blocking error(s): ${validationBlockers.map(b => b.issue).join('; ')}`);
     }
     
     console.log('🛡️ VALIDATION: ✅ Tool validation PASSED - safe to save');
+    if (validationIssues.length > 0) {
+      console.log('🛡️ VALIDATION: ⚠️ Found', validationIssues.length, 'non-blocking issues');
+    }
 
-    console.log('🏭 TRACE: processToolCreation SUCCESS - returning clean tool definition');
-    return toolDefinition;
+    const validationResult: ToolValidationResult = {
+      isValid: !hasBlockingErrors,
+      issues: validationIssues,
+      blockers: validationBlockers,
+      // NEW: Metadata for Final Polish stage tracking
+      timestamp: Date.now(),
+      attempt: 1,
+      sessionPhase: 'initial_creation',
+      userContext: {
+        selectedModel: selectedModel,
+        hasExternalBrainstorming: !!brainstormingContext,
+        toolComplexity: context.toolComplexity || 'unknown'
+      }
+    };
+
+    console.log('🏭 TRACE: processToolCreation SUCCESS - returning tool with validation results');
+    return {
+      tool: toolDefinition,
+      validation: validationResult
+    };
 
   } catch (error) {
     console.error('🏭 TRACE: processToolCreation ERROR:', error);
@@ -677,4 +979,175 @@ export async function processToolCreation(
     
     throw new Error(`Tool creation failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+// NEW: Utility functions for Final Polish stage analysis
+export interface FinalPolishAnalysis {
+  needsPolish: boolean;
+  persistentIssues: Array<{
+    category: string;
+    issue: string;
+    frequency: number;
+    autoFixable: boolean;
+  }>;
+  qualityTrend: 'improving' | 'stagnant' | 'degrading';
+  recommendedActions: string[];
+  polishPriority: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Analyze validation results across multiple attempts to determine Final Polish needs
+ */
+export function analyzeFinalPolishNeeds(
+  validationResults: ToolValidationResult[]
+): FinalPolishAnalysis {
+  if (validationResults.length === 0) {
+    return {
+      needsPolish: false,
+      persistentIssues: [],
+      qualityTrend: 'improving',
+      recommendedActions: ['No validation data available'],
+      polishPriority: 'low'
+    };
+  }
+
+  const latestResult = validationResults[validationResults.length - 1];
+  
+  // Identify persistent issues across attempts
+  const issueFrequency = new Map<string, {
+    category: string;
+    issue: string;
+    count: number;
+    autoFixable: boolean;
+  }>();
+  
+  validationResults.forEach(result => {
+    result.issues.forEach(issue => {
+      const key = `${issue.category}:${issue.issue}`;
+      const existing = issueFrequency.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        issueFrequency.set(key, {
+          category: issue.category,
+          issue: issue.issue,
+          count: 1,
+          autoFixable: issue.autoFixable
+        });
+      }
+    });
+  });
+  
+  const persistentIssues = Array.from(issueFrequency.values())
+    .filter(item => item.count > validationResults.length * 0.5) // Appears in >50% of attempts
+    .map(item => ({
+      category: item.category,
+      issue: item.issue,
+      frequency: item.count / validationResults.length,
+      autoFixable: item.autoFixable
+    }));
+  
+  // Analyze quality trend
+  let qualityTrend: 'improving' | 'stagnant' | 'degrading' = 'stagnant';
+  if (validationResults.length > 1) {
+    const firstTotal = validationResults[0].issues.length + validationResults[0].blockers.length;
+    const lastTotal = latestResult.issues.length + latestResult.blockers.length;
+    
+    if (lastTotal < firstTotal) qualityTrend = 'improving';
+    else if (lastTotal > firstTotal) qualityTrend = 'degrading';
+  }
+  
+  // Generate recommendations
+  const recommendedActions: string[] = [];
+  const autoFixableIssues = persistentIssues.filter(i => i.autoFixable);
+  const criticalIssues = latestResult.blockers.length;
+  
+  if (autoFixableIssues.length > 0) {
+    recommendedActions.push(`Auto-fix ${autoFixableIssues.length} persistent issues: ${autoFixableIssues.map(i => i.category).join(', ')}`);
+  }
+  
+  if (criticalIssues > 0) {
+    recommendedActions.push(`Resolve ${criticalIssues} blocking errors before completion`);
+  }
+  
+  if (persistentIssues.some(i => i.category === 'style-mapping')) {
+    recommendedActions.push('Enhance dynamic styling support');
+  }
+  
+  if (persistentIssues.some(i => i.category === 'react-keys')) {
+    recommendedActions.push('Add missing React keys to array elements');
+  }
+  
+  // Determine polish priority
+  let polishPriority: 'low' | 'medium' | 'high' = 'low';
+  if (criticalIssues > 0 || persistentIssues.length > 3) polishPriority = 'high';
+  else if (persistentIssues.length > 1 || qualityTrend === 'degrading') polishPriority = 'medium';
+  
+  return {
+    needsPolish: persistentIssues.length > 0 || criticalIssues > 0,
+    persistentIssues,
+    qualityTrend,
+    recommendedActions,
+    polishPriority
+  };
+}
+
+/**
+ * Extract validation summary for behavior tracking aggregation
+ */
+export function summarizeValidationResults(
+  validationResults: ToolValidationResult[]
+): {
+  totalAttempts: number;
+  finalQuality: 'excellent' | 'good' | 'needs_work' | 'poor';
+  improvementRate: number;
+  commonIssueCategories: string[];
+} {
+  if (validationResults.length === 0) {
+    return {
+      totalAttempts: 0,
+      finalQuality: 'poor',
+      improvementRate: 0,
+      commonIssueCategories: []
+    };
+  }
+  
+  const latestResult = validationResults[validationResults.length - 1];
+  const totalIssues = latestResult.issues.length + latestResult.blockers.length;
+  
+  // Determine final quality
+  let finalQuality: 'excellent' | 'good' | 'needs_work' | 'poor';
+  if (latestResult.blockers.length > 0) finalQuality = 'poor';
+  else if (totalIssues === 0) finalQuality = 'excellent';
+  else if (totalIssues <= 2) finalQuality = 'good';
+  else finalQuality = 'needs_work';
+  
+  // Calculate improvement rate
+  let improvementRate = 0;
+  if (validationResults.length > 1) {
+    const firstTotal = validationResults[0].issues.length + validationResults[0].blockers.length;
+    const lastTotal = totalIssues;
+    improvementRate = firstTotal > 0 ? Math.max(0, (firstTotal - lastTotal) / firstTotal) : 0;
+  }
+  
+  // Find common issue categories
+  const categoryFrequency = new Map<string, number>();
+  validationResults.forEach(result => {
+    [...result.issues, ...result.blockers].forEach(issue => {
+      const category = issue.category;
+      categoryFrequency.set(category, (categoryFrequency.get(category) || 0) + 1);
+    });
+  });
+  
+  const commonIssueCategories = Array.from(categoryFrequency.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([category]) => category);
+  
+  return {
+    totalAttempts: validationResults.length,
+    finalQuality,
+    improvementRate,
+    commonIssueCategories
+  };
 } 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MultiQuestionIterator } from '@/components/tool-creator/multi-question-iterator';
+import { MultiQuestionIterator } from '@/components/tool-creator-ui/multi-question-iterator';
 import { Button } from '@/components/ui/button'; // Assuming Button is in ui
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Assuming Card components
 

@@ -15,6 +15,15 @@ interface CanvasToolProps {
   productToolDefinition?: ProductToolDefinition | null;
   isGenerating?: boolean;
   generatingMessage?: string;
+  onValidationIssues?: (issues: Array<{
+    id: string;
+    issue: string;
+    category: string;
+    severity: 'warning' | 'error' | 'info';
+    details?: string;
+    codeSnippet?: string;
+    autoFixable: boolean;
+  }>) => void;
 }
 
 export function CanvasTool({ 
@@ -22,7 +31,8 @@ export function CanvasTool({
   className = '', 
   productToolDefinition, 
   isGenerating, 
-  generatingMessage 
+  generatingMessage, 
+  onValidationIssues 
 }: CanvasToolProps) {
   if (isGenerating && generatingMessage) {
     return (
@@ -36,9 +46,12 @@ export function CanvasTool({
                 metadata={{
                   title: productToolDefinition.metadata.title,
                   description: productToolDefinition.metadata.description,
-                  slug: productToolDefinition.slug
+                  slug: productToolDefinition.metadata.slug,
+                  id: productToolDefinition.id
                 }}
                 currentStyleMap={productToolDefinition.currentStyleMap}
+                onValidationIssues={onValidationIssues}
+                isLoading={isGenerating}
                 onError={(error: Error) => console.error('Canvas render error:', error)}
               />
             </div>
@@ -69,9 +82,12 @@ export function CanvasTool({
           metadata={{
             title: productToolDefinition.metadata.title,
             description: productToolDefinition.metadata.description,
-            slug: productToolDefinition.slug
+            slug: productToolDefinition.metadata.slug,
+            id: productToolDefinition.id
           }}
           currentStyleMap={productToolDefinition.currentStyleMap}
+          onValidationIssues={onValidationIssues}
+          isLoading={isGenerating}
           onError={(error: Error) => console.error('Canvas render error:', error)}
         />
       </div>

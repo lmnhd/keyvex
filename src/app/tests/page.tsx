@@ -63,6 +63,14 @@ const TEST_PAGES = [
     status: 'active'
   },
   {
+    title: 'Validation Dashboard',
+    description: 'Track and manage AI-generated component validation issues (now in Admin → Validation tab)',
+    path: '/admin',
+    icon: TestTube,
+    category: 'Admin',
+    status: 'active'
+  },
+  {
     title: 'Model Configuration',
     description: 'Test AI model configurations and provider settings',
     path: '/tests/model-config',

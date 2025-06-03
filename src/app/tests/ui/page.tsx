@@ -1291,7 +1291,9 @@ export default function TestUIPage() {
                   historyPanelSide={historyPanelSide}
                   savedLogicResults={savedLogicResults}
                   savedTools={savedTools}
-                  selectedModel={'gpt-4o'} // Default model
+                  communicationModel={'gpt-4o'} // Default model for communication
+                  logicArchitectModel={'gpt-4o'} // Default model for logic architect
+                  createToolModel={'gpt-4o'} // Default model for tool creation
                   availableModels={[
                     { id: 'gpt-4o', name: 'GPT-4o' },
                     { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
@@ -1438,8 +1440,16 @@ export default function TestUIPage() {
                     }
                     handleAIFreeformInput('make the main title text larger and more prominent', conversationHistory, collectedAnswers, currentStep, setLastAIMessage, handleAIGeneratedQuestion, setShowBrainstormingPanel, setIsBrainstorming, setBrainstormingThoughts, setIsGeneratingTool, setLatestBrainstormingResult, saveLogicResult, setSavedLogicResults, getSavedLogicResults, transitionToNewContent, productToolDefinition, setProductToolDefinition);
                   }}
-                  onModelChange={(model: string) => {
-                    console.log('Model changed to:', model);
+                  onCommunicationModelChange={(model: string) => {
+                    console.log('Communication model changed to:', model);
+                    // Could implement actual model switching here
+                  }}
+                  onLogicArchitectModelChange={(model: string) => {
+                    console.log('Logic Architect model changed to:', model);
+                    // Could implement actual model switching here
+                  }}
+                  onCreateToolModelChange={(model: string) => {
+                    console.log('Create Tool model changed to:', model);
                     // Could implement actual model switching here
                   }}
                 />

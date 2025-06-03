@@ -1,6 +1,8 @@
 // User Behavior Learning System
 // Tracks interactions, analyzes patterns, and builds user profiles for better AI responses
 
+import { ToolValidationResult } from "@/app/api/ai/create-tool/core-logic";
+
 export interface UserInteraction {
   id: string;
   userId: string;
@@ -258,7 +260,16 @@ export class UserBehaviorTracker {
   }
   
   /**
-   * NEW: Track the result of a tool generation attempt
+   * Track the result of a tool generation attempt
+   * 
+   * NEW: Enhanced for Final Polish stage - collects validation results across
+   * multiple attempts to identify persistent issues and quality trends.
+   * 
+   * The validationResults array enables:
+   * - Session-level validation tracking across retries
+   * - Progressive improvement analysis 
+   * - Persistent issue identification for Final Polish
+   * - Quality trend analysis for AI model improvement
    */
   trackToolGeneration(params: {
     toolDefinitionId: string;
@@ -269,6 +280,7 @@ export class UserBehaviorTracker {
     error?: string; // Error message if not successful
     componentCode?: string; // Optional: the generated code if successful
     duration?: number; // Optional: time taken for generation
+    validationResults: ToolValidationResult[] // Array supports multiple attempts per session
   }): void {
     this.trackInteraction({
       interactionType: 'tool_generation_result',

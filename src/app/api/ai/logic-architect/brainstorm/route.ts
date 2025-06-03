@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 
 // Request schema for brainstorming
 const brainstormRequestSchema = z.object({
@@ -10,6 +11,7 @@ const brainstormRequestSchema = z.object({
   targetAudience: z.string(),
   industry: z.string().optional(),
   businessContext: z.string().optional(),
+  selectedModel: z.string().optional(),
   availableData: z.object({
     collectedAnswers: z.record(z.string()).optional(),
     features: z.array(z.string()).optional(),
@@ -29,6 +31,7 @@ export async function POST(request: NextRequest) {
       targetAudience, 
       industry, 
       businessContext, 
+      selectedModel, 
       availableData 
     } = validatedRequest;
 
@@ -39,7 +42,47 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const logicArchitect = new LogicArchitectAgent('anthropic');
+          // Determine provider from selectedModel or use default
+          let provider: 'openai' | 'anthropic' = 'anthropic';
+          let actualModelName = 'unknown';
+          
+          if (selectedModel && selectedModel !== 'default') {
+            // User selected a specific model
+            if (selectedModel.startsWith('gpt-') || selectedModel.startsWith('o1') || selectedModel.startsWith('chatgpt-')) {
+              provider = 'openai';
+              actualModelName = selectedModel;
+            } else if (selectedModel.startsWith('claude-')) {
+              provider = 'anthropic';
+              actualModelName = selectedModel;
+            }
+          } else {
+            // Use default configured model
+            try {
+              const primaryModel = getPrimaryModel('logicArchitect');
+              if (primaryModel && 'modelInfo' in primaryModel) {
+                provider = primaryModel.provider as 'openai' | 'anthropic';
+                actualModelName = primaryModel.modelInfo.id;
+              } else {
+                // Fallback case
+                const fallbackModel = getFallbackModel('logicArchitect');
+                if (fallbackModel && 'modelInfo' in fallbackModel) {
+                  provider = fallbackModel.provider as 'openai' | 'anthropic';
+                  actualModelName = fallbackModel.modelInfo.id;
+                }
+              }
+            } catch (error) {
+              console.warn('⚠️ Could not resolve default model, using anthropic fallback');
+              provider = 'anthropic';
+              actualModelName = 'claude-3-5-sonnet-20240620'; // Safe fallback
+            }
+          }
+          
+          console.log('🚀 Logic Architect Model Selection:');
+          console.log('   📡 Provider:', provider);
+          console.log('   🤖 Model Name:', actualModelName);
+          console.log('   🎯 Selection Method:', selectedModel && selectedModel !== 'default' ? 'User Selected' : 'Default Config');
+          
+          const logicArchitect = new LogicArchitectAgent(provider);
           
           // Send progressive thinking thoughts instead of character-by-character
           const thoughts = [
