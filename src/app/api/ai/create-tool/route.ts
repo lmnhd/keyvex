@@ -7,11 +7,7 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { getPrimaryModel, getFallbackModel, getProcessConfig, getProviders } from '@/lib/ai/models/model-config';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { 
-  TOOL_CREATION_PROMPT, 
-  buildCompleteSystemPrompt,
-  buildToolCreationUserPrompt
-} from '@/lib/prompts/tool-creation-prompt';
+
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
 import { processToolCreation } from './core-logic';
 import { requireAuth } from '@/lib/auth/debug';

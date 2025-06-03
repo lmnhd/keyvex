@@ -8,7 +8,7 @@ import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config'
 import { aiOrchestrator, ToolCreationRequest, StreamingCallbacks } from '@/lib/ai/orchestrator';
 import * as babel from '@babel/core';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { buildToolCreationUserPrompt, TOOL_CREATION_PROMPT } from '@/lib/prompts/tool-creation-prompt';
+import { getToolCreationSystemPrompt, buildToolCreationUserPrompt } from '@/lib/prompts/tool-creation-prompt-modular';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -90,13 +90,6 @@ function createModelInstance(provider: string, modelId: string) {
     default:
       return openai('gpt-4o');
   }
-}
-
-// Helper function to get system prompt
-function getToolCreationSystemPrompt(): string {
-  console.log('🏭 TRACE: TOOL_CREATION_PROMPT length:', TOOL_CREATION_PROMPT.length);
-  console.log('🏭 TRACE: TOOL_CREATION_PROMPT first 1000 chars:', TOOL_CREATION_PROMPT.substring(0, 1000));
-  return TOOL_CREATION_PROMPT;
 }
 
 // ProductToolDefinition schema for structured output
@@ -446,10 +439,24 @@ export async function processToolCreation(
     console.log('🏭 TRACE: User prompt built, length:', userPrompt.length);
     console.log('🏭 TRACE: User prompt preview (first 500 chars):', userPrompt.substring(0, 500));
 
-    // Get the system prompt
-    const systemPrompt = getToolCreationSystemPrompt();
+    // Get the system prompt with context-aware selection
+    console.log('🏭 TRACE: Building context-aware system prompt...');
+    
+    // Analyze context to determine prompt complexity needs
+    const promptContext = {
+      industry: context.industry,
+      toolType: context.toolType,
+      needsCustomColors: context.colors && context.colors.length > 0,
+      isPremiumTool: context.features && context.features.includes('premium'),
+      isComplexTool: context.features && (context.features.includes('charts') || context.features.includes('dashboard')),
+      styleComplexity: context.styleComplexity || (context.features?.includes('charts') ? 'premium' : 'basic'),
+      toolComplexity: context.toolType?.includes('Calculator') ? 'complex' : 'moderate'
+    };
+    
+    const systemPrompt = getToolCreationSystemPrompt(promptContext);
+    console.log('🏭 TRACE: Context-aware prompt built');
+    console.log('🏭 TRACE: Prompt context:', promptContext);
     console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
-    console.log('🏭 TRACE: System prompt preview (first 500 chars):', systemPrompt.substring(0, 500));
 
     // Generate tool definition using AI
     console.log('🏭 TRACE: Calling AI model...');
