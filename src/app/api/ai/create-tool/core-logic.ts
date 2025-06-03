@@ -1811,4 +1811,141 @@ export async function fixToolWithAI(
       newIssues: 0
     }
   };
+}
+
+/**
+ * VALIDATION WITH ITERATOR INTEGRATION
+ * Validates a tool and attempts AI corrections if validation fails
+ * This integrates the iterator system with the main validation flow
+ */
+export async function validateToolWithIterator(
+  tool: ProductToolDefinition,
+  userIntent: string,
+  context: {
+    selectedModel?: string;
+    hasExternalBrainstorming?: boolean;
+    toolComplexity?: string;
+  } = {}
+): Promise<{
+  tool: ProductToolDefinition;
+  validation: ToolValidationResult;
+}> {
+  console.log('🛡️ VALIDATION WITH ITERATOR: Starting validation with auto-correction...');
+  
+  // Use the extracted validation function
+  let currentTool = tool;
+  let validationResult = performFullValidation(currentTool, {
+    toolId: currentTool.id,
+    toolTitle: currentTool.metadata.title,
+    attemptNumber: 1,
+    sessionPhase: 'initial_creation',
+    selectedModel: context.selectedModel,
+    hasExternalBrainstorming: context.hasExternalBrainstorming,
+    toolComplexity: context.toolComplexity || 'unknown'
+  });
+
+  // 🔧 ITERATOR SYSTEM: If validation fails with blocking errors, try to fix with AI
+  if (!validationResult.isValid) {
+    console.log('🔧 ITERATOR: Initial validation failed - attempting AI corrections...');
+    console.log(`🔧 ITERATOR: ${validationResult.blockers.length} blocking errors to resolve`);
+    
+    // Convert validation result issues to ValidationIssue format for fixer
+    const validationIssuesForFixer: ValidationIssue[] = validationResult.issues.map(issue => ({
+      id: issue.id,
+      toolId: currentTool.id,
+      toolTitle: currentTool.metadata.title,
+      severity: issue.severity,
+      category: issue.category as 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+      issue: issue.issue,
+      details: issue.details,
+      codeSnippet: issue.codeSnippet,
+      timestamp: Date.now(),
+      resolved: false,
+      autoFixable: issue.autoFixable
+    }));
+
+    // Configure iterator behavior 
+    const iteratorConfig: Partial<ToolFixerConfig> = {
+      maxAttempts: 3, // Configurable max attempts
+      temperature: 0.3, // Lower temperature for more focused corrections
+      enableLogging: true,
+      // Optional: Use different model for fixing if needed
+      // modelOverride: 'gpt-4o-mini' // Could use cheaper model for fixes
+    };
+
+    try {
+      // Attempt to fix the tool using AI iterator
+      const fixResult = await fixToolWithAI(
+        currentTool,
+        validationIssuesForFixer,
+        userIntent, // Pass original user intent for context
+        iteratorConfig
+      );
+
+      if (fixResult.success && fixResult.fixedTool) {
+        console.log('🔧 ITERATOR: ✅ Tool successfully fixed by AI!');
+        console.log(`🔧 ITERATOR: Fixed in ${fixResult.attempts} attempts`);
+        console.log(`🔧 ITERATOR: ${fixResult.improvements?.issuesFixed || 0} issues fixed, ${fixResult.improvements?.blockersResolved || 0} blockers resolved`);
+        
+        // Use the fixed tool and its validation result
+        currentTool = fixResult.fixedTool;
+        validationResult = fixResult.validation!;
+        
+        // Update validation metadata to reflect iteration success
+        validationResult.sessionPhase = 'iteration';
+        validationResult.attempt = fixResult.attempts;
+        
+      } else {
+        // Iterator failed - log details but continue with original tool
+        console.error('🔧 ITERATOR: ❌ Tool fixing failed after maximum attempts');
+        console.error(`🔧 ITERATOR: Error: ${fixResult.error}`);
+        console.error(`🔧 ITERATOR: Attempts: ${fixResult.attempts}`);
+        
+        if (fixResult.improvements) {
+          console.log(`🔧 ITERATOR: Partial improvements: ${fixResult.improvements.issuesFixed} issues fixed, ${fixResult.improvements.blockersResolved} blockers resolved`);
+        }
+        
+        // Use the best partial result if available, otherwise original
+        if (fixResult.fixedTool && fixResult.validation) {
+          console.log('🔧 ITERATOR: Using best partial fix result');
+          currentTool = fixResult.fixedTool;
+          validationResult = fixResult.validation;
+          validationResult.sessionPhase = 'iteration';
+          validationResult.attempt = fixResult.attempts;
+        }
+        
+        // If we still have blocking errors, throw error to prevent saving bad tool
+        if (validationResult.blockers.length > 0) {
+          console.error('🛡️ VALIDATION: ❌ Tool validation FAILED even after AI correction attempts');
+          throw new Error(`Tool validation failed after ${fixResult.attempts} correction attempts. ${validationResult.blockers.length} blocking error(s) remain: ${validationResult.blockers.map(b => b.issue).join('; ')}`);
+        }
+      }
+      
+    } catch (iteratorError) {
+      console.error('🔧 ITERATOR: Iterator system error:', iteratorError);
+      
+      // If iterator system itself fails, fall back to original validation behavior
+      if (validationResult.blockers.length > 0) {
+        console.error('🛡️ VALIDATION: ❌ Tool validation FAILED and iterator system failed');
+        throw new Error(`Tool validation failed with ${validationResult.blockers.length} blocking error(s) and iterator system error: ${iteratorError instanceof Error ? iteratorError.message : String(iteratorError)}`);
+      }
+    }
+  }
+  
+  // Final validation check - ensure we have a valid tool
+  if (!validationResult.isValid) {
+    console.error('🛡️ VALIDATION: ❌ Tool validation still invalid after all attempts');
+    throw new Error(`Tool validation failed with ${validationResult.blockers.length} blocking error(s): ${validationResult.blockers.map(b => b.issue).join('; ')}`);
+  }
+  
+  // Success! Tool is valid (either initially or after AI fixes)
+  console.log('🛡️ VALIDATION: ✅ Tool validation PASSED - safe to save');
+  if (validationResult.issues.length > 0) {
+    console.log('🛡️ VALIDATION: ⚠️ Found', validationResult.issues.length, 'non-blocking issues');
+  }
+  
+  return {
+    tool: currentTool, // Use currentTool (may be original or fixed version)
+    validation: validationResult
+  };
 } 
