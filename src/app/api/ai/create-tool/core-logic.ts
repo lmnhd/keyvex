@@ -434,10 +434,10 @@ export async function processToolCreation(
   existingTool?: ProductToolDefinition | null,
   userId?: string
 ): Promise<ToolCreationResult> {
-  console.log('🏭 TRACE: processToolCreation START');
-  console.log('🏭 TRACE: userIntent:', userIntent);
-  console.log('🏭 TRACE: context received:', JSON.stringify(context, null, 2));
-  console.log('🏭 TRACE: existingTool:', existingTool?.id || 'none');
+  console.log('🏭 TRACE [processToolCreation]: processToolCreation START');
+  console.log('🏭 TRACE [processToolCreation]: userIntent:', userIntent);
+  console.log('🏭 TRACE [processToolCreation]: context received:', JSON.stringify(context, null, 2));
+  console.log('🏭 TRACE [processToolCreation]: existingTool:', existingTool?.id || 'none');
   
   const validationIssues: ToolValidationResult['issues'] = [];
   const validationBlockers: ToolValidationResult['blockers'] = [];
@@ -489,16 +489,16 @@ export async function processToolCreation(
     
     if (selectedModel) {
       // Use the user-selected model
-      console.log('🤖 TRACE: Using user-selected model:', selectedModel);
+      console.log('🤖 TRACE [processToolCreation]: Using user-selected model:', selectedModel);
       const detectedProvider = getModelProvider(selectedModel);
       
       if (detectedProvider !== 'unknown') {
         modelConfig = { provider: detectedProvider, modelId: selectedModel };
         actualModelId = selectedModel;
         actualModelName = selectedModel; // For user-selected, the ID is the name
-        console.log('🤖 TRACE: Detected provider:', detectedProvider, 'for model:', selectedModel);
+        console.log('🤖 TRACE [processToolCreation]: Detected provider:', detectedProvider, 'for model:', selectedModel);
       } else {
-        console.warn('🤖 TRACE: Could not detect provider for model:', selectedModel, 'using fallback');
+        console.warn('🤖 TRACE [processToolCreation]: Could not detect provider for model:', selectedModel, 'using fallback');
         modelConfig = getFallbackModel('toolCreation');
         if (modelConfig && 'modelInfo' in modelConfig) {
           actualModelId = modelConfig.modelInfo.id;
@@ -507,15 +507,15 @@ export async function processToolCreation(
       }
     } else {
       // Use the configured primary model
-      console.log('🤖 TRACE: Using default configured model');
+      console.log('🤖 TRACE [processToolCreation]: Using default configured model');
       modelConfig = getPrimaryModel('toolCreation');
       
       if (modelConfig && 'modelInfo' in modelConfig) {
         actualModelId = modelConfig.modelInfo.id;
         actualModelName = modelConfig.modelInfo.id;
-        console.log('🤖 TRACE: Default model info:', modelConfig.modelInfo);
+        console.log('🤖 TRACE [processToolCreation]: Default model info:', modelConfig.modelInfo);
       } else {
-        console.warn('🤖 TRACE: No model info available, using fallback');
+        console.warn('🤖 TRACE [processToolCreation]: No model info available, using fallback');
         actualModelId = 'gpt-4o';
         actualModelName = 'gpt-4o';
         modelConfig = { provider: 'openai', modelId: 'gpt-4o' }; // Ensure modelConfig is not null
@@ -531,19 +531,19 @@ export async function processToolCreation(
     let brainstormingContext = null;
     if (context.brainstormingResult || context.logicArchitectInsights) {
       brainstormingContext = context.brainstormingResult || context.logicArchitectInsights;
-      console.log('🏭 TRACE: ✅ External brainstorming loaded:', JSON.stringify(brainstormingContext, null, 2));
+      console.log('🏭 TRACE [processToolCreation]: ✅ External brainstorming loaded:', JSON.stringify(brainstormingContext, null, 2));
     } else {
-      console.log('🏭 TRACE: ⚠️ No external brainstorming context available');
+      console.log('🏭 TRACE [processToolCreation]: ⚠️ No external brainstorming context available');
     }
 
     // Determine if this is an update or new creation
     const isUpdate = !!existingTool;
     const updateType = context.updateType || 'general';
     
-    console.log('🏭 TRACE: isUpdate:', isUpdate, 'updateType:', updateType);
+    console.log('🏭 TRACE [processToolCreation]: isUpdate:', isUpdate, 'updateType:', updateType);
 
     // Build the user prompt with all available context
-    console.log('🏭 TRACE: Building user prompt...');
+    console.log('🏭 TRACE [processToolCreation]: Building user prompt...');
     const userPrompt = buildToolCreationUserPrompt(
       userIntent,
       {
@@ -555,21 +555,21 @@ export async function processToolCreation(
       updateType
     );
     
-    console.log('🏭 TRACE: User prompt built, length:', userPrompt.length);
-    console.log('🏭 TRACE: User prompt preview (first 500 chars):', userPrompt.substring(0, 5500));
+    console.log('🏭 TRACE [processToolCreation]: User prompt built, length:', userPrompt.length);
+    console.log('🏭 TRACE [processToolCreation]: User prompt preview (first 500 chars):', userPrompt.substring(0, 5500));
 
     // Use PromptOptions from logic architect if available, otherwise analyze context manually
     let promptOptions: PromptOptions;
     let currentComponentSet: 'shadcn' | 'legacy' = 'shadcn'; // Default to shadcn
     
     if (brainstormingContext && brainstormingContext.promptOptions) {
-      console.log('🏭 TRACE: Using PromptOptions from logic architect brainstorming');
+      console.log('🏭 TRACE [processToolCreation]: Using PromptOptions from logic architect brainstorming');
       promptOptions = brainstormingContext.promptOptions;
       if (brainstormingContext.promptOptions.componentSet) {
         currentComponentSet = brainstormingContext.promptOptions.componentSet;
       }
     } else {
-      console.log('🏭 TRACE: No logic architect PromptOptions available, analyzing context manually');
+      console.log('🏭 TRACE [processToolCreation]: No logic architect PromptOptions available, analyzing context manually');
       // 🎨 ENHANCED: Default to premium styling for better-looking tools
       // Previous logic was too conservative, resulting in basic-looking tools
       promptOptions = {
@@ -591,11 +591,11 @@ export async function processToolCreation(
     }
 
     const systemPrompt = getToolCreationSystemPrompt(promptOptions);
-    console.log('🏭 TRACE: System prompt built with options:', promptOptions);
-    console.log('🏭 TRACE: System prompt length:', systemPrompt.length);
+    console.log('🏭 TRACE [processToolCreation]: System prompt built with options:', promptOptions);
+    console.log('🏭 TRACE [processToolCreation]: System prompt length:', systemPrompt.length);
 
     // Generate tool definition using AI
-    console.log('🏭 TRACE: Calling AI model...');
+    console.log('🏭 TRACE [processToolCreation]: Calling AI model...');
     console.log('🚀 🚀 🚀 ABOUT TO CALL AI MODEL:', actualModelId, '🚀 🚀 🚀');
     
     // Create the actual model instance
@@ -628,7 +628,7 @@ export async function processToolCreation(
       parsedToolDefinition = result.object;
     } catch (error: any) {
       // ENHANCED: Handle both model failures AND schema validation failures
-      console.warn(`🏭 TRACE: AI call failed: ${error.message}.`);
+      console.warn(`🏭 TRACE [processToolCreation]: AI call failed: ${error.message}.`);
       
       // Check if this is a schema validation error that could be fixed by iterator
       if (error.message.includes('response did not match schema') || error.message.includes('Type validation failed')) {
@@ -722,10 +722,10 @@ export async function processToolCreation(
         }
       } else {
         // For non-schema errors, try fallback model
-        console.warn(`🏭 TRACE: Trying fallback model for non-schema error.`);
+        console.warn(`🏭 TRACE [processToolCreation]: Trying fallback model for non-schema error.`);
         const fallbackModelConfig = getFallbackModel('toolCreation');
         if (!fallbackModelConfig) {
-          console.error("🏭 TRACE: CRITICAL - No fallback model configured for 'toolCreation'. Using hardcoded default.");
+          console.error("🏭 TRACE [processToolCreation]: CRITICAL - No fallback model configured for 'toolCreation'. Using hardcoded default.");
           modelInstance = createModelInstance('openai', 'gpt-4o');
         } else {
           modelInstance = createModelInstance(fallbackModelConfig.provider, fallbackModelConfig.model);
@@ -740,22 +740,22 @@ export async function processToolCreation(
       }
     }
 
-    console.log("🏭 TRACE: Raw AI response object keys:", Object.keys(parsedToolDefinition));
-    console.log("🏭 TRACE: AI response ID:", parsedToolDefinition.id);
-    console.log("🏭 TRACE: AI response slug:", parsedToolDefinition.slug);
-    console.log("🏭 TRACE: AI response metadata.title:", parsedToolDefinition.metadata?.title);
+    console.log("🏭 TRACE [processToolCreation]: Raw AI response object keys:", Object.keys(parsedToolDefinition));
+    console.log("🏭 TRACE [processToolCreation]: AI response ID:", parsedToolDefinition.id);
+    console.log("🏭 TRACE [processToolCreation]: AI response slug:", parsedToolDefinition.slug);
+    console.log("🏭 TRACE [processToolCreation]: AI response metadata.title:", parsedToolDefinition.metadata?.title);
 
     // Ensure 'use client'; directive is present at the top of componentCode
     let rawComponentCode = parsedToolDefinition.componentCode;
     if (rawComponentCode) {
       const trimmedCode = rawComponentCode.trimStart();
       if (!trimmedCode.startsWith("'use client'") && !trimmedCode.startsWith('"use client"')) {
-        console.log("🏭 TRACE: Prepending 'use client'; to componentCode.");
+        console.log("🏭 TRACE [processToolCreation]: Prepending 'use client'; to componentCode.");
         rawComponentCode = "'use client';\n" + rawComponentCode; // Prepend and ensure it's on its own line
       }
     } else {
       // Handle case where componentCode might be null or undefined, though schema should prevent this
-      console.warn("🏭 TRACE: AI returned empty or missing componentCode.");
+      console.warn("🏭 TRACE [processToolCreation]: AI returned empty or missing componentCode.");
       rawComponentCode = "'use client';\nfunction ErrorComponent() { return React.createElement('div', null, 'Error: Component code was not generated.'); }"; // Default fallback
     }
     // Note: rawComponentCode is now the potentially modified code.
@@ -776,14 +776,14 @@ export async function processToolCreation(
     }
     
     if (aiUndefinedFields.length > 0) {
-      console.error('🏭 TRACE: ⚠️ UNDEFINED VALUES in AI response:', aiUndefinedFields);
-      console.error('🏭 TRACE: Raw AI response with undefined values:', JSON.stringify(parsedToolDefinition, null, 2));
+      console.error('🏭 TRACE [processToolCreation]: ⚠️ UNDEFINED VALUES in AI response:', aiUndefinedFields);
+      console.error('🏭 TRACE [processToolCreation]: Raw AI response with undefined values:', JSON.stringify(parsedToolDefinition, null, 2));
     } else {
-      console.log('🏭 TRACE: ✅ No undefined values in AI response');
+      console.log('🏭 TRACE [processToolCreation]: ✅ No undefined values in AI response');
     }
 
     // Transform AI response to ProductToolDefinition
-    console.log('🏭 TRACE: Transforming AI response to ProductToolDefinition...');
+    console.log('🏭 TRACE [processToolCreation]: Transforming AI response to ProductToolDefinition...');
     const finalToolDefinition: ProductToolDefinition = {
       id: parsedToolDefinition.id || `tool-${Date.now()}`,
       slug: parsedToolDefinition.slug || `tool-slug-${Date.now()}`,
@@ -821,14 +821,14 @@ export async function processToolCreation(
       }
     };
 
-    console.log('🏭 TRACE: Final tool definition created');
-    console.log('🏭 TRACE: Final ID:', finalToolDefinition.id);
-    console.log('🏭 TRACE: Final slug:', finalToolDefinition.slug);
-    console.log('🏭 TRACE: Final metadata.id:', finalToolDefinition.metadata.id);
-    console.log('🏭 TRACE: Final metadata.slug:', finalToolDefinition.metadata.slug);
-    console.log('🏭 TRACE: Final metadata.title:', finalToolDefinition.metadata.title);
-    console.log('🏭 TRACE: ComponentCode length:', finalToolDefinition.componentCode?.length || 0);
-    console.log('🏭 TRACE: InitialStyleMap keys:', Object.keys(finalToolDefinition.initialStyleMap || {}));
+    console.log('🏭 TRACE [processToolCreation]: Final tool definition created');
+    console.log('🏭 TRACE [processToolCreation]: Final ID:', finalToolDefinition.id);
+    console.log('🏭 TRACE [processToolCreation]: Final slug:', finalToolDefinition.slug);
+    console.log('🏭 TRACE [processToolCreation]: Final metadata.id:', finalToolDefinition.metadata.id);
+    console.log('🏭 TRACE [processToolCreation]: Final metadata.slug:', finalToolDefinition.metadata.slug);
+    console.log('🏭 TRACE [processToolCreation]: Final metadata.title:', finalToolDefinition.metadata.title);
+    console.log('🏭 TRACE [processToolCreation]: ComponentCode length:', finalToolDefinition.componentCode?.length || 0);
+    console.log('🏭 TRACE [processToolCreation]: InitialStyleMap keys:', Object.keys(finalToolDefinition.initialStyleMap || {}));
 
     // ✨ POST-PROCESSING: Automatic Style Extraction and Enhancement
     console.log('🎨 POST-PROCESSING: Starting automatic style extraction...');
@@ -896,12 +896,12 @@ export async function processToolCreation(
     }
     
     if (finalUndefinedFields.length > 0) {
-      console.error('🏭 TRACE: ⚠️ UNDEFINED VALUES in final tool definition:', finalUndefinedFields);
-      console.error('🏭 TRACE: This is the source of the Component contains undefined values error!');
+      console.error('🏭 TRACE [processToolCreation]: ⚠️ UNDEFINED VALUES in final tool definition:', finalUndefinedFields);
+      console.error('🏭 TRACE [processToolCreation]: This is the source of the Component contains undefined values error!');
       // Throw an error to prevent returning corrupted data
       throw new Error(`Tool definition contains undefined values: ${finalUndefinedFields.join(', ')}`);
     } else {
-      console.log('🏭 TRACE: ✅ Final tool definition is clean - no undefined values');
+      console.log('🏭 TRACE [processToolCreation]: ✅ Final tool definition is clean - no undefined values');
     }
 
     // 🛡️ COMPREHENSIVE TOOL VALIDATION - Prevent saving bad tools AND collect issues for UI
@@ -1020,17 +1020,17 @@ export async function processToolCreation(
     }
     
     // Log final tool status
-    console.log('🏭 TRACE: processToolCreation SUCCESS - returning tool with validation results');
+    console.log('🏭 TRACE [processToolCreation]: processToolCreation SUCCESS - returning tool with validation results');
     return {
       tool: currentTool, // Use currentTool (may be original or fixed version)
       validation: validationResult
     };
 
   } catch (error) {
-    console.error('🏭 TRACE: processToolCreation ERROR:', error);
-    console.error('🏭 TRACE: Error type:', error instanceof Error ? error.constructor.name : typeof error);
-    console.error('🏭 TRACE: Error message:', error instanceof Error ? error.message : String(error));
-    console.error('🏭 TRACE: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('🏭 TRACE [processToolCreation]: processToolCreation ERROR:', error);
+    console.error('🏭 TRACE [processToolCreation]: Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.error('🏭 TRACE [processToolCreation]: Error message:', error instanceof Error ? error.message : String(error));
+    console.error('🏭 TRACE [processToolCreation]: Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
     throw new Error(`Tool creation failed: ${error instanceof Error ? error.message : String(error)}`);
   }

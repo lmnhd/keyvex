@@ -486,14 +486,83 @@ export const STYLE_GUIDES = {
     🎯 CRITICAL: When componentSet is 'shadcn', you MUST prioritize ShadCN components over basic divs!
     
     <overall-tool-structure>
-        ✅ WRAP THE ENTIRE TOOL: The main content of your tool (excluding perhaps only a top-level page padding div) SHOULD be wrapped in a primary ShadCN Card component. This Card acts as the main container, providing a consistent background and visual structure.
-        - Example: React.createElement(Card, { 'data-style-id': 'main-tool-card', className: 'w-full max-w-2xl mx-auto p-0 md:p-0 shadow-xl' }, [ /* card header, content etc. */ ])
-        - Ensure 'main-tool-card' in initialStyleMap has at least 'bg-card text-card-foreground p-6 md:p-8' (or similar for padding if not using CardContent exclusively for padding).
+        ✅ WRAP THE ENTIRE TOOL: The main content of your tool (excluding perhaps only a top-level page padding div) MUST be wrapped in a primary ShadCN Card component. This Card acts as the main container, providing a consistent background and visual structure.
+        
+        🚨 MANDATORY MAIN CARD STRUCTURE:
+        React.createElement('div', { className: 'max-w-4xl mx-auto p-4 md:p-8', 'data-style-id': 'page-container' }, [
+          React.createElement(Card, { 
+            'data-style-id': 'main-tool-card', 
+            className: 'w-full shadow-xl border-0',
+            key: 'main-tool-card'
+          }, [
+            // ALL YOUR TOOL CONTENT GOES INSIDE THIS MAIN CARD:
+            React.createElement(CardContent, { className: 'p-0', key: 'main-card-content' }, [
+              // Header section with info popup (as Card or div)
+              // Input sections (as separate Cards)
+              // Results sections (as separate Cards)
+              // Lead capture (as separate Cards)
+            ])
+          ])
+        ])
+        
+        ✅ MAIN CARD STYLING: Ensure 'main-tool-card' in initialStyleMap includes specialized background colors and styling:
+        - Default: 'bg-card text-card-foreground shadow-xl border-0 rounded-xl'
+        - Industry-specific backgrounds: Use contextual colors that match the tool's purpose
+        - Example for healthcare: 'bg-gradient-to-br from-slate-50 to-blue-50 text-slate-900 shadow-xl border border-blue-100 rounded-xl'
+        - Example for finance: 'bg-gradient-to-br from-blue-50 to-indigo-50 text-blue-900 shadow-xl border border-blue-200 rounded-xl'
     </overall-tool-structure>
+
+    <mandatory-info-popup-requirement>
+        🚨 CRITICAL: EVERY tool MUST include an info popup/tooltip in the header section!
+        
+        ✅ REQUIRED INFO POPUP IMPLEMENTATION:
+        - Position: Top-right corner of the header section
+        - Trigger: Info icon button (using Lucide-React Info icon)
+        - Content: Tool description + usage instructions
+        - Implementation: Use ShadCN Tooltip components (TooltipProvider, Tooltip, TooltipTrigger, TooltipContent)
+        
+        ✅ EXAMPLE IMPLEMENTATION:
+        React.createElement(TooltipProvider, { key: 'info-tooltip-provider' }, [
+          React.createElement(Tooltip, { key: 'info-tooltip' }, [
+            React.createElement(TooltipTrigger, { asChild: true, key: 'info-tooltip-trigger' }, [
+              React.createElement(Button, { 
+                variant: 'ghost', 
+                size: 'icon', 
+                className: 'text-white hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full',
+                'data-style-id': 'info-icon-button',
+                key: 'info-icon-button'
+              }, [
+                React.createElement(Info, { className: 'h-5 w-5', key: 'info-icon' })
+              ])
+            ]),
+            React.createElement(TooltipContent, { 
+              side: 'bottom', 
+              align: 'end', 
+              className: 'bg-gray-800 text-white p-4 rounded-lg shadow-xl max-w-sm text-sm border border-gray-600',
+              key: 'info-tooltip-content'
+            }, [
+              React.createElement('div', { key: 'tooltip-content-wrapper' }, [
+                React.createElement('h4', { className: 'font-semibold mb-2 text-white', key: 'tooltip-title' }, 'About This Tool'),
+                React.createElement('p', { className: 'mb-3 text-gray-200', key: 'tooltip-description' }, 
+                  'INSERT metadata.description HERE - explain what this tool calculates or analyzes'
+                ),
+                React.createElement('h5', { className: 'font-semibold mb-1 text-white', key: 'tooltip-usage-title' }, 'How to Use:'),
+                React.createElement('ol', { className: 'text-gray-200 text-xs space-y-1', key: 'tooltip-usage-list' }, [
+                  React.createElement('li', { key: 'usage-step-1' }, '1. Fill in the required input fields'),
+                  React.createElement('li', { key: 'usage-step-2' }, '2. Review your calculated results'),
+                  React.createElement('li', { key: 'usage-step-3' }, '3. Provide your contact info to get detailed insights')
+                ])
+              ])
+            ])
+          ])
+        ])
+        
+        ❌ FORBIDDEN: Tools without info popups will be considered incomplete!
+    </mandatory-info-popup-requirement>
 
     <mandatory-shadcn-patterns>
         ✅ ALWAYS USE CARDS FOR MAJOR SECTIONS (within the main tool card):
-        - Header section: Card with CardContent (not plain div)
+        - Header section: Card with CardContent (not plain div) OR styled div if header is outside main card
         - Input section: Card with CardHeader + CardContent (not plain div)
         - Results section: Card with CardHeader + CardContent (not plain div)
         - Lead capture: Card with CardContent (not plain div)
@@ -514,6 +583,7 @@ export const STYLE_GUIDES = {
     
     <shadcn-vs-div-decision>
         🔸 USE SHADCN COMPONENTS FOR:
+        - The main tool wrapper (Card - MANDATORY)
         - Any section that could be a Card (headers, inputs, results, etc.)
         - Form elements (inputs, labels, buttons, selects)
         - Interactive elements (tooltips, dialogs, accordions)
@@ -809,8 +879,7 @@ const CORE_PROMPT = `<purpose>
       className: 'max-w-3xl mx-auto p-6',
       'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
     }, [...])
-</data-style-id-requirements>
-</component-code-requirements>`;
+</data-style-id-requirements>`;
 
 // ============================================================================
 // SYSTEM PROMPT CONSTRUCTION
