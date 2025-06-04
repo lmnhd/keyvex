@@ -115,27 +115,51 @@ Context + PromptOptions → Create Tool Agent → ProductToolDefinition
 ### React.createElement() Pattern
 **Why not JSX**: To avoid compilation complexity and enable safe dynamic execution
 
+**🚨 MANDATORY FUNCTION DECLARATION SYNTAX**: Components MUST use function declarations, not arrow functions, for DynamicComponentRenderer compatibility.
+
 ```javascript
-// Generated pattern example:
+// ✅ REQUIRED PATTERN (Function Declaration):
 function BusinessCalculator() {
   const [revenue, setRevenue] = React.useState(0);
   const [costs, setCosts] = React.useState(0);
   
   const profit = revenue - costs;
   
-  return React.createElement('div', {
-    className: 'p-6 bg-white rounded-lg shadow-lg',
-    'data-style-id': 'main-container'
+  return React.createElement(Card, {
+    className: 'max-w-4xl mx-auto',
+    'data-style-id': 'main-card'
   }, [
-    React.createElement('h2', {
-      key: 'title',
-      className: 'text-2xl font-bold mb-4',
-      'data-style-id': 'main-title'
-    }, 'Profit Calculator'),
+    React.createElement('div', {
+      key: 'header',
+      className: 'flex items-center justify-between mb-6'
+    }, [
+      React.createElement('h2', {
+        key: 'title',
+        className: 'text-2xl font-bold',
+        'data-style-id': 'main-title'
+      }, 'Profit Calculator'),
+      
+      // 🚨 MANDATORY: Info tooltip in header
+      React.createElement(Tooltip, { key: 'info-tooltip' }, [
+        React.createElement(TooltipTrigger, { key: 'trigger' }, 
+          React.createElement(Info, { 
+            key: 'icon',
+            className: 'h-5 w-5 text-gray-500 hover:text-gray-700 cursor-help' 
+          })
+        ),
+        React.createElement(TooltipContent, { key: 'content' }, [
+          React.createElement('div', { key: 'tooltip-content' }, [
+            React.createElement('p', { key: 'description' }, 'Calculate your business profit by entering revenue and costs.'),
+            React.createElement('p', { key: 'usage', className: 'mt-2 text-sm' }, 'Enter values and see instant calculations.')
+          ])
+        ])
+      ])
+    ]),
     
     React.createElement('div', {
       key: 'inputs',
-      className: 'space-y-4'
+      className: 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6',
+      'data-style-id': 'input-section'
     }, [
       React.createElement(Input, {
         key: 'revenue',
@@ -158,75 +182,113 @@ function BusinessCalculator() {
     
     React.createElement('div', {
       key: 'result',
-      className: 'mt-6 p-4 bg-blue-50 rounded',
+      className: 'mt-6 p-4 bg-blue-50 rounded-lg text-center',
       'data-style-id': 'result-display'
     }, `Profit: $${profit.toLocaleString()}`)
   ]);
 }
+
+// ❌ FORBIDDEN PATTERN (Arrow Function - causes component detection errors):
+const BusinessCalculator = () => {
+  // This syntax causes "No valid React component function found" errors
+  return React.createElement('div', {}, 'Content');
+};
 ```
 
 ### Key Requirements
-1. **React.createElement() syntax only** - No JSX
-2. **data-style-id attributes** - For dynamic styling
-3. **Unique keys for arrays** - React best practices
-4. **Component function pattern** - Proper React component structure
-5. **useState hooks** - For interactivity
-6. **Safe execution** - No import/export statements
+1. **🚨 FUNCTION DECLARATION SYNTAX ONLY** - Must use `function ComponentName() {}`, not arrow functions `const ComponentName = () => {}`
+2. **🚨 MAIN CARD WRAPPER** - Entire tool must be wrapped in primary ShadCN Card component
+3. **🚨 MANDATORY INFO TOOLTIP** - Header must include comprehensive info tooltip using ShadCN Tooltip components
+4. **React.createElement() syntax only** - No JSX compilation
+5. **data-style-id attributes** - For dynamic styling on all styleable elements
+6. **Unique keys for arrays** - React best practices for array-rendered elements
+7. **Component function pattern** - Proper React component structure with hooks
+8. **useState hooks** - For interactivity and state management
+9. **Grid-based layouts** - 2-3 column input sections, dashboard-style results
+10. **Safe execution** - No import/export statements, controlled environment
 
 ---
 
 ## Validation Framework
 
 ### Real-Time Validation System
-The system includes comprehensive validation to ensure AI-generated components are safe and functional.
+The system includes comprehensive validation to ensure AI-generated components are safe and functional, with enhanced accuracy and auto-fix capabilities.
 
 ### Validation Categories
 
-#### 1. React Keys (`react-keys`)
+#### 1. React Keys (`react-keys`) ✅ ENHANCED
 - **Purpose**: Ensure array elements have unique keys
 - **Severity**: Warning (non-blocking)
 - **Auto-fixable**: Yes
+- **Enhancement**: Now only validates elements in ACTUAL array contexts, eliminating false positives
+- **Pattern Detection**: Uses regex to identify `[React.createElement...]` patterns
 - **Example Issue**: "Missing React keys in array elements"
 
-#### 2. Style Mapping (`style-mapping`)
+#### 2. Component Structure (`component-structure`) ✅ ENHANCED
+- **Purpose**: Ensure proper React component structure and function declaration syntax
+- **Severity**: Error (blocking)
+- **Auto-fixable**: Yes (via AI Tool Fixer)
+- **Enhancement**: Detects arrow function syntax and converts to function declarations
+- **Example Issue**: "No valid React component function found - arrow function detected"
+
+#### 3. Style Mapping (`style-mapping`)
 - **Purpose**: Validate data-style-id attributes for dynamic styling
 - **Severity**: Warning
 - **Auto-fixable**: Yes
 - **Example Issue**: "Component missing data-style-id attributes"
 
-#### 3. Execution (`execution`)
+#### 4. Execution (`execution`)
 - **Purpose**: Test JavaScript execution safety
 - **Severity**: Error (blocking)
 - **Auto-fixable**: No
 - **Example Issue**: "Component code execution failed"
 
-#### 4. Undefined Values (`undefined-values`)
+#### 5. Undefined Values (`undefined-values`)
 - **Purpose**: Detect problematic undefined patterns
 - **Severity**: Error (blocking)
 - **Auto-fixable**: No
 - **Example Issue**: "Component contains undefined values in data structures"
 
-#### 5. Syntax (`syntax`)
+#### 6. Syntax (`syntax`)
 - **Purpose**: Validate code syntax and patterns
 - **Severity**: Error (blocking)
 - **Auto-fixable**: No
 - **Example Issue**: "Component code does not use React.createElement"
 
-#### 6. Component Structure (`component-structure`)
-- **Purpose**: Ensure proper React component structure
-- **Severity**: Error (blocking)
-- **Auto-fixable**: No
-- **Example Issue**: "No valid React component function found"
-
-### Validation Process
+### Enhanced Validation Process
 
 ```javascript
-// Validation pipeline in DynamicComponentRenderer
-1. Basic structure validation
-2. JavaScript execution testing
-3. React pattern verification
-4. Runtime safety checks
-5. Issue tracking and reporting
+// NEW: Enhanced validation pipeline in DynamicComponentRenderer
+1. Function declaration syntax validation (detects arrow functions)
+2. Array-context React keys validation (eliminates false positives)  
+3. JavaScript execution testing with detailed error reporting
+4. React pattern verification with auto-fix suggestions
+5. Runtime safety checks with component structure validation
+6. Issue tracking and reporting with auto-fix capabilities
+```
+
+### Auto-Fix Integration
+
+#### **AI Tool Fixer Integration**
+- **Arrow Function Detection**: Automatically detects and converts `const Component = () => {}` to `function Component() {}`
+- **React Keys Enhancement**: Adds missing keys to array-rendered elements
+- **Style Attribute Addition**: Adds missing `data-style-id` attributes for dynamic styling
+- **Progressive Retry**: Multiple fix attempts with increasing sophistication
+
+#### **Enhanced Issue Resolution**
+```typescript
+// Example auto-fix patterns
+ARROW_FUNCTION_FIX: {
+  pattern: /const\s+(\w+)\s*=\s*\([^)]*\)\s*=>/,
+  replacement: 'function $1()',
+  trigger: 'No valid React component function found'
+}
+
+REACT_KEYS_FIX: {
+  pattern: /React\.createElement\([^,]+,\s*{([^}]*)}(?!.*key:)/,
+  enhancement: 'Add key: "unique-id" to props object',
+  trigger: 'Missing React keys in array elements'
+}
 ```
 
 ### Issue Tracking
@@ -631,13 +693,33 @@ const promptOptions = {
 
 ## Conclusion
 
-The Keyvex Product Tool Creation System represents a sophisticated approach to AI-powered component generation. Through its multi-agent architecture, comprehensive validation framework, and focus on quality assurance, it enables the reliable creation of business tools from natural language requirements.
+The Keyvex Product Tool Creation System represents a sophisticated approach to AI-powered component generation with significant recent enhancements. Through its multi-agent architecture, comprehensive validation framework, enhanced auto-fix capabilities, and focus on quality assurance, it enables the reliable creation of professional business tools from natural language requirements.
 
-The system's modular design, separation of concerns, and extensive validation ensure both reliability and maintainability while providing users with a powerful tool creation platform.
+### **Recent Major Improvements**
+
+#### **Enhanced Quality Assurance**
+- **Fixed React Keys Validation**: Eliminated false positives by only checking actual array contexts
+- **Arrow Function Auto-Fix**: AI Tool Fixer now detects and converts arrow functions to required function declarations
+- **Mandatory UI Standards**: Enforced main Card wrappers and comprehensive info tooltips for professional appearance
+
+#### **Improved Developer Experience**
+- **Function-Specific Debugging**: Enhanced TRACE logging with precise function identification
+- **Real-time State Management**: Fixed brainstorm dropdown synchronization for seamless testing workflow
+- **Streamlined Prompts**: Optimized tool creation prompts by removing redundancy while maintaining functionality
+
+#### **Professional Component Standards**
+- **ShadCN Integration**: Mandatory main Card wrappers with specialized background colors
+- **Info Tooltip System**: Required comprehensive tooltips in every tool header
+- **Grid Layout Enforcement**: Dashboard-style layouts with 2-3 column organization
+- **Component Quality**: Function declaration syntax required for DynamicComponentRenderer compatibility
+
+The system's modular design, separation of concerns, extensive validation, and continuous improvement ensure both reliability and maintainability while providing users with a powerful, professional-grade tool creation platform.
+
+The enhanced auto-fix capabilities, improved validation accuracy, and professional UI standards position Keyvex as a leader in AI-powered component generation, delivering business-grade tools through natural language interaction.
 
 ---
 
-*This documentation serves as a comprehensive guide for developers, stakeholders, and AI agents working with the Keyvex tool creation system. It should be updated as the system evolves and new features are added.*
+*This documentation serves as a comprehensive guide for developers, stakeholders, and AI agents working with the Keyvex tool creation system. It reflects the latest enhancements and should be updated as the system continues to evolve.*
 
 ## 5. Real-Time Validation System 🛡️
 
@@ -847,5 +929,73 @@ if (polishAnalysis.needsPolish) {
 - **Persistent Issue Resolution**: Addresses recurring validation problems
 - **Quality Assurance**: Ensures high standards before tool completion
 - **Data-Driven Decisions**: Uses actual validation history for improvements
+
+---
+
+## Enhanced Debugging & State Management
+
+### Function-Specific TRACE Logging ✅ NEW
+
+#### **Purpose**
+Enhanced debugging capabilities with precise function identification for easier issue tracking and performance monitoring.
+
+#### **Implementation**
+```typescript
+// BEFORE: Generic logging
+console.log('🏭 TRACE: processToolCreation START');
+
+// AFTER: Function-specific identification  
+console.log('🏭 TRACE [processToolCreation]: processToolCreation START');
+console.log('🏭 TRACE [processToolCreation]: userIntent:', userIntent);
+console.log('🏭 TRACE [processToolCreation]: Building user prompt');
+```
+
+#### **Benefits**
+- **Precise Issue Location**: Immediately identify which function generated debug output
+- **Process Flow Tracking**: Follow execution path through complex multi-agent workflows
+- **Performance Monitoring**: Track timing and performance at function level
+- **Error Context**: Better error reporting with specific function context
+
+### Brainstorm Dropdown State Management ✅ FIXED
+
+#### **Problem Solved**
+- **Issue**: "Choose a saved brainstorm" dropdown showed outdated data after tool creation
+- **Root Cause**: Missing call to refresh brainstorm results list
+- **Impact**: Users couldn't access newly created brainstorm results for testing
+
+#### **Solution Implementation**
+```typescript
+// Enhanced onTestToolCreation function
+if (newTool && isValidProductToolDefinition(newTool)) {
+  setProductToolDefinition(newTool);
+  await loadAndSetSavedTools();          // Refresh saved tools list
+  await loadAndSetSavedLogicResults();   // ✅ NEW: Refresh brainstorm results list
+  setLastAIMessage(`✅ Full workflow test tool '${newTool.metadata.title}' created and saved!`);
+}
+```
+
+#### **Benefits**
+- **Real-time Updates**: Brainstorm dropdown immediately shows new results
+- **Testing Workflow**: Users can immediately test with newly created brainstorms  
+- **Data Consistency**: All dropdowns stay synchronized with latest data
+- **User Experience**: Seamless workflow without manual refresh needed
+
+### State Management Flow
+
+#### **Multi-Layer State Updates**
+```typescript
+// Complete state management flow after tool creation
+1. Tool Creation → ProductToolDefinition generated
+2. Canvas Update → setProductToolDefinition(newTool) 
+3. Storage Sync → IndexedDB persistence
+4. UI Refresh → loadAndSetSavedTools() + loadAndSetSavedLogicResults()
+5. User Feedback → Success message display
+```
+
+#### **Data Consistency Guarantees**
+- **Canvas State**: Real-time tool preview updates
+- **Storage State**: Persistent IndexedDB synchronization
+- **Dropdown State**: Immediate option list refreshing
+- **History State**: Complete workflow tracking
 
 ---
