@@ -1,31 +1,8 @@
 import { SavedLogicResult, SavedTool } from "@/components/tool-creator-ui/options-menu";
 import { ProductToolDefinition } from "@/lib/types/product-tool";
-import { clearLastActiveToolFromDB } from "./db-utils";
+import { clearLastActiveToolFromDB, openToolDB, LOGIC_RESULT_STORE_NAME } from "./db-utils";
 
-export const saveLogicResult = (toolType: string, targetAudience: string, industry: string | undefined, result: any, LOGIC_STORAGE_KEY: string) => {
-    try {
-      const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-      const existing: SavedLogicResult[] = saved ? JSON.parse(saved) : [];
-      
-      const newResult: SavedLogicResult = {
-        id: `logic_${Date.now()}`,
-        timestamp: Date.now(),
-        date: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString(),
-        toolType,
-        targetAudience,
-        industry,
-        result
-      };
-      
-      existing.unshift(newResult); // Add to beginning
-      localStorage.setItem(LOGIC_STORAGE_KEY, JSON.stringify(existing.slice(0, 50))); // Keep last 50
-      console.log('💾 Saved logic result to localStorage:', newResult.id);
-    } catch (error) {
-      console.error('Failed to save logic result:', error);
-    }
-  };
-  
-  export const saveCreatedTool = (tool: ProductToolDefinition, TOOLS_STORAGE_KEY: string) => {
+export const saveCreatedTool = (tool: ProductToolDefinition, TOOLS_STORAGE_KEY: string) => {
     try {
       const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
       const existing: SavedTool[] = saved ? JSON.parse(saved) : [];
@@ -46,16 +23,6 @@ export const saveLogicResult = (toolType: string, targetAudience: string, indust
     }
   };
   
-  export const getSavedLogicResults = (LOGIC_STORAGE_KEY: string): SavedLogicResult[] => {
-    try {
-      const saved = localStorage.getItem(LOGIC_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch (error) {
-      console.error('Failed to load logic results:', error);
-      return [];
-    }
-  };
-  
   export const getSavedTools = (TOOLS_STORAGE_KEY: string): SavedTool[] => {
     try {
       const saved = localStorage.getItem(TOOLS_STORAGE_KEY);
@@ -67,17 +34,16 @@ export const saveLogicResult = (toolType: string, targetAudience: string, indust
   };
   
   // NEW: Clear all old data to start fresh with new validation system
-  export const clearAllSavedData = async (LOGIC_STORAGE_KEY: string, TOOLS_STORAGE_KEY: string) => {
+  export const clearAllSavedData = async (TOOLS_STORAGE_KEY: string) => {
     try {
       console.log('🧹 Clearing all saved data to start fresh with new validation system...');
       
-      // Clear localStorage
-      localStorage.removeItem(LOGIC_STORAGE_KEY);
+      // Clear localStorage for tools if still used
       localStorage.removeItem(TOOLS_STORAGE_KEY);
       
       // Clear any other keyvex-related localStorage items
       Object.keys(localStorage).forEach(key => {
-        if (key.includes('keyvex') || key.includes('tool_') || key.includes('logic_')) {
+        if (key.includes('keyvex') || key.includes('tool_')) {
           localStorage.removeItem(key);
           console.log('🧹 Removed localStorage item:', key);
         }
@@ -86,12 +52,30 @@ export const saveLogicResult = (toolType: string, targetAudience: string, indust
       // Clear IndexedDB
       try {
         await clearLastActiveToolFromDB();
-        console.log('🧹 Cleared IndexedDB last active tool');
+
+        // Also clear all logic results from IndexedDB
+        const db = await openToolDB();
+        const transaction = db.transaction([LOGIC_RESULT_STORE_NAME], 'readwrite');
+        const store = transaction.objectStore(LOGIC_RESULT_STORE_NAME);
+        await new Promise<void>((resolve, reject) => {
+          const request = store.clear();
+          request.onsuccess = () => {
+            console.log(`🧹 Cleared all items from IndexedDB store: ${LOGIC_RESULT_STORE_NAME}`);
+            resolve();
+          };
+          request.onerror = () => {
+            console.error(`🧹 Error clearing IndexedDB store ${LOGIC_RESULT_STORE_NAME}:`, request.error);
+            reject(request.error);
+          };
+        });
+        db.close();
+
+        console.log('🧹 Cleared IndexedDB data');
       } catch (dbError) {
-        console.warn('🧹 Could not clear IndexedDB:', dbError);
+        console.warn('🧹 Could not clear all IndexedDB data during clearAllSavedData:', dbError);
       }
       
-      console.log('🧹 ✅ All saved data cleared successfully');
+      console.log('🧹 ✅ All relevant saved data cleared successfully');
       return true;
     } catch (error) {
       console.error('🧹 ❌ Error clearing saved data:', error);

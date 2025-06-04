@@ -4,7 +4,7 @@ import { SavedLogicResult } from './types';
 // IndexedDB Constants
 const DB_NAME = 'KeyvexUIDevDB';
 const TOOL_STORE_NAME = 'productTools';
-const LOGIC_RESULT_STORE_NAME = 'logicArchitectResults';
+export const LOGIC_RESULT_STORE_NAME = 'logicArchitectResults';
 const LAST_ACTIVE_TOOL_KEY = 'lastActiveTool_v1';
 
 // IndexedDB Helper Functions

@@ -22,6 +22,11 @@ CRITICAL DIRECTIVES:
     - Every React.createElement() call for UI elements (div, button, input, etc.) MUST include 'data-style-id': 'unique-id' in the props object
 7.  INTERACTIVITY: Components are expected to be interactive. Ensure 'useState' is used for managing state and that event handlers (e.g., onClick, onChange) are present for user interaction.
 8.  OUTPUT FORMAT: You MUST return the ENTIRE corrected ProductToolDefinition as a single, valid JSON object, matching the original schema precisely.
+9.  COMPONENT SET AWARENESS (NEW & CRITICAL):
+    - Examine the "componentSet" field in the provided faulty ProductToolDefinition JSON.
+    - If "componentSet" is "shadcn", your corrections MUST prioritize using appropriate ShadCN UI components (e.g., 'Card', 'CardHeader', 'CardContent', 'Input', 'Button', 'Label', 'TooltipProvider' etc.) for structure, forms, and interactive elements where applicable, instead of defaulting to basic HTML divs or inputs if a ShadCN component is more suitable for the context of the fix.
+    - If "componentSet" is "legacy", continue to use basic HTML elements styled with Tailwind CSS.
+    - This is crucial for maintaining consistency with the tool's intended design system.
 
 SPECIFIC FIX PATTERNS:
 - If error mentions "data-style-id attributes": Add 'data-style-id': 'descriptive-name' to EVERY React.createElement() call that creates UI elements
@@ -29,6 +34,7 @@ SPECIFIC FIX PATTERNS:
 - If error mentions "React keys": Add unique 'key' props to all array elements
 - If error mentions "useState": Add React state hooks for user interactions
 - If error mentions "event handlers": Add onClick, onChange, etc. handlers to interactive elements
+- If error mentions "No valid React component function found" OR contains arrow function syntax: Convert arrow functions to function declarations (required by component renderer)
 
 EXAMPLE data-style-id FIXES:
 BEFORE: React.createElement('div', { className: 'container' }, ...)
@@ -36,6 +42,47 @@ AFTER:  React.createElement('div', { className: 'container', 'data-style-id': 'm
 
 BEFORE: React.createElement('button', { onClick: handleClick }, 'Submit')
 AFTER:  React.createElement('button', { onClick: handleClick, 'data-style-id': 'submit-button' }, 'Submit')
+
+EXAMPLE React key FIXES (CRITICAL FOR ARRAYS):
+- Keys MUST be unique strings for elements within the SAME array.
+- A common strategy is to use a descriptive prefix + index (e.g., 'item-' + index) or a unique ID from the data if available.
+
+BEFORE (Array of child elements missing keys):
+React.createElement('ul', { 'data-style-id': 'list-container' }, [
+  React.createElement('li', { 'data-style-id': 'list-item-1' }, 'First item'),
+  React.createElement('li', { 'data-style-id': 'list-item-2' }, 'Second item')
+])
+
+AFTER (Corrected with unique keys):
+React.createElement('ul', { 'data-style-id': 'list-container', key: 'list-container-ul' }, [ // Parent can also have a key if it's in an array
+  React.createElement('li', { 'data-style-id': 'list-item-1', key: 'list-item-key-0' }, 'First item'),
+  React.createElement('li', { 'data-style-id': 'list-item-2', key: 'list-item-key-1' }, 'Second item')
+])
+
+BEFORE (Elements mapped from data, keys missing):
+data.map((item, index) => React.createElement('div', { 'data-style-id': \`card-\${index}\` }, item.name))
+
+AFTER (Corrected with unique keys using index):
+data.map((item, index) => React.createElement('div', { 'data-style-id': \`card-\${index}\`, key: \`card-key-\${index}\` }, item.name))
+
+AFTER (Corrected with unique keys using item.id if available and unique):
+data.map((item, index) => React.createElement('div', { 'data-style-id': \`card-\${index}\`, key: item.id }, item.name))
+
+EXAMPLE ARROW FUNCTION TO FUNCTION DECLARATION FIX:
+BEFORE (Arrow function - causes component detection errors):
+'use client';
+const PricingCalculator = () => {
+  const [state, setState] = useState('');
+  return React.createElement('div', {}, 'Content');
+};
+
+AFTER (Function declaration - required format):
+'use client';
+const { useState } = React;
+function PricingCalculator() {
+  const [state, setState] = useState('');
+  return React.createElement('div', {}, 'Content');
+}
 
 Your goal is to transform the faulty ProductToolDefinition into a perfectly valid one that passes all validation checks based on the errors provided.
 Think of yourself as a surgeon: precise, focused, and intent on healing the code.

@@ -1079,7 +1079,7 @@ export default function TestUIPage() {
     
     // Also call the original clearAllSavedData if it handles other localStorage items
     try {
-      clearAllSavedData('test-ui', 'all'); // Fix: provide required arguments
+      clearAllSavedData('test-ui'); // Fix: provide required arguments
     } catch (error) {
       console.warn("clearAllSavedData function call failed:", error);
     }
@@ -1095,56 +1095,75 @@ export default function TestUIPage() {
 
   const onTestToolCreation = async () => {
     setIsGeneratingTool(true);
-    setLastAIMessage("⏳ Generating random test tool... This might take a moment.");
+    setLastAIMessage("⏳ Kicking off full tool creation with Logic Architect brainstorming... This might take a moment.");
     const scenario = getRandomTestScenario();
-    console.log(`🧪 Creating Test Tool: ${scenario.context.toolType} - ${scenario.userIntent}`);
+    console.log(`🧪 Creating Test Tool (via full workflow): ${scenario.context.toolType} - ${scenario.userIntent}`);
+
+    const baseContext = {
+      userIntent: scenario.userIntent,
+      toolType: scenario.context.toolType,
+      targetAudience: scenario.context.targetAudience,
+      industry: scenario.context.industry,
+      features: scenario.context.features,
+      businessDescription: scenario.context.businessDescription, // Pass business description
+      // collectedAnswers can be built or passed if needed by your brainstorming prompt,
+      // for now, focusing on essential context for Logic Architect.
+      collectedAnswers: {
+        'business-description': scenario.context.businessDescription,
+        'tool-type': scenario.context.toolType,
+        'target-audience': scenario.context.targetAudience,
+        'industry-focus': scenario.context.industry
+      },
+      // IMPORTANT: DO NOT pre-fill logicArchitectInsights here.
+      // Let createToolWithBrainstorming handle the Logic Architect call.
+    };
 
     try {
-      const context = {
-        userIntent: scenario.userIntent,
-        toolType: scenario.context.toolType,
-        targetAudience: scenario.context.targetAudience,
-        industry: scenario.context.industry,
-        features: scenario.context.features,
-        collectedAnswers: {
-          'business-description': scenario.context.businessDescription,
-          'tool-type': scenario.context.toolType,
-          'target-audience': scenario.context.targetAudience,
-          'industry-focus': scenario.context.industry
-        },
-        logicArchitectInsights: {
-          toolType: scenario.context.toolType,
-          targetAudience: scenario.context.targetAudience,
-          industry: scenario.context.industry,
-          coreWConcept: scenario.userIntent,
-          businessLogic: [scenario.context.businessDescription],
-          features: scenario.context.features
-        }
-      };
-      
-      // callToolCreationAgent in ai-processing.ts already handles saving to 
-      // saveLastActiveToolToDB and saveToolToDBList upon successful creation.
-      const newTool = await callToolCreationAgent(context, undefined, undefined, createToolModel);
+      // Call the function that includes brainstorming
+      const newTool = await createToolWithBrainstorming(
+        baseContext,
+        setShowBrainstormingPanel,
+        setIsBrainstorming,
+        setBrainstormingThoughts,
+        setIsGeneratingTool, // It will manage this state internally too
+        setLastAIMessage,
+        setLatestBrainstormingResult,
+        transitionToNewContent, // Make sure this is correctly defined and passed
+        logicArchitectModel,
+        createToolModel
+      );
+
+      // The createToolWithBrainstorming function should ideally return the created tool
+      // or handle setting it and updating UI messages internally.
+      // For this example, we assume it returns the tool or null/throws error.
+      // The actual saving to DB and state update is now handled within createToolWithBrainstorming/callToolCreationAgent
 
       if (newTool && isValidProductToolDefinition(newTool)) {
+        // setProductToolDefinition is likely called within createToolWithBrainstorming or its callees
+        // If not, it might need to be set here. For now, assume it is.
         setProductToolDefinition(newTool);
-        await loadAndSetSavedTools();
-        setLastAIMessage(`✅ Random test tool '${newTool.metadata.title}' created and saved to IndexedDB!`);
-      } else {
-        const validationErrorMessage = newTool ? "Validation failed." : "No tool returned.";
-        console.error(`Error: 🛡️ VALIDATION: Random test tool failed validation - not saving. ${validationErrorMessage}`);
-        setLastAIMessage(`Error: Test tool creation failed. ${validationErrorMessage} Check console for details.`);
-        if (newTool) { 
-          // clearCorruptedToolFromStorage might need to be updated for IndexedDB if not already.
-          // For now, if a tool is invalid, it shouldn't have been saved to the main list by callToolCreationAgent.
-          // await clearCorruptedToolFromStorage(newTool.id); 
-        }
+        await loadAndSetSavedTools(); // Refresh saved tools list
+        setLastAIMessage(`✅ Full workflow test tool '${newTool.metadata.title}' created and saved!`);
+      } else if (newTool === null && !isGeneratingTool) {
+        // This case implies brainstorming or creation was aborted but no hard error thrown,
+        // and isGeneratingTool was reset.
+        // setLastAIMessage("Tool creation process was inconclusive or manually stopped before completion.");
+        // No specific error, message already set by createToolWithBrainstorming
+      } else if (!newTool) {
+        // This case implies an error occurred and was handled internally by createToolWithBrainstorming,
+        // which should have set an appropriate error message via setLastAIMessage.
+        console.error("Error: Test tool creation via full workflow failed. The function returned no tool, and an error message should have been set.");
+        // setLastAIMessage might have already been updated by createToolWithBrainstorming
       }
     } catch (error) {
-      console.error("Error creating test tool:", error);
-      setLastAIMessage(`Error creating test tool: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error during 'onTestToolCreation' (full workflow):", error);
+      setLastAIMessage(`Error creating test tool via full workflow: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // setIsGeneratingTool(false); // Ensure it's reset on catch, though createToolWithBrainstorming should also handle this in its finally block
     } finally {
-      setIsGeneratingTool(false);
+      // setIsGeneratingTool(false); // createToolWithBrainstorming should manage this.
+      // If it doesn't, or there are paths where it might not, uncommenting this might be necessary.
+      // For now, trust createToolWithBrainstorming to reset its own state setters.
+      console.log("onTestToolCreation finally block reached. isGeneratingTool:", isGeneratingTool);
     }
   };
 
