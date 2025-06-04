@@ -82,6 +82,33 @@ export const STYLE_GUIDES = {
     </critical-mandates>
     
     <color-palette-guidelines>
+        🚨 CRITICAL COLOR CONTRAST REQUIREMENTS - MANDATORY FOR ACCESSIBILITY:
+        
+        <contrast-safety-rules>
+            ❌ FORBIDDEN COMBINATIONS:
+            - White/light text on light backgrounds (e.g., text-white on from-blue-50)
+            - Dark text on dark backgrounds (e.g., text-gray-900 on from-gray-800)
+            - Low contrast combinations that fail readability standards
+            
+            ✅ REQUIRED CONTRAST PATTERNS:
+            - Light backgrounds (50-100 range): Use dark text (text-gray-900, text-slate-900)
+            - Medium backgrounds (200-400 range): Use dark text or ensure sufficient contrast
+            - Dark backgrounds (600-900 range): Use light text (text-white, text-gray-100)
+            - Gradient backgrounds: Match text color to the dominant background tone
+            
+            🎯 GRADIENT BACKGROUND TEXT RULES:
+            - from-blue-50 to-indigo-50: Use text-blue-900 or text-slate-900 (DARK TEXT)
+            - from-blue-600 to-indigo-700: Use text-white or text-blue-100 (LIGHT TEXT)
+            - from-slate-50 to-gray-100: Use text-gray-900 or text-slate-900 (DARK TEXT)
+            - from-gray-600 to-slate-800: Use text-white or text-gray-100 (LIGHT TEXT)
+            
+            📝 HEADER CONTRAST EXAMPLES:
+            ✅ CORRECT: bg-gradient-to-r from-blue-600 to-indigo-700 + text-white
+            ✅ CORRECT: bg-gradient-to-br from-blue-50 to-indigo-50 + text-blue-900
+            ❌ WRONG: bg-gradient-to-br from-blue-50 to-indigo-50 + text-white
+            ❌ WRONG: bg-gradient-to-r from-blue-600 to-indigo-700 + text-blue-900
+        </contrast-safety-rules>
+        
         <option value="professional-blue">Professional Blue (Corporate, Finance, Tech)</option>
         <option value="vibrant-orange">Vibrant Orange (Marketing, Creative, Startups)</option>
         <option value="eco-green">Eco Green (Sustainability, Health, Nature)</option>
@@ -513,51 +540,70 @@ export const STYLE_GUIDES = {
     </overall-tool-structure>
 
     <mandatory-info-popup-requirement>
-        🚨 CRITICAL: EVERY tool MUST include an info popup/tooltip in the header section!
+        🚨🚨🚨 ABSOLUTE REQUIREMENT: EVERY TOOL MUST INCLUDE INFO POPUP 🚨🚨🚨
         
-        ✅ REQUIRED INFO POPUP IMPLEMENTATION:
-        - Position: Top-right corner of the header section
+        ❌ TOOLS WITHOUT INFO POPUPS WILL BE REJECTED AND CONSIDERED INCOMPLETE ❌
+        
+        🎯 MANDATORY INFO POPUP IMPLEMENTATION:
+        - Position: Top-right corner of the header section OR next to the main title
         - Trigger: Info icon button (using Lucide-React Info icon)
-        - Content: Tool description + usage instructions
+        - Content: Tool description + comprehensive usage instructions
         - Implementation: Use ShadCN Tooltip components (TooltipProvider, Tooltip, TooltipTrigger, TooltipContent)
+        - Styling: Consistent with tool's color scheme and background contrast
         
-        ✅ EXAMPLE IMPLEMENTATION:
+        ✅ REQUIRED INFO POPUP IMPLEMENTATION PATTERN:
+        
+        STEP 1: Wrap the entire header in TooltipProvider
         React.createElement(TooltipProvider, { key: 'info-tooltip-provider' }, [
-          React.createElement(Tooltip, { key: 'info-tooltip' }, [
-            React.createElement(TooltipTrigger, { asChild: true, key: 'info-tooltip-trigger' }, [
-              React.createElement(Button, { 
-                variant: 'ghost', 
-                size: 'icon', 
-                className: 'text-white hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full',
-                'data-style-id': 'info-icon-button',
-                key: 'info-icon-button'
+          
+          STEP 2: Your existing header content...
+          React.createElement('div', { className: 'header-content-classes', key: 'header-content' }, [
+            // Logo, title, subtitle...
+            
+            STEP 3: Add the Info icon with tooltip (MANDATORY)
+            React.createElement(Tooltip, { key: 'info-tooltip' }, [
+              React.createElement(TooltipTrigger, { asChild: true, key: 'info-tooltip-trigger' }, [
+                React.createElement(Button, { 
+                  variant: 'ghost', 
+                  size: 'icon', 
+                  className: 'text-white hover:text-white hover:bg-white hover:bg-opacity-10 rounded-full',
+                  'data-style-id': 'info-icon-button',
+                  key: 'info-icon-button'
+                }, [
+                  React.createElement(Info, { className: 'h-5 w-5', key: 'info-icon' })
+                ])
+              ]),
+              React.createElement(TooltipContent, { 
+                side: 'bottom', 
+                align: 'end', 
+                className: 'bg-gray-800 text-white p-4 rounded-lg shadow-xl max-w-sm text-sm border border-gray-600',
+                key: 'info-tooltip-content'
               }, [
-                React.createElement(Info, { className: 'h-5 w-5', key: 'info-icon' })
-              ])
-            ]),
-            React.createElement(TooltipContent, { 
-              side: 'bottom', 
-              align: 'end', 
-              className: 'bg-gray-800 text-white p-4 rounded-lg shadow-xl max-w-sm text-sm border border-gray-600',
-              key: 'info-tooltip-content'
-            }, [
-              React.createElement('div', { key: 'tooltip-content-wrapper' }, [
-                React.createElement('h4', { className: 'font-semibold mb-2 text-white', key: 'tooltip-title' }, 'About This Tool'),
-                React.createElement('p', { className: 'mb-3 text-gray-200', key: 'tooltip-description' }, 
-                  'INSERT metadata.description HERE - explain what this tool calculates or analyzes'
-                ),
-                React.createElement('h5', { className: 'font-semibold mb-1 text-white', key: 'tooltip-usage-title' }, 'How to Use:'),
-                React.createElement('ol', { className: 'text-gray-200 text-xs space-y-1', key: 'tooltip-usage-list' }, [
-                  React.createElement('li', { key: 'usage-step-1' }, '1. Fill in the required input fields'),
-                  React.createElement('li', { key: 'usage-step-2' }, '2. Review your calculated results'),
-                  React.createElement('li', { key: 'usage-step-3' }, '3. Provide your contact info to get detailed insights')
+                React.createElement('div', { key: 'tooltip-content-wrapper' }, [
+                  React.createElement('h4', { className: 'font-semibold mb-2 text-white', key: 'tooltip-title' }, 'About This Tool'),
+                  React.createElement('p', { className: 'mb-3 text-gray-200', key: 'tooltip-description' }, 
+                    'INSERT TOOL DESCRIPTION HERE - explain what this tool calculates or analyzes'
+                  ),
+                  React.createElement('h5', { className: 'font-semibold mb-1 text-white', key: 'tooltip-usage-title' }, 'How to Use:'),
+                  React.createElement('ol', { className: 'text-gray-200 text-xs space-y-1', key: 'tooltip-usage-list' }, [
+                    React.createElement('li', { key: 'usage-step-1' }, '1. Fill in the required input fields'),
+                    React.createElement('li', { key: 'usage-step-2' }, '2. Review your calculated results'),
+                    React.createElement('li', { key: 'usage-step-3' }, '3. Provide your contact info to get detailed insights')
+                  ])
                 ])
               ])
             ])
           ])
         ])
         
-        ❌ FORBIDDEN: Tools without info popups will be considered incomplete!
+        🚨 VALIDATION CHECK: Before submitting your component code, verify:
+        1. ✅ Info icon is present in the header
+        2. ✅ TooltipProvider wraps the relevant section
+        3. ✅ Tooltip contains tool description AND usage instructions
+        4. ✅ Icon is properly styled with hover states
+        5. ✅ Tooltip positioning works with tool layout
+        
+        ❌ FORBIDDEN: Tools without info popups will be considered incomplete and rejected!
     </mandatory-info-popup-requirement>
 
     <mandatory-shadcn-patterns>
@@ -584,7 +630,7 @@ export const STYLE_GUIDES = {
     <shadcn-vs-div-decision>
         🔸 USE SHADCN COMPONENTS FOR:
         - The main tool wrapper (Card - MANDATORY)
-        - Any section that could be a Card (headers, inputs, results, etc.)
+        - Any section that could be a Card (headers, inputs, results)
         - Form elements (inputs, labels, buttons, selects)
         - Interactive elements (tooltips, dialogs, accordions)
         - Data display (progress bars, toggles)
