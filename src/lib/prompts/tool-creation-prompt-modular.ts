@@ -743,13 +743,50 @@ const CRITICAL_PROHIBITIONS = `
     - ANY import/export will cause immediate validation failure
     
     ❌ NEVER CREATE INVALID CARD STRUCTURE:
-    🚨🚨🚨 CRITICAL CARD WRAPPER VIOLATION - COMMON MISTAKE 🚨🚨🚨
-    - ❌ WRONG: Multiple Cards as siblings of page container
-    - ❌ WRONG: Input/Results cards outside of main-tool-card
-    - ❌ WRONG: Header as only child of main-tool-card
-    - ✅ CORRECT: ALL content must be INSIDE main-tool-card
-    - ✅ CORRECT: Main-tool-card is the ONLY direct child of page container
+    🚨🚨🚨 CRITICAL CARD WRAPPER VIOLATION - COMMON MISTAKE - INSTANT REJECTION 🚨🚨🚨
+    
+    ⛔ THE FOLLOWING STRUCTURE IS ABSOLUTELY FORBIDDEN AND WILL BE REJECTED:
+    
+    page-container
+    ├── main-tool-card (only header content)
+    ├── input-card (❌ FORBIDDEN: Outside main card)
+    ├── results-card (❌ FORBIDDEN: Outside main card)
+    └── lead-card (❌ FORBIDDEN: Outside main card)
+    
+    ✅ THE ONLY ACCEPTABLE STRUCTURE IS:
+    
+    page-container
+    └── main-tool-card (EVERYTHING INSIDE)
+        └── CardContent (p-0)
+            ├── header section
+            ├── input-card (INSIDE main card)
+            ├── results-card (INSIDE main card)
+            └── lead-card (INSIDE main card)
+    
+    🚨 VALIDATION RULES - AUTOMATIC REJECTION IF VIOLATED:
+    - Multiple Cards as direct children of page-container = REJECTED  
+    - Input/Results cards outside of main-tool-card = REJECTED  
+    - Header as only child of main-tool-card = REJECTED
+    - Missing CardContent wrapper inside main-tool-card = REJECTED
     - THIS IS THE #1 STRUCTURE ERROR - ALWAYS CHECK CARD NESTING!
+    
+    ❌ NEVER CREATE NON-INTERACTIVE TOOLS:
+    🚨🚨🚨 MISSING INTERACTIVITY - TOOLS MUST BE FUNCTIONAL 🚨🚨🚨
+    - ❌ FORBIDDEN: Static results that never change
+    - ❌ FORBIDDEN: No useState hooks for input values
+    - ❌ FORBIDDEN: No calculation logic
+    - ✅ REQUIRED: useState for all input fields
+    - ✅ REQUIRED: useEffect or calculations that update results
+    - ✅ REQUIRED: Results must change when inputs change
+    
+    ❌ NEVER OMIT MANDATORY INFO POPUP:
+    🚨🚨🚨 MISSING INFO POPUP - INSTANT REJECTION 🚨🚨🚨
+    - ❌ FORBIDDEN: Tools without info tooltips
+    - ❌ FORBIDDEN: Missing TooltipProvider in header
+    - ❌ FORBIDDEN: Missing Info icon button
+    - ✅ REQUIRED: TooltipProvider, Tooltip, TooltipTrigger, TooltipContent
+    - ✅ REQUIRED: Info icon in header with usage instructions
+    - EVERY TOOL MUST HAVE AN INFO POPUP - NO EXCEPTIONS
     
     ❌ NEVER USE JSX SYNTAX:
     - NO <div>, <button>, <input> etc.
@@ -880,109 +917,71 @@ const CORE_PROMPT = `<purpose>
         ❌ FORBIDDEN FORMAT (Arrow Function):
         const ComponentName = () => { ... };
         
+        🚨🚨🚨 MANDATORY INTERACTIVITY REQUIREMENTS 🚨🚨🚨:
+        
+        ✅ EVERY TOOL MUST INCLUDE:
+        1. useState hooks for ALL input fields
+        2. Calculation logic that updates results when inputs change
+        3. Real-time or on-change updates to displayed results
+        4. Proper event handlers (onChange, onClick, etc.)
+        5. Dynamic values that change based on user input
+        
+        ❌ FORBIDDEN - STATIC TOOLS:
+        - Hard-coded result values that never change
+        - No useState for input management
+        - No calculation functions
+        - Results that ignore input values
+        
+        ✅ REQUIRED INTERACTIVITY PATTERN:
+        ```
+        const [inputValue1, setInputValue1] = useState('');
+        const [inputValue2, setInputValue2] = useState('');
+        
+        // Calculation logic
+        const calculatedResult = useMemo(() => {
+          const val1 = parseFloat(inputValue1) || 0;
+          const val2 = parseFloat(inputValue2) || 0;
+          return val1 + val2; // Or any relevant calculation
+        }, [inputValue1, inputValue2]);
+        
+        // In your input elements:
+        React.createElement(Input, {
+          value: inputValue1,
+          onChange: (e) => setInputValue1(e.target.value),
+          // ... other props
+        })
+        
+        // In your results display:
+        React.createElement('div', {}, calculatedResult.toString())
+        ```
+        
         🚨 MANDATORY EXAMPLES OF CORRECT SYNTAX:
+    </react-syntax-requirements>
+
+    <available-context-variables>
+        The following are available in the execution context (do NOT import them):
+        - React (includes React.createElement)
+        - useState, useEffect, useCallback, useMemo
+        // Basic HTML elements are always available.
+        // Specific UI components (like ShadCN) will be listed if applicable based on current componentSet.
+        // Icons
+        - Loader2, AlertCircle, Info
+    </available-context-variables>
+
+    <data-style-id-requirements>
+        MANDATORY: Add data-style-id attributes to ALL styleable elements for dynamic styling:
+        - Containers: data-style-id="main-container", "input-section", "results-section"
+        - Headers: data-style-id="main-title", "section-title", "tool-header"  
+        - Inputs: data-style-id="input-[fieldname]" (e.g. "input-revenue", "input-costs")
+        - Buttons: data-style-id="submit-button", "reset-button", "export-button"
+        - Results: data-style-id="result-[metric]" (e.g. "result-roi", "result-profit")
         
-        // ✅ CORRECT - Simple div with text
+        EXAMPLE with proper data-style-id usage:
         React.createElement('div', {
-          className: 'p-6 rounded-lg border',
-          'data-style-id': 'main-container'
-        }, 'Text content')
-        
-        // ✅ CORRECT - Arrays of elements WITH REQUIRED KEYS
-        React.createElement('div', { className: 'list-container' }, [
-          React.createElement('div', { 
-            key: 'item-1', 
-            className: 'list-item' 
-          }, 'First Item'),
-          React.createElement('div', { 
-            key: 'item-2', 
-            className: 'list-item' 
-          }, 'Second Item')
-        ])
-        
-        // ✅ CORRECT - Form fields in grid with keys
-        React.createElement('div', { className: 'grid grid-cols-2 gap-4' }, [
-          React.createElement('div', { key: 'field-1' }, [
-            React.createElement(Label, { key: 'label-1' }, 'Field 1'),
-            React.createElement(Input, { key: 'input-1', placeholder: 'Enter value' })
-          ]),
-          React.createElement('div', { key: 'field-2' }, [
-            React.createElement(Label, { key: 'label-2' }, 'Field 2'),
-            React.createElement(Input, { key: 'input-2', placeholder: 'Enter value' })
-          ])
-        ])
-        
-        🚨🚨🚨 CRITICAL REACT KEYS REQUIREMENT 🚨🚨🚨
-        
-        MANDATORY: When creating arrays of React elements, EVERY element in the array MUST have a unique "key" prop:
-        
-        ✅ CORRECT - With keys:
-        [
-          React.createElement('div', { key: 'unique-1', className: 'item' }, 'Item 1'),
-          React.createElement('div', { key: 'unique-2', className: 'item' }, 'Item 2')
-        ]
-        
-        ❌ FORBIDDEN - Without keys (causes React warnings):
-        [
-          React.createElement('div', { className: 'item' }, 'Item 1'),
-          React.createElement('div', { className: 'item' }, 'Item 2')
-        ]
-        
-        📝 COMMON KEY PATTERNS:
-        - Form fields: key: 'field-{fieldname}' or key: 'input-{fieldname}'
-        - Sections: key: 'section-{name}' or key: 'header-{section}'
-        - List items: key: 'item-{index}' or key: 'row-{index}'
-        - Grid items: key: 'grid-col-{index}' or key: 'grid-item-{description}'
-         
-        🚨 EXAMPLES OF FORBIDDEN JSX (DO NOT USE):
-        ❌ <div className="container">Content</div>
-        ❌ <h1>Title</h1>
-        ❌ <Input placeholder="value" />
-        ❌ <Button onClick={handler}>Submit</Button>
-        ❌ ANY use of < and > for elements
-         
-        🚨🚨🚨 FINAL VALIDATION CHECKLIST 🚨🚨🚨:
-        
-        Before you finalize your componentCode, scan for these FORBIDDEN patterns:
-        
-        ❌ "import " → DELETE the entire line
-        ❌ "export " → DELETE the entire line  
-        ❌ "<" followed by letters → REWRITE using React.createElement()
-        ❌ ", undefined," → REPLACE with proper values
-        ❌ Arrow function syntax → CONVERT to function declaration
-        
-        ✅ "React.createElement" → Should appear multiple times
-        ✅ "key:" in arrays → All array elements should have keys
-        ✅ "'use client';" → Should be at the very top
-        ✅ "function ComponentName()" → Required format
-        
-        If your code contains ANY forbidden patterns, it will be REJECTED by validation.
-</react-syntax-requirements>
-
-<available-context-variables>
-    The following are available in the execution context (do NOT import them):
-    - React (includes React.createElement)
-    - useState, useEffect, useCallback, useMemo
-    // Basic HTML elements are always available.
-    // Specific UI components (like ShadCN) will be listed if applicable based on current componentSet.
-    // Icons
-    - Loader2, AlertCircle, Info
-</available-context-variables>
-
-<data-style-id-requirements>
-    MANDATORY: Add data-style-id attributes to ALL styleable elements for dynamic styling:
-    - Containers: data-style-id="main-container", "input-section", "results-section"
-    - Headers: data-style-id="main-title", "section-title", "tool-header"  
-    - Inputs: data-style-id="input-[fieldname]" (e.g. "input-revenue", "input-costs")
-    - Buttons: data-style-id="submit-button", "reset-button", "export-button"
-    - Results: data-style-id="result-[metric]" (e.g. "result-roi", "result-profit")
-    
-    EXAMPLE with proper data-style-id usage:
-    React.createElement('div', {
-      className: 'max-w-3xl mx-auto p-6',
-      'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
-    }, [...])
-</data-style-id-requirements>`;
+          className: 'max-w-3xl mx-auto p-6',
+          'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
+        }, [...])
+    </data-style-id-requirements>`;
 
 // ============================================================================
 // SYSTEM PROMPT CONSTRUCTION
