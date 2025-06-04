@@ -1455,41 +1455,35 @@ export function performFullValidation(
     }
     
     // 7. Check for missing React keys - CHANGED: Warning only, not blocking
-    const missingKeysPatterns = [
-      /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement[^\]]*\]/g,
-      /\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/g,
-    ];
+    // FIXED: Use better detection logic consistent with step 12
+    const arrayElementPattern1 = /React\.createElement\([^,]+,\s*\{[^}]*\}/g;
+    const keyedArrayElementPattern1 = /React\.createElement\([^,]+,\s*\{[^}]*key\s*:[^}]*\}/g;
     
-    let hasMissingKeys = false;
-    const foundMissingKeyPatterns: string[] = [];
+    const allElements = (toolDefinition.componentCode.match(arrayElementPattern1) || []).length;
+    const keyedElements = (toolDefinition.componentCode.match(keyedArrayElementPattern1) || []).length;
     
-    for (const pattern of missingKeysPatterns) {
-      const matches = toolDefinition.componentCode.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          if (match.includes('[') && match.includes('React.createElement') && !match.includes('key:')) {
-            hasMissingKeys = true;
-            foundMissingKeyPatterns.push(match.substring(0, 100) + '...');
-          }
-        }
-      }
-      if (hasMissingKeys) break;
-    }
+    // Check if there are array contexts for warning-level detection
+    const hasArrays = /\[[^\]]*React\.createElement/g.test(toolDefinition.componentCode);
     
-    if (hasMissingKeys) {
+    if (hasArrays && keyedElements < allElements) {
+      const missingKeys = allElements - keyedElements;
       console.warn('🛡️ VALIDATION: ⚠️ Component has arrays without React keys (may cause console warnings)');
       trackIssue(
         'Missing React keys in array elements',
         'react-keys',
         'warning',
-        'Arrays containing React elements should have unique key props',
-        foundMissingKeyPatterns.slice(0, 2).join('; '),
+        `${missingKeys} React elements in arrays may be missing unique key props`,
+        `${missingKeys} elements without keys`,
         true // This is auto-fixable
       );
+    } else if (hasArrays) {
+      console.log(`🛡️ VALIDATION: ✅ All ${keyedElements} array elements have keys (warning check)`);
     }
     
     // 8. Validate required data-style-id attributes - RELAXED: Not all tools need dynamic styling
-    if (!toolDefinition.componentCode.includes('data-style-id')) {
+    // FIXED: Use the same improved regex pattern
+    const dataStyleIdCountCheck = (toolDefinition.componentCode.match(/'data-style-id'\s*:\s*['"][^'"]*['"]/g) || []).length;
+    if (dataStyleIdCountCheck === 0) {
       console.log('🛡️ VALIDATION: ⚠️ Component missing data-style-id attributes (dynamic styling disabled)');
       trackIssue(
         'Component missing data-style-id attributes',
@@ -1499,6 +1493,8 @@ export function performFullValidation(
         'data-style-id not found',
         true
       );
+    } else {
+      console.log(`🛡️ VALIDATION: ✅ Found ${dataStyleIdCountCheck} data-style-id attributes (info check)`);
     }
     
     // 9. STRICT: Validate initialStyleMap completeness and quality
@@ -1530,7 +1526,8 @@ export function performFullValidation(
       }
       
       // Check for data-style-id attributes in componentCode that don't have corresponding initialStyleMap entries
-      const dataStyleIdPattern = /data-style-id=['"]([^'"]+)['"]/g;
+      // FIXED: Use the correct regex pattern to match 'data-style-id': 'value' format
+      const dataStyleIdPattern = /'data-style-id'\s*:\s*['"]([^'"]+)['"]/g;
       const foundDataStyleIds = new Set<string>();
       let match;
       while ((match = dataStyleIdPattern.exec(toolDefinition.componentCode)) !== null) {
@@ -1579,7 +1576,8 @@ export function performFullValidation(
     }
     
     // 11. STRICT: Validate data-style-id attributes are present
-    const dataStyleIdCount = (toolDefinition.componentCode.match(/data-style-id=/g) || []).length;
+    // FIXED: Updated regex to match the actual format: 'data-style-id': 'value'
+    const dataStyleIdCount = (toolDefinition.componentCode.match(/'data-style-id'\s*:\s*['"][^'"]*['"]/g) || []).length;
     if (dataStyleIdCount === 0) {
       trackIssue(
         'Component does not contain any data-style-id attributes',
@@ -1589,19 +1587,35 @@ export function performFullValidation(
         'No data-style-id attributes found',
         false
       );
+    } else {
+      console.log(`🛡️ VALIDATION: ✅ Found ${dataStyleIdCount} data-style-id attributes`);
     }
     
-    // 12. STRICT: Check for proper React keys in arrays (now required, not just a warning)
-    const hasArraysWithoutKeys = /React\.createElement\([^,]+,\s*\{[^}]*\},\s*\[[^\]]*React\.createElement\([^,]+,\s*\{(?![^}]*key:)[^}]*\}/.test(toolDefinition.componentCode);
-    if (hasArraysWithoutKeys) {
+    // 12. STRICT: Check for proper React keys in arrays (now required, not just blocking)
+    // FIXED: Better detection of React arrays without keys
+    const arrayElementPattern = /React\.createElement\([^,]+,\s*\{[^}]*\}/g;
+    const keyedArrayElementPattern = /React\.createElement\([^,]+,\s*\{[^}]*key\s*:[^}]*\}/g;
+    
+    const allArrayElements = (toolDefinition.componentCode.match(arrayElementPattern) || []).length;
+    const keyedArrayElements = (toolDefinition.componentCode.match(keyedArrayElementPattern) || []).length;
+    
+    // Check if there are array contexts (indicated by square brackets containing React.createElement)
+    const hasArrayContext = /\[[^\]]*React\.createElement/g.test(toolDefinition.componentCode);
+    
+    if (hasArrayContext && keyedArrayElements < allArrayElements) {
+      const missingKeyCount = allArrayElements - keyedArrayElements;
       trackIssue(
         'Component has React arrays without proper keys',
         'react-keys',
         'error',
-        'All React elements in arrays must have unique key props',
+        `${missingKeyCount} React elements in arrays are missing key props`,
         'Missing keys in React arrays',
         true // Auto-fixable
       );
+    } else if (hasArrayContext) {
+      console.log(`🛡️ VALIDATION: ✅ All ${keyedArrayElements} React array elements have keys`);
+    } else {
+      console.log('🛡️ VALIDATION: ✅ No React arrays detected - key validation skipped');
     }
     
     // 13. Check for common syntax errors that cause crashes
