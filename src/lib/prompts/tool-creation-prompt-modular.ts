@@ -470,17 +470,13 @@ export const STYLE_GUIDES = {
         - Ensure tools fit comfortably on standard laptop screens (1366x768)
         
         ✅ COMPACT CONTAINER EXAMPLES:
-        Main container:      'max-w-4xl mx-auto p-4' (not p-8)
-        Input sections:      'bg-white p-4 rounded-lg border shadow-md space-y-4' (not p-8 space-y-8)
-        Results sections:    'p-4 rounded-lg shadow-md' (not p-6)
-        Grid layouts:        'grid grid-cols-1 md:grid-cols-2 gap-4' (not gap-6)
+        Page container:      'max-w-4xl mx-auto p-4' (div wrapper - acceptable)
+        Main sections:       Use ShadCN Card components with compact styling
+        Input sections:      React.createElement(Card, { className: 'p-4 rounded-lg border shadow-md space-y-4' })
+        Results sections:    React.createElement(Card, { className: 'p-4 rounded-lg shadow-md' })
+        Internal layouts:    'grid grid-cols-1 md:grid-cols-2 gap-4' (div for layout only)
         
-        ❌ AVOID EXCESSIVE SPACING:
-        - No p-8 or higher padding unless absolutely necessary
-        - No space-y-8 or higher section spacing
-        - No gap-6 or higher grid gaps
-        - No mb-8 or higher margins between major sections
-        - No unnecessarily tall input fields (h-12+)
+        🚨 CRITICAL FOR SHADCN: Use Card components for major sections, NOT styled divs!
     </spacing-modernization>
     
     <input-text-contrast>
@@ -508,27 +504,31 @@ export const STYLE_GUIDES = {
     </critical-mandates>
     
     <container-hierarchy>
-        container (max-width, padding, professional styling)
-        ├── section (tool header + description)  
-        ├── section (INPUT GRID - 2-3 columns)
-        │   └── grid (columns: "1fr 1fr" or "1fr 1fr 1fr")
-        │       ├── Related Input Group 1
-        │       ├── Related Input Group 2  
-        │       └── Related Input Group 3
-        ├── section (RESULTS DASHBOARD - multi-column)
-        │   └── grid (columns: "1fr 1fr" or "1fr 1fr 1fr 1fr")
-        │       ├── metric-display
-        │       ├── calculation-display
-        │       ├── percentage-display
-        │       └── currency-display
-        └── section (lead capture + actions)
-            └── grid (columns: "1fr 1fr 1fr")
-                ├── text-input (name)
-                ├── email-input  
-                └── text-input (company)
+        page-container (div: max-width, padding, professional styling)
+        └── main-tool-card (Card: primary wrapper)
+            └── CardContent (p-0)
+                ├── tool-header (div or Card: header + info popup)
+                ├── input-card (Card: INPUT GRID - 2-3 columns)
+                │   ├── CardHeader + CardTitle
+                │   └── CardContent with grid layout
+                │       ├── Related Input Group 1
+                │       ├── Related Input Group 2  
+                │       └── Related Input Group 3
+                ├── results-card (Card: RESULTS DASHBOARD - multi-column)
+                │   ├── CardHeader + CardTitle
+                │   └── CardContent with grid layout
+                │       ├── metric-display
+                │       ├── calculation-display
+                │       ├── percentage-display
+                │       └── currency-display
+                └── lead-card (Card: lead capture + actions)
+                    └── CardContent with grid layout
+                        ├── text-input (name)
+                        ├── email-input  
+                        └── text-input (company)
     </container-hierarchy>
 
-    ℹ️ SHADCN NOTE: When componentSet is 'shadcn', the 'sections' described in the hierarchy above (e.g., for header, input grid, results) should typically be implemented as ShadCN Card components, often nested within the main tool Card. Each Card would then contain its relevant CardHeader, CardTitle, CardContent, etc.
+    🚨 SHADCN MANDATORY: ALL major sections MUST be Card components within the main-tool-card!
 </layout-requirements>`,
 
   // Emphasis on proper ShadCN usage
