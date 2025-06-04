@@ -12,6 +12,7 @@ import { getToolCreationSystemPrompt, buildToolCreationUserPrompt, PromptOptions
 import { trackValidationIssue } from '@/lib/validation/validation-tracker';
 import { ValidationIssue } from '@/lib/types/validation';
 import { TOOL_FIXER_SYSTEM_PROMPT, buildToolFixerUserPrompt } from '@/lib/prompts/tool-fixer-prompt';
+import { extractAndEnhanceStyles, validateStyleExtraction, previewStyleExtraction } from '@/lib/utils/style-extractor';
 
 // Core request interface
 export interface CreateToolRequest {
@@ -829,6 +830,56 @@ export async function processToolCreation(
     console.log('🏭 TRACE: ComponentCode length:', finalToolDefinition.componentCode?.length || 0);
     console.log('🏭 TRACE: InitialStyleMap keys:', Object.keys(finalToolDefinition.initialStyleMap || {}));
 
+    // ✨ POST-PROCESSING: Automatic Style Extraction and Enhancement
+    console.log('🎨 POST-PROCESSING: Starting automatic style extraction...');
+    console.log('🎨 POST-PROCESSING: Component code before style extraction (first 500 chars):');
+    console.log(finalToolDefinition.componentCode.substring(0, 500));
+    
+    const styleExtractionResult = extractAndEnhanceStyles(finalToolDefinition.componentCode, {
+      preserveExistingDataStyleIds: true,
+      generateDescriptiveIds: true,
+      includeBasicElements: true,
+      idPrefix: '' // No prefix for cleaner IDs
+    });
+    
+    // Validate the style extraction
+    const extractionValidation = validateStyleExtraction(styleExtractionResult);
+    
+    if (!extractionValidation.isValid) {
+      console.error('🎨 POST-PROCESSING: ⚠️ Style extraction had issues:', extractionValidation.issues);
+      extractionValidation.warnings.forEach(warning => 
+        console.warn('🎨 POST-PROCESSING: Warning:', warning)
+      );
+    } else {
+      console.log('🎨 POST-PROCESSING: ✅ Style extraction successful!');
+    }
+    
+    // Log the extraction preview
+    console.log('🎨 POST-PROCESSING: Extraction preview:');
+    console.log(previewStyleExtraction(styleExtractionResult));
+    
+    // Apply the style extraction results to the final tool definition
+    const enhancedToolDefinition: ProductToolDefinition = {
+      ...finalToolDefinition,
+      componentCode: styleExtractionResult.modifiedComponentCode,
+      initialStyleMap: {
+        // Merge any existing style map with extracted styles
+        ...finalToolDefinition.initialStyleMap,
+        ...styleExtractionResult.initialStyleMap
+      },
+      currentStyleMap: {
+        // Update current style map as well
+        ...finalToolDefinition.currentStyleMap,
+        ...styleExtractionResult.initialStyleMap
+      }
+    };
+    
+    console.log('🎨 POST-PROCESSING: Enhanced tool definition created');
+    console.log('🎨 POST-PROCESSING: Enhanced component code length:', enhancedToolDefinition.componentCode.length);
+    console.log('🎨 POST-PROCESSING: Enhanced style map keys:', Object.keys(enhancedToolDefinition.initialStyleMap || {}));
+    console.log('🎨 POST-PROCESSING: Component code after enhancement (first 500 chars):');
+    console.log(enhancedToolDefinition.componentCode.substring(0, 500));
+
     // Final check for undefined values in the final tool definition
     const finalUndefinedFields = [];
     if (!finalToolDefinition.id || String(finalToolDefinition.id).includes('undefined')) {
@@ -857,7 +908,7 @@ export async function processToolCreation(
     console.log('🛡️ VALIDATION: Running comprehensive tool validation...');
     
     // Use the extracted validation function instead of inline validation
-    let currentTool = finalToolDefinition;
+    let currentTool = enhancedToolDefinition;
     let validationResult = performFullValidation(currentTool, {
       toolId: currentTool.id,
       toolTitle: currentTool.metadata.title,
