@@ -1691,6 +1691,24 @@ export async function fixToolWithAI(
   console.log('🔧 TOOL FIXER: Starting AI-powered tool correction...');
   console.log(`🔧 TOOL FIXER: ${validationIssues.length} validation issues to address`);
   console.log('🔧 TOOL FIXER: Config:', fixerConfig);
+  console.log('🔧 TOOL FIXER: Failed tool preview:', {
+    id: failedToolDefinition.id,
+    title: failedToolDefinition.metadata?.title,
+    componentSet: failedToolDefinition.componentSet,
+    hasComponentCode: !!failedToolDefinition.componentCode,
+    componentCodeLength: failedToolDefinition.componentCode?.length || 0,
+    hasInitialStyleMap: !!failedToolDefinition.initialStyleMap,
+    initialStyleMapKeys: Object.keys(failedToolDefinition.initialStyleMap || {}),
+    componentCodePreview: failedToolDefinition.componentCode?.substring(0, 300) || 'NO CODE'
+  });
+
+  // Log validation issues in detail
+  console.log('🔧 TOOL FIXER: Detailed validation issues to fix:');
+  validationIssues.forEach((issue, index) => {
+    console.log(`🔧 TOOL FIXER:   ${index + 1}. [${issue.severity.toUpperCase()}] ${issue.category}: ${issue.issue}`);
+    if (issue.details) console.log(`🔧 TOOL FIXER:      Details: ${issue.details}`);
+    if (issue.codeSnippet) console.log(`🔧 TOOL FIXER:      Code: ${issue.codeSnippet.substring(0, 100)}...`);
+  });
 
   let currentTool = failedToolDefinition;
   let currentValidation: ToolValidationResult | undefined;
@@ -1702,7 +1720,9 @@ export async function fixToolWithAI(
   
   for (attempts = 1; attempts <= fixerConfig.maxAttempts; attempts++) {
     try {
-      console.log(`🔧 TOOL FIXER: Attempt ${attempts}/${fixerConfig.maxAttempts}`);
+      console.log(`🔧 TOOL FIXER: ===============================================`);
+      console.log(`🔧 TOOL FIXER: ATTEMPT ${attempts}/${fixerConfig.maxAttempts}`);
+      console.log(`🔧 TOOL FIXER: ===============================================`);
       
       // Determine which model to use for fixing
       let modelConfig;
@@ -1733,6 +1753,7 @@ export async function fixToolWithAI(
       }
       
       // Build the fixer prompt
+      console.log('🔧 TOOL FIXER: Building fixer prompt...');
       const fixerPrompt = buildToolFixerUserPrompt(
         currentTool,
         validationIssues,
@@ -1743,11 +1764,18 @@ export async function fixToolWithAI(
       
       if (fixerConfig.enableLogging) {
         console.log(`🔧 TOOL FIXER: Fixer prompt length: ${fixerPrompt.length}`);
-        console.log(`🔧 TOOL FIXER: Fixer prompt preview (first 500 chars): ${fixerPrompt.substring(0, 500)}`);
+        console.log(`🔧 TOOL FIXER: Fixer prompt preview (first 1000 chars):`);
+        console.log(fixerPrompt.substring(0, 1000));
+        console.log('🔧 TOOL FIXER: [...prompt continues...]');
+        
+        console.log(`🔧 TOOL FIXER: System prompt length: ${TOOL_FIXER_SYSTEM_PROMPT.length}`);
+        console.log(`🔧 TOOL FIXER: Temperature: ${fixerConfig.temperature}`);
       }
       
       // Call AI to fix the tool
       console.log('🔧 TOOL FIXER: Calling AI model for corrections...');
+      const aiStartTime = Date.now();
+      
       const result = await generateObject({
         model: modelInstance,
         schema: productToolDefinitionSchema,
@@ -1757,8 +1785,33 @@ export async function fixToolWithAI(
         maxRetries: 2
       });
       
+      const aiDuration = Date.now() - aiStartTime;
+      console.log(`🔧 TOOL FIXER: AI correction completed in ${aiDuration}ms`);
+      
       const fixedToolDefinition = result.object;
-      console.log('🔧 TOOL FIXER: AI correction completed');
+      console.log('🔧 TOOL FIXER: AI response received, analyzing changes...');
+      
+      // Log what changed
+      const changes = {
+        componentCodeChanged: fixedToolDefinition.componentCode !== currentTool.componentCode,
+        initialStyleMapChanged: JSON.stringify(fixedToolDefinition.initialStyleMap) !== JSON.stringify(currentTool.initialStyleMap),
+        metadataChanged: JSON.stringify(fixedToolDefinition.metadata) !== JSON.stringify(currentTool.metadata),
+        colorSchemeChanged: JSON.stringify(fixedToolDefinition.colorScheme) !== JSON.stringify(currentTool.colorScheme)
+      };
+      
+      console.log('🔧 TOOL FIXER: Changes detected:', changes);
+      
+      if (changes.componentCodeChanged) {
+        console.log('🔧 TOOL FIXER: Component code was modified');
+        console.log('🔧 TOOL FIXER: New component code preview (first 500 chars):');
+        console.log(fixedToolDefinition.componentCode?.substring(0, 500) || 'NO CODE');
+      }
+      
+      if (changes.initialStyleMapChanged) {
+        console.log('🔧 TOOL FIXER: initialStyleMap was modified');
+        console.log('🔧 TOOL FIXER: New style map keys:', Object.keys(fixedToolDefinition.initialStyleMap || {}));
+        console.log('🔧 TOOL FIXER: New style map:', fixedToolDefinition.initialStyleMap);
+      }
       
       // Transform to proper ProductToolDefinition (similar to processToolCreation)
       const transformedTool: ProductToolDefinition = {
@@ -1802,8 +1855,9 @@ export async function fixToolWithAI(
         }
       }
       
+      console.log('🔧 TOOL FIXER: Tool transformation complete, validating fixed tool...');
+      
       // Validate the fixed tool
-      console.log('🔧 TOOL FIXER: Validating fixed tool...');
       currentValidation = performFullValidation(transformedTool, {
         toolId: transformedTool.id,
         toolTitle: transformedTool.metadata.title,
@@ -1815,6 +1869,22 @@ export async function fixToolWithAI(
       const newBlockerCount = currentValidation.blockers.length;
       
       console.log(`🔧 TOOL FIXER: Validation results - ${newIssueCount} issues (${newBlockerCount} blockers)`);
+      
+      // Log remaining validation issues
+      if (newBlockerCount > 0) {
+        console.log('🔧 TOOL FIXER: Remaining blockers:');
+        currentValidation.blockers.forEach((blocker, index) => {
+          console.log(`🔧 TOOL FIXER:   ${index + 1}. [${blocker.category}] ${blocker.issue}`);
+          if (blocker.details) console.log(`🔧 TOOL FIXER:      Details: ${blocker.details}`);
+        });
+      }
+      
+      if (currentValidation.issues.length > 0) {
+        console.log('🔧 TOOL FIXER: All remaining issues:');
+        currentValidation.issues.forEach((issue, index) => {
+          console.log(`🔧 TOOL FIXER:   ${index + 1}. [${issue.severity}] ${issue.category}: ${issue.issue}`);
+        });
+      }
       
       // Check if we've successfully fixed the tool
       if (currentValidation.isValid) {
@@ -1858,6 +1928,12 @@ export async function fixToolWithAI(
       // If we're on the last attempt, we'll return whatever we have
       if (attempts === fixerConfig.maxAttempts) {
         console.log('🔧 TOOL FIXER: ⚠️ Reached maximum attempts - returning partial fix');
+        console.log('🔧 TOOL FIXER: Final tool state analysis:');
+        console.log('🔧 TOOL FIXER:   Component code length:', transformedTool.componentCode?.length || 0);
+        console.log('🔧 TOOL FIXER:   Has initialStyleMap:', !!transformedTool.initialStyleMap);
+        console.log('🔧 TOOL FIXER:   Style map keys:', Object.keys(transformedTool.initialStyleMap || {}));
+        console.log('🔧 TOOL FIXER:   Component set:', transformedTool.componentSet);
+        
         return {
           success: false,
           fixedTool: transformedTool,
@@ -1872,10 +1948,19 @@ export async function fixToolWithAI(
         };
       }
       
-      console.log(`🔧 TOOL FIXER: ${newBlockerCount} blockers remain - attempting next fix...`);
+      console.log(`🔧 TOOL FIXER: ${newBlockerCount} blockers remain - preparing next attempt...`);
+      console.log('🔧 TOOL FIXER: Issues to fix in next attempt:');
+      validationIssues.slice(0, 3).forEach((issue, index) => {
+        console.log(`🔧 TOOL FIXER:   ${index + 1}. [${issue.severity}] ${issue.issue}`);
+      });
       
     } catch (error) {
       console.error(`🔧 TOOL FIXER: Error on attempt ${attempts}:`, error);
+      console.error('🔧 TOOL FIXER: Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        type: error instanceof Error ? error.constructor.name : typeof error,
+        stack: error instanceof Error ? error.stack?.substring(0, 500) : 'No stack'
+      });
       
       // If this is the last attempt, return the error
       if (attempts === fixerConfig.maxAttempts) {
