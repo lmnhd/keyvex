@@ -497,6 +497,10 @@ export const createToolWithBrainstorming = async (
     setIsGeneratingTool(false);
     setLastAIMessage(`Sorry, there was an error creating your tool: ${error instanceof Error ? error.message : 'Unknown error'}`);
     throw error;
+  } finally {
+    // 🔧 CRITICAL FIX: Always reset generating state to allow canvas to display the tool
+    setIsGeneratingTool(false);
+    setIsBrainstorming(false);
   }
 };
 

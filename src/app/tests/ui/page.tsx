@@ -1093,29 +1093,188 @@ export default function TestUIPage() {
     await loadAndSetSavedLogicResults();
   };
 
-  const onTestToolCreation = async () => {
+  // Mock tool creation function for testing
+  const mockToolCreation = async () => {
     setIsGeneratingTool(true);
-    setLastAIMessage("⏳ Kicking off full tool creation with Logic Architect brainstorming... This might take a moment.");
-    const scenario = getRandomTestScenario();
-    console.log(`🧪 Creating Test Tool (via full workflow): ${scenario.context.toolType} - ${scenario.userIntent}`);
+    setLastAIMessage("🧪 Running mock tool creation test...");
+    
+    try {
+      // Simulate the full workflow using mock data
+      const calculatorType = getRandomCalculatorType();
+      console.log(`🧪 Mock Tool Creation: ${calculatorType.toolType} - ${calculatorType.userIntent}`);
+      
+      // Simulate a delay for tool creation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Complete the mock workflow by advancing through the steps quickly
+      setLastAIMessage("🧪 Mock workflow completed! Switch to AI mode to test real tool creation.");
+      
+      // Update to show a sample tool on canvas
+      const sampleTool: ProductToolDefinition = {
+        id: `mock-tool-${Date.now()}`,
+        slug: `mock-tool-${Date.now()}`,
+        version: '1.0.0',
+        status: 'draft',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        createdBy: 'mock-test',
+        
+        metadata: {
+          id: `mock-tool-${Date.now()}`,
+          slug: `mock-tool-${Date.now()}`,
+          title: `${calculatorType.toolType.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`,
+          description: calculatorType.userIntent,
+          shortDescription: `Mock ${calculatorType.toolType}`,
+          type: 'calculator',
+          category: 'business',
+          targetAudience: calculatorType.targetAudience,
+          industry: calculatorType.industry,
+          tags: ['mock', 'test', ...calculatorType.features],
+          estimatedCompletionTime: 5,
+          difficultyLevel: 'beginner',
+          features: calculatorType.features,
+          icon: { type: 'lucide', value: 'Calculator' }
+        },
+        
+        componentSet: 'shadcn',
+        componentCode: `'use client';
+const { useState } = React;
+function MockBusinessCalculator() {
+  const [revenue, setRevenue] = useState('');
+  const [costs, setCosts] = useState('');
+  
+  const profit = (parseFloat(revenue) || 0) - (parseFloat(costs) || 0);
+  const margin = revenue ? ((profit / parseFloat(revenue)) * 100).toFixed(1) : '0';
+  
+  return React.createElement('div', { 
+    className: 'max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg',
+    'data-style-id': 'main-container',
+    key: 'main-container'
+  }, [
+    React.createElement('h1', { 
+      className: 'text-2xl font-bold text-gray-900 mb-6',
+      'data-style-id': 'main-title',
+      key: 'main-title'
+    }, '${calculatorType.toolType.replace(/-/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase())}'),
+    React.createElement('div', { 
+      className: 'space-y-4 mb-6',
+      key: 'inputs-section'
+    }, [
+      React.createElement('div', { key: 'revenue-input' }, [
+        React.createElement('label', { 
+          className: 'block text-sm font-medium text-gray-700 mb-2',
+          key: 'revenue-label'
+        }, 'Revenue ($)'),
+        React.createElement('input', {
+          type: 'number',
+          value: revenue,
+          onChange: (e) => setRevenue(e.target.value),
+          className: 'w-full p-3 border border-gray-300 rounded-lg',
+          'data-style-id': 'revenue-input',
+          key: 'revenue-field'
+        })
+      ]),
+      React.createElement('div', { key: 'costs-input' }, [
+        React.createElement('label', { 
+          className: 'block text-sm font-medium text-gray-700 mb-2',
+          key: 'costs-label'
+        }, 'Costs ($)'),
+        React.createElement('input', {
+          type: 'number',
+          value: costs,
+          onChange: (e) => setCosts(e.target.value),
+          className: 'w-full p-3 border border-gray-300 rounded-lg',
+          'data-style-id': 'costs-input',
+          key: 'costs-field'
+        })
+      ])
+    ]),
+    React.createElement('div', { 
+      className: 'bg-blue-50 p-4 rounded-lg',
+      'data-style-id': 'results-section',
+      key: 'results-section'
+    }, [
+      React.createElement('h3', { 
+        className: 'text-lg font-semibold text-blue-900 mb-2',
+        key: 'results-title'
+      }, 'Results'),
+      React.createElement('p', { 
+        className: 'text-blue-800',
+        key: 'profit-result'
+      }, 'Profit: $' + profit.toLocaleString()),
+      React.createElement('p', { 
+        className: 'text-blue-800',
+        key: 'margin-result'
+      }, 'Margin: ' + margin + '%')
+    ])
+  ]);
+}`,
+        
+        initialStyleMap: {
+          'main-container': 'max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg',
+          'main-title': 'text-2xl font-bold text-gray-900 mb-6',
+          'revenue-input': 'w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500',
+          'costs-input': 'w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500',
+          'results-section': 'bg-blue-50 p-4 rounded-lg border border-blue-200'
+        },
+        
+        currentStyleMap: {
+          'main-container': 'max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg',
+          'main-title': 'text-2xl font-bold text-gray-900 mb-6',
+          'revenue-input': 'w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500',
+          'costs-input': 'w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500',
+          'results-section': 'bg-blue-50 p-4 rounded-lg border border-blue-200'
+        },
+        
+        colorScheme: {
+          primary: '#3b82f6',
+          secondary: '#1e40af',
+          background: '#ffffff',
+          surface: '#f9fafb',
+          text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+          border: '#e5e7eb',
+          success: '#10b981',
+          warning: '#f59e0b',
+          error: '#ef4444'
+        },
+        
+        analytics: { enabled: true, completions: 0, averageTime: 0 }
+      };
+      
+      // Set the mock tool on canvas
+      await transitionToNewContent(() => {
+        setProductToolDefinition(sampleTool);
+        setLastAIMessage(`🧪 Mock tool "${sampleTool.metadata.title}" created and displayed on canvas!`);
+      });
+      
+    } catch (error) {
+      console.error("Mock tool creation error:", error);
+      setLastAIMessage(`❌ Mock tool creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsGeneratingTool(false);
+    }
+  };
+
+  const onTestToolCreation = async () => {
+    if (!useMockData) {
+      console.log("Starting full workflow test (brainstorming + tool creation)...");
+      setLastAIMessage("🚧 Testing full workflow: brainstorming + tool creation...");
+    } else {
+      console.log("Starting mock tool creation test...");
+      setLastAIMessage("🚧 Testing mock tool creation...");
+      await mockToolCreation();
+      return;
+    }
 
     const baseContext = {
-      userIntent: scenario.userIntent,
-      toolType: scenario.context.toolType,
-      targetAudience: scenario.context.targetAudience,
-      industry: scenario.context.industry,
-      features: scenario.context.features,
-      businessDescription: scenario.context.businessDescription, // Pass business description
-      // collectedAnswers can be built or passed if needed by your brainstorming prompt,
-      // for now, focusing on essential context for Logic Architect.
-      collectedAnswers: {
-        'business-description': scenario.context.businessDescription,
-        'tool-type': scenario.context.toolType,
-        'target-audience': scenario.context.targetAudience,
-        'industry-focus': scenario.context.industry
-      },
-      // IMPORTANT: DO NOT pre-fill logicArchitectInsights here.
-      // Let createToolWithBrainstorming handle the Logic Architect call.
+      userIntent: 'Create a test business tool',
+      toolType: 'calculator',
+      targetAudience: 'business professionals',
+      industry: 'business',
+      businessDescription: 'General business consulting',
+      features: ['calculations', 'reporting'],
+      colors: ['blue', 'green'],
+      collectedAnswers: {}
     };
 
     try {
@@ -1139,12 +1298,20 @@ export default function TestUIPage() {
       // The actual saving to DB and state update is now handled within createToolWithBrainstorming/callToolCreationAgent
 
       if (newTool && isValidProductToolDefinition(newTool)) {
-        // setProductToolDefinition is likely called within createToolWithBrainstorming or its callees
-        // If not, it might need to be set here. For now, assume it is.
-        setProductToolDefinition(newTool);
+        // 🔧 FIX: Ensure canvas displays the tool by updating state AFTER brainstorming is complete
+        console.log('🎨 Setting product tool definition for canvas display:', newTool.metadata.title);
+        
+        // Update canvas state to display the tool
+        await transitionToNewContent(() => {
+          setProductToolDefinition(newTool);
+          setLastAIMessage(`✅ Full workflow test tool '${newTool.metadata.title}' created and ready on canvas!`);
+        });
+        
+        // Refresh saved data lists
         await loadAndSetSavedTools(); // Refresh saved tools list
         await loadAndSetSavedLogicResults(); // Refresh saved brainstorming results list
-        setLastAIMessage(`✅ Full workflow test tool '${newTool.metadata.title}' created and saved!`);
+        
+        console.log('🎯 Canvas should now display tool:', newTool.id);
       } else if (newTool === null && !isGeneratingTool) {
         // This case implies brainstorming or creation was aborted but no hard error thrown,
         // and isGeneratingTool was reset.

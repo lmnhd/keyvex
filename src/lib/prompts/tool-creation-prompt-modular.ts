@@ -151,33 +151,33 @@ export const STYLE_GUIDES = {
     </mandatory-style-rules>
 
     <enhanced-component-example>
-        // VIBRANT, MODERN STYLING PATTERNS
+        // COMPACT, EFFICIENT STYLING PATTERNS
         React.createElement('div', {
-          className: 'max-w-4xl mx-auto p-8',
+          className: 'max-w-4xl mx-auto p-4',
           'data-style-id': 'main-container',
           key: 'main-container-example'
         }, [
-          // UPDATED GRADIENT HEADER with logo, title, subtitle, and info icon tooltip
+          // COMPACT GRADIENT HEADER with logo, title, subtitle, and info icon tooltip
           React.createElement('div', {
-            className: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-xl mb-8 shadow-xl flex items-center justify-between',
+            className: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-lg mb-4 shadow-lg flex items-center justify-between',
             'data-style-id': 'tool-header',
             key: 'tool-header-example'
           }, [
             // Logo and Title/Subtitle group
-            React.createElement('div', { className: 'flex items-center space-x-4', key: 'header-left-group-example' }, [
+            React.createElement('div', { className: 'flex items-center space-x-3', key: 'header-left-group-example' }, [
               React.createElement('div', { 
-                className: 'w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-xl font-bold text-white',
+                className: 'w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-lg font-bold text-white',
                 'data-style-id': 'placeholder-logo',
                 key: 'placeholder-logo-example' 
               }, 'L'), // Placeholder Logo (e.g., first letter of company or a generic symbol)
               React.createElement('div', { key: 'title-subtitle-group-example' }, [
                 React.createElement('h1', {
-                  className: 'text-2xl md:text-3xl font-bold',
+                  className: 'text-xl md:text-2xl font-bold',
                   'data-style-id': 'main-title',
                   key: 'main-title-example'
                 }, 'Modern Business Calculator'),
                 React.createElement('p', {
-                  className: 'text-blue-100 text-md md:text-lg',
+                  className: 'text-blue-100 text-sm md:text-base',
                   'data-style-id': 'subtitle',
                   key: 'subtitle-example'
                 }, 'Professional-grade ROI analysis')
@@ -194,7 +194,7 @@ export const STYLE_GUIDES = {
                     'data-style-id': 'info-icon-button',
                     key: 'info-button-example'
                   }, [
-                    React.createElement(Info, { className: 'h-6 w-6', key: 'info-icon-svg-example' }) // Info is an available icon
+                    React.createElement(Info, { className: 'h-5 w-5', key: 'info-icon-svg-example' }) // Info is an available icon
                   ])
                 ]),
                 React.createElement(TooltipContent, { side: 'bottom', align: 'end', className: 'bg-gray-800 text-white p-3 rounded-md shadow-lg max-w-xs text-sm', key: 'tooltip-content-info-example' }, [
@@ -211,23 +211,23 @@ export const STYLE_GUIDES = {
             ])
           ]),
           
-          // ENHANCED INPUT SECTION with generous spacing (ensure keys for array children)
+          // COMPACT INPUT SECTION with efficient spacing (ensure keys for array children)
           React.createElement('div', {
-            className: 'bg-white p-8 rounded-xl border shadow-lg space-y-8',
+            className: 'bg-white p-4 rounded-lg border shadow-md space-y-4',
             'data-style-id': 'input-section',
             key: 'input-section-example'
           }, [
             React.createElement('div', {
-              className: 'grid grid-cols-1 md:grid-cols-2 gap-6',
+              className: 'grid grid-cols-1 md:grid-cols-2 gap-4',
               key: 'input-grid-example'
             }, [
               React.createElement('div', { key: 'input-group-1-example' }, [ // Added key
                 React.createElement(Label, {
-                  className: 'block text-sm font-semibold text-gray-800 uppercase tracking-wide mb-3',
+                  className: 'block text-sm font-semibold text-gray-800 uppercase tracking-wide mb-2',
                   key: 'label-1-example'
                 }, 'Initial Investment ($)'),
                 React.createElement(Input, {
-                  className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300',
+                  className: 'w-full h-10 px-3 text-base font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200',
                   placeholder: 'e.g. 50,000',
                   key: 'input-1-example'
                 })
@@ -236,19 +236,19 @@ export const STYLE_GUIDES = {
             ])
           ]),
           
-          // PREMIUM RESULTS SECTION (ensure keys for array children)
+          // COMPACT RESULTS SECTION (ensure keys for array children)
           React.createElement('div', {
-            className: 'bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-xl border border-blue-200 shadow-xl',
+            className: 'bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200 shadow-md',
             'data-style-id': 'results-section',
             key: 'results-section-example'
           }, [
             React.createElement('div', {
-              className: 'text-center p-6 bg-white rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300',
+              className: 'text-center p-4 bg-white rounded-lg shadow-md transform hover:scale-105 transition-all duration-200',
               'data-style-id': 'roi-display',
               key: 'roi-display-example'
             }, [
               React.createElement('div', {
-                className: 'text-4xl font-black text-blue-600 mb-2',
+                className: 'text-3xl font-black text-blue-600 mb-1',
                 key: 'roi-value-example'
               }, '247%'),
               React.createElement('div', {
@@ -449,14 +449,38 @@ export const STYLE_GUIDES = {
     </typography-enhancement>
     
     <spacing-modernization>
-        // GENEROUS SPACING for premium feel
-        Container padding:    'p-8' instead of 'p-4'
-        Section spacing:      'space-y-8' instead of 'space-y-4'  
-        Grid gaps:           'gap-6' instead of 'gap-4'
-        Input heights:       'h-12' or 'h-14' instead of default h-9
-        Button padding:      'px-8 py-4' instead of default
-        Card padding:        'p-6' instead of 'p-4'
-        Border radius:       'rounded-xl' or 'rounded-2xl' for modern look
+        // COMPACT, EFFICIENT SPACING for maximum content density
+        🎯 PRIORITY: Minimize empty space while maintaining readability and professionalism
+        
+        ✅ COMPACT SPACING PATTERNS:
+        Container padding:    'p-4' or 'p-6' (not p-8)
+        Section spacing:      'space-y-4' or 'space-y-6' (not space-y-8)  
+        Grid gaps:           'gap-4' (not gap-6)
+        Input heights:       'h-10' or 'h-11' (not h-12/h-14)
+        Button padding:      'px-6 py-2' or 'px-4 py-2' (not px-8 py-4)
+        Card padding:        'p-4' (not p-6)
+        Border radius:       'rounded-lg' (not rounded-xl/2xl)
+        Margins between sections: 'mb-4' or 'mb-6' (not mb-8)
+        
+        🎯 EFFICIENT LAYOUT PRINCIPLES:
+        - Use vertical space efficiently - avoid excessive spacing between elements
+        - Group related inputs tightly with minimal gaps
+        - Use consistent, moderate padding throughout
+        - Prioritize content over whitespace
+        - Ensure tools fit comfortably on standard laptop screens (1366x768)
+        
+        ✅ COMPACT CONTAINER EXAMPLES:
+        Main container:      'max-w-4xl mx-auto p-4' (not p-8)
+        Input sections:      'bg-white p-4 rounded-lg border shadow-md space-y-4' (not p-8 space-y-8)
+        Results sections:    'p-4 rounded-lg shadow-md' (not p-6)
+        Grid layouts:        'grid grid-cols-1 md:grid-cols-2 gap-4' (not gap-6)
+        
+        ❌ AVOID EXCESSIVE SPACING:
+        - No p-8 or higher padding unless absolutely necessary
+        - No space-y-8 or higher section spacing
+        - No gap-6 or higher grid gaps
+        - No mb-8 or higher margins between major sections
+        - No unnecessarily tall input fields (h-12+)
     </spacing-modernization>
     
     <input-text-contrast>
@@ -515,22 +539,46 @@ export const STYLE_GUIDES = {
     <overall-tool-structure>
         ✅ WRAP THE ENTIRE TOOL: The main content of your tool (excluding perhaps only a top-level page padding div) MUST be wrapped in a primary ShadCN Card component. This Card acts as the main container, providing a consistent background and visual structure.
         
-        🚨 MANDATORY MAIN CARD STRUCTURE:
+        🚨🚨🚨 MANDATORY MAIN CARD STRUCTURE - ABSOLUTELY CRITICAL - CANNOT BE IGNORED 🚨🚨🚨
+        
+        ❌❌❌ WRONG STRUCTURE (WILL BE REJECTED):
+        React.createElement('div', { className: 'max-w-4xl mx-auto p-4 md:p-8', 'data-style-id': 'page-container' }, [
+          React.createElement(Card, { 'data-style-id': 'main-tool-card' }, [
+            // Only header content here
+          ]),
+          React.createElement(Card, { 'data-style-id': 'input-card' }, []), // ❌ WRONG: Outside main card
+          React.createElement(Card, { 'data-style-id': 'results-card' }, []) // ❌ WRONG: Outside main card
+        ])
+        
+        ✅✅✅ CORRECT STRUCTURE (MANDATORY):
         React.createElement('div', { className: 'max-w-4xl mx-auto p-4 md:p-8', 'data-style-id': 'page-container' }, [
           React.createElement(Card, { 
             'data-style-id': 'main-tool-card', 
             className: 'w-full shadow-xl border-0',
             key: 'main-tool-card'
           }, [
-            // ALL YOUR TOOL CONTENT GOES INSIDE THIS MAIN CARD:
+            // 🎯 ALL YOUR TOOL CONTENT GOES INSIDE THIS MAIN CARD:
             React.createElement(CardContent, { className: 'p-0', key: 'main-card-content' }, [
               // Header section with info popup (as Card or div)
-              // Input sections (as separate Cards)
-              // Results sections (as separate Cards)
-              // Lead capture (as separate Cards)
+              React.createElement('div', { className: 'header-classes', 'data-style-id': 'tool-header' }, []),
+              // Input sections (as separate Cards INSIDE the main card)
+              React.createElement(Card, { 'data-style-id': 'input-card' }, []),
+              // Results sections (as separate Cards INSIDE the main card)  
+              React.createElement(Card, { 'data-style-id': 'results-card' }, []),
+              // Lead capture (as separate Cards INSIDE the main card)
+              React.createElement(Card, { 'data-style-id': 'lead-card' }, [])
             ])
           ])
         ])
+        
+        🚨 STRUCTURE VALIDATION CHECKLIST - VERIFY BEFORE SUBMITTING:
+        1. ✅ Page container wraps everything
+        2. ✅ Main-tool-card is the ONLY direct child of page container
+        3. ✅ ALL content (header, inputs, results, lead) is INSIDE main-tool-card
+        4. ✅ NO Cards are siblings of main-tool-card
+        5. ✅ CardContent with p-0 wraps the internal content of main-tool-card
+        
+        ❌ IF ANY OF THE ABOVE IS FALSE, THE TOOL STRUCTURE IS INVALID AND WILL BE REJECTED
         
         ✅ MAIN CARD STYLING: Ensure 'main-tool-card' in initialStyleMap includes specialized background colors and styling:
         - Default: 'bg-card text-card-foreground shadow-xl border-0 rounded-xl'
@@ -693,6 +741,15 @@ const CRITICAL_PROHIBITIONS = `
     - NO "export function"
     - ALL dependencies are provided in execution context
     - ANY import/export will cause immediate validation failure
+    
+    ❌ NEVER CREATE INVALID CARD STRUCTURE:
+    🚨🚨🚨 CRITICAL CARD WRAPPER VIOLATION - COMMON MISTAKE 🚨🚨🚨
+    - ❌ WRONG: Multiple Cards as siblings of page container
+    - ❌ WRONG: Input/Results cards outside of main-tool-card
+    - ❌ WRONG: Header as only child of main-tool-card
+    - ✅ CORRECT: ALL content must be INSIDE main-tool-card
+    - ✅ CORRECT: Main-tool-card is the ONLY direct child of page container
+    - THIS IS THE #1 STRUCTURE ERROR - ALWAYS CHECK CARD NESTING!
     
     ❌ NEVER USE JSX SYNTAX:
     - NO <div>, <button>, <input> etc.
