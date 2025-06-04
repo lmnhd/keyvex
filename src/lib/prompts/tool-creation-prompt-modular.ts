@@ -933,27 +933,19 @@ const CORE_PROMPT = `<purpose>
         - Results that ignore input values
         
         ✅ REQUIRED INTERACTIVITY PATTERN:
-        ```
-        const [inputValue1, setInputValue1] = useState('');
-        const [inputValue2, setInputValue2] = useState('');
         
-        // Calculation logic
-        const calculatedResult = useMemo(() => {
-          const val1 = parseFloat(inputValue1) || 0;
-          const val2 = parseFloat(inputValue2) || 0;
-          return val1 + val2; // Or any relevant calculation
-        }, [inputValue1, inputValue2]);
+        Every tool must have useState hooks for input management:
+        - const [inputValue1, setInputValue1] = useState('');
+        - const [inputValue2, setInputValue2] = useState('');
         
-        // In your input elements:
-        React.createElement(Input, {
-          value: inputValue1,
-          onChange: (e) => setInputValue1(e.target.value),
-          // ... other props
-        })
+        Calculation logic with useMemo or useEffect:
+        - const calculatedResult = useMemo(() => calculations, [dependencies]);
         
-        // In your results display:
-        React.createElement('div', {}, calculatedResult.toString())
-        ```
+        Input elements with proper event handlers:
+        - React.createElement(Input, { value: inputValue1, onChange: (e) => setInputValue1(e.target.value) })
+        
+        Results display that shows calculated values:
+        - React.createElement('div', {}, calculatedResult.toString())
         
         🚨 MANDATORY EXAMPLES OF CORRECT SYNTAX:
     </react-syntax-requirements>
@@ -1001,7 +993,21 @@ export interface PromptOptions {
 const BASE_SYSTEM_INSTRUCTIONS = `You are an expert React developer specializing in creating dynamic, interactive business tools using ONLY React.createElement() syntax. NO JSX ALLOWED. Your primary goal is to generate a single, self-contained React functional component.`;
 
 export function buildToolCreationSystemPrompt(options: PromptOptions = {}): string {
-  let systemPrompt = `${BASE_SYSTEM_INSTRUCTIONS}\n${CRITICAL_PROHIBITIONS}`;
+  let systemPrompt = BASE_SYSTEM_INSTRUCTIONS + `
+
+🚨🚨🚨 CRITICAL REQUIREMENTS SUMMARY - FAILURE = INSTANT REJECTION 🚨🚨🚨
+
+1. ⛔ CARD STRUCTURE: All input/results/lead Cards MUST be INSIDE main-tool-card, NOT siblings
+2. ⛔ INFO POPUP: Every tool MUST have TooltipProvider + Info icon in header with usage instructions  
+3. ⛔ INTERACTIVITY: Tools MUST have useState, calculations, and results that update with input changes
+
+🔥 COMMON MISTAKES THAT CAUSE REJECTION:
+- Input cards as siblings of main-tool-card instead of children
+- Missing info tooltip in header section
+- Static results that never change when inputs are modified
+- No useState hooks for managing input values
+
+` + CRITICAL_PROHIBITIONS;
 
   // Component Set Instructions & Available Context Variables Update
   systemPrompt += `
