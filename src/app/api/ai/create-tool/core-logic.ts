@@ -166,9 +166,8 @@ const productToolDefinitionSchema = z.object({
   // React component code as string
   componentCode: z.string(),
   
-  // Style information - RELAXED: initialStyleMap is now OPTIONAL for initial generation
-  // The iterator system will fix missing or invalid style maps
-  initialStyleMap: z.record(z.string()).optional(), // CHANGED: Made optional for flexibility
+  // Style information - STRICT: initialStyleMap is REQUIRED - iterator will fix if missing
+  initialStyleMap: z.record(z.string()), // REQUIRED - let validation fail and iterator fix it
   currentStyleMap: z.record(z.string()).optional(),  // Active, editable style map
 
   // Simplified color scheme
