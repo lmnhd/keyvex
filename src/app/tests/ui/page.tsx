@@ -1143,6 +1143,7 @@ export default function TestUIPage() {
         // If not, it might need to be set here. For now, assume it is.
         setProductToolDefinition(newTool);
         await loadAndSetSavedTools(); // Refresh saved tools list
+        await loadAndSetSavedLogicResults(); // Refresh saved brainstorming results list
         setLastAIMessage(`✅ Full workflow test tool '${newTool.metadata.title}' created and saved!`);
       } else if (newTool === null && !isGeneratingTool) {
         // This case implies brainstorming or creation was aborted but no hard error thrown,

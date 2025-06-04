@@ -682,6 +682,9 @@ const CORE_PROMPT = `<purpose>
         - Generate a complete, working React functional component 
         - Include 'use client'; at the top
         - Function name should be descriptive PascalCase (e.g. ROICalculator, BusinessLeadQualifier)
+        - 🚨 CRITICAL: MUST use function declaration syntax: function ComponentName() { ... }
+        - ❌ FORBIDDEN: Arrow function syntax: const ComponentName = () => { ... }
+        - The DynamicComponentRenderer requires function declarations for proper detection
         - DO NOT USE ANY IMPORT OR EXPORT STATEMENTS - all dependencies are provided via context
         - CRITICAL FOR STYLING: Add 'data-style-id' attributes for dynamic styling on all styleable elements
     </structure>
@@ -693,29 +696,24 @@ const CORE_PROMPT = `<purpose>
         ⚠️ JSX syntax will cause RUNTIME ERRORS and is STRICTLY FORBIDDEN
         ⚠️ Any use of < > brackets for JSX will result in COMPILATION FAILURE
         
-        ✅ REQUIRED SYNTAX: React.createElement('div', {className: 'text-lg'}, 'Content')
-        ❌ FORBIDDEN SYNTAX: <div className="text-lg">Content</div>
+        ✅ REQUIRED FORMAT (Function Declaration):
+        'use client';
+        const { useState } = React;
+        function ComponentName() {
+          const [state, setState] = useState('');
+          return React.createElement('div', { 'data-style-id': 'main-container' }, 'Content');
+        }
         
-        🔥 EXECUTION CONTEXT LIMITATION:
-        - NO JSX transpiler available in runtime
-        - NO Babel transformation available
-        - NO < > syntax allowed anywhere in component code
-        - ONLY React.createElement() calls are executable
+        ❌ FORBIDDEN FORMAT (Arrow Function):
+        const ComponentName = () => { ... };
         
         🚨 MANDATORY EXAMPLES OF CORRECT SYNTAX:
         
         // ✅ CORRECT - Simple div with text
         React.createElement('div', {
           className: 'p-6 rounded-lg border',
-          style: { backgroundColor: colorScheme.background },
           'data-style-id': 'main-container'
         }, 'Text content')
-        
-        // ✅ CORRECT - Nested elements
-        React.createElement('div', { className: 'container' }, [
-          React.createElement('h1', { className: 'title' }, 'Title'),
-          React.createElement('p', { className: 'text' }, 'Paragraph')
-        ])
         
         // ✅ CORRECT - Arrays of elements WITH REQUIRED KEYS
         React.createElement('div', { className: 'list-container' }, [
@@ -726,11 +724,7 @@ const CORE_PROMPT = `<purpose>
           React.createElement('div', { 
             key: 'item-2', 
             className: 'list-item' 
-          }, 'Second Item'),
-          React.createElement('div', { 
-            key: 'item-3', 
-            className: 'list-item' 
-          }, 'Third Item')
+          }, 'Second Item')
         ])
         
         // ✅ CORRECT - Form fields in grid with keys
@@ -745,39 +739,6 @@ const CORE_PROMPT = `<purpose>
           ])
         ])
         
-        📝 COMMON KEY PATTERNS:
-        - Form fields: key: 'field-{fieldname}' or key: 'input-{fieldname}'
-        - Sections: key: 'section-{name}' or key: 'header-{section}'
-        - List items: key: 'item-{index}' or key: 'row-{index}'
-        - Navigation: key: 'nav-{item}' or key: 'link-{page}'
-        - Grid items / Columns: If a grid's children are an array of divs/components, each child needs a key like 'grid-col-{index}' or 'grid-item-{description}'.
-         
-         // ✅ CORRECT - Form fields in grid with keys
-        React.createElement('div', { className: 'grid grid-cols-2 gap-4' }, [
-          React.createElement('div', { key: 'field-1' }, [
-            React.createElement(Label, { key: 'label-1' }, 'Field 1'),
-            React.createElement(Input, { key: 'input-1', placeholder: 'Enter value' })
-          ]),
-          React.createElement('div', { key: 'field-2' }, [
-            React.createElement(Label, { key: 'label-2' }, 'Field 2'),
-            React.createElement(Input, { key: 'input-2', placeholder: 'Enter value' })
-          ])
-        ])
-        
-        // ❌ INCORRECT - Grid items in an array without keys
-        // If the direct children of a grid (or any element) are passed as an array, EACH child in that array needs a key.
-        React.createElement('div', { className: 'grid grid-cols-3' }, [
-          React.createElement('div', null, [ /* Column 1 Content */ ]), // MISSING KEY!
-          React.createElement('div', null, [ /* Column 2 Content */ ]), // MISSING KEY!
-          React.createElement('div', null, [ /* Column 3 Content */ ])  // MISSING KEY!
-        ])
-        // ✅ CORRECT - Grid items in an array WITH keys
-        React.createElement('div', { className: 'grid grid-cols-3' }, [
-          React.createElement('div', { key: 'grid-col-1-summary' }, [ /* Column 1 Content */ ]),
-          React.createElement('div', { key: 'grid-col-2-details' }, [ /* Column 2 Content */ ]),
-          React.createElement('div', { key: 'grid-col-3-actions' }, [ /* Column 3 Content */ ])
-        ])
-
         🚨🚨🚨 CRITICAL REACT KEYS REQUIREMENT 🚨🚨🚨
         
         MANDATORY: When creating arrays of React elements, EVERY element in the array MUST have a unique "key" prop:
@@ -794,84 +755,61 @@ const CORE_PROMPT = `<purpose>
           React.createElement('div', { className: 'item' }, 'Item 2')
         ]
         
-        🎯 KEYS MUST BE:
-        - Unique within the array
-        - Stable (same key for same logical element)
-        - Descriptive (e.g., 'field-name', 'section-header', 'item-1')
-        
         📝 COMMON KEY PATTERNS:
         - Form fields: key: 'field-{fieldname}' or key: 'input-{fieldname}'
         - Sections: key: 'section-{name}' or key: 'header-{section}'
         - List items: key: 'item-{index}' or key: 'row-{index}'
-        - Navigation: key: 'nav-{item}' or key: 'link-{page}'
+        - Grid items: key: 'grid-col-{index}' or key: 'grid-item-{description}'
          
-         // ✅ CORRECT - Component with props
-         React.createElement(Input, {
-           className: 'w-full h-12',
-           placeholder: 'Enter value',
-           value: inputValue,
-           onChange: (e) => setInputValue(e.target.value)
-         })
+        🚨 EXAMPLES OF FORBIDDEN JSX (DO NOT USE):
+        ❌ <div className="container">Content</div>
+        ❌ <h1>Title</h1>
+        ❌ <Input placeholder="value" />
+        ❌ <Button onClick={handler}>Submit</Button>
+        ❌ ANY use of < and > for elements
          
-         // ✅ CORRECT - Button with click handler
-         React.createElement(Button, {
-           onClick: handleSubmit,
-           className: 'bg-blue-500 text-white px-4 py-2 rounded'
-         }, 'Submit')
-         
-         🚨 EXAMPLES OF FORBIDDEN JSX (DO NOT USE):
-         ❌ <div className="container">Content</div>
-         ❌ <h1>Title</h1>
-         ❌ <Input placeholder="value" />
-         ❌ <Button onClick={handler}>Submit</Button>
-         ❌ ANY use of < and > for elements
-         
-         🎯 REMEMBER: Every single element MUST use React.createElement() syntax
-         🎯 NO EXCEPTIONS - JSX will break the component at runtime
-         🎯 Test your mental model: Can this run without JSX transformation? If no, rewrite it.
-         
-         🚨🚨🚨 FINAL VALIDATION CHECKLIST BEFORE SUBMITTING 🚨🚨🚨:
-         
-         Before you finalize your componentCode, scan it line by line for these FORBIDDEN patterns:
-         
-         ❌ SEARCH FOR: "import " → If found: DELETE the entire line
-         ❌ SEARCH FOR: "export " → If found: DELETE the entire line  
-         ❌ SEARCH FOR: "<" followed by letters → If found: REWRITE using React.createElement()
-         ❌ SEARCH FOR: "Card" components → If found: REPLACE with React.createElement('div', ...)
-         ❌ SEARCH FOR: ", undefined," → If found: REPLACE with proper values
-         
-         ✅ SEARCH FOR: "React.createElement" → This should appear multiple times
-         ✅ SEARCH FOR: "key:" in arrays → All array elements should have keys
-         ✅ SEARCH FOR: "'use client';" → Should be at the very top
-         
-         If your code contains ANY forbidden patterns, it will be REJECTED by validation.
-         Take 30 seconds to scan your code before submitting.
-    </react-syntax-requirements>
-    
-    <available-context-variables>
-        The following are available in the execution context (do NOT import them):
-        - React (includes React.createElement)
-        - useState, useEffect, useCallback, useMemo
-        // Basic HTML elements are always available.
-        // Specific UI components (like ShadCN) will be listed if applicable based on current componentSet.
-        // Icons
-        - Loader2, AlertCircle, Info
-    </available-context-variables>
-    
-    <data-style-id-requirements>
-        MANDATORY: Add data-style-id attributes to ALL styleable elements for dynamic styling:
-        - Containers: data-style-id="main-container", "input-section", "results-section"
-        - Headers: data-style-id="main-title", "section-title", "tool-header"  
-        - Inputs: data-style-id="input-[fieldname]" (e.g. "input-revenue", "input-costs")
-        - Buttons: data-style-id="submit-button", "reset-button", "export-button"
-        - Results: data-style-id="result-[metric]" (e.g. "result-roi", "result-profit")
+        🚨🚨🚨 FINAL VALIDATION CHECKLIST 🚨🚨🚨:
         
-        EXAMPLE with proper data-style-id usage:
-        React.createElement('div', {
-          className: 'max-w-3xl mx-auto p-6',
-          'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
-        }, [...])
-    </data-style-id-requirements>
+        Before you finalize your componentCode, scan for these FORBIDDEN patterns:
+        
+        ❌ "import " → DELETE the entire line
+        ❌ "export " → DELETE the entire line  
+        ❌ "<" followed by letters → REWRITE using React.createElement()
+        ❌ ", undefined," → REPLACE with proper values
+        ❌ Arrow function syntax → CONVERT to function declaration
+        
+        ✅ "React.createElement" → Should appear multiple times
+        ✅ "key:" in arrays → All array elements should have keys
+        ✅ "'use client';" → Should be at the very top
+        ✅ "function ComponentName()" → Required format
+        
+        If your code contains ANY forbidden patterns, it will be REJECTED by validation.
+</react-syntax-requirements>
+
+<available-context-variables>
+    The following are available in the execution context (do NOT import them):
+    - React (includes React.createElement)
+    - useState, useEffect, useCallback, useMemo
+    // Basic HTML elements are always available.
+    // Specific UI components (like ShadCN) will be listed if applicable based on current componentSet.
+    // Icons
+    - Loader2, AlertCircle, Info
+</available-context-variables>
+
+<data-style-id-requirements>
+    MANDATORY: Add data-style-id attributes to ALL styleable elements for dynamic styling:
+    - Containers: data-style-id="main-container", "input-section", "results-section"
+    - Headers: data-style-id="main-title", "section-title", "tool-header"  
+    - Inputs: data-style-id="input-[fieldname]" (e.g. "input-revenue", "input-costs")
+    - Buttons: data-style-id="submit-button", "reset-button", "export-button"
+    - Results: data-style-id="result-[metric]" (e.g. "result-roi", "result-profit")
+    
+    EXAMPLE with proper data-style-id usage:
+    React.createElement('div', {
+      className: 'max-w-3xl mx-auto p-6',
+      'data-style-id': 'main-container'  ← REQUIRED for dynamic styling
+    }, [...])
+</data-style-id-requirements>
 </component-code-requirements>`;
 
 // ============================================================================

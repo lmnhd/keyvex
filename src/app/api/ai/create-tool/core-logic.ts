@@ -1592,28 +1592,41 @@ export function performFullValidation(
     }
     
     // 12. STRICT: Check for proper React keys in arrays (now required, not just blocking)
-    // FIXED: Better detection of React arrays without keys
-    const arrayElementPattern = /React\.createElement\([^,]+,\s*\{[^}]*\}/g;
-    const keyedArrayElementPattern = /React\.createElement\([^,]+,\s*\{[^}]*key\s*:[^}]*\}/g;
+    // FIXED: Better detection of React arrays without keys - only check elements that are ACTUALLY in arrays
     
-    const allArrayElements = (toolDefinition.componentCode.match(arrayElementPattern) || []).length;
-    const keyedArrayElements = (toolDefinition.componentCode.match(keyedArrayElementPattern) || []).length;
+    // First, find all array patterns containing React.createElement
+    const arrayPatterns = toolDefinition.componentCode.match(/\[[^\]]*React\.createElement[^\]]*\]/g) || [];
     
-    // Check if there are array contexts (indicated by square brackets containing React.createElement)
-    const hasArrayContext = /\[[^\]]*React\.createElement/g.test(toolDefinition.componentCode);
-    
-    if (hasArrayContext && keyedArrayElements < allArrayElements) {
-      const missingKeyCount = allArrayElements - keyedArrayElements;
-      trackIssue(
-        'Component has React arrays without proper keys',
-        'react-keys',
-        'error',
-        `${missingKeyCount} React elements in arrays are missing key props`,
-        'Missing keys in React arrays',
-        true // Auto-fixable
-      );
-    } else if (hasArrayContext) {
-      console.log(`🛡️ VALIDATION: ✅ All ${keyedArrayElements} React array elements have keys`);
+    if (arrayPatterns.length > 0) {
+      console.log(`🛡️ VALIDATION: Found ${arrayPatterns.length} array patterns with React elements`);
+      
+      let totalArrayElements = 0;
+      let keyedArrayElements = 0;
+      
+      // Check each array pattern for keyed vs non-keyed elements
+      arrayPatterns.forEach((arrayPattern, index) => {
+        const elementsInArray = (arrayPattern.match(/React\.createElement\([^,]+,\s*\{[^}]*\}/g) || []).length;
+        const keyedElementsInArray = (arrayPattern.match(/React\.createElement\([^,]+,\s*\{[^}]*key\s*:[^}]*\}/g) || []).length;
+        
+        totalArrayElements += elementsInArray;
+        keyedArrayElements += keyedElementsInArray;
+        
+        console.log(`🛡️ VALIDATION: Array ${index + 1}: ${elementsInArray} elements, ${keyedElementsInArray} with keys`);
+      });
+      
+      if (keyedArrayElements < totalArrayElements) {
+        const missingKeyCount = totalArrayElements - keyedArrayElements;
+        trackIssue(
+          'Component has React arrays without proper keys',
+          'react-keys',
+          'error',
+          `${missingKeyCount} React elements in arrays are missing key props`,
+          'Missing keys in React arrays',
+          true // Auto-fixable
+        );
+      } else {
+        console.log(`🛡️ VALIDATION: ✅ All ${keyedArrayElements} React array elements have keys`);
+      }
     } else {
       console.log('🛡️ VALIDATION: ✅ No React arrays detected - key validation skipped');
     }
