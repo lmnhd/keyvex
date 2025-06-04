@@ -682,6 +682,9 @@ const CORE_PROMPT = `<purpose>
         - Generate a complete, working React functional component 
         - Include 'use client'; at the top
         - Function name should be descriptive PascalCase (e.g. ROICalculator, BusinessLeadQualifier)
+        - 🚨 CRITICAL: MUST use function declaration syntax: function ComponentName() { ... }
+        - ❌ FORBIDDEN: Arrow function syntax: const ComponentName = () => { ... }
+        - The DynamicComponentRenderer requires function declarations for proper detection
         - DO NOT USE ANY IMPORT OR EXPORT STATEMENTS - all dependencies are provided via context
         - CRITICAL FOR STYLING: Add 'data-style-id' attributes for dynamic styling on all styleable elements
     </structure>
