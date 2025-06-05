@@ -10,13 +10,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success) {
-      // SUCCESS: Return to client immediately to avoid Vercel timeouts
-      // The orchestration client will determine next steps based on TCC state
+      // SUCCESS: Trigger check for parallel completion 
+      const baseUrl = request.nextUrl.origin;
+      
+      // Check if parallel step completion allows proceeding to next step
+      checkParallelCompletion(baseUrl, body.jobId).catch(error => {
+        console.error(`[JSXLayout] Failed to check parallel completion for jobId ${body.jobId}:`, error);
+      });
+
       return NextResponse.json({
         success: true,
         jsxLayout: result.jsxLayout,
-        message: 'JSX layout designed successfully',
-        nextStep: 'check_parallel_completion' // Hint for orchestration client
+        message: 'JSX layout designed successfully'
       });
     } else {
       return NextResponse.json({
@@ -31,6 +36,31 @@ export async function POST(request: NextRequest) {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
+  }
+}
+
+// Helper function to check parallel completion and trigger next step
+async function checkParallelCompletion(
+  baseUrl: string, 
+  jobId: string
+): Promise<void> {
+  try {
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ jobId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Check parallel completion responded with status: ${response.status}`);
+    }
+
+    console.log(`[JSXLayout] Successfully triggered parallel completion check for jobId: ${jobId}`);
+  } catch (error) {
+    console.error(`[JSXLayout] Failed to check parallel completion:`, error);
+    throw error;
   }
 }
 

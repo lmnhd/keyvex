@@ -10,12 +10,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success) {
-      // Trigger the next step (JSX Layout Agent) 
+      // SUCCESS: Trigger check for parallel completion instead of directly triggering JSX agent
       const baseUrl = request.nextUrl.origin;
       
-      // Trigger JSX Layout Agent without awaiting (fire and forget)
-      triggerJsxLayoutAgent(baseUrl, body.jobId, body.selectedModel).catch(error => {
-        console.error(`[StateDesign] Failed to trigger JSX Layout Agent for jobId ${body.jobId}:`, error);
+      // Check if parallel step completion allows proceeding to next step
+      checkParallelCompletion(baseUrl, body.jobId).catch(error => {
+        console.error(`[StateDesign] Failed to check parallel completion for jobId ${body.jobId}:`, error);
       });
 
       return NextResponse.json({
@@ -39,31 +39,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to trigger the next agent in the pipeline
-async function triggerJsxLayoutAgent(
+// Helper function to check parallel completion and trigger next step
+async function checkParallelCompletion(
   baseUrl: string, 
-  jobId: string, 
-  selectedModel?: string
+  jobId: string
 ): Promise<void> {
   try {
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/agents/jsx-layout`, {
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        jobId,
-        selectedModel
-      }),
+      body: JSON.stringify({ jobId }),
     });
 
     if (!response.ok) {
-      throw new Error(`JSX Layout Agent responded with status: ${response.status}`);
+      throw new Error(`Check parallel completion responded with status: ${response.status}`);
     }
 
-    console.log(`[StateDesign] Successfully triggered JSX Layout Agent for jobId: ${jobId}`);
+    console.log(`[StateDesign] Successfully triggered parallel completion check for jobId: ${jobId}`);
   } catch (error) {
-    console.error(`[StateDesign] Failed to trigger JSX Layout Agent:`, error);
+    console.error(`[StateDesign] Failed to check parallel completion:`, error);
     throw error;
   }
 }
