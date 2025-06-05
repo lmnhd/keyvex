@@ -55,7 +55,7 @@ Your mission is to translate function signatures into proper React state variabl
 
     <hook-usage-patterns>
         **useState PATTERNS**:
-        ```typescript
+        **typescript**
         // Input field management
         const [revenue, setRevenue] = useState<string>('');
         const [expenses, setExpenses] = useState<string>('');
@@ -70,10 +70,9 @@ Your mission is to translate function signatures into proper React state variabl
           isValid: false,
           messages: []
         });
-        ```
         
         **useMemo PATTERNS** for derived state and calculations:
-        ```typescript
+        **typescript**
         // Real-time calculations based on input changes
         const profitMargin = useMemo(() => {
           const rev = parseFloat(revenue) || 0;
@@ -90,10 +89,9 @@ Your mission is to translate function signatures into proper React state variabl
             timeframe: parseInt(months) || 0
           });
         }, [investment, returns, months]);
-        ```
         
         **useCallback PATTERNS** for event handlers:
-        ```typescript
+        **typescript**
         // Form submission handlers
         const handleCalculate = useCallback(async () => {
           setIsCalculating(true);
@@ -121,10 +119,9 @@ Your mission is to translate function signatures into proper React state variabl
           // Clear related errors
           setErrors(prev => ({ ...prev, [field]: '' }));
         }, []);
-        ```
         
         **useEffect PATTERNS** for side effects:
-        ```typescript
+        **typescript**
         // Auto-calculation on input changes
         useEffect(() => {
           if (revenue && expenses) {
@@ -141,12 +138,12 @@ Your mission is to translate function signatures into proper React state variabl
           });
           setValidationResults(validation);
         }, [revenue, expenses]);
-        ```
+        
     </hook-usage-patterns>
 
     <function-implementation-patterns>
         **CALCULATION FUNCTION IMPLEMENTATIONS**:
-        ```typescript
+        **typescript**
         // Business logic function implementation
         const calculateROI = useCallback((
           initialInvestment: number,
@@ -167,10 +164,9 @@ Your mission is to translate function signatures into proper React state variabl
             profit: Math.round(profit * 100) / 100
           };
         }, []);
-        ```
         
         **VALIDATION FUNCTION IMPLEMENTATIONS**:
-        ```typescript
+        **typescript**
         const validateInputs = useCallback((inputs: Record<string, any>) => {
           const errors: Record<string, string> = {};
           
@@ -191,10 +187,9 @@ Your mission is to translate function signatures into proper React state variabl
             errors
           };
         }, []);
-        ```
         
         **UTILITY FUNCTION IMPLEMENTATIONS**:
-        ```typescript
+        **typescript**
         const formatCurrency = useCallback((amount: number): string => {
           return new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -207,7 +202,7 @@ Your mission is to translate function signatures into proper React state variabl
         const formatPercentage = useCallback((value: number): string => {
           return \`$\{value.toFixed(1)}%\`;
         }, []);
-        ```
+        
     </function-implementation-patterns>
 
     <state-management-best-practices>

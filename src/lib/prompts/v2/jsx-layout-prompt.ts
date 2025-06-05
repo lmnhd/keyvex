@@ -106,7 +106,7 @@ Your mission is to generate semantic HTML structure using React.createElement sy
         ✅ Screen reader friendly structure
         
         **FORM ACCESSIBILITY**:
-        ```typescript
+        'typescript'
         React.createElement('div', { className: 'input-group' }, [
           React.createElement(Label, {
             htmlFor: 'revenue-input',
@@ -126,17 +126,17 @@ Your mission is to generate semantic HTML structure using React.createElement sy
             'data-style-id': 'help-text-revenue'
           }, 'Enter your gross monthly revenue')
         ])
-        ```
+        
         
         **ERROR HANDLING STRUCTURE**:
-        ```typescript
+        typescript
         React.createElement('div', {
           role: 'alert',
           className: 'error-display',
           'data-style-id': 'error-message',
           'aria-live': 'polite'
         }, errorMessage)
-        ```
+        
     </accessibility-requirements>
 
     <responsive-design-structure>
@@ -145,9 +145,9 @@ Your mission is to generate semantic HTML structure using React.createElement sy
         ✅ Tablet breakpoint expansions (2-column grids)
         ✅ Desktop optimizations (3-column layouts where appropriate)
         ✅ Flexible container structures
-        
+
         **RESPONSIVE CONTAINER STRUCTURE**:
-        ```typescript
+        **typescript**
         React.createElement('div', {
           className: 'input-grid',
           'data-style-id': 'input-section-grid'
@@ -161,7 +161,7 @@ Your mission is to generate semantic HTML structure using React.createElement sy
             'data-style-id': 'input-column-secondary'  
           }, [/* Secondary inputs */])
         ])
-        ```
+        
         
         **BREAKPOINT CONSIDERATIONS**:
         - Mobile (320px+): Single column, stacked layout
@@ -174,7 +174,7 @@ Your mission is to generate semantic HTML structure using React.createElement sy
         🚨🚨🚨 ABSOLUTE REQUIREMENT: EVERY TOOL MUST INCLUDE INFO POPUP 🚨🚨🚨
         
         **REQUIRED INFO POPUP IMPLEMENTATION PATTERN**:
-        ```typescript
+        typescript
         React.createElement(TooltipProvider, { key: 'info-tooltip-provider' }, [
           React.createElement('div', { 
             className: 'header-content-classes', 
@@ -261,7 +261,7 @@ Your mission is to generate semantic HTML structure using React.createElement sy
             ])
           ])
         ])
-        ```
+        
         
         🚨 VALIDATION CHECK: Before submitting your layout, verify:
         1. ✅ Info icon is present in the header

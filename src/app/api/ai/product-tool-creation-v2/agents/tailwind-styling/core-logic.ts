@@ -371,23 +371,54 @@ function parseTailwindStylingResponse(
     animations: Record<string, string>;
   };
 } {
-  // Generate comprehensive styled version based on the layout
-  const styledComponentCode = jsxLayout?.componentStructure ? 
-    applyTailwindToJsx(jsxLayout.componentStructure) :
-    generateFallbackStyledComponent();
+  logger.info({ 
+    contentLength: content?.length || 0,
+    hasJsxLayout: !!jsxLayout,
+    hasStateLogic: !!stateLogic 
+  }, '🎨 TailwindStyling: Parsing AI response for styling');
 
-  const styleMap = jsxLayout?.elementMap?.map((el: any) => ({
-    elementId: el.elementId,
-    tailwindClasses: getTailwindClassesForElement(el),
-    responsiveVariants: {
-      'sm': ['text-sm'],
-      'md': ['text-base'],
-      'lg': ['text-lg']
-    },
-    stateVariants: getStateVariantsForElement(el)
-  })) || [];
+  // Try to extract structured data from AI response
+  let aiStyling: any = null;
+  
+  try {
+    // Look for JSON blocks in the AI response
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      aiStyling = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      logger.info({ 
+        hasAiStyling: true,
+        aiKeys: Object.keys(aiStyling || {})
+      }, '🎨 TailwindStyling: Successfully parsed AI JSON response');
+    }
+  } catch (parseError) {
+    logger.warn({ 
+      parseError: parseError instanceof Error ? parseError.message : String(parseError)
+    }, '🎨 TailwindStyling: Could not parse AI JSON, using intelligent extraction');
+  }
 
-  const colorScheme = {
+  // Extract styled component code from AI response or apply to JSX layout
+  let styledComponentCode: string;
+  
+  if (aiStyling?.styledComponentCode) {
+    styledComponentCode = aiStyling.styledComponentCode;
+  } else if (content.includes('React.createElement') || content.includes('<')) {
+    // Extract JSX/React code from the response
+    const codeMatch = content.match(/```(?:jsx|typescript|tsx)?\s*([\s\S]*?)\s*```/) ||
+                     content.match(/(React\.createElement[\s\S]*)/);
+    styledComponentCode = codeMatch ? codeMatch[1].trim() : 
+                         (jsxLayout?.componentStructure ? 
+                          applyTailwindToJsxIntelligently(jsxLayout.componentStructure, content) :
+                          generateFallbackStyledComponent());
+  } else {
+    styledComponentCode = jsxLayout?.componentStructure ? 
+      applyTailwindToJsxIntelligently(jsxLayout.componentStructure, content) :
+      generateFallbackStyledComponent();
+  }
+
+  // Extract color scheme from AI response or infer from content
+  const colorScheme = extractColorSchemeFromAI(content, aiStyling) || {
     primary: 'blue-600',
     secondary: 'gray-600', 
     accent: 'emerald-500',
@@ -396,7 +427,11 @@ function parseTailwindStylingResponse(
     success: 'green-500'
   };
 
-  const designTokens = {
+  // Build style map from JSX layout and AI insights
+  const styleMap = buildStyleMapFromAI(jsxLayout, content, aiStyling, stateLogic);
+
+  // Extract design tokens from AI or create intelligent defaults
+  const designTokens = extractDesignTokensFromAI(content, aiStyling) || {
     spacing: {
       'xs': '0.5rem',
       'sm': '1rem', 
@@ -419,11 +454,230 @@ function parseTailwindStylingResponse(
     }
   };
 
+  logger.info({ 
+    styledCodeLength: styledComponentCode.length,
+    styleMapElements: styleMap.length,
+    colorSchemeKeys: Object.keys(colorScheme).length,
+    hasCustomDesignTokens: !!aiStyling?.designTokens
+  }, '🎨 TailwindStyling: Successfully processed AI response');
+
   return {
     styledComponentCode,
     styleMap,
     colorScheme,
     designTokens
+  };
+}
+
+/**
+ * Intelligently applies Tailwind classes based on AI recommendations
+ */
+function applyTailwindToJsxIntelligently(jsxStructure: string, aiContent: string): string {
+  // First apply basic styling
+  let styledJsx = applyTailwindToJsx(jsxStructure);
+  
+  // Then enhance with AI insights
+  const colorMatches = aiContent.match(/(?:bg-|text-|border-)[\w-]+/g) || [];
+  const uniqueColors = [...new Set(colorMatches)];
+  
+  // Apply AI-suggested colors to key elements
+  uniqueColors.forEach(colorClass => {
+    if (colorClass.startsWith('bg-') && !colorClass.includes('gray') && !colorClass.includes('white')) {
+      // Replace default blue backgrounds with AI suggestions
+      styledJsx = styledJsx.replace(/bg-blue-600/g, colorClass);
+    }
+    if (colorClass.startsWith('text-') && !colorClass.includes('gray')) {
+      // Enhance text colors based on AI suggestions
+      styledJsx = styledJsx.replace(/text-blue-600/g, colorClass);
+    }
+  });
+  
+  return styledJsx;
+}
+
+/**
+ * Extracts color scheme from AI response
+ */
+function extractColorSchemeFromAI(content: string, aiStyling?: any): any {
+  if (aiStyling?.colorScheme) {
+    return aiStyling.colorScheme;
+  }
+  
+  // Extract colors from AI content
+  const extractedColors: any = {};
+  
+  // Look for industry-specific color mentions
+  if (content.toLowerCase().includes('healthcare') || content.toLowerCase().includes('medical')) {
+    extractedColors.primary = 'blue-600';
+    extractedColors.secondary = 'teal-500';
+    extractedColors.accent = 'blue-500';
+  } else if (content.toLowerCase().includes('financial') || content.toLowerCase().includes('business')) {
+    extractedColors.primary = 'blue-700';
+    extractedColors.secondary = 'gray-600';
+    extractedColors.accent = 'blue-500';
+  } else if (content.toLowerCase().includes('food') || content.toLowerCase().includes('restaurant')) {
+    extractedColors.primary = 'orange-600';
+    extractedColors.secondary = 'amber-600';
+    extractedColors.accent = 'red-500';
+  } else if (content.toLowerCase().includes('fitness') || content.toLowerCase().includes('health')) {
+    extractedColors.primary = 'green-600';
+    extractedColors.secondary = 'lime-500';
+    extractedColors.accent = 'emerald-500';
+  }
+  
+  if (Object.keys(extractedColors).length > 0) {
+    return {
+      ...extractedColors,
+      neutral: 'gray-100',
+      error: 'red-500',
+      success: 'green-500'
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Builds comprehensive style map from AI insights
+ */
+function buildStyleMapFromAI(jsxLayout?: any, content?: string, aiStyling?: any, stateLogic?: any): Array<{
+  elementId: string;
+  tailwindClasses: string[];
+  responsiveVariants: Record<string, string[]>;
+  stateVariants: Record<string, string[]>;
+}> {
+  if (aiStyling?.styleMap) {
+    return aiStyling.styleMap;
+  }
+  
+  const styleMap = jsxLayout?.elementMap?.map((el: any) => {
+    const baseClasses = getTailwindClassesForElement(el);
+    
+    // Enhance with AI-suggested classes
+    const aiEnhancedClasses = extractClassesForElement(el, content);
+    const combinedClasses = [...new Set([...baseClasses, ...aiEnhancedClasses])];
+    
+    // Build responsive variants with AI insights
+    const responsiveVariants = buildResponsiveVariants(el, content);
+    
+    // Build state variants considering stateLogic
+    const stateVariants = buildStateVariantsWithLogic(el, stateLogic);
+    
+    return {
+      elementId: el.elementId,
+      tailwindClasses: combinedClasses,
+      responsiveVariants,
+      stateVariants
+    };
+  }) || [];
+  
+  return styleMap;
+}
+
+/**
+ * Extracts design tokens from AI response
+ */
+function extractDesignTokensFromAI(content: string, aiStyling?: any): any {
+  if (aiStyling?.designTokens) {
+    return aiStyling.designTokens;
+  }
+  
+  // Extract spacing patterns from content
+  const spacingMatches = content.match(/(?:p-|m-|space-[xy]-)[\d]+/g) || [];
+  const typographyMatches = content.match(/text-(?:xs|sm|base|lg|xl|2xl|3xl)/g) || [];
+  
+  if (spacingMatches.length > 0 || typographyMatches.length > 0) {
+    return {
+      spacing: buildSpacingTokens(spacingMatches),
+      typography: buildTypographyTokens(typographyMatches),
+      shadows: {
+        'light': 'shadow-sm',
+        'medium': 'shadow-md',
+        'heavy': 'shadow-lg'
+      },
+      animations: {
+        'fade-in': 'transition-opacity duration-300',
+        'slide-in': 'transition-transform duration-300'
+      }
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Helper functions for building tokens and variants
+ */
+function extractClassesForElement(element: any, content?: string): string[] {
+  if (!content) return [];
+  
+  const elementClasses: string[] = [];
+  
+  // Look for classes related to this element type
+  if (element.type === 'input' && content.includes('input')) {
+    const inputClasses = content.match(/(?:text-gray-\d+|border-\w+-\d+|focus:ring-\w+-\d+)/g) || [];
+    elementClasses.push(...inputClasses);
+  }
+  
+  if (element.type === 'button' && content.includes('button')) {
+    const buttonClasses = content.match(/(?:bg-\w+-\d+|hover:bg-\w+-\d+|text-white)/g) || [];
+    elementClasses.push(...buttonClasses);
+  }
+  
+  return [...new Set(elementClasses)];
+}
+
+function buildResponsiveVariants(element: any, content?: string): Record<string, string[]> {
+  return {
+    'sm': ['text-sm'],
+    'md': ['text-base'],
+    'lg': ['text-lg'],
+    'xl': ['text-xl']
+  };
+}
+
+function buildStateVariantsWithLogic(element: any, stateLogic?: any): Record<string, string[]> {
+  const variants = getStateVariantsForElement(element);
+  
+  // Enhance with state logic insights
+  if (stateLogic?.stateVariables) {
+    Object.keys(stateLogic.stateVariables).forEach(stateVar => {
+      if (stateVar.includes('error') || stateVar.includes('Error')) {
+        variants.error = variants.error || [];
+        variants.error.push('border-red-500', 'text-red-600');
+      }
+      if (stateVar.includes('loading') || stateVar.includes('Loading')) {
+        variants.loading = variants.loading || [];
+        variants.loading.push('opacity-50', 'cursor-wait');
+      }
+    });
+  }
+  
+  return variants;
+}
+
+function buildSpacingTokens(spacingMatches: string[]): Record<string, string> {
+  const tokens: Record<string, string> = {};
+  spacingMatches.forEach(match => {
+    const value = match.match(/\d+/)?.[0];
+    if (value) {
+      tokens[`spacing-${value}`] = `${parseInt(value) * 0.25}rem`;
+    }
+  });
+  return Object.keys(tokens).length > 0 ? tokens : {
+    'xs': '0.5rem', 'sm': '1rem', 'md': '1.5rem', 'lg': '2rem'
+  };
+}
+
+function buildTypographyTokens(typographyMatches: string[]): Record<string, string> {
+  const tokens: Record<string, string> = {};
+  typographyMatches.forEach(match => {
+    tokens[match] = match;
+  });
+  return Object.keys(tokens).length > 0 ? tokens : {
+    'heading-1': 'text-3xl font-bold',
+    'heading-2': 'text-xl font-semibold',
+    'body': 'text-base'
   };
 }
 
