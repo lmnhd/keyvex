@@ -341,7 +341,49 @@ function parseJsxLayoutResponse(
   accessibilityFeatures: string[];
   responsiveBreakpoints: string[];
 } {
-  // Generate structured layout based on function signatures and state
+  logger.info({ 
+    contentLength: content?.length || 0,
+    signatureCount: functionSignatures.length,
+    hasStateLogic: !!stateLogic 
+  }, '🏗️ JSXLayout: Parsing AI response for component structure');
+
+  // Try to extract structured JSX from AI response
+  let aiGeneratedJsx: string | null = null;
+  let aiElementMap: any[] = [];
+  let aiAccessibilityFeatures: string[] = [];
+  
+  try {
+    // Look for JSX code blocks in the AI response
+    const jsxMatch = content.match(/```(?:jsx|tsx|html)?\s*([\s\S]*?)\s*```/) ||
+                    content.match(/(<div[\s\S]*<\/div>)/);
+    
+    if (jsxMatch) {
+      aiGeneratedJsx = jsxMatch[1] || jsxMatch[0];
+      logger.info({ 
+        hasAiJsx: true,
+        jsxLength: aiGeneratedJsx.length
+      }, '🏗️ JSXLayout: Successfully extracted JSX from AI response');
+    }
+
+    // Look for element mapping in AI response
+    const elementMapMatch = content.match(/element.*map|elements?.*list/i);
+    if (elementMapMatch) {
+      // Extract element information from content
+      aiElementMap = extractElementMapFromContent(content);
+    }
+
+    // Extract accessibility features mentioned by AI
+    if (content.toLowerCase().includes('aria') || content.toLowerCase().includes('accessibility')) {
+      aiAccessibilityFeatures = extractAccessibilityFeaturesFromContent(content);
+    }
+    
+  } catch (parseError) {
+    logger.warn({ 
+      parseError: parseError instanceof Error ? parseError.message : String(parseError)
+    }, '🏗️ JSXLayout: Could not parse AI JSX, using intelligent enhancement');
+  }
+
+  // Analyze function signatures and state logic for layout decisions
   const hasSubmitFunction = functionSignatures.some(sig => 
     sig.name.toLowerCase().includes('submit') || 
     sig.name.toLowerCase().includes('calculate') ||
@@ -353,7 +395,129 @@ function parseJsxLayoutResponse(
     sig.name.toLowerCase().includes('clear')
   );
 
-  const componentStructure = `<div id="tool-container" className="tool-container">
+  // Use AI-generated JSX if available, otherwise create intelligent structure
+  const componentStructure = aiGeneratedJsx ? 
+    enhanceAiJsxWithFunctionSignatures(aiGeneratedJsx, functionSignatures, stateLogic) :
+    generateIntelligentJsxStructure(functionSignatures, stateLogic, content);
+
+  // Build element map from AI response or generate from structure
+  const elementMap = aiElementMap.length > 0 ? 
+    aiElementMap :
+    buildElementMapFromStructure(componentStructure, functionSignatures, stateLogic);
+
+  // Use AI-extracted accessibility features or generate defaults
+  const accessibilityFeatures = aiAccessibilityFeatures.length > 0 ?
+    aiAccessibilityFeatures :
+    generateAccessibilityFeatures(functionSignatures, stateLogic);
+
+  // Extract responsive considerations from AI content
+  const responsiveBreakpoints = extractResponsiveBreakpointsFromContent(content);
+
+  return {
+    componentStructure,
+    elementMap,
+    accessibilityFeatures,
+    responsiveBreakpoints
+  };
+}
+
+/**
+ * Helper functions for parsing AI response
+ */
+function extractElementMapFromContent(content: string): any[] {
+  const elementMap: any[] = [];
+  
+  // Look for element descriptions in content
+  const elementMatches = content.match(/(?:element|component).*?id.*?(?:purpose|description)/gi) || [];
+  
+  elementMatches.forEach(match => {
+    const idMatch = match.match(/id[^\w]*([a-zA-Z-]+)/);
+    const typeMatch = match.match(/(div|input|button|section|header|main)/i);
+    
+    if (idMatch && typeMatch) {
+      elementMap.push({
+        elementId: idMatch[1],
+        type: typeMatch[1].toLowerCase(),
+        purpose: `AI-identified element for ${idMatch[1]}`,
+        placeholderClasses: [`${idMatch[1]}-element`]
+      });
+    }
+  });
+  
+  return elementMap;
+}
+
+function extractAccessibilityFeaturesFromContent(content: string): string[] {
+  const features: string[] = [];
+  
+  if (content.includes('aria-label')) features.push('ARIA labels for screen readers');
+  if (content.includes('aria-describedby')) features.push('Associated descriptions for inputs');
+  if (content.includes('role=')) features.push('Semantic roles for elements');
+  if (content.includes('semantic') || content.includes('<header>') || content.includes('<main>')) {
+    features.push('Semantic HTML structure');
+  }
+  
+  return features.length > 0 ? features : ['Basic accessibility structure'];
+}
+
+function extractResponsiveBreakpointsFromContent(content: string): string[] {
+  const breakpoints: string[] = [];
+  
+  if (content.includes('mobile')) breakpoints.push('mobile (320px+)');
+  if (content.includes('tablet')) breakpoints.push('tablet (768px+)');
+  if (content.includes('desktop')) breakpoints.push('desktop (1024px+)');
+  if (content.includes('responsive')) breakpoints.push('responsive design ready');
+  
+  return breakpoints.length > 0 ? breakpoints : ['mobile', 'tablet', 'desktop'];
+}
+
+function enhanceAiJsxWithFunctionSignatures(aiJsx: string, functionSignatures: DefinedFunctionSignature[], stateLogic?: any): string {
+  let enhancedJsx = aiJsx;
+  
+  // Add function-specific elements
+  functionSignatures.forEach(sig => {
+    if (sig.name.toLowerCase().includes('submit') && !enhancedJsx.includes('type="submit"')) {
+      enhancedJsx = enhancedJsx.replace(/<\/div>\s*$/, '  <button type="submit" id="submit-btn">Submit</button>\n</div>');
+    }
+    if (sig.name.toLowerCase().includes('reset') && !enhancedJsx.includes('reset')) {
+      enhancedJsx = enhancedJsx.replace(/<\/div>\s*$/, '  <button type="button" id="reset-btn">Reset</button>\n</div>');
+    }
+  });
+  
+  // Add state-aware elements
+  if (stateLogic?.stateVariables) {
+    const hasErrorState = stateLogic.stateVariables.some((v: any) => v.name.includes('error'));
+    const hasLoadingState = stateLogic.stateVariables.some((v: any) => v.name.includes('loading'));
+    
+    if (hasErrorState && !enhancedJsx.includes('error')) {
+      enhancedJsx = enhancedJsx.replace(/<\/div>\s*$/, '  <div id="error-display" role="alert"></div>\n</div>');
+    }
+    if (hasLoadingState && !enhancedJsx.includes('loading')) {
+      enhancedJsx = enhancedJsx.replace(/<\/div>\s*$/, '  <div id="loading-indicator" aria-hidden="true"></div>\n</div>');
+    }
+  }
+  
+  return enhancedJsx;
+}
+
+function generateIntelligentJsxStructure(functionSignatures: DefinedFunctionSignature[], stateLogic?: any, aiContent?: string): string {
+  const hasSubmitFunction = functionSignatures.some(sig => 
+    sig.name.toLowerCase().includes('submit') || 
+    sig.name.toLowerCase().includes('calculate')
+  );
+  
+  const hasResetFunction = functionSignatures.some(sig => 
+    sig.name.toLowerCase().includes('reset') || 
+    sig.name.toLowerCase().includes('clear')
+  );
+  
+  // Extract tool type from AI content
+  let toolType = 'general';
+  if (aiContent?.toLowerCase().includes('calculator')) toolType = 'calculator';
+  if (aiContent?.toLowerCase().includes('form')) toolType = 'form';
+  if (aiContent?.toLowerCase().includes('analysis')) toolType = 'analysis';
+  
+  return `<div id="tool-container" className="tool-container">
   <header id="tool-header" className="tool-header">
     <h1 id="tool-title" className="tool-title">Tool Title</h1>
     <p id="tool-description" className="tool-description">Tool description here</p>
@@ -368,7 +532,7 @@ function parseJsxLayoutResponse(
           </label>
           <input
             id="main-input"
-            type="text"
+            type="${toolType === 'calculator' ? 'number' : 'text'}"
             className="main-input"
             placeholder="Enter value..."
             aria-describedby="input-help"
@@ -418,67 +582,56 @@ function parseJsxLayoutResponse(
     </section>
   </main>
 </div>`;
+}
 
-  const elementMap = [
-    {
-      elementId: 'tool-container',
-      type: 'div',
-      purpose: 'Main container for the entire tool',
-      placeholderClasses: ['tool-container', 'main-wrapper']
-    },
-    {
-      elementId: 'tool-header',
-      type: 'header',
-      purpose: 'Tool title and description',
-      placeholderClasses: ['tool-header', 'header-section']
-    },
-    {
-      elementId: 'input-section',
-      type: 'section',
-      purpose: 'User input area',
-      placeholderClasses: ['input-section', 'form-section']
-    },
-    {
-      elementId: 'main-input',
-      type: 'input',
-      purpose: 'Primary user input field',
-      placeholderClasses: ['main-input', 'primary-input']
-    },
-    {
-      elementId: 'submit-button',
-      type: 'button',
-      purpose: 'Submit form action',
-      placeholderClasses: ['submit-button', 'primary-button']
-    },
-    {
-      elementId: 'results-section',
-      type: 'section',
-      purpose: 'Display results and feedback',
-      placeholderClasses: ['results-section', 'output-section']
+function buildElementMapFromStructure(structure: string, functionSignatures: DefinedFunctionSignature[], stateLogic?: any): any[] {
+  const elementMap: any[] = [];
+  
+  // Extract elements from structure
+  const elementMatches = structure.match(/id="([^"]+)"/g) || [];
+  
+  elementMatches.forEach(match => {
+    const idMatch = match.match(/id="([^"]+)"/);
+    if (idMatch) {
+      const elementId = idMatch[1];
+      let type = 'div';
+      let purpose = `Element for ${elementId}`;
+      
+      // Determine type from context
+      if (structure.includes(`<input[^>]*id="${elementId}"`)) type = 'input';
+      if (structure.includes(`<button[^>]*id="${elementId}"`)) type = 'button';
+      if (structure.includes(`<section[^>]*id="${elementId}"`)) type = 'section';
+      if (structure.includes(`<header[^>]*id="${elementId}"`)) type = 'header';
+      
+      elementMap.push({
+        elementId,
+        type,
+        purpose,
+        placeholderClasses: [`${elementId}-element`, 'ai-generated']
+      });
     }
-  ];
+  });
+  
+  return elementMap;
+}
 
-  const accessibilityFeatures = [
+function generateAccessibilityFeatures(functionSignatures: DefinedFunctionSignature[], stateLogic?: any): string[] {
+  const features = [
     'ARIA labels on interactive elements',
     'Semantic HTML structure (header, main, section)',
-    'Role="alert" for error messages',
-    'aria-describedby for input helpers',
     'Proper heading hierarchy (h1, h2)',
     'Form labels associated with inputs'
   ];
-
-  const responsiveBreakpoints = [
-    'mobile (320px+)',
-    'tablet (768px+)', 
-    'desktop (1024px+)'
-  ];
-
-  return {
-    componentStructure,
-    elementMap,
-    accessibilityFeatures,
-    responsiveBreakpoints
-  };
+  
+  if (stateLogic?.stateVariables?.some((v: any) => v.name.includes('error'))) {
+    features.push('Role="alert" for error messages');
+  }
+  
+  if (functionSignatures.some(sig => sig.name.toLowerCase().includes('submit'))) {
+    features.push('aria-describedby for input helpers');
+  }
+  
+  return features;
 }
 
 /**
