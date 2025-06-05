@@ -359,6 +359,14 @@ export class MagicSparkAgent {
         context
       );
       
+      // 📋 COMPREHENSIVE PROMPT LOGGING FOR MAGIC SPARK - Added for debugging
+      console.log('\n' + '='.repeat(100));
+      console.log('✨ FULL MAGIC SPARK BRAND DISCOVERY PROMPT BEING SENT:');
+      console.log('='.repeat(100));
+      console.log(contextPrompt);
+      console.log('='.repeat(100));
+      console.log('✨ END MAGIC SPARK BRAND DISCOVERY PROMPT\n');
+      
       debugLog('Starting brand discovery stream', {
         hasVisualAnalysis: !!visualAnalysis,
         userInputLength: userInput.length

@@ -10,7 +10,7 @@ import { PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
 
 // Schema for brainstorming output with PromptOptions
 const logicBrainstormingSchema = z.object({
-  coreWConcept: z.string(),
+  coreConcept: z.string(),
   keyCalculations: z.array(z.object({
     name: z.string(),
     formula: z.string(),
@@ -486,6 +486,14 @@ Return a JSON array of formula objects.`;
 
       console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 1200) + '...');
 
+      // 📋 COMPREHENSIVE PROMPT LOGGING FOR LOGIC ARCHITECT - Added for debugging
+      console.log('\n' + '='.repeat(100));
+      console.log('🧠 FULL LOGIC ARCHITECT BRAINSTORMING PROMPT BEING SENT:');
+      console.log('='.repeat(100));
+      console.log(prompt);
+      console.log('='.repeat(100));
+      console.log('🧠 END LOGIC ARCHITECT BRAINSTORMING PROMPT\n');
+
       const { object } = await generateObject({
         model: this.model,
         schema: logicBrainstormingSchema,
@@ -498,7 +506,7 @@ Return a JSON array of formula objects.`;
       // POST-PROCESSING: Fix any string arrays that should be actual arrays
       const processedObject = this.postProcessBrainstormingResult(object);
 
-      console.log('✅ Logic Architect brainstorming complete:', processedObject.coreWConcept);
+      console.log('✅ Logic Architect brainstorming complete:', processedObject.coreConcept);
       return processedObject;
 
     } catch (error) {
@@ -663,7 +671,7 @@ Return a JSON array of formula objects.`;
     console.log('🔧 Generating fallback brainstorming result');
     
     return {
-      coreWConcept: `${toolType} for ${targetAudience}`,
+      coreConcept: `${toolType} for ${targetAudience}`,
       keyCalculations: [
         {
           name: "Primary Calculation",

@@ -203,16 +203,8 @@ export const callToolCreationAgent = async (
       validationResults: [{
         isValid: true, // Assume valid since tool was successfully created
         issues: [],
-        blockers: [],
-        timestamp: Date.now(),
-        attempt: 1,
-        sessionPhase: 'ai_processing_creation',
-        userContext: {
-          selectedModel: 'ai-processing-default',
-          hasExternalBrainstorming: false,
-          toolComplexity: 'ai-generated'
-        }
-      }]
+        blockers: []
+      } as any] // Cast to allow additional tracking properties
     });
 
     console.log('📞 TRACE: callToolCreationAgent SUCCESS - returning tool');
@@ -769,7 +761,7 @@ export const createToolWithSavedBrainstorm = async (
       context, 
       undefined, 
       undefined, 
-      createToolModel !== 'default' ? createToolModel : undefined
+      createToolModel // Pass the model string directly ('default' or specific model)
     );
     
     console.log('🧪 TRACE: callToolCreationAgent returned:', newTool?.id);

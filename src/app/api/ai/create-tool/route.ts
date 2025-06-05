@@ -7,6 +7,7 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { getPrimaryModel, getFallbackModel, getProcessConfig, getProviders } from '@/lib/ai/models/model-config';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import logger from '@/lib/logger';
 
 import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
 import { processToolCreation } from './core-logic';
@@ -150,31 +151,48 @@ function createModelInstance(provider: string, modelId: string) {
 
 // POST handler - Tool Creation Agent
 export async function POST(request: NextRequest) {
-  console.log('🔧 TRACE: create-tool API route START');
+  const requestStartTime = Date.now();
+  logger.info({ endpoint: '/api/ai/create-tool', method: 'POST' }, '🔧 API [create-tool]: Request received');
   
   try {
     const userId = await requireAuth();
-    const body = await request.json();
+    logger.info({ userId }, '🔧 API [create-tool]: User authenticated successfully');
     
-    console.log('🔧 TRACE: Received request body:', JSON.stringify(body, null, 2));
-    console.log('🔧 TRACE: userIntent:', body.userIntent);
-    console.log('🔧 TRACE: context keys:', Object.keys(body.context || {}));
-    console.log('🔧 TRACE: context.brainstormingResult:', body.context?.brainstormingResult);
-    console.log('🔧 TRACE: context.logicArchitectInsights:', body.context?.logicArchitectInsights);
+    const body = await request.json();
+    logger.debug({ 
+      bodyKeys: Object.keys(body || {}),
+      userIntent: body.userIntent,
+      contextKeys: Object.keys(body.context || {}),
+      selectedModel: body.selectedModel,
+      hasExistingTool: !!body.existingTool,
+      updateType: body.updateType
+    }, '🔧 API [create-tool]: Request body parsed and analyzed');
+    
+    logger.debug({ 
+      hasBrainstormingResult: !!body.context?.brainstormingResult,
+      hasLogicArchitectInsights: !!body.context?.logicArchitectInsights,
+      brainstormingKeys: body.context?.brainstormingResult ? Object.keys(body.context.brainstormingResult) : [],
+      logicArchitectKeys: body.context?.logicArchitectInsights ? Object.keys(body.context.logicArchitectInsights) : []
+    }, '🔧 API [create-tool]: AI context analysis');
     
     const validatedData = toolCreationRequestSchema.parse(body);
-    console.log('🔧 TRACE: Schema validation passed');
+    logger.info({ 
+      userIntentLength: validatedData.userIntent.length,
+      contextKeys: Object.keys(validatedData.context || {}),
+      selectedModel: validatedData.selectedModel,
+      validationSuccess: true 
+    }, '🔧 API [create-tool]: Schema validation passed');
 
     const { userIntent, context, existingTool } = validatedData;
-    console.log('🔧 TRACE: Validated userIntent:', userIntent);
-    console.log('🔧 TRACE: Validated context keys:', Object.keys(context || {}));
-    console.log('🔧 TRACE: Validated selectedModel:', validatedData.selectedModel);
 
     // Track the creation request
     const tracker = getBehaviorTracker();
     const startTime = Date.now();
 
-    console.log('🔧 TRACE: About to call processToolCreation core logic');
+    logger.info({ 
+      hasTracker: !!tracker,
+      coreLogicCall: 'processToolCreation' 
+    }, '🔧 API [create-tool]: Calling core logic processor');
     
     const toolCreationResult = await processToolCreation(
       userIntent,
@@ -186,15 +204,16 @@ export async function POST(request: NextRequest) {
       userId
     );
 
-    console.log('🔧 TRACE: processToolCreation returned');
-    console.log('🔧 TRACE: Tool definition ID:', toolCreationResult?.tool?.id);
-    console.log('🔧 TRACE: Tool definition slug:', toolCreationResult?.tool?.slug);
-    console.log('🔧 TRACE: Tool definition title:', toolCreationResult?.tool?.metadata?.title);
-    console.log('🔧 TRACE: Validation result:', {
+    logger.info({ 
+      success: true,
+      toolId: toolCreationResult?.tool?.id,
+      toolSlug: toolCreationResult?.tool?.slug,
+      toolTitle: toolCreationResult?.tool?.metadata?.title,
       isValid: toolCreationResult?.validation?.isValid,
       issuesCount: toolCreationResult?.validation?.issues?.length || 0,
-      blockersCount: toolCreationResult?.validation?.blockers?.length || 0
-    });
+      blockersCount: toolCreationResult?.validation?.blockers?.length || 0,
+      processingTimeMs: Date.now() - startTime
+    }, '🔧 API [create-tool]: Core logic processing completed');
     
     // Check for undefined values in the returned tool
     if (toolCreationResult?.tool) {
@@ -213,37 +232,53 @@ export async function POST(request: NextRequest) {
       }
       
       if (undefinedFields.length > 0) {
-        console.error('🔧 TRACE: ⚠️ UNDEFINED VALUES in API response:', undefinedFields);
+        logger.warn({ undefinedFields, toolId: toolCreationResult.tool.id }, '🔧 API [create-tool]: Undefined values detected in response');
       } else {
-        console.log('🔧 TRACE: ✅ No undefined values in API response');
+        logger.debug({ toolId: toolCreationResult.tool.id }, '🔧 API [create-tool]: Response validation passed - no undefined values');
       }
     }
 
     // Track successful creation
     if (tracker && toolCreationResult?.tool) {
+      logger.debug({ trackerId: 'behavior-tracker', toolId: toolCreationResult.tool.id }, '🔧 API [create-tool]: Recording behavior tracking data');
+      
       tracker.trackToolGeneration({
         toolDefinitionId: toolCreationResult.tool.id,
         toolName: toolCreationResult.tool.metadata.title,
         toolType: toolCreationResult.tool.metadata.type,
-        context: context,
-        success: true,
-        duration: Date.now() - startTime,
-        validationResults: [{
-          ...toolCreationResult.validation,
-          // Add metadata for Final Polish stage
-          timestamp: Date.now(),
-          attempt: 1, // TODO: Track attempt number for retries
-          sessionPhase: 'initial_creation', // Could be: initial_creation, iteration, final_polish
+        context: {
+          ...context,
           userContext: {
             selectedModel: validatedData?.selectedModel || 'default',
             hasExternalBrainstorming: !!(context?.brainstormingResult || context?.logicArchitectInsights),
             toolComplexity: context?.toolType || 'unknown'
           }
+        },
+        success: true,
+        duration: Date.now() - startTime,
+        validationResults: [{
+          ...toolCreationResult.validation,
+          // Add metadata for Final Polish stage
+          attempt: 1, // TODO: Track attempt number for retries
+          sessionPhase: 'initial_creation' // Could be: initial_creation, iteration, final_polish
         }]
       });
+
+      logger.info({ 
+        behaviorTracked: true,
+        toolId: toolCreationResult.tool.id,
+        toolName: toolCreationResult.tool.metadata.title 
+      }, '🔧 API [create-tool]: Behavior tracking completed');
     }
 
-    console.log('🔧 TRACE: Returning successful response with validation results');
+    const totalRequestTime = Date.now() - requestStartTime;
+    logger.info({ 
+      success: true,
+      toolTitle: toolCreationResult?.tool?.metadata?.title || 'Unknown',
+      totalRequestTimeMs: totalRequestTime,
+      validationSuccess: toolCreationResult?.validation?.isValid || false
+    }, '🔧 API [create-tool]: Request completed successfully');
+
     return NextResponse.json({
       success: true,
       tool: toolCreationResult?.tool,
@@ -252,11 +287,22 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('🔧 TRACE: create-tool API ERROR:', error);
+    const totalRequestTime = Date.now() - requestStartTime;
+    logger.error({ 
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : String(error),
+      totalRequestTimeMs: totalRequestTime,
+      endpoint: '/api/ai/create-tool'
+    }, '🔧 API [create-tool]: Request failed with error');
     
     // Track failed creation
     const tracker = getBehaviorTracker();
     if (tracker) {
+      logger.debug({ trackerId: 'behavior-tracker', errorType: error instanceof Error ? error.name : 'UnknownError' }, '🔧 API [create-tool]: Recording failure in behavior tracking');
+      
       tracker.trackToolGeneration({
         toolDefinitionId: 'creation-failed',
         toolName: 'unknown',
@@ -280,10 +326,28 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  logger.info({ endpoint: '/api/ai/create-tool', method: 'GET' }, '🔧 API [create-tool]: GET request received');
+  
   try {
-        return NextResponse.json({
-          success: true,
+    // Get the primary model for toolCreator process
+    const primaryModel = getPrimaryModel('toolCreator');
+    const fallbackModel = getFallbackModel('toolCreator');
+    
+    const agentInfo = {
+      success: true,
       agent: 'Tool Creation Specialist',
+      defaultModel: {
+        primary: primaryModel ? {
+          id: primaryModel.modelInfo.id,
+          name: primaryModel.modelInfo.name,
+          provider: primaryModel.provider
+        } : null,
+        fallback: fallbackModel ? {
+          id: fallbackModel.modelInfo.id,
+          name: fallbackModel.modelInfo.name,
+          provider: fallbackModel.provider
+        } : null
+      },
       capabilities: [
         'Generate new ProductToolDefinitions',
         'Update existing tools',
@@ -308,10 +372,29 @@ export async function GET(request: NextRequest) {
         'components',
         'general'
       ]
-    });
+    };
+
+    logger.info({ 
+      agentInfo: {
+        capabilities: agentInfo.capabilities.length,
+        supportedToolTypes: agentInfo.supportedToolTypes.length,
+        updateTypes: agentInfo.updateTypes.length,
+        defaultPrimaryModel: agentInfo.defaultModel.primary?.id
+      }
+    }, '🔧 API [create-tool]: Agent info retrieved successfully');
+
+    return NextResponse.json(agentInfo);
 
   } catch (error) {
-    console.error('Tool Creation Agent GET error:', error);
+    logger.error({ 
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message
+      } : String(error),
+      endpoint: '/api/ai/create-tool',
+      method: 'GET'
+    }, '🔧 API [create-tool]: GET request failed');
+
     return NextResponse.json(
       { success: false, error: 'Failed to get agent info' },
       { status: 500 }

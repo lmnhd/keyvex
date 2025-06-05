@@ -419,23 +419,45 @@ export const STYLE_GUIDES = {
     </shadcn-card-with-gradient-example>
     
     <industry-specific-styling>
-        // HEALTHCARE: Clean, medical feel
-        className: 'bg-gradient-to-r from-cyan-500 to-teal-600'
+        🚨🚨🚨 MANDATORY INDUSTRY-SPECIFIC HEADER COLORS - NO BLUE FOR EVERYTHING! 🚨🚨🚨
         
-        // FINANCIAL: Professional, trustworthy  
-        className: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+        ⚠️ CRITICAL: The header gradient MUST match the tool's industry and purpose!
+        ⚠️ DO NOT use the same blue gradient for every single tool!
+        ⚠️ Choose colors that make sense for the specific business context!
         
-        // FOOD/RESTAURANT: Warm, appetizing
-        className: 'bg-gradient-to-r from-orange-500 to-red-500'
+        ✅ REQUIRED HEADER GRADIENTS BY INDUSTRY:
         
-        // FITNESS: Energetic, vibrant
-        className: 'bg-gradient-to-r from-green-500 to-emerald-600'
+        // HEALTHCARE: Clean, medical, trustworthy
+        🏥 Medical/Healthcare tools: 'bg-gradient-to-r from-cyan-500 to-teal-600'
         
-        // REAL ESTATE: Luxury, sophisticated
-        className: 'bg-gradient-to-r from-purple-600 to-indigo-600'
+        // FINANCIAL: Professional, stable, trustworthy  
+        💰 Financial/Business tools: 'bg-gradient-to-r from-blue-600 to-indigo-700'
         
-        // TECH/STARTUP: Modern, innovative
-        className: 'bg-gradient-to-r from-indigo-600 to-purple-600'
+        // FOOD/RESTAURANT: Warm, appetizing, inviting
+        🍽️ Food/Restaurant tools: 'bg-gradient-to-r from-orange-500 to-red-500'
+        
+        // FITNESS: Energetic, vibrant, motivating
+        💪 Fitness/Sports tools: 'bg-gradient-to-r from-green-500 to-emerald-600'
+        
+        // REAL ESTATE: Luxury, sophisticated, premium
+        🏠 Real Estate tools: 'bg-gradient-to-r from-purple-600 to-indigo-600'
+        
+        // TECH/STARTUP: Modern, innovative, cutting-edge
+        ⚡ Tech/Startup tools: 'bg-gradient-to-r from-indigo-600 to-purple-600'
+        
+        // ENVIRONMENTAL: Natural, eco-friendly, sustainable
+        🌱 Environmental tools: 'bg-gradient-to-r from-green-600 to-emerald-700'
+        
+        // EDUCATION: Professional, academic, trustworthy
+        📚 Education tools: 'bg-gradient-to-r from-blue-500 to-purple-600'
+        
+        // MARKETING: Creative, vibrant, engaging
+        📈 Marketing tools: 'bg-gradient-to-r from-pink-500 to-orange-500'
+        
+        🎯 SELECTION RULE: Ask yourself "What industry is this tool for?" then use the appropriate colors!
+        ❌ FORBIDDEN: Using blue for non-financial tools
+        ❌ FORBIDDEN: Same color scheme for different industries
+        ✅ REQUIRED: Colors that match the tool's business context and user expectations
     </industry-specific-styling>
     
     <typography-enhancement>
@@ -480,16 +502,36 @@ export const STYLE_GUIDES = {
     </spacing-modernization>
     
     <input-text-contrast>
-        🎯 CRITICAL: Ensure input text is always visible and high-contrast
+        🚨🚨🚨 CRITICAL: INPUT TEXT MUST BE VISIBLE - NO INVISIBLE TEXT! 🚨🚨🚨
         
-        ✅ ALWAYS include explicit text color on inputs:
-        - On light backgrounds: 'text-gray-900' (dark text)
-        - On white backgrounds: 'text-gray-900' (dark text)  
-        - On dark backgrounds: 'text-white' (light text)
+        ⚠️ MANDATORY: ALL Input components MUST include 'text-gray-900' in className
+        ⚠️ This is the #1 reason users can't see their input text!
+        ⚠️ NEVER assume input text color - always specify it explicitly!
         
-        ❌ NEVER assume input text color - always specify it explicitly!
+        ✅ REQUIRED INPUT PATTERN:
+        React.createElement(Input, {
+          className: 'w-full h-10 px-4 text-gray-900 border-2 border-gray-300 rounded-lg...',
+          // other props...
+        })
         
-        EXAMPLE: className: 'w-full h-12 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300',
+        ❌ FORBIDDEN INPUT PATTERNS:
+        - className: 'w-full h-10 px-4 border-2...' (missing text-gray-900)
+        - No explicit text color specified
+        - Assuming text color will be inherited
+        
+        🎯 INPUT TEXT COLOR RULES:
+        ✅ On light/white backgrounds: ALWAYS use 'text-gray-900' (dark text)
+        ✅ On white card backgrounds: ALWAYS use 'text-gray-900' (dark text)  
+        ✅ On light gradient backgrounds: ALWAYS use 'text-gray-900' (dark text)
+        ❌ NEVER leave input text color unspecified
+        
+        COMPLETE EXAMPLE with proper contrast:
+        React.createElement(Input, {
+          className: 'w-full h-10 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200',
+          placeholder: 'Enter value...',
+          value: inputValue,
+          onChange: (e) => setInputValue(e.target.value)
+        })
     </input-text-contrast>
 </gorgeous-styling-library>`,
 
@@ -1000,12 +1042,109 @@ export function buildToolCreationSystemPrompt(options: PromptOptions = {}): stri
 1. ⛔ CARD STRUCTURE: All input/results/lead Cards MUST be INSIDE main-tool-card, NOT siblings
 2. ⛔ INFO POPUP: Every tool MUST have TooltipProvider + Info icon in header with usage instructions  
 3. ⛔ INTERACTIVITY: Tools MUST have useState, calculations, and results that update with input changes
+4. ⛔ INPUT TEXT VISIBILITY: ALL inputs MUST have 'text-gray-900' class for dark, visible text
+5. ⛔ CONTEXTUAL COLORS: Header backgrounds MUST match industry (NOT always blue!)
+6. ⛔ INDUSTRY HEADERS: Use different gradient colors based on tool purpose
+7. ⛔ EVENT HANDLERS: ALL inputs MUST have onChange handlers and useState values
+8. ⛔ REACT KEYS: ALL array elements MUST have unique key props
+
+🚨🚨🚨 MANDATORY EVENT HANDLERS & REACT KEYS - VALIDATION WILL FAIL WITHOUT THESE 🚨🚨🚨
+
+**EVERY INPUT MUST HAVE onChange HANDLER (CRITICAL FOR VALIDATION):**
+✅ REQUIRED PATTERN for ALL inputs:
+React.createElement(Input, {
+  value: inputValue,
+  onChange: (e) => setInputValue(e.target.value),
+  className: 'w-full h-10 px-4 text-gray-900...',
+  'data-style-id': 'input-name',
+  key: 'input-unique-key'
+})
+
+**EVERY useState HOOK MUST BE USED IN INPUTS:**
+✅ REQUIRED: const [inputValue, setInputValue] = useState('');
+✅ REQUIRED: Input uses value={inputValue} and onChange={(e) => setInputValue(e.target.value)}
+✅ REQUIRED: Results update when inputs change (useMemo or useEffect)
+
+**EVERY ARRAY ELEMENT MUST HAVE UNIQUE KEY:**
+✅ REQUIRED: All React.createElement elements in arrays MUST have key prop
+✅ EXAMPLE: React.createElement('div', { key: 'unique-key-1', className: '...' }, [...])
+❌ FORBIDDEN: Array elements without key prop will cause validation failure
+
+**COMPLETE INTERACTIVE TOOL PATTERN:**
+const [revenue, setRevenue] = useState('');
+const [expenses, setExpenses] = useState('');
+
+const profitMargin = useMemo(() => {
+  const rev = parseFloat(revenue) || 0;
+  const exp = parseFloat(expenses) || 0;
+  return rev > 0 ? ((rev - exp) / rev * 100).toFixed(1) : '0';
+}, [revenue, expenses]);
+
+React.createElement(Input, {
+  value: revenue,
+  onChange: (e) => setRevenue(e.target.value),
+  className: 'w-full h-10 px-4 text-gray-900 border-2 border-gray-300 rounded-lg',
+  placeholder: 'Enter revenue',
+  'data-style-id': 'revenue-input',
+  key: 'revenue-input'
+})
+
+🚨🚨🚨 SPECIFIC FIXES FOR CURRENT FAILURES 🚨🚨🚨
+
+INPUT TEXT VISIBILITY (CRITICAL):
+✅ ALWAYS add 'text-gray-900' to ALL Input components
+Example: React.createElement(Input, { className: 'w-full h-10 px-4 text-gray-900 border-2 border-gray-300 rounded-lg...', ... })
+❌ NEVER use inputs without explicit dark text color
+
+CONTEXTUAL HEADER COLORS (MANDATORY):
+✅ Healthcare tools: 'bg-gradient-to-r from-cyan-500 to-teal-600'
+✅ Financial tools: 'bg-gradient-to-r from-blue-600 to-indigo-700' 
+✅ Food/Restaurant: 'bg-gradient-to-r from-orange-500 to-red-500'
+✅ Fitness tools: 'bg-gradient-to-r from-green-500 to-emerald-600'
+✅ Real Estate: 'bg-gradient-to-r from-purple-600 to-indigo-600'
+✅ Tech/Startup: 'bg-gradient-to-r from-indigo-600 to-purple-600'
+❌ NEVER use the same blue header for different industries!
+
+MANDATORY INFO ICON (NO EXCEPTIONS):
+✅ EVERY header MUST include TooltipProvider wrapper
+✅ EVERY header MUST include Info icon button with tooltip
+✅ Position info icon in top-right of header
+Example: 
+React.createElement(TooltipProvider, { key: 'tooltip-provider' }, [
+  React.createElement('div', { className: 'header-wrapper' }, [
+    // Header content...
+    React.createElement(Tooltip, { key: 'info-tooltip' }, [
+      React.createElement(TooltipTrigger, { asChild: true, key: 'info-trigger' }, [
+        React.createElement(Button, { 
+          variant: 'ghost', 
+          size: 'icon', 
+          className: 'text-white hover:bg-white hover:bg-opacity-10',
+          key: 'info-btn'
+        }, [
+          React.createElement(Info, { className: 'h-5 w-5', key: 'info-icon' })
+        ])
+      ]),
+      React.createElement(TooltipContent, { 
+        className: 'bg-gray-800 text-white p-3 rounded-lg max-w-xs',
+        key: 'info-content'
+      }, [
+        React.createElement('p', { key: 'info-desc' }, 'Tool description and usage instructions here')
+      ])
+    ])
+  ])
+])
 
 🔥 COMMON MISTAKES THAT CAUSE REJECTION:
 - Input cards as siblings of main-tool-card instead of children
 - Missing info tooltip in header section
 - Static results that never change when inputs are modified
 - No useState hooks for managing input values
+- Inputs without 'text-gray-900' class (invisible text)
+- Same blue header color for all tools regardless of industry
+- Missing TooltipProvider and Info icon
+- Inputs without onChange event handlers (validation failure)
+- Array elements missing unique key props (validation failure)
+- useState variables not connected to Input value/onChange
 
 ` + CRITICAL_PROHIBITIONS;
 
@@ -1132,7 +1271,71 @@ export function buildToolCreationSystemPrompt(options: PromptOptions = {}): stri
   All Tailwind classes in initialStyleMap MUST be valid and functional.
   DO NOT use backticks or markdown formatting for the componentCode string in the JSON response.
   The ENTIRE response MUST be a single JSON object.
-</final-instructions>`;
+</final-instructions>
+
+🚨🚨🚨 FINAL VALIDATION CHECKLIST - VERIFY BEFORE SUBMITTING 🚨🚨🚨
+
+Before generating your final response, CHECK EVERY ITEM below:
+
+📋 **STRUCTURE REQUIREMENTS:**
+□ ✅ Main-tool-card wraps ALL content (not just header)
+□ ✅ Input/results/lead cards are INSIDE main-tool-card (not siblings)
+□ ✅ CardContent with p-0 wraps internal content of main-tool-card
+□ ✅ Page container → main-tool-card → CardContent → sections
+
+📋 **INFO POPUP REQUIREMENTS:**
+□ ✅ TooltipProvider wraps the header section
+□ ✅ Info icon button is present in header (top-right)
+□ ✅ Tooltip contains tool description AND usage instructions
+□ ✅ TooltipTrigger, TooltipContent components are used
+□ ✅ Info icon uses Lucide React Info component
+
+📋 **INPUT VISIBILITY REQUIREMENTS:**
+□ ✅ ALL Input components include 'text-gray-900' in className
+□ ✅ No inputs are missing explicit text color
+□ ✅ Input text will be dark and visible on white/light backgrounds
+□ ✅ Example: 'className: "w-full h-10 px-4 text-gray-900 border-2..."'
+
+📋 **CONTEXTUAL COLOR REQUIREMENTS:**
+□ ✅ Header gradient matches the tool's industry/purpose
+□ ✅ NOT using blue gradient for non-financial tools
+□ ✅ Healthcare = cyan/teal, Food = orange/red, Fitness = green, etc.
+□ ✅ Background colors match tool context and industry
+□ ✅ ColorScheme object reflects the chosen industry colors
+
+📋 **INTERACTIVITY REQUIREMENTS:**
+□ ✅ useState hooks for ALL input field values
+□ ✅ Calculation logic that updates when inputs change
+□ ✅ Results display calculated values (not static text)
+□ ✅ onChange handlers on all input elements
+□ ✅ Real-time or triggered result updates
+□ ✅ EVERY Input has value={stateVariable} AND onChange={(e) => setStateVariable(e.target.value)}
+□ ✅ NO static inputs without onChange handlers
+□ ✅ Results change when any input value changes
+
+📋 **TECHNICAL REQUIREMENTS:**
+□ ✅ Function declaration syntax: function ComponentName() {}
+□ ✅ NO arrow functions: const ComponentName = () => {}
+□ ✅ React.createElement() syntax only (NO JSX)
+□ ✅ NO import or export statements anywhere
+□ ✅ All React elements in arrays have unique keys
+□ ✅ All data-style-id attributes have initialStyleMap entries
+□ ✅ EVERY array child: React.createElement('div', { key: 'unique-key' }, ...)
+□ ✅ NO duplicate keys in the same array
+□ ✅ Keys are descriptive and unique (not just numbers)
+
+📋 **CONTENT REQUIREMENTS:**
+□ ✅ Placeholder logo in header (left side)
+□ ✅ Tool title and subtitle/description
+□ ✅ Professional industry-appropriate styling
+□ ✅ Compact spacing (p-4, gap-4, space-y-4)
+□ ✅ Responsive design (grid-cols-1 md:grid-cols-2)
+
+🚨 **CRITICAL: If ANY checkbox above is unchecked, DO NOT submit the response!**
+🚨 **Go back and fix the missing requirements before generating the JSON.**
+
+**ONLY submit your JSON response when ALL checkboxes can be marked ✅**
+`;
 
   return systemPrompt;
 }
