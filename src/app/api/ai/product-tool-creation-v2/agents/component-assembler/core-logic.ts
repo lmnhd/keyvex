@@ -155,21 +155,20 @@ CRITICAL REQUIREMENTS:
 
 Return your component wrapped in tsx code blocks.`;
 
-  const styling = (tcc as any).styling;
   const userPrompt = `Component Name: ${generateComponentName(tcc.userInput.description)}
 
 JSX LAYOUT:
 ${tcc.jsxLayout?.componentStructure}
 
 STATE LOGIC:
-Variables: ${JSON.stringify(tcc.stateLogic?.stateVariables, null, 2)}
+Variables: ${JSON.stringify(tcc.stateLogic?.variables, null, 2)}
 Functions: ${JSON.stringify(tcc.stateLogic?.functions, null, 2)}
 
 STYLING (Apply to matching elements):
-${JSON.stringify(styling?.styleMap, null, 2)}
+${JSON.stringify(tcc.styling?.styleMap, null, 2)}
 
 FUNCTION SIGNATURES TO IMPLEMENT:
-${tcc.functionSignatures?.map(sig => `${sig.name}() - ${sig.description || 'No description'}`).join('\n')}
+${tcc.definedFunctionSignatures?.map(sig => `${sig.name}() - ${sig.description || 'No description'}`).join('\n')}
 
 Assemble these pieces into a complete, functional React component.`;
 

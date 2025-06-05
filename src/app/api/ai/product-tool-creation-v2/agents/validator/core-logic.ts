@@ -3,6 +3,8 @@ import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum
 import { getTCC, saveTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import logger from '@/lib/logger';
+import * as babel from '@babel/standalone';
+import * as ts from 'typescript';
 
 // Input schema
 const ValidatorRequestSchema = z.object({
@@ -13,22 +15,19 @@ const ValidatorRequestSchema = z.object({
 export type ValidatorRequest = z.infer<typeof ValidatorRequestSchema>;
 
 /**
- * Code Validator Agent - Validates React component code using AWS Lambda + Babel
+ * Validator Agent - Validates assembled component code
  */
 export async function validateComponent(request: ValidatorRequest): Promise<{
   success: boolean;
   validationResult?: {
     isValid: boolean;
-    error?: string;
-    details?: any;
-    syntaxErrors?: Array<{
-      line: number;
-      column: number;
-      message: string;
-    }>;
-    transpiled?: {
-      successful: boolean;
-      code?: string;
+    syntaxErrors: string[];
+    typeErrors: string[];
+    warnings: string[];
+    metrics: {
+      linesOfCode: number;
+      componentComplexity: number;
+      dependencies: string[];
     };
   };
   error?: string;
@@ -39,19 +38,19 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
     const tcc = await getTCC(jobId);
     if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
 
-    logger.info({ jobId }, '🔍 Validator: Starting component validation');
+    logger.info({ jobId }, '🔍 Validator: Starting validation');
 
     await emitStepProgress(jobId, OrchestrationStepEnum.enum.validating_code, 'started', 'Validating component code...');
 
-    // Validate we have component code to validate
-    if (!tcc.assembledComponentCode) throw new Error('No assembled component code found in TCC');
+    // Validate we have the assembled component
+    if (!tcc.assembledComponentCode) throw new Error('Assembled component code not found in TCC');
 
     // Update TCC status
     const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
     await saveTCC(tccInProgress);
 
-    // Call AWS Lambda for validation
-    const validationResult = await callValidationLambda(tcc.assembledComponentCode, jobId);
+    // Validate the component
+    const validationResult = await validateCode(tcc.assembledComponentCode);
 
     // Update TCC with results
     const updatedTCC = {
@@ -60,7 +59,7 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
       steps: {
         ...tccInProgress.steps,
         validatingCode: {
-          status: validationResult.isValid ? OrchestrationStatusEnum.enum.completed : OrchestrationStatusEnum.enum.error,
+          status: OrchestrationStatusEnum.enum.completed,
           startedAt: tccInProgress.steps?.validatingCode?.startedAt || new Date().toISOString(),
           completedAt: new Date().toISOString(),
           result: validationResult
@@ -70,22 +69,18 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
     };
     await saveTCC(updatedTCC);
 
-    const statusMessage = validationResult.isValid 
-      ? 'Component validation successful' 
-      : `Component validation failed: ${validationResult.error}`;
-
-    await emitStepProgress(
-      jobId, 
-      OrchestrationStepEnum.enum.validating_code, 
-      validationResult.isValid ? 'completed' : 'failed', 
-      statusMessage
-    );
+    const validationStatus = validationResult.isValid ? 'passed' : 'failed';
+    const errorCount = validationResult.syntaxErrors.length + validationResult.typeErrors.length;
+    
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.validating_code, 'completed', 
+      `Validation ${validationStatus}: ${errorCount} errors, ${validationResult.warnings.length} warnings`);
 
     logger.info({ 
       jobId, 
       isValid: validationResult.isValid,
-      hasErrors: !!validationResult.error 
-    }, '🔍 Validator: Validation completed');
+      errorCount,
+      warningCount: validationResult.warnings.length
+    }, '🔍 Validator: Completed validation');
 
     return { success: true, validationResult };
 
@@ -98,119 +93,110 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
 }
 
 /**
- * Call AWS Lambda for JavaScript/TypeScript validation using Babel
+ * Validate component code using Babel and TypeScript
  */
-async function callValidationLambda(componentCode: string, jobId: string) {
+async function validateCode(code: string) {
+  const syntaxErrors: string[] = [];
+  const typeErrors: string[] = [];
+  const warnings: string[] = [];
+
+  // Babel syntax validation
   try {
-    // TODO: Replace with actual AWS Lambda endpoint
-    const lambdaEndpoint = process.env.VALIDATION_LAMBDA_ENDPOINT || 'https://your-lambda-endpoint.amazonaws.com/validate';
-    
-    logger.info({ jobId, codeLength: componentCode.length }, '🔍 Validator: Calling validation Lambda');
-
-    const response = await fetch(lambdaEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.LAMBDA_API_KEY || 'dev-key'}`
-      },
-      body: JSON.stringify({
-        code: componentCode,
-        options: {
-          preset: 'react-typescript',
-          plugins: ['@babel/plugin-transform-typescript', '@babel/plugin-syntax-jsx'],
-          sourceType: 'module'
-        },
-        jobId
-      }),
-      // Validation can take time, but should be under Vercel limit
-      signal: AbortSignal.timeout(45000) // 45 second timeout
+    babel.transform(code, {
+      presets: ['typescript', 'react'],
+      filename: 'component.tsx'
     });
-
-    if (!response.ok) {
-      throw new Error(`Lambda validation service responded with status: ${response.status}`);
-    }
-
-    const result = await response.json();
-    
-    logger.info({ 
-      jobId, 
-      isValid: result.isValid,
-      hasTranspiled: !!result.transpiled?.successful 
-    }, '🔍 Validator: Lambda validation completed');
-
-    return result;
-
   } catch (error) {
-    logger.error({ jobId, error }, '🔍 Validator: Lambda call failed');
-    
-    // Fallback to basic validation if Lambda fails
-    return performFallbackValidation(componentCode);
+    if (error instanceof Error) {
+      syntaxErrors.push(error.message);
+    }
   }
+
+  // TypeScript validation
+  const tsResult = ts.transpileModule(code, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ESNext,
+      module: ts.ModuleKind.ESNext,
+      jsx: ts.JsxEmit.React,
+      strict: true,
+      noEmit: true,
+      esModuleInterop: true,
+      skipLibCheck: true,
+      forceConsistentCasingInFileNames: true
+    },
+    reportDiagnostics: true
+  });
+
+  if (tsResult.diagnostics) {
+    tsResult.diagnostics.forEach(diagnostic => {
+      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+      if (diagnostic.category === ts.DiagnosticCategory.Error) {
+        typeErrors.push(message);
+      } else if (diagnostic.category === ts.DiagnosticCategory.Warning) {
+        warnings.push(message);
+      }
+    });
+  }
+
+  // Calculate metrics
+  const linesOfCode = code.split('\n').length;
+  const dependencies = extractDependencies(code);
+  const componentComplexity = calculateComplexity(code);
+
+  return {
+    isValid: syntaxErrors.length === 0 && typeErrors.length === 0,
+    syntaxErrors,
+    typeErrors,
+    warnings,
+    metrics: {
+      linesOfCode,
+      componentComplexity,
+      dependencies
+    }
+  };
 }
 
 /**
- * Fallback validation when Lambda is unavailable
+ * Extract dependencies from imports
  */
-function performFallbackValidation(componentCode: string) {
-  logger.warn('🔍 Validator: Using fallback validation (limited)');
-  
-  // Basic syntax checks
-  const syntaxErrors: Array<{ line: number; column: number; message: string }> = [];
-  
-  // Check for basic React component structure
-  if (!componentCode.includes('import React')) {
-    syntaxErrors.push({
-      line: 1,
-      column: 1,
-      message: 'Missing React import'
-    });
+function extractDependencies(code: string): string[] {
+  const importRegex = /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g;
+  const dependencies = new Set<string>();
+  let match;
+
+  while ((match = importRegex.exec(code)) !== null) {
+    dependencies.add(match[1]);
   }
-  
-  if (!componentCode.includes('export')) {
-    syntaxErrors.push({
-      line: 1,
-      column: 1,
-      message: 'Missing component export'
-    });
-  }
-  
-  // Check for unmatched brackets (basic)
-  const openBrackets = (componentCode.match(/\{/g) || []).length;
-  const closeBrackets = (componentCode.match(/\}/g) || []).length;
-  
-  if (openBrackets !== closeBrackets) {
-    syntaxErrors.push({
-      line: 1,
-      column: 1,
-      message: `Unmatched brackets: ${openBrackets} open, ${closeBrackets} close`
-    });
-  }
-  
-  // Check for unmatched parentheses (basic)
-  const openParens = (componentCode.match(/\(/g) || []).length;
-  const closeParens = (componentCode.match(/\)/g) || []).length;
-  
-  if (openParens !== closeParens) {
-    syntaxErrors.push({
-      line: 1,
-      column: 1,
-      message: `Unmatched parentheses: ${openParens} open, ${closeParens} close`
-    });
-  }
-  
-  const isValid = syntaxErrors.length === 0;
-  
-  return {
-    isValid,
-    error: isValid ? undefined : 'Fallback validation found syntax errors',
-    details: {
-      validationType: 'fallback',
-      message: 'Full validation requires AWS Lambda service'
-    },
-    syntaxErrors: syntaxErrors.length > 0 ? syntaxErrors : undefined,
-    transpiled: {
-      successful: false,
-      code: undefined
-    }
-  };
+
+  return Array.from(dependencies);
+}
+
+/**
+ * Calculate component complexity (simple metric based on code patterns)
+ */
+function calculateComplexity(code: string): number {
+  let complexity = 0;
+
+  // Count state variables
+  complexity += (code.match(/useState/g) || []).length * 2;
+
+  // Count effects
+  complexity += (code.match(/useEffect/g) || []).length * 3;
+
+  // Count callbacks
+  complexity += (code.match(/useCallback/g) || []).length * 2;
+
+  // Count memos
+  complexity += (code.match(/useMemo/g) || []).length * 2;
+
+  // Count conditional rendering
+  complexity += (code.match(/\?\s*[^\s:]+\s*:\s*[^\s]+/g) || []).length;
+
+  // Count loops/iterations
+  complexity += (code.match(/\.(map|filter|reduce|forEach)\(/g) || []).length * 2;
+
+  // Count event handlers
+  complexity += (code.match(/on[A-Z][a-zA-Z]+=/g) || []).length;
+
+  return complexity;
 } 

@@ -4,30 +4,38 @@
 // ============================================================================
 
 import { 
-  FUNCTION_PLANNER_SYSTEM_PROMPT, 
-  ALLOWED_COMPONENTS, 
-  ALL_ALLOWED_COMPONENTS,
-  type AllowedComponentType 
+  getFunctionPlannerSystemPrompt,
+  FUNCTION_PLANNER_SYSTEM_PROMPT
 } from './function-planner-prompt';
 
-import { STATE_DESIGN_SYSTEM_PROMPT } from './state-design-prompt';
+import { 
+  getStateDesignSystemPrompt,
+  STATE_DESIGN_SYSTEM_PROMPT 
+} from './state-design-prompt';
 
-import { JSX_LAYOUT_SYSTEM_PROMPT } from './jsx-layout-prompt';
+import { 
+  getJsxLayoutSystemPrompt,
+  JSX_LAYOUT_SYSTEM_PROMPT 
+} from './jsx-layout-prompt';
 
-import { TAILWIND_STYLING_SYSTEM_PROMPT } from './tailwind-styling-prompt';
+import { 
+  getTailwindStylingSystemPrompt,
+  TAILWIND_STYLING_SYSTEM_PROMPT 
+} from './tailwind-styling-prompt';
 
-// Re-export individual components
+// Re-export individual components (including dynamic getters)
 export { 
-  FUNCTION_PLANNER_SYSTEM_PROMPT, 
-  ALLOWED_COMPONENTS, 
-  ALL_ALLOWED_COMPONENTS,
-  type AllowedComponentType,
+  getFunctionPlannerSystemPrompt,
+  getStateDesignSystemPrompt,
+  getJsxLayoutSystemPrompt,
+  getTailwindStylingSystemPrompt,
+  FUNCTION_PLANNER_SYSTEM_PROMPT,
   STATE_DESIGN_SYSTEM_PROMPT,
   JSX_LAYOUT_SYSTEM_PROMPT,
   TAILWIND_STYLING_SYSTEM_PROMPT
 };
 
-// Convenience object for accessing all prompts
+// Convenience object for accessing all prompts (deprecated - use dynamic getters)
 export const V2_AGENT_PROMPTS = {
   functionPlanner: FUNCTION_PLANNER_SYSTEM_PROMPT,
   stateDesign: STATE_DESIGN_SYSTEM_PROMPT,
@@ -35,7 +43,26 @@ export const V2_AGENT_PROMPTS = {
   tailwindStyling: TAILWIND_STYLING_SYSTEM_PROMPT
 } as const;
 
-// Agent prompt selector helper
+// Agent prompt selector helper (deprecated - use specific getters)
 export function getAgentPrompt(agentType: keyof typeof V2_AGENT_PROMPTS): string {
   return V2_AGENT_PROMPTS[agentType];
+}
+
+// V2 Dynamic Prompt Selectors
+export function getV2AgentPrompt(
+  agentType: 'function-planner' | 'state-design' | 'jsx-layout' | 'tailwind-styling',
+  isEditing: boolean = false
+): string {
+  switch (agentType) {
+    case 'function-planner':
+      return getFunctionPlannerSystemPrompt(isEditing);
+    case 'state-design':
+      return getStateDesignSystemPrompt(isEditing);
+    case 'jsx-layout':
+      return getJsxLayoutSystemPrompt(isEditing);
+    case 'tailwind-styling':
+      return getTailwindStylingSystemPrompt(isEditing);
+    default:
+      throw new Error(`Unknown agent type: ${agentType}`);
+  }
 } 

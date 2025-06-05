@@ -7,6 +7,7 @@ export type { SavedLogicResult }; // Re-export type using 'export type'
 
 export interface ToolCreationJob {
   modelId: string;
+  jobId?: string; // Add the V2 orchestrator's jobId
   status: 'pending' | 'loading' | 'success' | 'error';
   result?: ProductToolDefinition | null;
   error?: string | null;
@@ -60,42 +61,32 @@ function cleanBrainstormData(brainstormData: any): any {
   return simplifiedData;
 }
 
-// This function is a simplified adaptation of callToolCreationAgent from '../../ui/ai-processing.ts'
-async function createToolForModel(
+/**
+ * Starts the V2 tool creation process by calling the orchestration/start endpoint.
+ *
+ * @param brainstormResult The selected brainstorm data.
+ * @param modelId The ID of the AI model to use for generation.
+ * @returns A promise that resolves to the initial job state including the orchestrator's jobId.
+ */
+async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
   modelId: string
-): Promise<ProductToolDefinition> {
-  console.log(`Requesting tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
+): Promise<{ jobId: string }> {
+  console.log(`Requesting V2 tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
 
-  // 🔧 CRITICAL FIX: Clean the brainstorm data before sending to API
-  const rawBrainstormData = brainstormResult.result?.brainstormOutput || brainstormResult.result;
-  const cleanedBrainstormData = cleanBrainstormData(rawBrainstormData);
+  const userInput = brainstormResult.result?.userInput || {};
   
-  console.log(`🧹 [${modelId}] Cleaned brainstorm data:`, JSON.stringify(cleanedBrainstormData, null, 2));
-
   const requestBody = {
-    userIntent: `Create a ${brainstormResult.toolType} for ${brainstormResult.targetAudience}`,
-    selectedModel: modelId, // ✅ Move selectedModel to top level for API route
-    context: {
-      targetAudience: brainstormResult.targetAudience,
-      industry: brainstormResult.industry,
-      toolType: brainstormResult.toolType,
-      // Use cleaned brainstorm data instead of raw data
-      logicArchitectInsights: cleanedBrainstormData,
-      brainstormingResult: cleanedBrainstormData,
-      // Ensure other potentially expected fields by the API are present, even if empty or default
-      features: (cleanedBrainstormData as any)?.features || [],
-      colors: (cleanedBrainstormData as any)?.colors || [],
-      businessDescription: (cleanedBrainstormData as any)?.businessDescription || (brainstormResult.result?.userInput as any)?.businessContext || '',
-      collectedAnswers: (cleanedBrainstormData as any)?.collectedAnswers || {},
-      conversationHistory: (cleanedBrainstormData as any)?.conversationHistory || [],
-    },
+    description: userInput.businessContext || 'No description provided.',
+    targetAudience: brainstormResult.targetAudience,
+    industry: brainstormResult.industry,
+    toolType: brainstormResult.toolType,
+    selectedModel: modelId,
   };
 
-  console.log(`[${modelId}] API Request Body to /api/ai/create-tool:`, JSON.stringify(requestBody, null, 2));
-  console.log(`[${modelId}] 🚨 DEBUGGING: selectedModel value being sent:`, requestBody.selectedModel);
+  console.log(`[V2 Start] API Request Body to /api/ai/product-tool-creation-v2/orchestrate/start:`, JSON.stringify(requestBody, null, 2));
 
-  const response = await fetch('/api/ai/create-tool', {
+  const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -103,75 +94,59 @@ async function createToolForModel(
     body: JSON.stringify(requestBody),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Failed to create tool and parse error response.' }));
-    console.error(`[${modelId}] API error response from /api/ai/create-tool:`, errorData);
-    throw new Error(errorData.message || `Tool creation failed for model ${modelId} with status ${response.status}`);
+  const responseData = await response.json();
+
+  if (!response.ok || !responseData.success) {
+    const errorMessage = responseData.error || `Tool creation failed for model ${modelId} with status ${response.status}`;
+    console.error(`[V2 Start] API error response:`, responseData);
+    throw new Error(errorMessage);
   }
 
-  const apiResponse = await response.json();
-  console.log(`[${modelId}] API success response from /api/ai/create-tool:`, apiResponse);
-
-  if (!apiResponse.success || !apiResponse.tool) {
-    console.error(`[${modelId}] Invalid API response structure:`, apiResponse);
-    throw new Error(apiResponse.message || `Tool creation returned success:false or no tool object for model ${modelId}.`);
-  }
-
-  // TODO: Add validation using isValidProductToolDefinition if available and needed here
-  return apiResponse.tool as ProductToolDefinition;
+  console.log(`[V2 Start] API success response:`, responseData);
+  return { jobId: responseData.jobId };
 }
 
-export async function runToolCreationTests(
+/**
+ * Main function to run the tool creation process. This is the new entry point from the UI.
+ * It now starts the V2 orchestration and returns the initial job status.
+ *
+ * NOTE: This function no longer waits for the tool to be fully generated. The UI will
+ * need to use the returned jobId to track progress via WebSockets.
+ *
+ * @param brainstormResult The selected brainstorm data.
+ * @param selectedModelId The ID of the single model chosen for generation.
+ * @param onJobUpdate Callback to update the UI with the job's initial state.
+ * @returns The initial state of the creation job.
+ */
+export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
-  selectedModelIds: string[],
+  selectedModelId: string,
   onJobUpdate: (job: ToolCreationJob) => void
-): Promise<ToolCreationJob[]> {
-  const jobs: ToolCreationJob[] = selectedModelIds.map(modelId => ({
-    modelId,
-    status: 'pending',
-  }));
-
-  const promises = jobs.map(async (job) => {
-    // Explicitly type currentJobState to ensure its status can be updated
-    let currentJobState: ToolCreationJob = { ...job, status: 'loading', startTime: Date.now() };
-    onJobUpdate(currentJobState);
-    try {
-      const toolDefinition = await createToolForModel(brainstormResult, job.modelId);
-      currentJobState = {
-        ...currentJobState,
-        status: 'success', 
-        result: toolDefinition, 
-        endTime: Date.now(),
-      };
-    } catch (error) {
-      console.error(`Error creating tool with model ${job.modelId}:`, error);
-      currentJobState = {
-        ...currentJobState,
-        status: 'error',
-        error: error instanceof Error ? error.message : String(error),
-        endTime: Date.now(),
-      };
-    }
-    onJobUpdate(currentJobState);
-    return currentJobState;
-  });
-
-  // Wait for all promises to settle (either resolve or reject)
-  const settledJobs = await Promise.allSettled(promises);
-
-  // Process settled promises to return the final job states
-  return settledJobs.map((settledPromise, index) => {
-    if (settledPromise.status === 'fulfilled') {
-      return settledPromise.value; // This is the ToolCreationJob object from the try/catch block
-    }
-    // This case should ideally not be reached if errors are caught within createToolForModel and the map function
-    // But as a fallback:
-    console.error(`[${jobs[index].modelId}] Unexpected promise rejection in runToolCreationTests:`, settledPromise.reason);
-    return {
-      ...jobs[index],
+): Promise<ToolCreationJob> {
+  let job: ToolCreationJob = {
+    modelId: selectedModelId,
+    status: 'loading',
+    startTime: Date.now(),
+  };
+  onJobUpdate(job);
+  
+  try {
+    const { jobId } = await startV2ToolCreation(brainstormResult, selectedModelId);
+    job = {
+      ...job,
+      jobId: jobId,
+      status: 'loading', // Status remains 'loading' as the async process has just started
+    };
+  } catch (error) {
+    console.error(`Error starting tool creation with model ${selectedModelId}:`, error);
+    job = {
+      ...job,
       status: 'error',
-      error: 'Unexpected error during test execution. See console.',
+      error: error instanceof Error ? error.message : String(error),
       endTime: Date.now(),
-    } as ToolCreationJob;
-  });
+    };
+  }
+  
+  onJobUpdate(job);
+  return job;
 }

@@ -132,6 +132,35 @@ export const JsxLayoutSchema = z.object({
 });
 export type JsxLayout = z.infer<typeof JsxLayoutSchema>;
 
+// Schema for the styling object from the TailwindStylingAgent
+export const StylingSchema = z.object({
+  styledComponentCode: z.string(),
+  styleMap: z.record(z.string(), z.string()), // Maps data-style-id to a Tailwind class string
+  colorScheme: z.object({
+    primary: z.string(),
+    secondary: z.string(),
+    accent: z.string(),
+    background: z.string(),
+    surface: z.string(),
+    text: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      muted: z.string(),
+    }),
+    border: z.string(),
+    success: z.string(),
+    warning: z.string(),
+    error: z.string(),
+  }),
+  designTokens: z.object({
+    spacing: z.record(z.string(), z.string()),
+    typography: z.record(z.string(), z.string()),
+    shadows: z.record(z.string(), z.string()),
+    animations: z.record(z.string(), z.string()),
+  }),
+});
+export type Styling = z.infer<typeof StylingSchema>;
+
 // Schema for tailwindStyles part of the TCC
 export const TailwindStylesSchema = z.record(z.string(), z.string()); // Maps element keys to Tailwind class strings
 export type TailwindStyles = z.infer<typeof TailwindStylesSchema>;
@@ -179,6 +208,7 @@ export type OrchestrationStatus = z.infer<typeof OrchestrationStatusEnum>;
 export const ToolConstructionContextSchema = z.object({
   jobId: z.string().uuid(),
   userId: z.string().optional(), // To associate with the user who initiated
+  selectedModel: z.string().optional(), // Model ID chosen for generation
   currentOrchestrationStep: OrchestrationStepEnum,
   status: OrchestrationStatusEnum, // Overall status of this job
   userInput: z.object({ // Original user input that started the process
@@ -195,6 +225,7 @@ export const ToolConstructionContextSchema = z.object({
   definedFunctionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
   stateLogic: StateLogicSchema.optional(),
   jsxLayout: JsxLayoutSchema.optional(),
+  styling: StylingSchema.optional(),
   tailwindStyles: TailwindStylesSchema.optional(),
   
   // Backward compatibility aliases

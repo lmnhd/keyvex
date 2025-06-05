@@ -6,13 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, History, RefreshCw, Save } from 'lucide-react';
+import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, RefreshCw, Save, Wand2 } from 'lucide-react';
 import {
   loadLogicResultsFromDB,
-  runToolCreationTests,
+  runToolCreationProcess,
   ToolCreationJob,
   SavedLogicResult
 } from './tool-tester-core-logic';
@@ -27,17 +27,15 @@ interface ModelOption {
   provider?: string;
 }
 
-const MAX_MODELS_SELECTABLE = 5;
-
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
   const [savedBrainstorms, setSavedBrainstorms] = useState<SavedLogicResult[]>([]);
   const [selectedBrainstormId, setSelectedBrainstormId] = useState<string | undefined>(undefined);
   
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
-  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<string>(''); // Single model selection
 
   const [isLoading, setIsLoading] = useState(false);
-  const [testJobs, setTestJobs] = useState<ToolCreationJob[]>([]);
+  const [testJob, setTestJob] = useState<ToolCreationJob | null>(null); // Single job state
   const [error, setError] = useState<string | null>(null);
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
@@ -45,17 +43,21 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   // Fetch the configured default model from the toolCreator API
   const fetchDefaultModel = useCallback(async () => {
     try {
-      const response = await fetch('/api/ai/create-tool');
+      // This should point to the new V2 config endpoint if available, but create-tool is fine for now
+      const response = await fetch('/api/ai/create-tool'); 
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.defaultModel?.primary?.id) {
           setDefaultPrimaryModel(data.defaultModel.primary.id);
+          if (!selectedModelId) {
+            setSelectedModelId(data.defaultModel.primary.id);
+          }
         }
       }
     } catch (error) {
       console.warn('Failed to fetch default model, using fallback:', error);
     }
-  }, []);
+  }, [selectedModelId]);
 
   const fetchModels = useCallback(() => {
     try {
@@ -64,7 +66,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         const provider = (DEFAULT_MODELS.providers as any)[providerKey];
         for (const modelKey in provider.models) {
           if ((provider.models as any)[modelKey].deprecated) continue;
-          // Only include models relevant for tool creation (e.g., text, reasoning)
           const capabilities = (provider.models as any)[modelKey].capabilities;
           if (capabilities && (capabilities.includes('text') || capabilities.includes('reasoning'))) {
              parsedModels.push({ 
@@ -76,20 +77,18 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         }
       }
       setAvailableModels(parsedModels);
-      // Auto-select the toolCreator configured default if available and none are selected
-      if (parsedModels.length > 0 && selectedModelIds.length === 0) {
-        // Use the dynamically fetched default model, or fallback to known defaults
+      if (parsedModels.length > 0 && !selectedModelId) {
         const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
         const defaultModel = parsedModels.find(m => m.id === targetDefaultId) || 
                             parsedModels.find(m => m.id === 'gpt-4.1-mini') || 
                             parsedModels.find(m => m.id === 'gpt-4o');
-        if (defaultModel) setSelectedModelIds([defaultModel.id]);
+        if (defaultModel) setSelectedModelId(defaultModel.id);
       }
     } catch (err) {
       console.error('Failed to parse models:', err);
       setError('Failed to load AI models from default-models.json. Check console.');
     }
-  }, [selectedModelIds.length, defaultPrimaryModel]); // Rerun if selected models are cleared or default model changes
+  }, [selectedModelId, defaultPrimaryModel]);
 
   const fetchBrainstorms = useCallback(async () => {
     try {
@@ -112,26 +111,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     fetchDefaultModel();
     fetchModels();
     fetchBrainstorms();
-  }, [fetchDefaultModel, fetchModels, fetchBrainstorms, newBrainstormFlag]); // newBrainstormFlag is a signal to refresh
-
-  const handleModelSelection = (modelId: string) => {
-    setSelectedModelIds(prev => {
-      if (prev.includes(modelId)) {
-        return prev.filter(id => id !== modelId);
-      }
-      if (prev.length < MAX_MODELS_SELECTABLE) {
-        return [...prev, modelId];
-      }
-      // Optional: Provide feedback that limit is reached
-      alert(`You can select up to ${MAX_MODELS_SELECTABLE} models.`);
-      return prev;
-    });
-  };
+  }, [fetchDefaultModel, fetchModels, fetchBrainstorms, newBrainstormFlag]);
 
   const handleJobUpdate = (updatedJob: ToolCreationJob) => {
-    setTestJobs(prevJobs => 
-      prevJobs.map(job => job.modelId === updatedJob.modelId ? updatedJob : job)
-    );
+    setTestJob(updatedJob);
   };
 
   const handleSubmit = async () => {
@@ -139,8 +122,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setError('Please select a brainstorm result to test.');
       return;
     }
-    if (selectedModelIds.length === 0) {
-      setError(`Please select at least one AI model (up to ${MAX_MODELS_SELECTABLE}).`);
+    if (!selectedModelId) {
+      setError(`Please select an AI model.`);
       return;
     }
 
@@ -152,10 +135,18 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
     setIsLoading(true);
     setError(null);
-    setTestJobs(selectedModelIds.map(id => ({ modelId: id, status: 'pending' })));
+    setTestJob({ modelId: selectedModelId, status: 'pending' });
 
-    const results = await runToolCreationTests(selectedBrainstorm, selectedModelIds, handleJobUpdate);
-    setTestJobs(results); // final update with all settled states
+    // Call the new V2 process
+    const resultJob = await runToolCreationProcess(selectedBrainstorm, selectedModelId, handleJobUpdate);
+    setTestJob(resultJob); 
+    
+    if (resultJob.status !== 'error') {
+      // TODO: Implement WebSocket listener here based on resultJob.jobId
+      console.log(`Tool creation started with Job ID: ${resultJob.jobId}. Now listening for updates...`);
+      // For now, we'll just stop the loading spinner. The UI will show "loading" based on job status.
+      // In a real scenario, we might not set isLoading to false until the WebSocket signals 'completed' or 'failed'.
+    }
     setIsLoading(false);
   };
 
@@ -163,11 +154,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     return savedBrainstorms.find(b => b.id === selectedBrainstormId);
   }
 
-  const handleSaveTool = async (tool: ProductToolDefinition, modelId: string) => {
+  const handleSaveTool = async (tool: ProductToolDefinition) => {
     try {
       await saveToolToDBList(tool);
       setSavedToolIds(prev => new Set([...prev, tool.id]));
-      console.log(`✅ Tool saved to IndexedDB: ${tool.metadata.title} (generated by ${modelId})`);
+      console.log(`✅ Tool saved to IndexedDB: ${tool.metadata.title}`);
     } catch (error) {
       console.error('❌ Error saving tool to IndexedDB:', error);
       setError('Failed to save tool to IndexedDB. Check console for details.');
@@ -177,8 +168,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center"><TestTube2 className="mr-2 h-6 w-6 text-blue-500" /> Test Tool Creation</CardTitle>
-        <CardDescription>Select a saved brainstorm result and AI models to generate and compare tools.</CardDescription>
+        <CardTitle className="flex items-center"><Wand2 className="mr-2 h-6 w-6 text-purple-500" /> Create & Refine Tool</CardTitle>
+        <CardDescription>Select a brainstorm, choose a model, and generate your tool using the V2 Orchestrator.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
@@ -192,7 +183,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="selectedBrainstorm">Select Saved Brainstorm</Label>
+              <Label htmlFor="selectedBrainstorm">1. Select Saved Brainstorm</Label>
               <div className="flex items-center gap-2">
                 <Select 
                   value={selectedBrainstormId}
@@ -210,6 +201,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     ))}
                   </SelectContent>
                 </Select>
+                 <Button variant="outline" size="icon" onClick={fetchBrainstorms} disabled={isLoading} title="Refresh Brainstorms">
+                    <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
             </div>
 
@@ -219,10 +213,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     <CardTitle className="text-sm flex items-center"><Info className="mr-2 h-4 w-4 text-blue-500"/>Selected Brainstorm Details</CardTitle>
                 </CardHeader>
                 <CardContent className="text-xs space-y-1">
-                    <p><strong>ID:</strong> {getSelectedBrainstormDetails()?.id}</p>
                     <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.toolType}</p>
                     <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.targetAudience}</p>
-                    {getSelectedBrainstormDetails()?.industry && <p><strong>Industry:</strong> {getSelectedBrainstormDetails()?.industry}</p>}
                     <details className="mt-1">
                         <summary className="cursor-pointer font-medium">View Full Input Data</summary>
                         <pre className="mt-1 p-1.5 bg-white dark:bg-gray-700/50 rounded-md overflow-x-auto max-h-32 text-[10px]">
@@ -236,39 +228,27 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
           <div className="space-y-2">
             <div className="flex justify-between items-center mb-1">
-              <Label>Select AI Models (up to {MAX_MODELS_SELECTABLE})
-                {defaultPrimaryModel && (
-                  <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                    Default: {defaultPrimaryModel}
-                  </span>
-                )}
-              </Label>
-              <Button variant="outline" size="icon" onClick={fetchBrainstorms} disabled={isLoading} title="Refresh Brainstorms">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              <Label>2. Select AI Model</Label>
             </div>
             {availableModels.length > 0 ? (
               <ScrollArea className="h-48 rounded-md border p-3">
-                <div className="space-y-2">
-                  {availableModels.map(model => (
-                    <div key={model.id} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`model-${model.id}`}
-                        checked={selectedModelIds.includes(model.id)}
-                        onCheckedChange={() => handleModelSelection(model.id)}
-                        disabled={isLoading || (selectedModelIds.length >= MAX_MODELS_SELECTABLE && !selectedModelIds.includes(model.id))}
-                      />
-                      <Label htmlFor={`model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
-                        {model.name}
-                        {model.id === defaultPrimaryModel && (
-                          <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
-                            Default
-                          </span>
-                        )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                <RadioGroup value={selectedModelId} onValueChange={setSelectedModelId} disabled={isLoading}>
+                  <div className="space-y-2">
+                    {availableModels.map(model => (
+                      <div key={model.id} className="flex items-center space-x-2">
+                        <RadioGroupItem value={model.id} id={`model-${model.id}`} />
+                        <Label htmlFor={`model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
+                          {model.name}
+                          {model.id === defaultPrimaryModel && (
+                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                              Default
+                            </span>
+                          )}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </RadioGroup>
               </ScrollArea>
             ) : (
               <p className="text-sm text-gray-500">{(error && error.includes('AI models')) ? 'Error loading models.' : 'Loading models...'}</p>
@@ -276,112 +256,96 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           </div>
         </div>
 
-        <Button onClick={handleSubmit} disabled={isLoading || !selectedBrainstormId || selectedModelIds.length === 0} className="w-full">
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <TestTube2 className="mr-2 h-4 w-4" />}
-          Run Tool Generation Tests
+        <Button onClick={handleSubmit} disabled={isLoading || !selectedBrainstormId || !selectedModelId} className="w-full">
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+          Generate Tool
         </Button>
 
-        {testJobs.length > 0 && (
+        {testJob && (
           <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-3">Tool Generation Results</h3>
-            <Tabs defaultValue={testJobs[0]?.modelId} className="w-full">
-              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {testJobs.map((job) => (
-                  <TabsTrigger key={`trigger-${job.modelId}`} value={job.modelId} className="truncate flex items-center">
-                    <span className="truncate">{availableModels.find(m=>m.id === job.modelId)?.name || job.modelId}</span>
-                    {job.status === 'error' && (
-                      <AlertCircle className="h-4 w-4 text-red-500 ml-2 flex-shrink-0" />
-                    )}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {testJobs.map((job) => (
-                <TabsContent key={`content-${job.modelId}`} value={job.modelId}>
-                  <Card className="w-full mt-2">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base truncate" title={availableModels.find(m=>m.id === job.modelId)?.name || job.modelId}>
-                        {availableModels.find(m=>m.id === job.modelId)?.name || job.modelId}
-                      </CardTitle>
-                      <CardDescription className="text-xs">
-                        Status: <span className={`font-semibold \
-                          ${job.status === 'loading' ? 'text-yellow-500' : ''}\
-                          ${job.status === 'success' ? 'text-green-500' : ''}\
-                          ${job.status === 'error' ? 'text-red-500' : ''}\
-                          ${job.status === 'pending' ? 'text-gray-400' : ''}`}>\
-                          {job.status} {job.status === 'loading' && <Loader2 className="inline-block ml-1 h-3 w-3 animate-spin" />}\
-                                                  {job.status === 'success' && <CheckCircle className="inline-block ml-1 h-3 w-3" />}\
-                                                  {job.status === 'error' && <AlertCircle className="inline-block ml-1 h-3 w-3" />}
+            <h3 className="text-lg font-semibold mb-3">Generation Status</h3>
+            <Card className="w-full mt-2">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base truncate" title={availableModels.find(m=>m.id === testJob.modelId)?.name || testJob.modelId}>
+                    {availableModels.find(m=>m.id === testJob.modelId)?.name || testJob.modelId}
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                    Job ID: {testJob.jobId || 'N/A'} | Status: <span className={`font-semibold \
+                        ${testJob.status === 'loading' || testJob.status === 'pending' ? 'text-yellow-500' : ''}\
+                        ${testJob.status === 'success' ? 'text-green-500' : ''}\
+                        ${testJob.status === 'error' ? 'text-red-500' : ''}`}>\
+                        {testJob.status} {testJob.status === 'loading' && <Loader2 className="inline-block ml-1 h-3 w-3 animate-spin" />}\
+                                                {testJob.status === 'success' && <CheckCircle className="inline-block ml-1 h-3 w-3" />}\
+                                                {testJob.status === 'error' && <AlertCircle className="inline-block ml-1 h-3 w-3" />}
+                    </span>
+                    {testJob.startTime && testJob.endTime && (
+                        <span className="ml-2 text-gray-500 dark:text-gray-400">
+                        (Took {((testJob.endTime - testJob.startTime) / 1000).toFixed(2)}s)
                         </span>
-                        {job.startTime && job.endTime && (
-                          <span className="ml-2 text-gray-500 dark:text-gray-400">
-                            (Took {((job.endTime - job.startTime) / 1000).toFixed(2)}s)
-                          </span>
-                        )}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                    {job.status === 'loading' && (
-                        <div className="flex flex-col items-center justify-center h-40">
-                          <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                          <p className="mt-2 text-sm text-gray-500">Generating tool...</p>
+                    )}
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                {(testJob.status === 'loading' || testJob.status === 'pending') && (
+                    <div className="flex flex-col items-center justify-center h-40">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                        <p className="mt-2 text-sm text-gray-500">Orchestrator is working... Waiting for progress updates.</p>
+                        {/* TODO: This is where the live progress log from WebSocket will go */}
+                    </div>
+                    )}
+                    {testJob.status === 'error' && testJob.error && (
+                    <Alert variant="destructive" className="mt-2">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Generation Failed</AlertTitle>
+                        <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
+                    </Alert>
+                    )}
+                    {testJob.status === 'success' && testJob.result && (
+                    <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                            ✅ Tool "{testJob.result.metadata.title}" generated successfully
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSaveTool(testJob.result!)}
+                            disabled={savedToolIds.has(testJob.result.id)}
+                            className="flex items-center gap-2"
+                        >
+                            <Save className="h-4 w-4" />
+                            {savedToolIds.has(testJob.result.id) ? 'Saved' : 'Save Tool'}
+                        </Button>
                         </div>
-                      )}
-                      {job.status === 'error' && job.error && (
-                        <Alert variant="destructive" className="mt-2">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Generation Failed</AlertTitle>
-                          <AlertDescription className="text-xs break-all">{job.error}</AlertDescription>
-                        </Alert>
-                      )}
-                      {job.status === 'success' && job.result && (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                              ✅ Tool "{job.result.metadata.title}" generated successfully
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSaveTool(job.result!, job.modelId)}
-                              disabled={savedToolIds.has(job.result.id)}
-                              className="flex items-center gap-2"
-                            >
-                              <Save className="h-4 w-4" />
-                              {savedToolIds.has(job.result.id) ? 'Saved' : 'Save Tool'}
-                            </Button>
-                          </div>
-                          <Tabs defaultValue="preview" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                              <TabsTrigger value="preview"><Eye className="mr-1 h-4 w-4" />Preview</TabsTrigger>
-                              <TabsTrigger value="code"><Code className="mr-1 h-4 w-4" />Code</TabsTrigger>
-                            </TabsList>
-                          <TabsContent value="preview">
-                            <div className="mt-2 p-2 border rounded-md min-h-[300px] bg-white dark:bg-black">
-                              <CanvasTool
-                                productToolDefinition={job.result}
-                                isDarkMode={isDarkMode}
-                                isGenerating={false}
-                                generatingMessage={undefined}
-                                onValidationIssues={() => {}}
-                              />
-                            </div>
-                          </TabsContent>
-                          <TabsContent value="code">
-                            <ScrollArea className="mt-2 h-[400px] rounded-md border bg-gray-900 p-1">
-                              <pre className="text-xs text-white p-2 break-all whitespace-pre-wrap">
-                                {job.result.componentCode}
-                              </pre>
-                              <ScrollBar />
-                            </ScrollArea>
-                          </TabsContent>
-                        </Tabs>
+                        <Tabs defaultValue="preview" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="preview"><Eye className="mr-1 h-4 w-4" />Preview</TabsTrigger>
+                            <TabsTrigger value="code"><Code className="mr-1 h-4 w-4" />Code</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="preview">
+                        <div className="mt-2 p-2 border rounded-md min-h-[300px] bg-white dark:bg-black">
+                            <CanvasTool
+                            productToolDefinition={testJob.result}
+                            isDarkMode={isDarkMode}
+                            isGenerating={false}
+                            generatingMessage={undefined}
+                            onValidationIssues={() => {}}
+                            />
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              ))}
-            </Tabs>
+                        </TabsContent>
+                        <TabsContent value="code">
+                        <ScrollArea className="mt-2 h-[400px] rounded-md border bg-gray-900 p-1">
+                            <pre className="text-xs text-white p-2 break-all whitespace-pre-wrap">
+                            {testJob.result.componentCode}
+                            </pre>
+                            <ScrollBar />
+                        </ScrollArea>
+                        </TabsContent>
+                    </Tabs>
+                    </div>
+                    )}
+                </CardContent>
+            </Card>
           </div>
         )}
       </CardContent>

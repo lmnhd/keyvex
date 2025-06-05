@@ -14,6 +14,7 @@ const StartRequestSchema = z.object({
   industry: z.string().optional(),
   toolType: z.string().optional(),
   features: z.array(z.string()).optional(),
+  selectedModel: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
         toolType: parsedInput.data.toolType,
         features: parsedInput.data.features || [],
       },
+      selectedModel: parsedInput.data.selectedModel,
       progressLog: [],
       createdAt: now,
       updatedAt: now,
@@ -82,7 +84,10 @@ export async function POST(request: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ jobId }),
+      body: JSON.stringify({ 
+        jobId,
+        selectedModel: parsedInput.data.selectedModel 
+      }),
     }).catch(fetchError => {
       console.error(`[Orchestrate/Start] Failed to trigger Function Signature Planner for jobID ${jobId}:`, fetchError);
     });
