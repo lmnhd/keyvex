@@ -14,12 +14,64 @@ export interface ToolCreationJob {
   endTime?: number;
 }
 
+// 🔧 CRITICAL FIX: Clean brainstorm data to prevent AI confusion
+function cleanBrainstormData(brainstormData: any): any {
+  if (!brainstormData) return null;
+  
+  // Create a clean copy without potentially problematic fields
+  const cleaned = { ...brainstormData };
+  
+  // Remove prompt options that might conflict with tool creation
+  delete cleaned.promptOptions;
+  
+  // Remove overly complex metadata that might confuse the AI
+  if (cleaned.suggestedInputs && Array.isArray(cleaned.suggestedInputs)) {
+    // Keep only essential input fields
+    cleaned.suggestedInputs = cleaned.suggestedInputs.map((input: any) => ({
+      id: input.id,
+      label: input.label,
+      type: input.type,
+      required: input.required
+    }));
+  }
+  
+  // Simplify calculation logic to prevent AI confusion
+  if (cleaned.calculationLogic && Array.isArray(cleaned.calculationLogic)) {
+    cleaned.calculationLogic = cleaned.calculationLogic.map((calc: any) => ({
+      id: calc.id,
+      name: calc.name,
+      formula: calc.formula,
+      outputFormat: calc.outputFormat
+    }));
+  }
+  
+  // Keep core concepts simple
+  const simplifiedData = {
+    coreConcept: cleaned.coreConcept || cleaned.coreWConcept,
+    valueProposition: cleaned.valueProposition,
+    keyCalculations: cleaned.keyCalculations || [],
+    suggestedInputs: cleaned.suggestedInputs || [],
+    calculationLogic: cleaned.calculationLogic || [],
+    interactionFlow: cleaned.interactionFlow || [],
+    creativeEnhancements: cleaned.creativeEnhancements || []
+  };
+  
+  console.log('🧹 BRAINSTORM CLEANER: Simplified brainstorm data to prevent AI confusion');
+  return simplifiedData;
+}
+
 // This function is a simplified adaptation of callToolCreationAgent from '../../ui/ai-processing.ts'
 async function createToolForModel(
   brainstormResult: SavedLogicResult,
   modelId: string
 ): Promise<ProductToolDefinition> {
   console.log(`Requesting tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
+
+  // 🔧 CRITICAL FIX: Clean the brainstorm data before sending to API
+  const rawBrainstormData = brainstormResult.result?.brainstormOutput || brainstormResult.result;
+  const cleanedBrainstormData = cleanBrainstormData(rawBrainstormData);
+  
+  console.log(`🧹 [${modelId}] Cleaned brainstorm data:`, JSON.stringify(cleanedBrainstormData, null, 2));
 
   const requestBody = {
     userIntent: `Create a ${brainstormResult.toolType} for ${brainstormResult.targetAudience}`,
@@ -28,16 +80,15 @@ async function createToolForModel(
       targetAudience: brainstormResult.targetAudience,
       industry: brainstormResult.industry,
       toolType: brainstormResult.toolType,
-      // The entire brainstorm output (which includes original user inputs + AI output)
-      // is passed as logicArchitectInsights or brainstormingResult
-      logicArchitectInsights: brainstormResult.result?.brainstormOutput || brainstormResult.result,
-      brainstormingResult: brainstormResult.result?.brainstormOutput || brainstormResult.result,
+      // Use cleaned brainstorm data instead of raw data
+      logicArchitectInsights: cleanedBrainstormData,
+      brainstormingResult: cleanedBrainstormData,
       // Ensure other potentially expected fields by the API are present, even if empty or default
-      features: (brainstormResult.result?.brainstormOutput as any)?.features || (brainstormResult.result?.userInput as any)?.features || [],
-      colors: (brainstormResult.result?.brainstormOutput as any)?.colors || (brainstormResult.result?.userInput as any)?.colors || [],
-      businessDescription: (brainstormResult.result?.brainstormOutput as any)?.businessDescription || (brainstormResult.result?.userInput as any)?.businessContext || '',
-      collectedAnswers: (brainstormResult.result?.brainstormOutput as any)?.collectedAnswers || {},
-      conversationHistory: (brainstormResult.result?.brainstormOutput as any)?.conversationHistory || [],
+      features: (cleanedBrainstormData as any)?.features || [],
+      colors: (cleanedBrainstormData as any)?.colors || [],
+      businessDescription: (cleanedBrainstormData as any)?.businessDescription || (brainstormResult.result?.userInput as any)?.businessContext || '',
+      collectedAnswers: (cleanedBrainstormData as any)?.collectedAnswers || {},
+      conversationHistory: (cleanedBrainstormData as any)?.conversationHistory || [],
     },
   };
 
