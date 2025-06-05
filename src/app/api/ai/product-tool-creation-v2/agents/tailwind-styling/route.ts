@@ -20,8 +20,13 @@ export async function POST(request: NextRequest) {
         colorSchemeKeys: Object.keys(result.styling.colorScheme).length
       }, '🎨 TailwindStyling Route: Styling applied successfully');
 
-      // REMOVED: Direct agent calls to prevent Vercel timeouts
-      // Client-side orchestration will handle next step coordination
+      // SUCCESS: Trigger check for parallel completion 
+      const baseUrl = request.nextUrl.origin;
+      
+      // Check if parallel step completion allows proceeding to next step
+      checkParallelCompletion(baseUrl, requestData.jobId).catch(error => {
+        logger.error({ jobId: requestData.jobId, error }, '🎨 TailwindStyling: Failed to check parallel completion');
+      });
 
       return NextResponse.json({
         success: true,
@@ -53,5 +58,30 @@ export async function POST(request: NextRequest) {
       success: false,
       error: 'Internal server error'
     }, { status: 500 });
+  }
+}
+
+// Helper function to check parallel completion and trigger next step
+async function checkParallelCompletion(
+  baseUrl: string, 
+  jobId: string
+): Promise<void> {
+  try {
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ jobId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Check parallel completion responded with status: ${response.status}`);
+    }
+
+    logger.info({ jobId }, '🎨 TailwindStyling: Successfully triggered parallel completion check');
+  } catch (error) {
+    logger.error({ jobId, error }, '🎨 TailwindStyling: Failed to check parallel completion');
+    throw error;
   }
 }
