@@ -395,7 +395,7 @@ export async function processToolCreation(
             icon: { type: 'lucide' as const, value: 'Package' }
           },
           componentSet: partialResponseData.componentSet || currentComponentSet,
-          componentCode: partialResponseData.componentCode || `'use client';\nfunction PlaceholderComponent() { return React.createElement('div', { className: 'p-4', 'data-style-id': 'placeholder' }, 'Tool needs complete regeneration due to schema error'); }`,
+          componentCode: `'use client';\nfunction SafePlaceholderComponent() { return React.createElement('div', { className: 'p-4 border-2 border-yellow-400 bg-yellow-50 text-yellow-800 rounded-lg text-center', 'data-style-id': 'safe-placeholder' }, ['Schema validation failed. The AI-generated component contained syntax errors.', React.createElement('br', { key: 'br1' }), 'Click regenerate to create a new tool.']); }`,
           colorScheme: partialResponseData.colorScheme || DEFAULT_COLOR_SCHEMES.professional,
           initialStyleMap: partialResponseData.initialStyleMap || {},
           currentStyleMap: partialResponseData.currentStyleMap || {},
@@ -403,11 +403,41 @@ export async function processToolCreation(
         };
       } else {
         logger.error('🔧 SCHEMA FIX: Schema validation failed, but no partial response found. Creating generic placeholder.');
-        parsedToolDefinition = { /* ... generic placeholder ... */ }; // (Code for generic placeholder was here)
+        parsedToolDefinition = {
+          id: `tool-${Date.now()}`, slug: `tool-slug-${Date.now()}`, version: '1.0', status: 'draft' as const,
+          createdAt: Date.now(), updatedAt: Date.now(), createdBy: 'system_schema_fix',
+          metadata: {
+            id: `meta-${Date.now()}`, slug: `meta-slug-${Date.now()}`, title: 'Schema Fix Required',
+            description: 'Tool generation failed schema validation with no partial response.', shortDescription: 'Schema validation failed',
+            type: 'tool', category: 'general', targetAudience: 'general users', industry: 'various', tags: [],
+            estimatedCompletionTime: 5, difficultyLevel: 'beginner' as const, features: [],
+            icon: { type: 'lucide' as const, value: 'AlertTriangle' }
+          },
+          componentSet: currentComponentSet,
+          componentCode: `'use client';\nfunction SchemaErrorComponent() { return React.createElement('div', { className: 'p-4 border-2 border-orange-400 bg-orange-50 text-orange-800 rounded-lg text-center', 'data-style-id': 'schema-error' }, ['Schema validation failed with no recoverable data.', React.createElement('br', { key: 'br1' }), 'Please try regenerating the tool.']); }`,
+          colorScheme: DEFAULT_COLOR_SCHEMES.professional,
+          initialStyleMap: {}, currentStyleMap: {},
+          analytics: { enabled: true, completions: 0, averageTime: 0 }
+        };
       }
     } else {
       logger.error('🏭 TRACE [processToolCreation]: Unhandled AI call error (not schema validation). Creating generic placeholder.');
-      parsedToolDefinition = { /* ... generic placeholder for unhandled error ... */ }; // (Code for generic placeholder was here)
+      parsedToolDefinition = {
+        id: `tool-${Date.now()}`, slug: `tool-slug-${Date.now()}`, version: '1.0', status: 'draft' as const,
+        createdAt: Date.now(), updatedAt: Date.now(), createdBy: 'system_unhandled_error',
+        metadata: {
+          id: `meta-${Date.now()}`, slug: `meta-slug-${Date.now()}`, title: 'Unhandled AI Error',
+          description: 'Tool generation failed due to an unhandled error during AI call.', shortDescription: 'Unhandled error',
+          type: 'tool', category: 'general', targetAudience: 'general users', industry: 'various', tags: [],
+          estimatedCompletionTime: 5, difficultyLevel: 'beginner' as const, features: [],
+          icon: { type: 'lucide' as const, value: 'XCircle' }
+        },
+        componentSet: currentComponentSet,
+        componentCode: `'use client';\nfunction UnhandledErrorComponent() { return React.createElement('div', { className: 'p-4 border-2 border-red-400 bg-red-50 text-red-800 rounded-lg text-center', 'data-style-id': 'unhandled-error' }, ['An unhandled error occurred during tool generation.', React.createElement('br', { key: 'br1' }), 'Please try again or contact support.']); }`,
+        colorScheme: DEFAULT_COLOR_SCHEMES.professional,
+        initialStyleMap: {}, currentStyleMap: {},
+        analytics: { enabled: true, completions: 0, averageTime: 0 }
+      };
     }
     // Fallback generic placeholder if all else fails within catch
     if (!parsedToolDefinition) {
@@ -432,9 +462,8 @@ export async function processToolCreation(
 
   if (!parsedToolDefinition) {
     logger.error("CRITICAL: parsedToolDefinition is null/undefined after AI call and error handling. This should not happen. Creating final fallback.");
-    parsedToolDefinition = { /* ... final critical fallback placeholder ... */ }; // (Code for final critical fallback was here)
     parsedToolDefinition = {
-        id: `tool-${Date.now()}`, slug: `tool-slug-${Date.now()}`, version: '1.0', status: 'draft'as const,
+        id: `tool-${Date.now()}`, slug: `tool-slug-${Date.now()}`, version: '1.0', status: 'draft' as const,
         createdAt: Date.now(), updatedAt: Date.now(), createdBy: 'system_critical_fallback',
         metadata: {
           id: `meta-${Date.now()}`, slug: `meta-slug-${Date.now()}`, title: 'Critical Fallback Tool',

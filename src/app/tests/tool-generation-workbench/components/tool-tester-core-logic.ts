@@ -23,6 +23,7 @@ async function createToolForModel(
 
   const requestBody = {
     userIntent: `Create a ${brainstormResult.toolType} for ${brainstormResult.targetAudience}`,
+    selectedModel: modelId, // ✅ Move selectedModel to top level for API route
     context: {
       targetAudience: brainstormResult.targetAudience,
       industry: brainstormResult.industry,
@@ -31,7 +32,6 @@ async function createToolForModel(
       // is passed as logicArchitectInsights or brainstormingResult
       logicArchitectInsights: brainstormResult.result?.brainstormOutput || brainstormResult.result,
       brainstormingResult: brainstormResult.result?.brainstormOutput || brainstormResult.result,
-      selectedModel: modelId, // Specify the model for this specific API call
       // Ensure other potentially expected fields by the API are present, even if empty or default
       features: (brainstormResult.result?.brainstormOutput as any)?.features || (brainstormResult.result?.userInput as any)?.features || [],
       colors: (brainstormResult.result?.brainstormOutput as any)?.colors || (brainstormResult.result?.userInput as any)?.colors || [],
@@ -42,6 +42,7 @@ async function createToolForModel(
   };
 
   console.log(`[${modelId}] API Request Body to /api/ai/create-tool:`, JSON.stringify(requestBody, null, 2));
+  console.log(`[${modelId}] 🚨 DEBUGGING: selectedModel value being sent:`, requestBody.selectedModel);
 
   const response = await fetch('/api/ai/create-tool', {
     method: 'POST',

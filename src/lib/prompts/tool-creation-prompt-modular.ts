@@ -157,9 +157,9 @@ export const STYLE_GUIDES = {
           'data-style-id': 'main-container',
           key: 'main-container-example'
         }, [
-          // COMPACT GRADIENT HEADER with logo, title, subtitle, and info icon tooltip
+          // COMPACT GRADIENT HEADER with logo, title, subtitle, and info icon tooltip  
           React.createElement('div', {
-            className: 'bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 rounded-lg mb-4 shadow-lg flex items-center justify-between',
+            className: 'bg-gradient-to-r from-[CHOOSE-APPROPRIATE-COLOR] to-[MATCH-INDUSTRY] text-white p-4 rounded-lg mb-4 shadow-lg flex items-center justify-between',
             'data-style-id': 'tool-header',
             key: 'tool-header-example'
           }, [
@@ -419,45 +419,52 @@ export const STYLE_GUIDES = {
     </shadcn-card-with-gradient-example>
     
     <industry-specific-styling>
-        🚨🚨🚨 MANDATORY INDUSTRY-SPECIFIC HEADER COLORS - NO BLUE FOR EVERYTHING! 🚨🚨🚨
+        // DYNAMIC COLOR SELECTION - AVOID REPETITIVE PATTERNS
+        🎨 CRITICAL: Choose colors that match the tool's industry and create UNIQUE visual identity
         
-        ⚠️ CRITICAL: The header gradient MUST match the tool's industry and purpose!
-        ⚠️ DO NOT use the same blue gradient for every single tool!
-        ⚠️ Choose colors that make sense for the specific business context!
+        // INDUSTRY MOOD GUIDELINES (NOT rigid prescriptions):
+        🏥 Medical/Healthcare: Clean, trustworthy (blues, teals, whites)
+        💰 Financial/Business: Professional, stable (blues, grays, subtle accents) 
+        🍽️ Food/Restaurant: Warm, appetizing (oranges, reds, earth tones)
+        💪 Fitness/Sports: Energetic, active (greens, lime, vibrant accents)
+        🏠 Real Estate: Sophisticated, premium (purples, deep blues, elegant tones)
+        ⚡ Tech/Startup: Modern, innovative (variety of bold, contemporary colors)
+        🌱 Environmental: Natural, sustainable (greens, earth tones, nature-inspired)
+        📚 Education: Professional, academic (blues, purples, scholarly tones)
+        📈 Marketing: Creative, engaging (varied palettes - NOT always pink/orange!)
         
-        ✅ REQUIRED HEADER GRADIENTS BY INDUSTRY:
+        🎯 DYNAMIC COLOR GENERATION RULES:
+        ✅ REQUIRED: Create UNIQUE color combinations for each tool
+        ✅ REQUIRED: Use the industry as inspiration, NOT prescription
+        ✅ REQUIRED: Vary your gradient direction: to-r, to-br, to-bl, to-tr
+        ✅ REQUIRED: Mix different shade intensities (400-600, 500-700, 600-800)
+        ✅ REQUIRED: Consider brand colors if provided in context
         
-        // HEALTHCARE: Clean, medical, trustworthy
-        🏥 Medical/Healthcare tools: 'bg-gradient-to-r from-cyan-500 to-teal-600'
+        ❌ FORBIDDEN: Copying exact gradient examples from this prompt
+        ❌ FORBIDDEN: Using identical color schemes for different tools
+        ❌ FORBIDDEN: Always defaulting to the same industry patterns
+        ❌ FORBIDDEN: Pink-to-orange for every marketing tool
         
-        // FINANCIAL: Professional, stable, trustworthy  
-        💰 Financial/Business tools: 'bg-gradient-to-r from-blue-600 to-indigo-700'
+        🎨 COLOR CREATIVITY EXAMPLES:
+        - Marketing Agency Tool: 'bg-gradient-to-br from-violet-600 to-blue-600'
+        - Marketing ROI Tool: 'bg-gradient-to-r from-emerald-600 to-teal-700'  
+        - Digital Marketing Tool: 'bg-gradient-to-tr from-cyan-600 to-blue-700'
+        - Content Marketing Tool: 'bg-gradient-to-bl from-indigo-600 to-purple-700'
         
-        // FOOD/RESTAURANT: Warm, appetizing, inviting
-        🍽️ Food/Restaurant tools: 'bg-gradient-to-r from-orange-500 to-red-500'
+        💡 INNOVATION MANDATE: Think like a designer - what colors would make THIS specific tool memorable and professional?
         
-        // FITNESS: Energetic, vibrant, motivating
-        💪 Fitness/Sports tools: 'bg-gradient-to-r from-green-500 to-emerald-600'
+        🧠 LOGIC ARCHITECT INTEGRATION:
+        When brainstormingResult or logicArchitectInsights are provided in context:
+        ✅ Use industry insights to inform color choices
+        ✅ Match the tool's personality/mood from brainstorm data
+        ✅ Consider the target audience sophistication level
+        ✅ Reflect the tool's complexity in visual design
         
-        // REAL ESTATE: Luxury, sophisticated, premium
-        🏠 Real Estate tools: 'bg-gradient-to-r from-purple-600 to-indigo-600'
+        Example: If Logic Architect suggests "professional healthcare calculator for hospital administrators" 
+        → Use clean, medical-grade styling with professional blues/teals and high contrast
         
-        // TECH/STARTUP: Modern, innovative, cutting-edge
-        ⚡ Tech/Startup tools: 'bg-gradient-to-r from-indigo-600 to-purple-600'
-        
-        // ENVIRONMENTAL: Natural, eco-friendly, sustainable
-        🌱 Environmental tools: 'bg-gradient-to-r from-green-600 to-emerald-700'
-        
-        // EDUCATION: Professional, academic, trustworthy
-        📚 Education tools: 'bg-gradient-to-r from-blue-500 to-purple-600'
-        
-        // MARKETING: Creative, vibrant, engaging
-        📈 Marketing tools: 'bg-gradient-to-r from-pink-500 to-orange-500'
-        
-        🎯 SELECTION RULE: Ask yourself "What industry is this tool for?" then use the appropriate colors!
-        ❌ FORBIDDEN: Using blue for non-financial tools
-        ❌ FORBIDDEN: Same color scheme for different industries
-        ✅ REQUIRED: Colors that match the tool's business context and user expectations
+        Example: If Logic Architect suggests "fun fitness tracker for millennials"
+        → Use energetic, modern styling with vibrant greens/blues and playful accents
     </industry-specific-styling>
     
     <typography-enhancement>
@@ -503,10 +510,19 @@ export const STYLE_GUIDES = {
     
     <input-text-contrast>
         🚨🚨🚨 CRITICAL: INPUT TEXT MUST BE VISIBLE - NO INVISIBLE TEXT! 🚨🚨🚨
+        🚨🚨🚨 CRITICAL: ALL TEXT ELEMENTS MUST HAVE PROPER CONTRAST! 🚨🚨🚨
         
         ⚠️ MANDATORY: ALL Input components MUST include 'text-gray-900' in className
-        ⚠️ This is the #1 reason users can't see their input text!
-        ⚠️ NEVER assume input text color - always specify it explicitly!
+        ⚠️ MANDATORY: ALL display text MUST have sufficient contrast against backgrounds
+        ⚠️ This is the #1 reason users can't see their input text or results!
+        ⚠️ NEVER assume text color - always specify it explicitly!
+        
+        🚨 COMMON CONTRAST FAILURES TO AVOID:
+        ❌ White text on white/light backgrounds
+        ❌ Light gray text on light backgrounds  
+        ❌ Dark text on dark backgrounds
+        ❌ Using text-white on Card backgrounds (which are typically light)
+        ❌ Forgetting to specify text color in result displays
         
         ✅ REQUIRED INPUT PATTERN:
         React.createElement(Input, {
@@ -525,13 +541,38 @@ export const STYLE_GUIDES = {
         ✅ On light gradient backgrounds: ALWAYS use 'text-gray-900' (dark text)
         ❌ NEVER leave input text color unspecified
         
-        COMPLETE EXAMPLE with proper contrast:
+        COMPLETE INPUT EXAMPLE with proper contrast:
         React.createElement(Input, {
           className: 'w-full h-10 px-4 text-lg font-medium text-gray-900 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 transition-all duration-200',
           placeholder: 'Enter value...',
           value: inputValue,
           onChange: (e) => setInputValue(e.target.value)
         })
+        
+        🚨 RESULT DISPLAY CONTRAST REQUIREMENTS:
+        ✅ REQUIRED: All result text MUST specify explicit text colors
+        ✅ REQUIRED: Large metric numbers need high-contrast colors
+        ✅ REQUIRED: Labels and descriptions need sufficient contrast
+        
+        CORRECT RESULT EXAMPLES:
+        React.createElement('div', {
+          className: 'bg-white p-4 rounded-lg shadow-md text-center',
+          'data-style-id': 'result-total-investment'
+        }, [
+          React.createElement('div', { 
+            className: 'text-3xl font-black text-blue-600 mb-1', // ✅ Explicit dark text on white
+            key: 'metric-value'
+          }, '$1,200.00'),
+          React.createElement('div', {
+            className: 'text-sm font-semibold uppercase tracking-wide text-blue-700', // ✅ Explicit dark text
+            key: 'metric-label'
+          }, 'Total Investment')
+        ])
+        
+        ❌ FORBIDDEN RESULT PATTERNS:
+        - Missing text color specification on metric values
+        - Using text-white on light Card backgrounds
+        - Assuming text color inheritance without verification
     </input-text-contrast>
 </gorgeous-styling-library>`,
 
@@ -1097,13 +1138,16 @@ Example: React.createElement(Input, { className: 'w-full h-10 px-4 text-gray-900
 ❌ NEVER use inputs without explicit dark text color
 
 CONTEXTUAL HEADER COLORS (MANDATORY):
-✅ Healthcare tools: 'bg-gradient-to-r from-cyan-500 to-teal-600'
-✅ Financial tools: 'bg-gradient-to-r from-blue-600 to-indigo-700' 
-✅ Food/Restaurant: 'bg-gradient-to-r from-orange-500 to-red-500'
-✅ Fitness tools: 'bg-gradient-to-r from-green-500 to-emerald-600'
-✅ Real Estate: 'bg-gradient-to-r from-purple-600 to-indigo-600'
-✅ Tech/Startup: 'bg-gradient-to-r from-indigo-600 to-purple-600'
-❌ NEVER use the same blue header for different industries!
+✅ REQUIRED: Choose industry-appropriate gradient colors dynamically
+✅ Healthcare tools: Use clean medical colors (cyan/teal/blue family)
+✅ Financial tools: Use professional stable colors (blue/indigo/gray family) 
+✅ Food/Restaurant: Use warm appetizing colors (orange/red/brown family)
+✅ Fitness tools: Use energetic active colors (green/lime/emerald family)
+✅ Real Estate: Use sophisticated premium colors (purple/indigo/gray family)
+✅ Tech/Startup: Use modern innovative colors (varied contemporary palettes)
+❌ FORBIDDEN: Copying specific gradient examples from this prompt
+❌ FORBIDDEN: Using identical colors for different industries
+✅ REQUIRED: Generate unique color combinations that match the specific tool context
 
 MANDATORY INFO ICON (NO EXCEPTIONS):
 ✅ EVERY header MUST include TooltipProvider wrapper
