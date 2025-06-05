@@ -140,11 +140,11 @@ function checkParallelStepCompletion(tcc: any): {
       };
 
     case OrchestrationStepEnum.enum.assembling_component:
-      // Check if assembly is complete
-      const assemblyComplete = !!tcc.assembledComponentCode;
+      // Check if component assembly is complete
+      const assemblyComplete = !!tcc.assembledComponentCode && tcc.assembledComponentCode.length > 0;
       return {
         isComplete: assemblyComplete,
-        nextStep: assemblyComplete ? 'validation' : null,
+        nextStep: assemblyComplete ? OrchestrationStepEnum.enum.validating_code : null,
         readyToTriggerNext: assemblyComplete
       };
 
@@ -176,8 +176,8 @@ async function triggerNextStep(baseUrl: string, jobId: string, nextStep: string)
       // Trigger the Tailwind Styling Agent
       triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/tailwind-styling`;
     } else if (nextStep === OrchestrationStepEnum.enum.assembling_component) {
-      // Trigger the Assembly step (to be created)
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/assemble`;
+      // Trigger the Component Assembler Agent
+      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/component-assembler`;
     } else if (nextStep === 'validation') {
       // Trigger the Validation step (to be created)
       triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/validate`;
