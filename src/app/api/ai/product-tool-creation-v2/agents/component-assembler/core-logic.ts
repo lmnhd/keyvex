@@ -156,7 +156,7 @@ CRITICAL REQUIREMENTS:
 Return your component wrapped in tsx code blocks.`;
 
   const styling = (tcc as any).styling;
-  const userPrompt = `Component Name: ${generateComponentName(tcc.userInput)}
+  const userPrompt = `Component Name: ${generateComponentName(tcc.userInput.description)}
 
 JSX LAYOUT:
 ${tcc.jsxLayout?.componentStructure}
@@ -169,7 +169,7 @@ STYLING (Apply to matching elements):
 ${JSON.stringify(styling?.styleMap, null, 2)}
 
 FUNCTION SIGNATURES TO IMPLEMENT:
-${tcc.functionSignatures?.map(sig => `${sig.name}(${sig.parameters?.map(p => `${p.name}: ${p.type}`).join(', ') || ''}): ${sig.returnType} - ${sig.description}`).join('\n')}
+${tcc.functionSignatures?.map(sig => `${sig.name}() - ${sig.description || 'No description'}`).join('\n')}
 
 Assemble these pieces into a complete, functional React component.`;
 
@@ -217,7 +217,7 @@ function parseComponentResponse(content: string, tcc: ToolConstructionContext) {
     hooks,
     functions,
     metadata: {
-      componentName: generateComponentName(tcc.userInput),
+      componentName: generateComponentName(tcc.userInput.description),
       dependencies: [...new Set([...imports, 'react', '@types/react'])],
       estimatedLines: finalComponentCode.split('\n').length
     }
@@ -264,7 +264,7 @@ function extractFunctions(code: string): string[] {
  * Generate fallback component when AI parsing fails
  */
 function generateFallbackComponent(tcc: ToolConstructionContext): string {
-  const componentName = generateComponentName(tcc.userInput);
+  const componentName = generateComponentName(tcc.userInput.description);
   
   return `import React, { useState } from 'react';
 

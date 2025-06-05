@@ -222,6 +222,12 @@ export const ToolConstructionContextSchema = z.object({
       status: OrchestrationStatusEnum.optional(),
       result: z.any().optional(),
     }).optional(),
+    assemblingComponent: z.object({
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: OrchestrationStatusEnum.optional(),
+      result: z.any().optional(),
+    }).optional(),
   }).optional(),
   
   assembledComponentCode: z.string().optional(), // The full .tsx code string
