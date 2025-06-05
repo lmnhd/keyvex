@@ -309,10 +309,64 @@ export async function processToolCreation(
 
   const modelInstance = createModelInstance(modelConfig.provider, actualModelId);
 
+  // 🔧 CRITICAL FIX: Clean brainstorm data to prevent AI confusion
+  function cleanBrainstormContextData(brainstormData: any): any {
+    if (!brainstormData) return null;
+    
+    console.log('🧹 CLEANING: Original brainstorm data keys:', Object.keys(brainstormData));
+    
+    // Create a clean copy without potentially problematic fields
+    const cleaned = { ...brainstormData };
+    
+    // Remove prompt options that might conflict with tool creation
+    const hasPromptOptions = !!cleaned.promptOptions;
+    delete cleaned.promptOptions;
+    
+    // Remove overly complex metadata that might confuse the AI
+    if (cleaned.suggestedInputs && Array.isArray(cleaned.suggestedInputs)) {
+      cleaned.suggestedInputs = cleaned.suggestedInputs.map((input: any) => ({
+        id: input.id,
+        label: input.label,
+        type: input.type,
+        required: input.required
+      }));
+    }
+    
+    // Simplify calculation logic to prevent AI confusion
+    if (cleaned.calculationLogic && Array.isArray(cleaned.calculationLogic)) {
+      cleaned.calculationLogic = cleaned.calculationLogic.map((calc: any) => ({
+        id: calc.id,
+        name: calc.name,
+        formula: calc.formula,
+        outputFormat: calc.outputFormat
+      }));
+    }
+    
+    // Keep core concepts simple
+    const simplifiedData = {
+      coreConcept: cleaned.coreConcept || cleaned.coreWConcept,
+      valueProposition: cleaned.valueProposition,
+      keyCalculations: cleaned.keyCalculations || [],
+      suggestedInputs: cleaned.suggestedInputs || [],
+      calculationLogic: cleaned.calculationLogic || [],
+      interactionFlow: cleaned.interactionFlow || [],
+      creativeEnhancements: cleaned.creativeEnhancements || []
+    };
+    
+    logger.info({ 
+      hadPromptOptions: hasPromptOptions,
+      originalKeys: Object.keys(brainstormData).length,
+      cleanedKeys: Object.keys(simplifiedData).length
+    }, '🧹 BRAINSTORM CLEANER: Simplified brainstorm data to prevent AI confusion');
+    
+    return simplifiedData;
+  }
+
   let brainstormingContext = null;
   if (context.brainstormingResult || context.logicArchitectInsights) {
-    brainstormingContext = context.brainstormingResult || context.logicArchitectInsights;
-    logger.info({ hasBrainstorming: true, source: context.brainstormingResult ? 'brainstormingResult' : 'logicArchitectInsights' }, '🏭 TRACE [processToolCreation]: External brainstorming loaded.');
+    const rawBrainstormingData = context.brainstormingResult || context.logicArchitectInsights;
+    brainstormingContext = cleanBrainstormContextData(rawBrainstormingData);
+    logger.info({ hasBrainstorming: true, source: context.brainstormingResult ? 'brainstormingResult' : 'logicArchitectInsights', wasCleaned: true }, '🏭 TRACE [processToolCreation]: External brainstorming loaded and cleaned.');
   } else {
     logger.info({ hasBrainstorming: false }, '🏭 TRACE [processToolCreation]: No external brainstorming context available');
   }
