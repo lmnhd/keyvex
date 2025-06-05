@@ -148,6 +148,15 @@ function checkParallelStepCompletion(tcc: any): {
         readyToTriggerNext: assemblyComplete
       };
 
+    case OrchestrationStepEnum.enum.validating_code:
+      // Check if validation is complete
+      const validationComplete = !!tcc.validationResult;
+      return {
+        isComplete: validationComplete,
+        nextStep: validationComplete ? OrchestrationStepEnum.enum.finalizing_tool : null,
+        readyToTriggerNext: validationComplete
+      };
+
     case OrchestrationStepEnum.enum.completed:
       return {
         isComplete: true,
@@ -178,9 +187,12 @@ async function triggerNextStep(baseUrl: string, jobId: string, nextStep: string)
     } else if (nextStep === OrchestrationStepEnum.enum.assembling_component) {
       // Trigger the Component Assembler Agent
       triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/component-assembler`;
-    } else if (nextStep === 'validation') {
-      // Trigger the Validation step (to be created)
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/validate`;
+    } else if (nextStep === OrchestrationStepEnum.enum.validating_code) {
+      // Trigger the Validator Agent
+      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/validator`;
+    } else if (nextStep === OrchestrationStepEnum.enum.finalizing_tool) {
+      // Trigger the Tool Finalizer Agent (to be created)
+      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/tool-finalizer`;
     } else {
       throw new Error(`Unknown next step: ${nextStep}`);
     }
