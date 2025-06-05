@@ -395,7 +395,7 @@ function parseJsxLayoutResponse(
     sig.name.toLowerCase().includes('clear')
   );
 
-  // Use AI-generated JSX if available, otherwise create intelligent structure
+  // AI FIRST: Use AI-generated JSX if available, otherwise create intelligent structure  
   const componentStructure = aiGeneratedJsx ? 
     enhanceAiJsxWithFunctionSignatures(aiGeneratedJsx, functionSignatures, stateLogic) :
     generateIntelligentJsxStructure(functionSignatures, stateLogic, content);
@@ -412,6 +412,13 @@ function parseJsxLayoutResponse(
 
   // Extract responsive considerations from AI content
   const responsiveBreakpoints = extractResponsiveBreakpointsFromContent(content);
+
+  logger.info({ 
+    componentStructureLength: componentStructure.length,
+    elementMapCount: elementMap.length,
+    accessibilityFeaturesCount: accessibilityFeatures.length,
+    hasAiContent: !!aiGeneratedJsx
+  }, '🏗️ JSXLayout: Successfully processed layout structure');
 
   return {
     componentStructure,

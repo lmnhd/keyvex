@@ -377,66 +377,83 @@ function parseStateLogicResponse(
   imports: string[];
   hooks: string[];
 } {
-  // Basic parsing - in a production system, this would be more sophisticated
-  // For now, we'll generate a structured response based on function signatures
+  logger.info({ 
+    contentLength: content?.length || 0,
+    signatureCount: functionSignatures.length
+  }, '🎯 StateDesign: AI FIRST - Parsing intelligent AI response for state logic');
+
+  // Try to extract structured state logic from AI response
+  let aiStateVariables: any[] = [];
+  let aiFunctions: any[] = [];
+  let aiImports: string[] = [];
+  let aiHooks: string[] = [];
   
-  const stateVariables = [
-    {
-      name: 'isLoading',
-      type: 'boolean',
-      initialValue: 'false',
-      description: 'Loading state indicator'
-    },
-    {
-      name: 'result',
-      type: 'any',
-      initialValue: 'null',
-      description: 'Calculation or processing result'
-    },
-    {
-      name: 'formData',
-      type: 'Record<string, any>',
-      initialValue: '{}',
-      description: 'Form input data'
-    },
-    {
-      name: 'errors',
-      type: 'Record<string, string>',
-      initialValue: '{}',
-      description: 'Validation errors'
-    }
-  ];
-
-  const functions = functionSignatures.map(sig => ({
-    name: sig.name,
-    parameters: ['...args: any[]'],
-    logic: `
-  // Implementation for ${sig.name}
-  console.log('${sig.name} called with:', args);
-  setIsLoading(true);
   try {
-    // TODO: Implement ${sig.description || 'function logic'}
-    const result = performCalculation(args);
-    setResult(result);
-    setErrors({});
-  } catch (error) {
-    setErrors({ general: error.message });
-  } finally {
-    setIsLoading(false);
-  }`,
-    description: sig.description || `Handler for ${sig.name}`
-  }));
+    // Look for JSON structure in AI response
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*"stateVariables"[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      if (parsed.stateVariables) aiStateVariables = parsed.stateVariables;
+      if (parsed.functions) aiFunctions = parsed.functions;
+      if (parsed.imports) aiImports = parsed.imports;
+      if (parsed.hooks) aiHooks = parsed.hooks;
+      
+      logger.info({ 
+        hasAiStateVariables: aiStateVariables.length > 0,
+        hasAiFunctions: aiFunctions.length > 0
+      }, '🎯 StateDesign: Successfully parsed AI JSON response');
+    }
+  } catch (parseError) {
+    logger.warn({ 
+      parseError: parseError instanceof Error ? parseError.message : String(parseError)
+    }, '🎯 StateDesign: Could not parse AI JSON, using intelligent extraction');
+  }
 
-  const imports = [
-    "import React, { useState, useEffect, useCallback } from 'react';",
-    "import { z } from 'zod';"
-  ];
+  // Extract state variables from AI content if not in JSON
+  if (aiStateVariables.length === 0) {
+    aiStateVariables = extractStateVariablesFromContent(content);
+  }
 
-  const hooks = [
-    'useState',
-    'useEffect', 
-    'useCallback'
-  ];
+  // Extract function implementations from AI content if not in JSON
+  if (aiFunctions.length === 0) {
+    aiFunctions = extractFunctionImplementationsFromContent(content, functionSignatures);
+  }
+
+  // Extract imports and hooks from content
+  if (aiImports.length === 0) {
+    aiImports = extractImportsFromContent(content);
+  }
+  
+  if (aiHooks.length === 0) {
+    aiHooks = extractHooksFromContent(content);
+  }
+
+  // Use AI-extracted data or generate intelligent defaults
+  const stateVariables = aiStateVariables.length > 0 ? 
+    aiStateVariables : 
+    generateIntelligentStateVariables(functionSignatures, content);
+
+  const functions = aiFunctions.length > 0 ?
+    aiFunctions :
+    generateIntelligentFunctions(functionSignatures, content);
+
+  const imports = aiImports.length > 0 ?
+    aiImports :
+    generateIntelligentImports(functionSignatures, content);
+
+  const hooks = aiHooks.length > 0 ?
+    aiHooks :
+    generateIntelligentHooks(functionSignatures, content);
+
+  logger.info({ 
+    stateVariablesCount: stateVariables.length,
+    functionsCount: functions.length,
+    importsCount: imports.length,
+    hooksCount: hooks.length,
+    usedAiContent: aiStateVariables.length > 0 || aiFunctions.length > 0
+  }, '🎯 StateDesign: Successfully processed state logic');
 
   return {
     stateVariables,
@@ -444,6 +461,279 @@ function parseStateLogicResponse(
     imports,
     hooks
   };
+}
+
+/**
+ * Helper functions for parsing AI response
+ */
+function extractStateVariablesFromContent(content: string): any[] {
+  const stateVariables: any[] = [];
+  
+  // Look for useState patterns in content
+  const useStateMatches = content.match(/useState<(\w+)>\(([^)]+)\)/g) || [];
+  
+  useStateMatches.forEach(match => {
+    const typeMatch = match.match(/useState<(\w+)>/);
+    const valueMatch = match.match(/\(([^)]+)\)/);
+    
+    if (typeMatch && valueMatch) {
+      const variableName = `${typeMatch[1].toLowerCase()}State`;
+      stateVariables.push({
+        name: variableName,
+        type: typeMatch[1],
+        initialValue: valueMatch[1],
+        description: `AI-identified ${typeMatch[1]} state variable`
+      });
+    }
+  });
+
+  // Look for explicit state variable mentions
+  if (content.toLowerCase().includes('loading') || content.toLowerCase().includes('isloading')) {
+    stateVariables.push({
+      name: 'isLoading',
+      type: 'boolean',
+      initialValue: 'false',
+      description: 'Loading state indicator'
+    });
+  }
+
+  if (content.toLowerCase().includes('error') || content.toLowerCase().includes('errors')) {
+    stateVariables.push({
+      name: 'errors',
+      type: 'Record<string, string>',
+      initialValue: '{}',
+      description: 'Validation errors'
+    });
+  }
+
+  if (content.toLowerCase().includes('result') || content.toLowerCase().includes('calculation')) {
+    stateVariables.push({
+      name: 'result',
+      type: 'any',
+      initialValue: 'null',
+      description: 'Calculation or processing result'
+    });
+  }
+
+  return stateVariables;
+}
+
+function extractFunctionImplementationsFromContent(content: string, functionSignatures: DefinedFunctionSignature[]): any[] {
+  const functions: any[] = [];
+  
+  // Look for function implementations in content
+  functionSignatures.forEach(sig => {
+    const functionMatch = content.match(new RegExp(`${sig.name}[\\s\\S]*?\\{[\\s\\S]*?\\}`, 'i'));
+    
+    if (functionMatch) {
+      functions.push({
+        name: sig.name,
+        parameters: extractParametersFromContent(functionMatch[0]),
+        logic: extractLogicFromContent(functionMatch[0]),
+        description: sig.description || `AI-implemented ${sig.name}`
+      });
+    } else {
+      // Generate intelligent implementation based on function name and description
+      functions.push({
+        name: sig.name,
+        parameters: generateParametersFromSignature(sig),
+        logic: generateLogicFromSignature(sig, content),
+        description: sig.description || `Handler for ${sig.name}`
+      });
+    }
+  });
+  
+  return functions;
+}
+
+function extractImportsFromContent(content: string): string[] {
+  const imports: string[] = [];
+  
+  // Extract import statements from content
+  const importMatches = content.match(/import.*?from.*?['"][^'"]+['"];?/g) || [];
+  imports.push(...importMatches);
+  
+  // Add default React import if not present
+  if (!imports.some(imp => imp.includes('React'))) {
+    imports.unshift("import React, { useState, useEffect, useCallback } from 'react';");
+  }
+  
+  // Add common imports based on content
+  if (content.includes('zod') || content.includes('schema')) {
+    imports.push("import { z } from 'zod';");
+  }
+  
+  return imports.length > 0 ? imports : [
+    "import React, { useState, useEffect, useCallback } from 'react';",
+    "import { z } from 'zod';"
+  ];
+}
+
+function extractHooksFromContent(content: string): string[] {
+  const hooks: string[] = [];
+  
+  if (content.includes('useState')) hooks.push('useState');
+  if (content.includes('useEffect')) hooks.push('useEffect');
+  if (content.includes('useCallback')) hooks.push('useCallback');
+  if (content.includes('useMemo')) hooks.push('useMemo');
+  if (content.includes('useRef')) hooks.push('useRef');
+  
+  return hooks.length > 0 ? hooks : ['useState', 'useEffect', 'useCallback'];
+}
+
+function generateIntelligentStateVariables(functionSignatures: DefinedFunctionSignature[], content: string): any[] {
+  const stateVariables: any[] = [];
+  
+  // Always include loading state for async operations
+  stateVariables.push({
+    name: 'isLoading',
+    type: 'boolean',
+    initialValue: 'false',
+    description: 'Loading state indicator'
+  });
+  
+  // Add error handling state
+  stateVariables.push({
+    name: 'errors',
+    type: 'Record<string, string>',
+    initialValue: '{}',
+    description: 'Validation errors'
+  });
+  
+  // Add result state for output
+  stateVariables.push({
+    name: 'result',
+    type: 'any',
+    initialValue: 'null',
+    description: 'Calculation or processing result'
+  });
+  
+  // Add input state for form data
+  if (functionSignatures.some(sig => sig.name.toLowerCase().includes('submit') || sig.name.toLowerCase().includes('process'))) {
+    stateVariables.push({
+      name: 'formData',
+      type: 'Record<string, any>',
+      initialValue: '{}',
+      description: 'Form input data'
+    });
+  }
+  
+  // Add tool-specific state based on content
+  if (content.toLowerCase().includes('calculator') || content.toLowerCase().includes('calculate')) {
+    stateVariables.push({
+      name: 'inputValue',
+      type: 'string',
+      initialValue: "''",
+      description: 'Calculator input value'
+    });
+  }
+  
+  if (content.toLowerCase().includes('file') || content.toLowerCase().includes('upload')) {
+    stateVariables.push({
+      name: 'uploadedFile',
+      type: 'File | null',
+      initialValue: 'null',
+      description: 'Uploaded file state'
+    });
+  }
+  
+  return stateVariables;
+}
+
+function generateIntelligentFunctions(functionSignatures: DefinedFunctionSignature[], content: string): any[] {
+  return functionSignatures.map(sig => ({
+    name: sig.name,
+    parameters: generateParametersFromSignature(sig),
+    logic: generateLogicFromSignature(sig, content),
+    description: sig.description || `Handler for ${sig.name}`
+  }));
+}
+
+function generateIntelligentImports(functionSignatures: DefinedFunctionSignature[], content: string): string[] {
+  const imports = [
+    "import React, { useState, useEffect, useCallback } from 'react';"
+  ];
+  
+  if (content.includes('validation') || functionSignatures.some(sig => sig.name.includes('validate'))) {
+    imports.push("import { z } from 'zod';");
+  }
+  
+  return imports;
+}
+
+function generateIntelligentHooks(functionSignatures: DefinedFunctionSignature[], content: string): string[] {
+  const hooks = ['useState'];
+  
+  if (functionSignatures.some(sig => sig.name.toLowerCase().includes('effect') || sig.name.toLowerCase().includes('async'))) {
+    hooks.push('useEffect');
+  }
+  
+  if (functionSignatures.length > 0) {
+    hooks.push('useCallback');
+  }
+  
+  return hooks;
+}
+
+function extractParametersFromContent(functionContent: string): string[] {
+  const paramMatch = functionContent.match(/\(([^)]*)\)/);
+  return paramMatch ? paramMatch[1].split(',').map(p => p.trim()).filter(p => p.length > 0) : [];
+}
+
+function extractLogicFromContent(functionContent: string): string {
+  const logicMatch = functionContent.match(/\{([\s\S]*)\}/);
+  return logicMatch ? logicMatch[1].trim() : 'console.log("Function implementation");';
+}
+
+function generateParametersFromSignature(sig: DefinedFunctionSignature): string[] {
+  // Generate parameters based on function signature
+  if (sig.name.toLowerCase().includes('submit') || sig.name.toLowerCase().includes('handle')) {
+    return ['event?: React.FormEvent'];
+  }
+  if (sig.name.toLowerCase().includes('change') || sig.name.toLowerCase().includes('input')) {
+    return ['value: string', 'field?: string'];
+  }
+  return ['...args: any[]'];
+}
+
+function generateLogicFromSignature(sig: DefinedFunctionSignature, content: string): string {
+  const baseName = sig.name.toLowerCase();
+  
+  if (baseName.includes('submit') || baseName.includes('process')) {
+    return `
+  setIsLoading(true);
+  setErrors({});
+  try {
+    // Process ${sig.description || 'form data'}
+    const result = await processData(formData);
+    setResult(result);
+  } catch (error) {
+    setErrors({ general: error instanceof Error ? error.message : 'An error occurred' });
+  } finally {
+    setIsLoading(false);
+  }`;
+  }
+  
+  if (baseName.includes('reset') || baseName.includes('clear')) {
+    return `
+  setFormData({});
+  setResult(null);
+  setErrors({});
+  setIsLoading(false);`;
+  }
+  
+  if (baseName.includes('validate')) {
+    return `
+  const validationErrors: Record<string, string> = {};
+  // Add validation logic here based on: ${sig.description || 'input requirements'}
+  setErrors(validationErrors);
+  return Object.keys(validationErrors).length === 0;`;
+  }
+  
+  return `
+  // Implementation for ${sig.name}
+  console.log('${sig.name} called with:', args);
+  // TODO: Implement ${sig.description || 'function logic'}`;
 }
 
 /**
