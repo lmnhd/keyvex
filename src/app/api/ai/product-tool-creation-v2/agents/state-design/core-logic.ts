@@ -88,10 +88,29 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
     // Generate state logic using AI with proper model selection
     const stateLogic = await generateStateLogic(tcc, selectedModel);
 
+    // Convert to TCC-compatible format
+    const tccCompatibleStateLogic = {
+      variables: stateLogic.stateVariables.map(v => ({
+        name: v.name,
+        type: v.type,
+        initialValue: v.initialValue,
+        description: v.description,
+      })),
+      functions: stateLogic.functions.map(f => ({
+        name: f.name,
+        body: f.logic,
+        description: f.description,
+        dependencies: f.parameters,
+      })),
+      imports: stateLogic.imports,
+      // Backward compatibility
+      stateVariables: stateLogic.stateVariables,
+    };
+
     // Update TCC with state logic
     const tccWithStateLogic = {
       ...tccInProgress,
-      stateLogic,
+      stateLogic: tccCompatibleStateLogic,
       steps: {
         ...tccInProgress.steps,
         designingStateLogic: {
@@ -396,7 +415,7 @@ function parseStateLogicResponse(
   console.log('${sig.name} called with:', args);
   setIsLoading(true);
   try {
-    // TODO: Implement ${sig.description}
+    // TODO: Implement ${sig.description || 'function logic'}
     const result = performCalculation(args);
     setResult(result);
     setErrors({});
@@ -405,7 +424,7 @@ function parseStateLogicResponse(
   } finally {
     setIsLoading(false);
   }`,
-    description: sig.description
+    description: sig.description || `Handler for ${sig.name}`
   }));
 
   const imports = [

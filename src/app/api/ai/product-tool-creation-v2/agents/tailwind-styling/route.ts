@@ -20,36 +20,8 @@ export async function POST(request: NextRequest) {
         colorSchemeKeys: Object.keys(result.styling.colorScheme).length
       }, '🎨 TailwindStyling Route: Styling applied successfully');
 
-      // Trigger the next step: Programmatic Assembler
-      try {
-        const assemblerResponse = await fetch('/api/ai/product-tool-creation-v2/agents/programmatic-assembler', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jobId: requestData.jobId,
-            selectedModel: requestData.selectedModel
-          }),
-        });
-
-        if (!assemblerResponse.ok) {
-          logger.warn({ 
-            jobId: requestData.jobId,
-            assemblerStatus: assemblerResponse.status,
-            assemblerStatusText: assemblerResponse.statusText
-          }, '🎨 TailwindStyling Route: Failed to trigger Programmatic Assembler');
-        } else {
-          logger.info({ 
-            jobId: requestData.jobId 
-          }, '🎨 TailwindStyling Route: Successfully triggered Programmatic Assembler');
-        }
-      } catch (triggerError) {
-        logger.error({ 
-          jobId: requestData.jobId,
-          triggerError: triggerError instanceof Error ? triggerError.message : String(triggerError)
-        }, '🎨 TailwindStyling Route: Error triggering Programmatic Assembler');
-      }
+      // REMOVED: Direct agent calls to prevent Vercel timeouts
+      // Client-side orchestration will handle next step coordination
 
       return NextResponse.json({
         success: true,

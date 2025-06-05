@@ -10,19 +10,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success) {
-      // Wait for both parallel agents (State Design + JSX Layout) to complete
-      // before triggering the next sequential step (Tailwind Styling Agent)
-      const baseUrl = request.nextUrl.origin;
-      
-      // Check if State Design is also complete, then trigger Tailwind Styling
-      checkAndTriggerTailwindStyling(baseUrl, body.jobId, body.selectedModel).catch(error => {
-        console.error(`[JSXLayout] Failed to trigger Tailwind Styling Agent for jobId ${body.jobId}:`, error);
-      });
-
+      // SUCCESS: Return to client immediately to avoid Vercel timeouts
+      // The orchestration client will determine next steps based on TCC state
       return NextResponse.json({
         success: true,
         jsxLayout: result.jsxLayout,
-        message: 'JSX layout designed successfully'
+        message: 'JSX layout designed successfully',
+        nextStep: 'check_parallel_completion' // Hint for orchestration client
       });
     } else {
       return NextResponse.json({
@@ -40,35 +34,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Helper function to check if both parallel agents are complete and trigger next step
-async function checkAndTriggerTailwindStyling(
-  baseUrl: string, 
-  jobId: string, 
-  selectedModel?: string
-): Promise<void> {
-  try {
-    // TODO: In a production system, we would check the TCC state to see if both
-    // State Design and JSX Layout are complete before triggering Tailwind Styling
-    // For now, we'll trigger it directly since JSX Layout completion indicates readiness
-    
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/agents/tailwind-styling`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jobId,
-        selectedModel
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Tailwind Styling Agent responded with status: ${response.status}`);
-    }
-
-    console.log(`[JSXLayout] Successfully triggered Tailwind Styling Agent for jobId: ${jobId}`);
-  } catch (error) {
-    console.error(`[JSXLayout] Failed to trigger Tailwind Styling Agent:`, error);
-    throw error;
-  }
-} 
+// REMOVED: Direct agent-to-agent calls to prevent Vercel timeouts
+// All orchestration now handled by client-side coordination

@@ -91,6 +91,7 @@ export const StateVariableSchema = z.object({
   name: z.string().min(1),
   initialValue: z.any().optional(), // Can be a string representation like "'default text'" or "0" or "true"
   type: z.string().optional(), // e.g., 'string', 'number', 'boolean', 'array', 'object'
+  description: z.string().optional(), // Description for AI context
 });
 export type StateVariable = z.infer<typeof StateVariableSchema>;
 
@@ -99,6 +100,7 @@ export const StateFunctionSchema = z.object({
   name: z.string().min(1), // Should match a name from DefinedFunctionSignatureSchema
   body: z.string().min(1), // The JavaScript function body as a string
   dependencies: z.array(z.string()).optional(), // Other state or props it depends on
+  description: z.string().optional(), // Description for AI context
 });
 export type StateFunction = z.infer<typeof StateFunctionSchema>;
 
@@ -107,15 +109,26 @@ export const StateLogicSchema = z.object({
   variables: z.array(StateVariableSchema),
   functions: z.array(StateFunctionSchema),
   imports: z.array(z.string()).optional(), // e.g., ['useState', 'useEffect']
+  // Backward compatibility aliases
+  stateVariables: z.array(StateVariableSchema).optional(),
 });
 export type StateLogic = z.infer<typeof StateLogicSchema>;
 
 // Schema for the jsxLayout part of the TCC
-// Using z.any() for structure initially, can be refined to a specific AST-like schema later
 export const JsxLayoutSchema = z.object({
-  structure: z.any(), // Could be a string template or a structured object/AST
-  definedElements: z.array(z.string()), // Keys/IDs of elements that can be styled or interacted with
-  elementToLogicMap: z.record(z.string(), z.string()), // Maps element keys to exact function names from DefinedFunctionSignatureSchema
+  componentStructure: z.string(), // The actual JSX structure as string
+  elementMap: z.array(z.object({
+    elementId: z.string(),
+    type: z.string(),
+    purpose: z.string(),
+    placeholderClasses: z.array(z.string()),
+  })),
+  accessibilityFeatures: z.array(z.string()),
+  responsiveBreakpoints: z.array(z.string()),
+  // Keep original fields for backward compatibility
+  structure: z.any().optional(), 
+  definedElements: z.array(z.string()).optional(),
+  elementToLogicMap: z.record(z.string(), z.string()).optional(),
 });
 export type JsxLayout = z.infer<typeof JsxLayoutSchema>;
 
@@ -137,15 +150,18 @@ export type ValidationResult = z.infer<typeof ValidationResultSchema>;
 export const OrchestrationStepEnum = z.enum([
   'initialization',
   'planning_function_signatures',
-  'generating_state_logic',
-  'generating_jsx_layout',
+  'designing_state_logic', // Added for State Design Agent
+  'designing_jsx_layout', // Added for JSX Layout Agent
   'waiting_for_parallel_completion',
-  'generating_styles',
+  'applying_tailwind_styling', // Added for Tailwind Styling Agent
+  'generating_styles', // Keep for backward compatibility
   'assembling_component',
   'validating_code',
   'finalizing_tool',
   'completed',
-  'failed'
+  'failed',
+  // Backward compatibility
+  'generating_state_logic'
 ]);
 export type OrchestrationStep = z.infer<typeof OrchestrationStepEnum>;
 
@@ -153,6 +169,7 @@ export const OrchestrationStatusEnum = z.enum([
   'pending',
   'in_progress',
   'success',
+  'completed', // Added for step completion
   'error',
   'retrying'
 ]);
@@ -174,10 +191,38 @@ export const ToolConstructionContextSchema = z.object({
     // ... any other fields that define the tool request
   }),
   
+  // Main properties
   definedFunctionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
   stateLogic: StateLogicSchema.optional(),
   jsxLayout: JsxLayoutSchema.optional(),
   tailwindStyles: TailwindStylesSchema.optional(),
+  
+  // Backward compatibility aliases
+  functionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
+  targetAudience: z.string().optional(), // Top-level for backward compatibility
+  additionalContext: z.any().optional(), // Additional context data
+  
+  // Steps tracking for orchestration
+  steps: z.object({
+    designingStateLogic: z.object({
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: OrchestrationStatusEnum.optional(),
+      result: z.any().optional(),
+    }).optional(),
+    designingJsxLayout: z.object({
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: OrchestrationStatusEnum.optional(),
+      result: z.any().optional(),
+    }).optional(),
+    applyingTailwindStyling: z.object({
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: OrchestrationStatusEnum.optional(),
+      result: z.any().optional(),
+    }).optional(),
+  }).optional(),
   
   assembledComponentCode: z.string().optional(), // The full .tsx code string
   validationResult: ValidationResultSchema.optional(),

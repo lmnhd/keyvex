@@ -376,7 +376,7 @@ function parseTailwindStylingResponse(
     applyTailwindToJsx(jsxLayout.componentStructure) :
     generateFallbackStyledComponent();
 
-  const styleMap = jsxLayout?.elementMap?.map(el => ({
+  const styleMap = jsxLayout?.elementMap?.map((el: any) => ({
     elementId: el.elementId,
     tailwindClasses: getTailwindClassesForElement(el),
     responsiveVariants: {

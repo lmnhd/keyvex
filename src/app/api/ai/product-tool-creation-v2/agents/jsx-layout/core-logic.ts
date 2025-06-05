@@ -252,10 +252,10 @@ Format your response as structured analysis focusing on layout and structure ONL
 
   const stateInfo = tcc.stateLogic ? `
 State Variables Available:
-${tcc.stateLogic.stateVariables.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n')}
+${(tcc.stateLogic.stateVariables || tcc.stateLogic.variables || []).map(v => `- ${v.name}: ${v.type} (${v.description || 'No description'})`).join('\n')}
 
 Functions Available:
-${tcc.stateLogic.functions.map(f => `- ${f.name}: ${f.description}`).join('\n')}
+${tcc.stateLogic.functions.map(f => `- ${f.name}: ${f.description || 'No description'}`).join('\n')}
 ` : 'No state logic available yet';
 
   const userPrompt = `Tool Description: ${tcc.userInput}
