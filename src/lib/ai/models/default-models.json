@@ -435,6 +435,23 @@
       "streaming": false,
       "temperature": 0.2,
       "maxTokens": 4000
+    },
+    
+    "functionPlanner": {
+      "description": "React component function signature planning and analysis",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "reason": "Excellent logical reasoning for analyzing user interactions and planning function signatures"
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong alternative for function analysis and planning"
+      },
+      "streaming": false,
+      "temperature": 0.3,
+      "maxTokens": 1000
     }
   },
 
