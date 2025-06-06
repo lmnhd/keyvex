@@ -66,11 +66,13 @@ function cleanBrainstormData(brainstormData: any): any {
  *
  * @param brainstormResult The selected brainstorm data.
  * @param modelId The ID of the AI model to use for generation.
+ * @param agentModelMapping Optional mapping of agent IDs to specific model IDs.
  * @returns A promise that resolves to the initial job state including the orchestrator's jobId.
  */
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
-  modelId: string
+  modelId: string,
+  agentModelMapping?: Record<string, string>
 ): Promise<{ jobId: string }> {
   console.log(`Requesting V2 tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
 
@@ -82,6 +84,7 @@ async function startV2ToolCreation(
     industry: brainstormResult.industry,
     toolType: brainstormResult.toolType,
     selectedModel: modelId,
+    agentModelMapping: agentModelMapping || {},
   };
 
   console.log(`[V2 Start] API Request Body to /api/ai/product-tool-creation-v2/orchestrate/start:`, JSON.stringify(requestBody, null, 2));
@@ -116,12 +119,14 @@ async function startV2ToolCreation(
  * @param brainstormResult The selected brainstorm data.
  * @param selectedModelId The ID of the single model chosen for generation.
  * @param onJobUpdate Callback to update the UI with the job's initial state.
+ * @param agentModelMapping Optional mapping of agent IDs to specific model IDs.
  * @returns The initial state of the creation job.
  */
 export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
   selectedModelId: string,
-  onJobUpdate: (job: ToolCreationJob) => void
+  onJobUpdate: (job: ToolCreationJob) => void,
+  agentModelMapping?: Record<string, string>
 ): Promise<ToolCreationJob> {
   let job: ToolCreationJob = {
     modelId: selectedModelId,
@@ -131,7 +136,7 @@ export async function runToolCreationProcess(
   onJobUpdate(job);
   
   try {
-    const { jobId } = await startV2ToolCreation(brainstormResult, selectedModelId);
+    const { jobId } = await startV2ToolCreation(brainstormResult, selectedModelId, agentModelMapping);
     job = {
       ...job,
       jobId: jobId,

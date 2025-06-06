@@ -15,6 +15,7 @@ const StartRequestSchema = z.object({
   toolType: z.string().optional(),
   features: z.array(z.string()).optional(),
   selectedModel: z.string().optional(),
+  agentModelMapping: z.record(z.string(), z.string()).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
         features: parsedInput.data.features || [],
       },
       selectedModel: parsedInput.data.selectedModel,
+      agentModelMapping: parsedInput.data.agentModelMapping || {},
       progressLog: [],
       createdAt: now,
       updatedAt: now,

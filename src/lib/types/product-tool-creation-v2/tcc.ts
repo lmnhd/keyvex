@@ -209,6 +209,7 @@ export const ToolConstructionContextSchema = z.object({
   jobId: z.string().uuid(),
   userId: z.string().optional(), // To associate with the user who initiated
   selectedModel: z.string().optional(), // Model ID chosen for generation
+  agentModelMapping: z.record(z.string(), z.string()).optional(), // Agent-specific model assignments
   currentOrchestrationStep: OrchestrationStepEnum,
   status: OrchestrationStatusEnum, // Overall status of this job
   userInput: z.object({ // Original user input that started the process

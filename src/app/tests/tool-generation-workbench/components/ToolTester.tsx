@@ -46,6 +46,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]); // Multiple model selection (up to 5)
   const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
 
+  // LocalStorage keys
+  const STORAGE_KEYS = {
+    selectedModels: 'keyvex-tool-tester-selected-models',
+    agentMapping: 'keyvex-tool-tester-agent-mapping'
+  };
+
   const [isLoading, setIsLoading] = useState(false);
   const [testJob, setTestJob] = useState<ToolCreationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +73,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [wsLogs, setWsLogs] = useState<string[]>([]);
   const [streamingExample, setStreamingExample] = useState<string>('');
 
-  // Available agents for individual testing
-  const availableAgents = [
+  // Available agents for individual testing (memoized to prevent re-creation)
+  const availableAgents = React.useMemo(() => [
     { id: 'function-planner', name: 'Function Signature Planner', description: 'Plans tool functions and signatures' },
     { id: 'state-design', name: 'State Design Agent', description: 'Designs React state management' },
     { id: 'jsx-layout', name: 'JSX Layout Agent', description: 'Creates component structure' },
@@ -76,10 +82,29 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     { id: 'component-assembler', name: 'Component Assembler', description: 'Combines all agent outputs' },
     { id: 'validator', name: 'Validator Agent', description: 'Validates generated code' },
     { id: 'tool-finalizer', name: 'Tool Finalizer', description: 'Creates final tool definition' }
-  ];
+  ], []);
 
   const addWSLog = useCallback((message: string) => {
     setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
+  }, []);
+
+  // LocalStorage utilities
+  const saveToLocalStorage = useCallback((key: string, value: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.warn('Failed to save to localStorage:', error);
+    }
+  }, []);
+
+  const loadFromLocalStorage = useCallback((key: string, defaultValue: any = null) => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch (error) {
+      console.warn('Failed to load from localStorage:', error);
+      return defaultValue;
+    }
   }, []);
 
   const handleProgress = (progress: StepProgress) => {
@@ -117,64 +142,51 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         const data = await response.json();
         if (data.success && data.defaultModel?.primary?.id) {
           setDefaultPrimaryModel(data.defaultModel.primary.id);
-          if (selectedModelIds.length === 0) {
-            setSelectedModelIds([data.defaultModel.primary.id]);
-          }
         }
       }
     } catch (error) {
       console.warn('Failed to fetch default model, using fallback:', error);
     }
-  }, [selectedModelIds]);
+  }, []);
 
   const fetchModels = useCallback(() => {
     try {
       const parsedModels: ModelOption[] = [];
+      
       for (const providerKey in DEFAULT_MODELS.providers) {
         const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+        
         for (const modelKey in provider.models) {
-          if ((provider.models as any)[modelKey].deprecated) continue;
-          const capabilities = (provider.models as any)[modelKey].capabilities;
-          if (capabilities && (capabilities.includes('text') || capabilities.includes('reasoning'))) {
-             parsedModels.push({ 
-              id: (provider.models as any)[modelKey].id, 
-              name: `${(provider.models as any)[modelKey].name} (${provider.name})`,
-              provider: provider.name
-            });
+          const model = (provider.models as any)[modelKey];
+          
+          // Skip deprecated models (but only if explicitly marked as deprecated)
+          if (model.deprecated === true) {
+            continue;
           }
+          
+          // Include all non-deprecated models (remove capability filtering for now)
+          const modelOption = { 
+            id: model.id, 
+            name: `${model.name} (${provider.name})`,
+            provider: provider.name
+          };
+          parsedModels.push(modelOption);
         }
       }
-      // Show ALL models (no limit)
+      
+      console.log(`Loaded ${parsedModels.length} models:`, parsedModels);
       setAvailableModels(parsedModels);
-      if (parsedModels.length > 0 && selectedModelIds.length === 0) {
-        const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
-        const defaultModel = parsedModels.find(m => m.id === targetDefaultId) || 
-                            parsedModels.find(m => m.id === 'gpt-4.1-mini') || 
-                            parsedModels.find(m => m.id === 'gpt-4o');
-        if (defaultModel) {
-          setSelectedModelIds([defaultModel.id]);
-          // Initialize agent model mapping with default model
-          const initialMapping: AgentModelMapping = {};
-          availableAgents.forEach(agent => {
-            initialMapping[agent.id] = defaultModel.id;
-          });
-          setAgentModelMapping(initialMapping);
-        }
-      }
     } catch (err) {
       console.error('Failed to parse models:', err);
       setError('Failed to load AI models from default-models.json. Check console.');
     }
-  }, [selectedModelIds, defaultPrimaryModel, availableAgents]);
+  }, []);
 
   const fetchBrainstorms = useCallback(async () => {
     try {
       setIsLoading(true);
       const results = await loadLogicResultsFromDB();
       setSavedBrainstorms(results);
-      if (results.length > 0 && !selectedBrainstormId) {
-        setSelectedBrainstormId(results[0].id);
-      }
       setError(null);
     } catch (err) {
       console.error('Failed to load saved brainstorms:', err);
@@ -182,7 +194,74 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     } finally {
       setIsLoading(false);
     }
-  }, [selectedBrainstormId]);
+  }, []);
+
+  // Initialize selections from localStorage or defaults when data is available
+  useEffect(() => {
+    if (availableModels.length > 0 && selectedModelIds.length === 0) {
+      // First try to load from localStorage
+      const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
+      const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
+      
+      // Validate stored models exist in current available models
+      const validStoredModels = storedSelectedModels.filter((modelId: string) => 
+        availableModels.some(m => m.id === modelId)
+      );
+      
+      if (validStoredModels.length > 0) {
+        // Use stored selections
+        setSelectedModelIds(validStoredModels);
+        
+        // Validate and set stored agent mapping
+        const validAgentMapping: AgentModelMapping = {};
+        availableAgents.forEach(agent => {
+          const storedModel = storedAgentMapping[agent.id];
+          if (storedModel && validStoredModels.includes(storedModel)) {
+            validAgentMapping[agent.id] = storedModel;
+          } else {
+            // Fall back to first valid stored model or first selected model
+            validAgentMapping[agent.id] = validStoredModels[0];
+          }
+        });
+        setAgentModelMapping(validAgentMapping);
+        
+        console.log('Loaded model selections from localStorage:', {
+          models: validStoredModels,
+          agentMapping: validAgentMapping
+        });
+      } else if (defaultPrimaryModel) {
+        // Fall back to default model logic
+        const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
+        const defaultModel = availableModels.find(m => m.id === targetDefaultId) || 
+                            availableModels.find(m => m.id === 'gpt-4.1-mini') || 
+                            availableModels.find(m => m.id === 'gpt-4o') ||
+                            availableModels[0]; // Last resort: use first available model
+        
+        if (defaultModel) {
+          const defaultModels = [defaultModel.id];
+          setSelectedModelIds(defaultModels);
+          saveToLocalStorage(STORAGE_KEYS.selectedModels, defaultModels);
+          
+          // Initialize agent model mapping with default model
+          const initialMapping: AgentModelMapping = {};
+          availableAgents.forEach(agent => {
+            initialMapping[agent.id] = defaultModel.id;
+          });
+          setAgentModelMapping(initialMapping);
+          saveToLocalStorage(STORAGE_KEYS.agentMapping, initialMapping);
+          
+          console.log('Initialized with default model:', defaultModel.id);
+        }
+      }
+    }
+  }, [availableModels, defaultPrimaryModel, selectedModelIds.length, availableAgents, loadFromLocalStorage, saveToLocalStorage]);
+
+  // Set first brainstorm as default when available
+  useEffect(() => {
+    if (savedBrainstorms.length > 0 && !selectedBrainstormId) {
+      setSelectedBrainstormId(savedBrainstorms[0].id);
+    }
+  }, [savedBrainstorms, selectedBrainstormId]);
 
   useEffect(() => {
     fetchDefaultModel();
@@ -191,18 +270,27 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   }, [fetchDefaultModel, fetchModels, fetchBrainstorms, newBrainstormFlag]);
 
   const handleModelToggle = (modelId: string, checked: boolean) => {
+    let newSelectedIds: string[];
     if (checked && selectedModelIds.length < 5) {
-      setSelectedModelIds(prev => [...prev, modelId]);
+      newSelectedIds = [...selectedModelIds, modelId];
     } else if (!checked) {
-      setSelectedModelIds(prev => prev.filter(id => id !== modelId));
+      newSelectedIds = selectedModelIds.filter(id => id !== modelId);
+    } else {
+      return; // No change needed
     }
+    
+    setSelectedModelIds(newSelectedIds);
+    saveToLocalStorage(STORAGE_KEYS.selectedModels, newSelectedIds);
   };
 
   const handleAgentModelChange = (agentId: string, modelId: string) => {
-    setAgentModelMapping(prev => ({
-      ...prev,
+    const newMapping = {
+      ...agentModelMapping,
       [agentId]: modelId
-    }));
+    };
+    
+    setAgentModelMapping(newMapping);
+    saveToLocalStorage(STORAGE_KEYS.agentMapping, newMapping);
   };
 
   const handleJobUpdate = (updatedJob: ToolCreationJob) => {
@@ -290,7 +378,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     } else if (workflowMode === 'v2') {
       // V2 Orchestration Mode with WebSocket streaming
       addWSLog(`V2: Starting orchestration with models: ${selectedModelIds.join(', ')}`);
-      const resultJob = await runToolCreationProcess(selectedBrainstorm, primaryModelId, handleJobUpdate);
+      const resultJob = await runToolCreationProcess(
+        selectedBrainstorm, 
+        primaryModelId, 
+        handleJobUpdate,
+        agentModelMapping // Pass the agent model mapping
+      );
       setTestJob(resultJob);
       
       if (resultJob.status !== 'error' && resultJob.jobId) {
@@ -536,10 +629,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between items-center mb-1">
+                          <div className="flex justify-between items-center mb-1">
                 <Label>2. Select AI Models (Max 5)</Label>
-                <Badge variant="outline">{selectedModelIds.length}/5 selected</Badge>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{selectedModelIds.length}/5 selected</Badge>
+                  {loadFromLocalStorage(STORAGE_KEYS.selectedModels, []).length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      💾 Restored
+                    </Badge>
+                  )}
+                </div>
+            </div>
               {availableModels.length > 0 ? (
                 <ScrollArea className="h-48 rounded-md border p-3">
                   <div className="space-y-2">
@@ -605,12 +705,46 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             
             <TabsContent value="v2" className="mt-4">
               <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <Zap className="h-5 w-5 text-green-600" />
                     <div>
                       <h4 className="font-medium text-green-900 dark:text-green-100">V2 Multi-Agent Orchestration</h4>
                       <p className="text-sm text-green-700 dark:text-green-300">Advanced multi-agent workflow with real-time progress streaming via WebSocket.</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <Label>Agent-Specific Model Configuration</Label>
+                    <div className="rounded-md border bg-green-50/50 dark:bg-green-900/10 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {availableAgents.map(agent => (
+                          <div key={agent.id} className="space-y-2">
+                            <Label htmlFor={`agent-model-${agent.id}`} className="text-sm font-medium" title={agent.description}>
+                              {agent.name}
+                            </Label>
+                            <Select
+                              value={agentModelMapping[agent.id] || ''}
+                              onValueChange={(value) => handleAgentModelChange(agent.id, value)}
+                              disabled={selectedModelIds.length === 0 || isLoading}
+                            >
+                              <SelectTrigger id={`agent-model-${agent.id}`} className="h-9">
+                                <SelectValue placeholder="Select model..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {selectedModelIds.map(modelId => {
+                                  const model = availableModels.find(m => m.id === modelId);
+                                  return (
+                                    <SelectItem key={modelId} value={modelId}>
+                                      {model?.name || modelId}
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -836,44 +970,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   <CardDescription>Live preview of the generated component. Interact with it to test functionality.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {assembledCode ? (
-                    <CanvasTool productToolDefinition={{
-                      componentCode: assembledCode, 
-                      id: testJob?.result?.id || 'preview-tool',
-                      slug: testJob?.result?.slug || 'preview-tool',
-                      version: testJob?.result?.version || '1.0.0',
-                      status: testJob?.result?.status || 'draft',
-                      createdAt: testJob?.result?.createdAt || Date.now(),
-                      updatedAt: testJob?.result?.updatedAt || Date.now(),
-                      createdBy: testJob?.result?.createdBy || 'preview-user',
-                      metadata: testJob?.result?.metadata || {
-                        title: 'Preview Tool',
-                        description: 'Generated tool preview',
-                        category: 'calculator',
-                        tags: []
-                      },
-                      componentSet: testJob?.result?.componentSet || 'shadcn',
-                      colorScheme: testJob?.result?.colorScheme || {
-                        primary: '#3b82f6',
-                        secondary: '#64748b',
-                        background: '#ffffff',
-                        surface: '#f8fafc',
-                        text: {
-                          primary: '#1e293b',
-                          secondary: '#475569',
-                          muted: '#94a3b8'
-                        },
-                        border: '#e2e8f0',
-                        success: '#10b981',
-                        warning: '#f59e0b',
-                        error: '#ef4444'
-                      },
-                      analytics: testJob?.result?.analytics || {
-                        enabled: false,
-                        completions: 0,
-                        averageTime: 0
-                      }
-                    }} isDarkMode={isDarkMode} />
+                  {assembledCode && testJob?.result ? (
+                    <CanvasTool productToolDefinition={testJob.result} isDarkMode={isDarkMode} />
+                  ) : assembledCode ? (
+                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-red-500 bg-red-50">
+                      <div className="text-center">
+                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                        <p className="text-red-600 font-medium">NO TOOL DATA AVAILABLE</p>
+                        <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
+                        <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
                       <p className="text-gray-500">Waiting for component code...</p>

@@ -195,7 +195,7 @@ const TCCVisualizer: React.FC<TCCVisualizerProps> = ({
                         </Badge>
                       </div>
                       <div className="flex items-center">
-                        {value && value !== null && (
+                        {!!value && (
                           <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
                         )}
                         <span className="text-xs">
