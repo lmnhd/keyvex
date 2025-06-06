@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
+import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -96,22 +96,44 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
     // Generate Tailwind styling using AI with proper model selection
     const styling = await generateTailwindStyling(tcc, selectedModel);
 
-    // Update TCC with styling
-    const tccWithStyling = {
-      ...tccInProgress,
-      styling,
+    // Convert styleMap array to Record<string, string> and colorScheme for TCC compatibility
+    const stylingForTCC = {
+      ...styling,
+      styleMap: styling.styleMap.reduce((acc, item) => {
+        acc[item.elementId] = item.tailwindClasses.join(' ');
+        return acc;
+      }, {} as Record<string, string>),
+      colorScheme: {
+        primary: styling.colorScheme.primary,
+        secondary: styling.colorScheme.secondary,
+        accent: styling.colorScheme.accent,
+        background: styling.colorScheme.neutral || '#ffffff',
+        surface: '#f9fafb',
+        text: {
+          primary: '#111827',
+          secondary: '#6b7280', 
+          muted: '#9ca3af'
+        },
+        border: '#e5e7eb',
+        success: styling.colorScheme.success,
+        warning: '#f59e0b',
+        error: styling.colorScheme.error
+      }
+    };
+
+    // Update TCC with styling using updateTCC to avoid race conditions
+    await updateTCC(jobId, {
+      styling: stylingForTCC,
       steps: {
         ...tccInProgress.steps,
         applyingTailwindStyling: {
           status: OrchestrationStatusEnum.enum.completed,
           startedAt: tccInProgress.steps?.applyingTailwindStyling?.startedAt || new Date().toISOString(),
           completedAt: new Date().toISOString(),
-          result: styling
+          result: stylingForTCC
         }
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(tccWithStyling);
+      }
+    });
 
     // Update progress to completed
     await emitStepProgress(

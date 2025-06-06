@@ -40,12 +40,32 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
 }> {
   const { jobId, selectedModel } = FunctionPlannerRequestSchema.parse(request);
 
+  console.log('🔧 FunctionPlanner: ==================== STARTING FUNCTION SIGNATURE PLANNING ====================');
+  console.log('🔧 FunctionPlanner: Request parameters:', { 
+    jobId, 
+    selectedModel: selectedModel || 'default',
+    timestamp: new Date().toISOString()
+  });
+
   try {
     // Load current TCC state
+    console.log('🔧 FunctionPlanner: Loading TCC state from store...');
     const tcc = await getTCC(jobId);
     if (!tcc) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
+      const errorMsg = `TCC not found for jobId: ${jobId}`;
+      console.error('🔧 FunctionPlanner: ❌ CRITICAL ERROR - TCC not found:', errorMsg);
+      throw new Error(errorMsg);
     }
+
+    console.log('🔧 FunctionPlanner: ✅ TCC loaded successfully');
+    console.log('🔧 FunctionPlanner: TCC Analysis:', {
+      currentStep: tcc.currentOrchestrationStep,
+      status: tcc.status,
+      hasUserInput: !!tcc.userInput,
+      userInputKeys: Object.keys(tcc.userInput || {}),
+      targetAudience: tcc.targetAudience || 'not specified',
+      hasExistingSignatures: !!tcc.definedFunctionSignatures?.length
+    });
 
     logger.info({ 
       jobId, 
@@ -54,35 +74,56 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
     }, '🔧 FunctionPlanner: Starting function signature planning');
 
     // Update status to in_progress
+    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - STARTED...');
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.planning_function_signatures,
       'started',
       'Analyzing user requirements to plan function signatures...'
     );
+    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - STARTED');
 
     // Update TCC status
+    console.log('🔧 FunctionPlanner: Updating TCC status to IN_PROGRESS...');
     const tccInProgress = {
       ...tcc,
       status: OrchestrationStatusEnum.enum.in_progress,
       updatedAt: new Date().toISOString()
     };
     await saveTCC(tccInProgress);
+    console.log('🔧 FunctionPlanner: ✅ TCC status updated to IN_PROGRESS');
 
     // Generate function signatures using AI with proper model selection
+    console.log('🔧 FunctionPlanner: Calling AI to generate function signatures...');
+    console.log('🔧 FunctionPlanner: AI Input parameters:', {
+      selectedModel: selectedModel || 'default',
+      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...' || 'No description',
+      targetAudience: tcc.targetAudience || 'not specified'
+    });
     const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
+    console.log('🔧 FunctionPlanner: ✅ AI generated function signatures:', functionSignatures);
 
     // Update TCC with function signatures
+    console.log('🔧 FunctionPlanner: Updating TCC with generated function signatures...');
     const updatedTCC: ToolConstructionContext = {
       ...tcc,
-      currentOrchestrationStep: OrchestrationStepEnum.enum.generating_state_logic,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.designing_state_logic,
       status: OrchestrationStatusEnum.enum.pending,
       definedFunctionSignatures: functionSignatures,
+      functionSignatures: functionSignatures, // Add backward compatibility alias
       updatedAt: new Date().toISOString()
     };
 
     await saveTCC(updatedTCC);
+    console.log('🔧 FunctionPlanner: ✅ TCC updated with function signatures');
+    console.log('🔧 FunctionPlanner: TCC function signature fields set:', {
+      definedFunctionSignatures: functionSignatures.length,
+      functionSignatures: functionSignatures.length, // Both fields should be identical
+      signatureNames: functionSignatures.map(f => f.name)
+    });
+    console.log('🔧 FunctionPlanner: Next orchestration step set to:', OrchestrationStepEnum.enum.designing_state_logic);
 
+    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - COMPLETED...');
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.planning_function_signatures,
@@ -90,6 +131,7 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
       `Generated ${functionSignatures.length} function signatures for component interaction.`,
       { functionCount: functionSignatures.length, signatures: functionSignatures.map(f => f.name) }
     );
+    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - COMPLETED');
 
     logger.info({ 
       jobId, 
@@ -97,12 +139,31 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
       signatures: functionSignatures.map(f => f.name) 
     }, '🔧 FunctionPlanner: Generated function signatures successfully');
 
+    console.log('🔧 FunctionPlanner: ==================== FUNCTION SIGNATURE PLANNING COMPLETED SUCCESSFULLY ====================');
+    console.log('🔧 FunctionPlanner: Final result:', {
+      success: true,
+      signatureCount: functionSignatures.length,
+      signatureNames: functionSignatures.map(f => f.name),
+      nextStep: OrchestrationStepEnum.enum.designing_state_logic
+    });
+
     return {
       success: true,
       functionSignatures
     };
 
   } catch (error) {
+    console.error('🔧 FunctionPlanner: ==================== ERROR OCCURRED ====================');
+    console.error('🔧 FunctionPlanner: ❌ Error details:', {
+      jobId,
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
+    if (error instanceof Error && error.stack) {
+      console.error('🔧 FunctionPlanner: ❌ Error stack:', error.stack);
+    }
+
     logger.error({ 
       jobId,
       error: error instanceof Error ? {
@@ -112,6 +173,7 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
       } : String(error) 
     }, '🔧 FunctionPlanner: Error planning function signatures');
     
+    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - FAILED...');
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.planning_function_signatures,
@@ -119,7 +181,9 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
       `Failed to plan function signatures: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { errorDetails: { message: String(error) } }
     );
+    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - FAILED');
 
+    console.error('🔧 FunctionPlanner: ==================== FUNCTION SIGNATURE PLANNING FAILED ====================');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -200,6 +264,16 @@ async function generateFunctionSignatures(
     : selectedModel === 'default' 
       ? 'User Selected "default" → functionPlanner Config' 
       : 'No Model → functionPlanner Config';
+
+  console.log('🔧 FunctionPlanner: ==================== MODEL SELECTION ====================');
+  console.log('🔧 FunctionPlanner: Model selection details:', {
+    originalSelectedModel: selectedModel || 'none',
+    selectionMethod,
+    finalProvider: modelConfig.provider,
+    finalModelId: modelConfig.modelId,
+    actualModelName,
+    timestamp: new Date().toISOString()
+  });
       
   logger.info({ 
     provider: modelConfig.provider,
@@ -208,7 +282,9 @@ async function generateFunctionSignatures(
     originalSelectedModel: selectedModel || 'none'
   }, '🔧 FunctionPlanner Model Selection:');
 
+  console.log('🔧 FunctionPlanner: Creating model instance...');
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+  console.log('🔧 FunctionPlanner: ✅ Model instance created successfully');
   const systemPrompt = `You are a React component architect specializing in function signature planning.
 
 Your task is to analyze a user's tool description and determine what JavaScript functions will be needed for the component's interactivity.
@@ -251,12 +327,24 @@ ADDITIONAL CONTEXT:
 
 Please analyze what user interactions this tool will need and generate the corresponding function signatures.`;
 
+  console.log('🔧 FunctionPlanner: ==================== CALLING AI MODEL ====================');
+  console.log('🔧 FunctionPlanner: AI call parameters:', {
+    provider: modelConfig.provider,
+    modelId: modelConfig.modelId,
+    temperature: 0.3,
+    maxTokens: 1000,
+    userPromptLength: userPrompt.length,
+    systemPromptLength: systemPrompt.length
+  });
+
   logger.info({ 
     provider: modelConfig.provider,
     modelId: modelConfig.modelId,
     userInputLength: userPrompt.length 
   }, '🔧 FunctionPlanner: Calling AI model for function signature generation');
 
+  console.log('🔧 FunctionPlanner: Sending request to AI model...');
+  const startTime = Date.now();
   const { text: content } = await generateText({
     model: modelInstance,
     system: systemPrompt,
@@ -264,22 +352,42 @@ Please analyze what user interactions this tool will need and generate the corre
     temperature: 0.3,
     maxTokens: 1000
   });
+  const duration = Date.now() - startTime;
+  
+  console.log('🔧 FunctionPlanner: ✅ AI model response received:', {
+    duration: `${duration}ms`,
+    contentLength: content?.length || 0,
+    hasContent: !!content
+  });
+
   if (!content) {
-    throw new Error('Failed to generate function signatures - empty response');
+    const error = 'Failed to generate function signatures - empty response';
+    console.error('🔧 FunctionPlanner: ❌ AI ERROR - Empty response:', error);
+    throw new Error(error);
   }
+
+  console.log('🔧 FunctionPlanner: ==================== PARSING AI RESPONSE ====================');
+  console.log('🔧 FunctionPlanner: Raw AI response preview:', content.substring(0, 200) + '...');
 
   try {
     // Extract JSON from response
+    console.log('🔧 FunctionPlanner: Extracting JSON from AI response...');
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
+      console.error('🔧 FunctionPlanner: ❌ No JSON array found in response');
       throw new Error('No JSON array found in response');
     }
 
+    console.log('🔧 FunctionPlanner: ✅ JSON array found, parsing...');
     const signatures = JSON.parse(jsonMatch[0]);
+    console.log('🔧 FunctionPlanner: Raw parsed signatures:', signatures);
     
     // Validate the signatures
-    const validatedSignatures = signatures.map((sig: any) => {
+    console.log('🔧 FunctionPlanner: Validating signature format...');
+    const validatedSignatures = signatures.map((sig: any, index: number) => {
+      console.log(`🔧 FunctionPlanner: Validating signature ${index + 1}:`, sig);
       if (!sig.name || typeof sig.name !== 'string') {
+        console.error(`🔧 FunctionPlanner: ❌ Invalid signature ${index + 1}: missing or invalid name`);
         throw new Error('Invalid function signature: missing or invalid name');
       }
       return {
@@ -288,17 +396,30 @@ Please analyze what user interactions this tool will need and generate the corre
       };
     });
 
+    console.log('🔧 FunctionPlanner: ✅ All signatures validated');
+
     // Ensure we have at least one function
     if (validatedSignatures.length === 0) {
+      console.log('🔧 FunctionPlanner: ⚠️ No signatures found, adding default...');
       validatedSignatures.push({
         name: 'handleSubmit',
         description: 'Handles form submission and primary tool interaction'
       });
     }
 
+    console.log('🔧 FunctionPlanner: Final validated signatures:', validatedSignatures);
     return validatedSignatures;
 
   } catch (parseError) {
+    console.error('🔧 FunctionPlanner: ==================== PARSING ERROR ====================');
+    console.error('🔧 FunctionPlanner: ❌ Failed to parse AI response:', {
+      errorType: parseError instanceof Error ? parseError.constructor.name : typeof parseError,
+      errorMessage: parseError instanceof Error ? parseError.message : String(parseError),
+      rawResponseLength: content?.length || 0,
+      modelUsed: actualModelName
+    });
+    console.error('🔧 FunctionPlanner: Raw AI response for debugging:', content);
+
     logger.error({ 
       parseError: parseError instanceof Error ? parseError.message : String(parseError),
       rawResponseLength: content?.length || 0,
@@ -307,7 +428,8 @@ Please analyze what user interactions this tool will need and generate the corre
     logger.debug({ rawResponse: content }, '🔧 FunctionPlanner: Raw AI response for debugging');
     
     // Fallback to default signatures
-    return [
+    console.log('🔧 FunctionPlanner: Using fallback default signatures...');
+    const fallbackSignatures = [
       {
         name: 'handleSubmit',
         description: 'Handles form submission and primary tool interaction'
@@ -317,5 +439,7 @@ Please analyze what user interactions this tool will need and generate the corre
         description: 'Resets form inputs to initial state'
       }
     ];
+    console.log('🔧 FunctionPlanner: Fallback signatures:', fallbackSignatures);
+    return fallbackSignatures;
   }
 } 

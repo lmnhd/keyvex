@@ -3,60 +3,68 @@ import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
+  console.log('🎨 TailwindStyling Route: ==================== INCOMING REQUEST ====================');
+  console.log('🎨 TailwindStyling Route: Request received at:', new Date().toISOString());
+  console.log('🎨 TailwindStyling Route: Request URL:', request.url);
+  console.log('🎨 TailwindStyling Route: Request method:', request.method);
+
   try {
-    const requestData = await request.json();
-    logger.info({ 
-      jobId: requestData.jobId,
-      selectedModel: requestData.selectedModel || 'default'
-    }, '🎨 TailwindStyling Route: Processing styling request');
+    console.log('🎨 TailwindStyling Route: Parsing request body...');
+    const body = await request.json();
+    console.log('🎨 TailwindStyling Route: ✅ Request body parsed:', {
+      jobId: body.jobId,
+      selectedModel: body.selectedModel || 'default',
+      hasJobId: !!body.jobId,
+      bodyKeys: Object.keys(body)
+    });
 
-    // Apply Tailwind styling
-    const result = await applyStyling(requestData);
+    console.log('🎨 TailwindStyling Route: Calling applyStyling core function...');
+    const startTime = Date.now();
+    const result = await applyStyling({
+      jobId: body.jobId,
+      selectedModel: body.selectedModel
+    });
+    const duration = Date.now() - startTime;
     
-    if (result.success && result.styling) {
-      logger.info({ 
-        jobId: requestData.jobId,
-        elementsStyled: result.styling.styleMap.length,
-        colorSchemeKeys: Object.keys(result.styling.colorScheme).length
-      }, '🎨 TailwindStyling Route: Styling applied successfully');
+    console.log('🎨 TailwindStyling Route: ✅ applyStyling completed:', {
+      success: result.success,
+      duration: `${duration}ms`,
+      hasStyling: !!result.styling,
+      styleMapCount: result.styling?.styleMap?.length || 0,
+      colorSchemeKeys: result.styling?.colorScheme ? Object.keys(result.styling.colorScheme).length : 0,
+      error: result.error || 'none'
+    });
 
-      // SUCCESS: Trigger check for parallel completion 
-      const baseUrl = request.nextUrl.origin;
-      
-      // Check if parallel step completion allows proceeding to next step
-      checkParallelCompletion(baseUrl, requestData.jobId).catch(error => {
-        logger.error({ jobId: requestData.jobId, error }, '🎨 TailwindStyling: Failed to check parallel completion');
-      });
-
+    if (result.success) {
+      console.log('🎨 TailwindStyling Route: ✅ Styling applied successfully');
+      console.log('🎨 TailwindStyling Route: Returning success response...');
       return NextResponse.json({
         success: true,
-        message: 'Tailwind styling applied successfully',
-        styling: result.styling
+        styling: result.styling,
+        message: 'Tailwind styling applied successfully'
       });
     } else {
-      logger.error({ 
-        jobId: requestData.jobId,
-        error: result.error
-      }, '🎨 TailwindStyling Route: Styling application failed');
-      
+      console.error('🎨 TailwindStyling Route: ❌ Styling application failed:', result.error);
       return NextResponse.json({
         success: false,
-        error: result.error || 'Unknown error applying styling'
+        error: result.error
       }, { status: 500 });
     }
 
   } catch (error) {
-    logger.error({ 
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : String(error)
-    }, '🎨 TailwindStyling Route: Unexpected error');
-    
+    console.error('🎨 TailwindStyling Route: ==================== ROUTE ERROR ====================');
+    console.error('🎨 TailwindStyling Route: ❌ Route error details:', {
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
+    if (error instanceof Error && error.stack) {
+      console.error('🎨 TailwindStyling Route: ❌ Error stack:', error.stack);
+    }
+
     return NextResponse.json({
       success: false,
-      error: 'Internal server error'
+      error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }

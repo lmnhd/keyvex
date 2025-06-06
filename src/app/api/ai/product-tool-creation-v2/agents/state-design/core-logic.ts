@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
+import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
@@ -49,22 +49,70 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
 }> {
   const { jobId, selectedModel } = StateDesignRequestSchema.parse(request);
 
+  console.log('🎯 StateDesign: ==================== STARTING STATE LOGIC DESIGN ====================');
+  console.log('🎯 StateDesign: Request parameters:', { 
+    jobId, 
+    selectedModel: selectedModel || 'default',
+    timestamp: new Date().toISOString()
+  });
+
   try {
+    console.log('🎯 StateDesign: Loading TCC state from store...');
     const tcc = await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+    if (!tcc) {
+      const errorMsg = `TCC not found for jobId: ${jobId}`;
+      console.error('🎯 StateDesign: ❌ CRITICAL ERROR - TCC not found:', errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    console.log('🎯 StateDesign: ✅ TCC loaded successfully');
+    console.log('🎯 StateDesign: TCC Analysis:', {
+      currentStep: tcc.currentOrchestrationStep,
+      status: tcc.status,
+      hasUserInput: !!tcc.userInput,
+      userInputKeys: Object.keys(tcc.userInput || {}),
+      targetAudience: tcc.targetAudience || 'not specified',
+      hasFunctionSignatures: !!tcc.functionSignatures?.length,
+      functionSignatureCount: tcc.definedFunctionSignatures?.length || tcc.functionSignatures?.length || 0,
+      functionNames: tcc.functionSignatures?.map(f => f.name) || [],
+      hasDefinedFunctionSignatures: !!tcc.definedFunctionSignatures?.length,
+      definedFunctionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
+      definedFunctionNames: tcc.definedFunctionSignatures?.map(f => f.name) || [],
+      
+    });
 
     logger.info({ jobId, selectedModel: selectedModel || 'default' }, '🎯 StateDesign: Starting');
 
+    console.log('🎯 StateDesign: Emitting WebSocket progress - STARTED...');
     await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'started', 'Designing React state logic...');
+    console.log('🎯 StateDesign: ✅ WebSocket progress emitted - STARTED');
 
     // Update TCC status
+    console.log('🎯 StateDesign: Updating TCC status to IN_PROGRESS...');
     const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
     await saveTCC(tccInProgress);
+    console.log('🎯 StateDesign: ✅ TCC status updated to IN_PROGRESS');
 
     // Generate state logic with AI
+    console.log('🎯 StateDesign: Calling AI to generate state logic...');
+    console.log('🎯 StateDesign: AI Input parameters:', {
+      selectedModel: selectedModel || 'default',
+      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...' || 'No description',
+      targetAudience: tcc.targetAudience || 'not specified',
+      functionSignatureCount: tcc.definedFunctionSignatures?.length || tcc.functionSignatures?.length || 0
+    });
     const stateLogic = await generateStateLogic(tcc, selectedModel);
+    console.log('🎯 StateDesign: ✅ AI generated state logic successfully');
+    console.log('🎯 StateDesign: Generated state logic summary:', {
+      stateVariableCount: stateLogic?.stateVariables?.length || 0,
+      functionCount: stateLogic?.functions?.length || 0,
+      importsCount: stateLogic?.imports?.length || 0,
+      hooksCount: stateLogic?.hooks?.length || 0
+    });
+    console.log('🎯 StateDesign: Full stateLogic data:', JSON.stringify(stateLogic, null, 2));
 
     // Convert to TCC-compatible format
+    console.log('🎯 StateDesign: Converting state logic to TCC-compatible format...');
     const tccCompatibleStateLogic = {
       variables: stateLogic.stateVariables.map((v: { name: string; type: string; initialValue: string; description: string }) => ({
         name: v.name,
@@ -81,10 +129,17 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
       imports: stateLogic.imports,
       stateVariables: stateLogic.stateVariables,
     };
+    console.log('🎯 StateDesign: ✅ State logic converted to TCC format');
+    console.log('🎯 StateDesign: TCC-compatible format summary:', {
+      variableCount: tccCompatibleStateLogic.variables?.length || 0,
+      functionCount: tccCompatibleStateLogic.functions?.length || 0,
+      variableNames: tccCompatibleStateLogic.variables?.map((v: { name: string }) => v.name) || [],
+      functionNames: tccCompatibleStateLogic.functions?.map((f: { name: string }) => f.name) || []
+    });
 
-    // Update TCC with results
-    const updatedTCC = {
-      ...tccInProgress,
+    // Update TCC with results using updateTCC to avoid race conditions
+    console.log('🎯 StateDesign: About to update TCC with stateLogic using updateTCC...');
+    await updateTCC(jobId, {
       stateLogic: tccCompatibleStateLogic,
       steps: {
         ...tccInProgress.steps,
@@ -94,14 +149,24 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
           completedAt: new Date().toISOString(),
           result: stateLogic
         }
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(updatedTCC);
+      }
+    });
+    console.log('🎯 StateDesign: TCC updated successfully with stateLogic data');
 
+    console.log('🎯 StateDesign: Emitting WebSocket progress - COMPLETED...');
     await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'completed', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);
+    console.log('🎯 StateDesign: ✅ WebSocket progress emitted - COMPLETED');
 
     logger.info({ jobId, stateVariablesGenerated: stateLogic.stateVariables.length, functionsGenerated: stateLogic.functions.length }, '🎯 StateDesign: Completed successfully');
+
+    console.log('🎯 StateDesign: ==================== STATE LOGIC DESIGN COMPLETED SUCCESSFULLY ====================');
+    console.log('🎯 StateDesign: Final result summary:', {
+      success: true,
+      stateVariableCount: stateLogic.stateVariables.length,
+      functionCount: stateLogic.functions.length,
+      variableNames: stateLogic.stateVariables.map((v: { name: string }) => v.name),
+      functionNames: stateLogic.functions.map((f: { name: string }) => f.name)
+    });
 
     return { success: true, stateLogic };
 
@@ -151,9 +216,20 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
     }
   }
 
+  console.log('🎯 StateDesign: ==================== MODEL SELECTION ====================');
+  console.log('🎯 StateDesign: Model selection details:', {
+    originalSelectedModel: selectedModel || 'none',
+    finalProvider: modelConfig.provider,
+    finalModelId: modelConfig.modelId,
+    actualModelName,
+    timestamp: new Date().toISOString()
+  });
+
   logger.info({ provider: modelConfig.provider, modelName: actualModelName }, '🎯 StateDesign: Using model');
 
+  console.log('🎯 StateDesign: Creating model instance...');
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+  console.log('🎯 StateDesign: ✅ Model instance created successfully');
 
   const systemPrompt = `You are a React state design specialist. Create state variables and functions for a React component.
 
@@ -173,7 +249,7 @@ Return structured JSON with:
 Target Audience: ${tcc.targetAudience || 'General users'}
 
 Function Signatures to Implement:
-${tcc.functionSignatures?.map(sig => `- ${sig.name}: ${sig.description}`).join('\n') || 'None'}
+${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => `- ${sig.name}: ${sig.description}`).join('\n') || 'None'}
 
 Design React state variables and function implementations for this tool.`;
 
@@ -190,7 +266,7 @@ Design React state variables and function implementations for this tool.`;
   if (!content) throw new Error('No response from AI model');
 
   // AI FIRST: Parse the response
-  return parseStateResponse(content, tcc.functionSignatures || []);
+  return parseStateResponse(content, tcc.definedFunctionSignatures || tcc.functionSignatures || []);
 }
 
 /**

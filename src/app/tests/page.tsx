@@ -19,7 +19,8 @@ import {
   FileText,
   Cog,
   Save,
-  Wifi
+  Wifi,
+  Bug
 } from 'lucide-react';
 
 const TEST_PAGES = [
@@ -111,9 +112,17 @@ const TEST_PAGES = [
     category: 'API',
     status: 'active'
   },
+  {
+    title: 'Breakpoint Debugging',
+    description: 'Debug and test VS Code breakpoint functionality with Turbopack',
+    path: '/tests/breakpoint',
+    icon: Bug,
+    category: 'Debug',
+    status: 'active'
+  },
 ];
 
-const CATEGORIES = ['All', 'API', 'UI', 'AI', 'Admin'];
+const CATEGORIES = ['All', 'API', 'UI', 'AI', 'Admin', 'Debug'];
 
 export default function TestsIndexPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -143,6 +152,8 @@ export default function TestsIndexPage() {
         return Zap;
       case 'Admin':
         return FileText;
+      case 'Debug':
+        return Bug;
       default:
         return TestTube;
     }

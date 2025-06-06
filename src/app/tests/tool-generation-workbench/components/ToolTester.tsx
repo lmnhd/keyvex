@@ -147,8 +147,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     };
 
     const processName = processModelsMapping[agentId];
-    if (processName && DEFAULT_MODELS.processModels?.[processName]?.primary?.model) {
-      const modelId = DEFAULT_MODELS.processModels[processName].primary.model;
+    if (processName && (DEFAULT_MODELS.processModels as any)?.[processName]?.primary?.model) {
+      const modelId = (DEFAULT_MODELS.processModels as any)[processName].primary.model;
       console.log(`🎯 Using default model for ${agentId}: ${modelId} (from processModels.${processName})`);
       return modelId;
     }
@@ -702,69 +702,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             )}
           </div>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-                          <div className="flex justify-between items-center mb-1">
-                <Label>2. Select AI Models (Max 5)</Label>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{selectedModelIds.length}/5 selected</Badge>
-                  <Badge variant="outline" className="text-xs">
-                    Models: {availableModels.length}
-                  </Badge>
-                  {loadFromLocalStorage(STORAGE_KEYS.selectedModels, []).length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      💾 Restored
-                    </Badge>
-                  )}
-                </div>
-            </div>
-              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
-                <strong>🐛 Debug Info:</strong> availableModels.length = {availableModels.length}, selectedModelIds = {JSON.stringify(selectedModelIds)}
-              </div>
-              
-              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs space-y-1">
-                <div><strong>🐛 Debug State:</strong></div>
-                <div>• availableModels.length = {availableModels.length}</div>
-                <div>• selectedModelIds = {JSON.stringify(selectedModelIds)}</div>
-                <div>• First 3 available models: {JSON.stringify(availableModels.slice(0, 3).map(m => ({id: m.id, name: m.name})))}</div>
-              </div>
-              
-              {availableModels.length > 0 ? (
-                <ScrollArea className="h-48 rounded-md border p-3">
-                  <div className="space-y-2">
-                    {availableModels.map(model => (
-                      <div key={model.id} className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`model-${model.id}`}
-                          checked={selectedModelIds.includes(model.id)}
-                          onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
-                          disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
-                        />
-                        <Label htmlFor={`model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
-                          {model.name}
-                          {model.id === defaultPrimaryModel && (
-                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
-                              Default
-                            </span>
-                          )}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div>
-                  <p className="text-sm text-gray-500">Loading models...</p>
-                  <p className="text-xs text-red-500 mt-1">🔍 Check browser console for fetchModels debugging output</p>
-                  <p className="text-xs text-red-500 mt-1">🔍 Check browser console for fetchModels debugging output</p>
-                </div>
-              )}
-            </div>
-          </div>
+
         </div>
 
         <div className="space-y-4">
-          <Label>3. Select Workflow Mode</Label>
+          <Label>2. Select Workflow Mode</Label>
           
           <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
@@ -784,12 +726,46 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             
             <TabsContent value="v1" className="mt-4">
               <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <Settings className="h-5 w-5 text-blue-600" />
                     <div>
                       <h4 className="font-medium text-blue-900 dark:text-blue-100">V1 Legacy Mode</h4>
                       <p className="text-sm text-blue-700 dark:text-blue-300">Uses the original monolithic tool creation approach. Single API call, no streaming.</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-2">
+                    <Label>Model Selection (Max 5)</Label>
+                    <div className="rounded-md border bg-blue-50/50 dark:bg-blue-900/10 p-4">
+                      {availableModels.length > 0 ? (
+                        <ScrollArea className="h-48">
+                          <div className="space-y-2">
+                            {availableModels.map(model => (
+                              <div key={model.id} className="flex items-center space-x-2">
+                                <Checkbox 
+                                  id={`v1-model-${model.id}`}
+                                  checked={selectedModelIds.includes(model.id)}
+                                  onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
+                                  disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
+                                />
+                                <Label htmlFor={`v1-model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
+                                  {model.name}
+                                  {model.id === defaultPrimaryModel && (
+                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                                      Default
+                                    </span>
+                                  )}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500">Loading models...</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -891,6 +867,40 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       </Select>
                     </div>
                   )}
+
+                  <div className="space-y-3 pt-2">
+                    <Label>Available Models (for context)</Label>
+                    <div className="rounded-md border bg-red-50/50 dark:bg-red-900/10 p-4">
+                      {availableModels.length > 0 ? (
+                        <ScrollArea className="h-32">
+                          <div className="space-y-2">
+                            {availableModels.map(model => (
+                              <div key={model.id} className="flex items-center space-x-2">
+                                <Checkbox 
+                                  id={`debug-model-${model.id}`}
+                                  checked={selectedModelIds.includes(model.id)}
+                                  onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
+                                  disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
+                                />
+                                <Label htmlFor={`debug-model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
+                                  {model.name}
+                                  {model.id === defaultPrimaryModel && (
+                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                                      Default
+                                    </span>
+                                  )}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-500">Loading models...</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1116,6 +1126,19 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           </Tabs>
         </CardFooter>
       )}
+      
+      {/* Debug Info */}
+      <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
+        <div className="text-sm space-y-2">
+          <div className="font-semibold text-yellow-800 dark:text-yellow-200">🐛 Debug State Information</div>
+          <div className="text-xs space-y-1 text-yellow-700 dark:text-yellow-300">
+            <div>• Available Models: {availableModels.length}</div>
+            <div>• Selected Models: {JSON.stringify(selectedModelIds)}</div>
+            <div>• First 3 Available: {JSON.stringify(availableModels.slice(0, 3).map(m => ({id: m.id, name: m.name})))}</div>
+            <div>• Agent Mapping: {JSON.stringify(Object.fromEntries(Object.entries(agentModelMapping).slice(0, 3)))}</div>
+          </div>
+        </div>
+      </div>
     </Card>
   );
 };

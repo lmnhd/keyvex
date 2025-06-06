@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { planFunctionSignatures } from './core-logic';
+import { getTCC } from '@/lib/db/tcc-store';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,10 +14,15 @@ export async function POST(request: NextRequest) {
       // Trigger the next parallel agents (State Design + JSX Layout)
       const baseUrl = request.nextUrl.origin;
       
+      // Get TCC to determine which models each agent should use
+      const tcc = await getTCC(body.jobId);
+      const stateDesignModel = tcc?.agentModelMapping?.['state-design'] || tcc?.selectedModel;
+      const jsxLayoutModel = tcc?.agentModelMapping?.['jsx-layout'] || tcc?.selectedModel;
+      
       // Trigger both agents in parallel without awaiting
       Promise.all([
-        triggerStateDesignAgent(baseUrl, body.jobId),
-        triggerJsxLayoutAgent(baseUrl, body.jobId)
+        triggerStateDesignAgent(baseUrl, body.jobId, stateDesignModel),
+        triggerJsxLayoutAgent(baseUrl, body.jobId, jsxLayoutModel)
       ]).catch(error => {
         console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${body.jobId}:`, error);
       });
@@ -41,14 +47,14 @@ export async function POST(request: NextRequest) {
 /**
  * Triggers the State Design Agent
  */
-async function triggerStateDesignAgent(baseUrl: string, jobId: string): Promise<void> {
+async function triggerStateDesignAgent(baseUrl: string, jobId: string, selectedModel?: string): Promise<void> {
   const stateAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/state-design', baseUrl);
   
   try {
     const response = await fetch(stateAgentUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
+      body: JSON.stringify({ jobId, selectedModel })
     });
 
     if (!response.ok) {
@@ -65,14 +71,14 @@ async function triggerStateDesignAgent(baseUrl: string, jobId: string): Promise<
 /**
  * Triggers the JSX Layout Agent  
  */
-async function triggerJsxLayoutAgent(baseUrl: string, jobId: string): Promise<void> {
+async function triggerJsxLayoutAgent(baseUrl: string, jobId: string, selectedModel?: string): Promise<void> {
   const jsxAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/jsx-layout', baseUrl);
   
   try {
     const response = await fetch(jsxAgentUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
+      body: JSON.stringify({ jobId, selectedModel })
     });
 
     if (!response.ok) {
