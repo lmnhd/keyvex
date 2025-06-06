@@ -1,5 +1,14 @@
 // TODO: Implement DynamoDB client for database operations
 
+import { DynamoDBClient as AwsDynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { 
+  DynamoDBDocumentClient, 
+  PutCommand, 
+  GetCommand, 
+  DeleteCommand,
+  QueryCommand 
+} from "@aws-sdk/lib-dynamodb";
+
 import { 
   KeyvexTableItem, 
   QueryParams, 
@@ -11,13 +20,21 @@ import {
 
 export class DynamoDBClient {
   private tableName: string;
-  private client: any; // TODO: Import AWS DynamoDB client
+  private client: DynamoDBDocumentClient;
   private region: string;
 
   constructor(tableName: string, region: string = 'us-east-1') {
     this.tableName = tableName;
     this.region = region;
-    // TODO: Initialize AWS DynamoDB client
+    
+    // Initialize AWS DynamoDB client
+    const dynamoDBClient = new AwsDynamoDBClient({
+      region: this.region,
+      // AWS SDK will automatically use environment variables or IAM roles
+    });
+    
+    // Create document client for easier JSON handling
+    this.client = DynamoDBDocumentClient.from(dynamoDBClient);
   }
 
   /**
@@ -28,29 +45,48 @@ export class DynamoDBClient {
     PK: string, 
     SK: string
   ): Promise<T | null> {
-    // TODO: Implement the following:
-    // 1. Format get item request
-    // 2. Execute DynamoDB get operation
-    // 3. Handle item not found
-    // 4. Parse and validate response
-    // 5. Return typed item or null
+    try {
+      const command = new GetCommand({
+        TableName: this.tableName,
+        Key: { PK, SK }
+      });
 
-    throw new Error('DynamoDB getItem not implemented yet');
+      const result = await this.client.send(command);
+      
+      if (!result.Item) {
+        return null;
+      }
+
+      return result.Item as T;
+    } catch (error) {
+      console.error('Error getting item from DynamoDB:', error);
+      throw this.handleError(error, 'getItem');
+    }
   }
 
   /**
    * Put an item into the table
-   * TODO: Implement put item operation
    */
   async putItem<T extends KeyvexTableItem>(item: T): Promise<void> {
-    // TODO: Implement the following:
-    // 1. Validate item structure
-    // 2. Add timestamps and version
-    // 3. Format put item request
-    // 4. Execute DynamoDB put operation
-    // 5. Handle errors appropriately
+    try {
+      // Add timestamps and metadata
+      const itemWithMetadata = {
+        ...item,
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: item.version || 1
+      };
 
-    throw new Error('DynamoDB putItem not implemented yet');
+      const command = new PutCommand({
+        TableName: this.tableName,
+        Item: itemWithMetadata
+      });
+
+      await this.client.send(command);
+    } catch (error) {
+      console.error('Error putting item to DynamoDB:', error);
+      throw this.handleError(error, 'putItem');
+    }
   }
 
   /**
@@ -82,14 +118,18 @@ export class DynamoDBClient {
     SK: string,
     conditionExpression?: string
   ): Promise<void> {
-    // TODO: Implement the following:
-    // 1. Format delete item request
-    // 2. Handle conditional deletes
-    // 3. Execute DynamoDB delete operation
-    // 4. Handle item not found
-    // 5. Log deletion for audit
+    try {
+      const command = new DeleteCommand({
+        TableName: this.tableName,
+        Key: { PK, SK },
+        ...(conditionExpression && { ConditionExpression: conditionExpression })
+      });
 
-    throw new Error('DynamoDB deleteItem not implemented yet');
+      await this.client.send(command);
+    } catch (error) {
+      console.error('Error deleting item from DynamoDB:', error);
+      throw this.handleError(error, 'deleteItem');
+    }
   }
 
   /**
@@ -99,14 +139,56 @@ export class DynamoDBClient {
   async query<T extends KeyvexTableItem>(
     params: QueryParams
   ): Promise<QueryResult<T>> {
-    // TODO: Implement the following:
-    // 1. Build query expression
-    // 2. Handle GSI queries
-    // 3. Apply filters and limits
-    // 4. Execute DynamoDB query operation
-    // 5. Return paginated results
+    try {
+      // Build expression attribute values based on the params
+      const expressionAttributeValues: Record<string, any> = {
+        ...params.expressionAttributeValues
+      };
 
-    throw new Error('DynamoDB query not implemented yet');
+      if (params.PK) {
+        expressionAttributeValues[':pk'] = params.PK;
+      }
+      if (params.SK) {
+        expressionAttributeValues[':sk'] = params.SK;
+      }
+      if (params.GSI1PK) {
+        expressionAttributeValues[':gsi1pk'] = params.GSI1PK;
+      }
+      if (params.GSI1SK) {
+        expressionAttributeValues[':gsi1sk'] = params.GSI1SK;
+      }
+      if (params.GSI2PK) {
+        expressionAttributeValues[':gsi2pk'] = params.GSI2PK;
+      }
+      if (params.GSI2SK) {
+        expressionAttributeValues[':gsi2sk'] = params.GSI2SK;
+      }
+
+      const command = new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: this.buildKeyConditionExpression(params),
+        ExpressionAttributeValues: expressionAttributeValues,
+        ...(params.GSI1PK && { IndexName: 'GSI1' }),
+        ...(params.GSI2PK && { IndexName: 'GSI2' }),
+        ...(params.filterExpression && { FilterExpression: params.filterExpression }),
+        ...(params.expressionAttributeNames && { ExpressionAttributeNames: params.expressionAttributeNames }),
+        ...(params.limit && { Limit: params.limit }),
+        ...(params.exclusiveStartKey && { ExclusiveStartKey: params.exclusiveStartKey }),
+        ScanIndexForward: params.scanIndexForward !== false
+      });
+
+      const result = await this.client.send(command);
+
+      return {
+        items: (result.Items || []) as T[],
+        lastEvaluatedKey: result.LastEvaluatedKey,
+        count: result.Count || 0,
+        scannedCount: result.ScannedCount || 0
+      };
+    } catch (error) {
+      console.error('Error querying DynamoDB:', error);
+      throw this.handleError(error, 'query');
+    }
   }
 
   /**
@@ -234,18 +316,41 @@ export class DynamoDBClient {
   }
 
   /**
+   * Build key condition expression for queries
+   */
+  private buildKeyConditionExpression(params: QueryParams): string {
+    if (params.GSI1PK) {
+      return params.GSI1SK 
+        ? 'GSI1PK = :gsi1pk AND GSI1SK = :gsi1sk'
+        : 'GSI1PK = :gsi1pk';
+    }
+    
+    if (params.GSI2PK) {
+      return params.GSI2SK 
+        ? 'GSI2PK = :gsi2pk AND GSI2SK = :gsi2sk'
+        : 'GSI2PK = :gsi2pk';
+    }
+    
+    return params.SK 
+      ? 'PK = :pk AND SK = :sk'
+      : 'PK = :pk';
+  }
+
+  /**
    * Handle DynamoDB errors consistently
-   * TODO: Implement error handling
    */
   private handleError(error: any, operation: string): DatabaseError {
-    // TODO: Implement the following:
-    // 1. Parse DynamoDB error types
-    // 2. Determine if error is retryable
-    // 3. Extract relevant error information
-    // 4. Create user-friendly messages
-    // 5. Return structured error
-
-    throw new Error('Error handling not implemented yet');
+    const errorMessage = error.message || 'Unknown DynamoDB error';
+    const errorCode = error.name || error.$metadata?.httpStatusCode || 'UNKNOWN_ERROR';
+    
+    return {
+      operation: operation as any,
+      errorType: errorCode,
+      message: `DynamoDB ${operation} failed: ${errorMessage}`,
+      retryable: ['ThrottledError', 'ProvisionedThroughputExceededError'].includes(errorCode),
+      statusCode: error.$metadata?.httpStatusCode,
+      requestId: error.$metadata?.requestId
+    };
   }
 
   /**

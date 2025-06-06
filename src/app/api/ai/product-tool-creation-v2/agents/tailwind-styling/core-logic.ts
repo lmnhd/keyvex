@@ -8,10 +8,42 @@ import { generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
+// Type definitions for Tailwind styling components
+export type StyleMapItem = {
+  elementId: string;
+  tailwindClasses: string[];
+  responsiveVariants: Record<string, string[]>;
+  stateVariants: Record<string, string[]>;
+};
+
+export type ColorScheme = {
+  primary: string;
+  secondary: string;
+  accent: string;
+  neutral: string;
+  error: string;
+  success: string;
+};
+
+export type DesignTokens = {
+  spacing: Record<string, string>;
+  typography: Record<string, string>;
+  shadows: Record<string, string>;
+  animations: Record<string, string>;
+};
+
+export type TailwindStylingResult = {
+  styledComponentCode: string;
+  styleMap: StyleMapItem[];
+  colorScheme: ColorScheme;
+  designTokens: DesignTokens;
+};
+
 // Input schema for the tailwind styling agent
 const TailwindStylingRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
 });
 
 export type TailwindStylingRequest = z.infer<typeof TailwindStylingRequestSchema>;
@@ -34,38 +66,25 @@ function createModelInstance(provider: string, modelId: string) {
  */
 export async function applyStyling(request: TailwindStylingRequest): Promise<{
   success: boolean;
-  styling?: {
-    styledComponentCode: string;
-    styleMap: Array<{
-      elementId: string;
-      tailwindClasses: string[];
-      responsiveVariants: Record<string, string[]>;
-      stateVariants: Record<string, string[]>;
-    }>;
-    colorScheme: {
-      primary: string;
-      secondary: string;
-      accent: string;
-      neutral: string;
-      error: string;
-      success: string;
-    };
-    designTokens: {
-      spacing: Record<string, string>;
-      typography: Record<string, string>;
-      shadows: Record<string, string>;
-      animations: Record<string, string>;
-    };
-  };
+  styling?: TailwindStylingResult;
   error?: string;
 }> {
-  const { jobId, selectedModel } = TailwindStylingRequestSchema.parse(request);
+  const { jobId, selectedModel, mockTcc } = TailwindStylingRequestSchema.parse(request);
 
   try {
-    // Load current TCC state
-    const tcc = await getTCC(jobId);
-    if (!tcc) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
+    let tcc: ToolConstructionContext;
+    
+    if (mockTcc) {
+      console.log('🎨 TailwindStyling: 🧪 MOCK MODE - Using provided mock TCC');
+      tcc = mockTcc as ToolConstructionContext;
+    } else {
+      // Load current TCC state
+      console.log('🎨 TailwindStyling: Loading TCC state from store...');
+      const loadedTcc = await getTCC(jobId);
+      if (!loadedTcc) {
+        throw new Error(`TCC not found for jobId: ${jobId}`);
+      }
+      tcc = loadedTcc;
     }
 
     logger.info({ 
@@ -74,74 +93,79 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
       stepName: 'applying_tailwind_styling',
       hasJsxLayout: !!tcc.jsxLayout,
       hasStateLogic: !!tcc.stateLogic,
-      hasFunctionSignatures: !!tcc.functionSignatures?.length
+      hasFunctionSignatures: !!tcc.functionSignatures?.length,
+      isMockMode: !!mockTcc
     }, '🎨 TailwindStyling: Starting styling application');
 
-    // Update status to in_progress
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'started',
-      'Applying comprehensive Tailwind CSS styling...'
-    );
+    if (!mockTcc) {
+      // Update status to in_progress (skip in mock mode)
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'started',
+        'Applying comprehensive Tailwind CSS styling...'
+      );
 
-    // Update TCC status
-    const tccInProgress = {
-      ...tcc,
-      status: OrchestrationStatusEnum.enum.in_progress,
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(tccInProgress);
+      // Update TCC status (skip in mock mode)
+      const tccInProgress = {
+        ...tcc,
+        status: OrchestrationStatusEnum.enum.in_progress,
+        updatedAt: new Date().toISOString()
+      };
+      await saveTCC(tccInProgress);
+    }
 
     // Generate Tailwind styling using AI with proper model selection
     const styling = await generateTailwindStyling(tcc, selectedModel);
 
-    // Convert styleMap array to Record<string, string> and colorScheme for TCC compatibility
-    const stylingForTCC = {
-      ...styling,
-      styleMap: styling.styleMap.reduce((acc, item) => {
-        acc[item.elementId] = item.tailwindClasses.join(' ');
-        return acc;
-      }, {} as Record<string, string>),
-      colorScheme: {
-        primary: styling.colorScheme.primary,
-        secondary: styling.colorScheme.secondary,
-        accent: styling.colorScheme.accent,
-        background: styling.colorScheme.neutral || '#ffffff',
-        surface: '#f9fafb',
-        text: {
-          primary: '#111827',
-          secondary: '#6b7280', 
-          muted: '#9ca3af'
-        },
-        border: '#e5e7eb',
-        success: styling.colorScheme.success,
-        warning: '#f59e0b',
-        error: styling.colorScheme.error
-      }
-    };
-
-    // Update TCC with styling using updateTCC to avoid race conditions
-    await updateTCC(jobId, {
-      styling: stylingForTCC,
-      steps: {
-        ...tccInProgress.steps,
-        applyingTailwindStyling: {
-          status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tccInProgress.steps?.applyingTailwindStyling?.startedAt || new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          result: stylingForTCC
+    if (!mockTcc) {
+      // Convert styleMap array to Record<string, string> and colorScheme for TCC compatibility
+      const stylingForTCC = {
+        ...styling,
+        styleMap: styling.styleMap.reduce((acc, item) => {
+          acc[item.elementId] = item.tailwindClasses.join(' ');
+          return acc;
+        }, {} as Record<string, string>),
+        colorScheme: {
+          primary: styling.colorScheme.primary,
+          secondary: styling.colorScheme.secondary,
+          accent: styling.colorScheme.accent,
+          background: styling.colorScheme.neutral || '#ffffff',
+          surface: '#f9fafb',
+          text: {
+            primary: '#111827',
+            secondary: '#6b7280', 
+            muted: '#9ca3af'
+          },
+          border: '#e5e7eb',
+          success: styling.colorScheme.success,
+          warning: '#f59e0b',
+          error: styling.colorScheme.error
         }
-      }
-    });
+      };
 
-    // Update progress to completed
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'completed',
-      `Applied styling to ${styling.styleMap.length} elements`
-    );
+      // Update TCC with styling using updateTCC to avoid race conditions (skip in mock mode)
+      await updateTCC(jobId, {
+        styling: stylingForTCC,
+        steps: {
+          ...tcc.steps,
+          applyingTailwindStyling: {
+            status: OrchestrationStatusEnum.enum.completed,
+            startedAt: tcc.steps?.applyingTailwindStyling?.startedAt || new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            result: stylingForTCC
+          }
+        }
+      });
+
+      // Update progress to completed (skip in mock mode)
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'completed',
+        `Applied styling to ${styling.styleMap.length} elements`
+      );
+    }
 
     logger.info({ 
       jobId, 
@@ -165,12 +189,14 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
       } : String(error) 
     }, '🎨 TailwindStyling: Error applying styling');
     
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'failed',
-      `Styling application failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+    if (!mockTcc) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'failed',
+        `Styling application failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
 
     return {
       success: false,
@@ -185,29 +211,7 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
 async function generateTailwindStyling(
   tcc: ToolConstructionContext, 
   selectedModel?: string
-): Promise<{
-  styledComponentCode: string;
-  styleMap: Array<{
-    elementId: string;
-    tailwindClasses: string[];
-    responsiveVariants: Record<string, string[]>;
-    stateVariants: Record<string, string[]>;
-  }>;
-  colorScheme: {
-    primary: string;
-    secondary: string;
-    accent: string;
-    neutral: string;
-    error: string;
-    success: string;
-  };
-  designTokens: {
-    spacing: Record<string, string>;
-    typography: Record<string, string>;
-    shadows: Record<string, string>;
-    animations: Record<string, string>;
-  };
-}> {
+): Promise<TailwindStylingResult> {
   // Determine model to use following established pattern
   let modelConfig: { provider: string; modelId: string };
   let actualModelName: string;

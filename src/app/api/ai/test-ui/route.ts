@@ -166,6 +166,8 @@ function createBaseToolDefinition(): ProductToolDefinition {
       }
     `,
     
+    componentSet: 'legacy',
+    
     colorScheme: {
       primary: '#3b82f6',
       secondary: '#1e40af',

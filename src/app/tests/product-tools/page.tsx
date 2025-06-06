@@ -61,6 +61,8 @@ const sampleROICalculator: ProductToolDefinition = {
     }
   },
   
+  componentSet: 'shadcn',
+  
   componentCode: `'use client';
 
 import React, { useState } from 'react';

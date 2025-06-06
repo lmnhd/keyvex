@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductToolService from '@/lib/db/dynamodb/product-tools';
-import { UpdateProductToolRequest } from '@/lib/types/product-tool';
+import { ProductToolService } from '@/lib/db/dynamodb/product-tools';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+
+interface UpdateProductToolRequest {
+  definition: ProductToolDefinition;
+}
 
 // ============================================================================
 // GET /api/product-tools/[toolId] - Get specific product tool
@@ -8,10 +12,10 @@ import { UpdateProductToolRequest } from '@/lib/types/product-tool';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { toolId: string } }
+  { params }: { params: Promise<{ toolId: string }> }
 ) {
   try {
-    const { toolId } = params;
+    const { toolId } = await params;
     
     if (!toolId) {
       return NextResponse.json(
@@ -24,7 +28,20 @@ export async function GET(
       );
     }
     
-    const tool = await ProductToolService.getProductTool(toolId);
+    // For public access, we need to try to get the tool without requiring userId
+    const userId = request.headers.get('x-user-id'); // May be null for public access
+    
+    let tool: ProductToolDefinition | null = null;
+    
+    if (userId) {
+      // User is authenticated, try to get their private tool
+      tool = await ProductToolService.getProductTool(toolId, userId);
+    }
+    
+    if (!tool) {
+      // Either no user ID or private tool not found, try public access
+      tool = await ProductToolService.getPublicProductTool(toolId);
+    }
     
     if (!tool) {
       return NextResponse.json(
@@ -39,7 +56,7 @@ export async function GET(
     
     // Record analytics for tool viewing
     const sessionId = request.headers.get('x-session-id') || `session_${Date.now()}`;
-    await ProductToolService.recordToolUsage(toolId, sessionId, null);
+    await ProductToolService.recordToolUsage(toolId, sessionId, userId, 'view');
     
     return NextResponse.json({
       success: true,
@@ -65,7 +82,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { toolId: string } }
+  { params }: { params: Promise<{ toolId: string }> }
 ) {
   try {
     // Note: Auth would be handled by middleware in production
@@ -82,7 +99,7 @@ export async function PUT(
       );
     }
     
-    const { toolId } = params;
+    const { toolId } = await params;
     const body: UpdateProductToolRequest = await request.json();
     
     if (!toolId) {
@@ -149,7 +166,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { toolId: string } }
+  { params }: { params: Promise<{ toolId: string }> }
 ) {
   try {
     // Note: Auth would be handled by middleware in production
@@ -166,7 +183,7 @@ export async function DELETE(
       );
     }
     
-    const { toolId } = params;
+    const { toolId } = await params;
     
     if (!toolId) {
       return NextResponse.json(

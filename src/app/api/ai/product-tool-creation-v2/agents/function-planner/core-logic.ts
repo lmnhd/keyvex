@@ -8,10 +8,18 @@ import { generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
+// Type definitions for function planning
+export type FunctionPlannerResult = {
+  success: boolean;
+  functionSignatures?: DefinedFunctionSignature[];
+  error?: string;
+};
+
 // Input schema for the function planner
 const FunctionPlannerRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
 });
 
 export type FunctionPlannerRequest = z.infer<typeof FunctionPlannerRequestSchema>;
@@ -33,12 +41,8 @@ function createModelInstance(provider: string, modelId: string) {
  * Analyzes user input and generates function signatures that will be needed
  * for the React component, creating shared interfaces for State and JSX agents.
  */
-export async function planFunctionSignatures(request: FunctionPlannerRequest): Promise<{
-  success: boolean;
-  functionSignatures?: DefinedFunctionSignature[];
-  error?: string;
-}> {
-  const { jobId, selectedModel } = FunctionPlannerRequestSchema.parse(request);
+export async function planFunctionSignatures(request: FunctionPlannerRequest): Promise<FunctionPlannerResult> {
+  const { jobId, selectedModel, mockTcc } = FunctionPlannerRequestSchema.parse(request);
 
   console.log('🔧 FunctionPlanner: ==================== STARTING FUNCTION SIGNATURE PLANNING ====================');
   console.log('🔧 FunctionPlanner: Request parameters:', { 
@@ -48,13 +52,21 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
   });
 
   try {
-    // Load current TCC state
-    console.log('🔧 FunctionPlanner: Loading TCC state from store...');
-    const tcc = await getTCC(jobId);
-    if (!tcc) {
-      const errorMsg = `TCC not found for jobId: ${jobId}`;
-      console.error('🔧 FunctionPlanner: ❌ CRITICAL ERROR - TCC not found:', errorMsg);
-      throw new Error(errorMsg);
+    let tcc: ToolConstructionContext;
+    
+    if (mockTcc) {
+      console.log('🔧 FunctionPlanner: 🧪 MOCK MODE - Using provided mock TCC');
+      tcc = mockTcc as ToolConstructionContext;
+    } else {
+      // Load current TCC state
+      console.log('🔧 FunctionPlanner: Loading TCC state from store...');
+      const loadedTcc = await getTCC(jobId);
+      if (!loadedTcc) {
+        const errorMsg = `TCC not found for jobId: ${jobId}`;
+        console.error('🔧 FunctionPlanner: ❌ CRITICAL ERROR - TCC not found:', errorMsg);
+        throw new Error(errorMsg);
+      }
+      tcc = loadedTcc;
     }
 
     console.log('🔧 FunctionPlanner: ✅ TCC loaded successfully');
@@ -70,28 +82,31 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
     logger.info({ 
       jobId, 
       selectedModel: selectedModel || 'default',
-      stepName: 'planning_function_signatures' 
+      stepName: 'planning_function_signatures',
+      isMockMode: !!mockTcc
     }, '🔧 FunctionPlanner: Starting function signature planning');
 
-    // Update status to in_progress
-    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - STARTED...');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'started',
-      'Analyzing user requirements to plan function signatures...'
-    );
-    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - STARTED');
+    if (!mockTcc) {
+      // Update status to in_progress (skip in mock mode)
+      console.log('🔧 FunctionPlanner: Emitting WebSocket progress - STARTED...');
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.planning_function_signatures,
+        'started',
+        'Analyzing user requirements to plan function signatures...'
+      );
+      console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - STARTED');
 
-    // Update TCC status
-    console.log('🔧 FunctionPlanner: Updating TCC status to IN_PROGRESS...');
-    const tccInProgress = {
-      ...tcc,
-      status: OrchestrationStatusEnum.enum.in_progress,
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(tccInProgress);
-    console.log('🔧 FunctionPlanner: ✅ TCC status updated to IN_PROGRESS');
+      // Update TCC status (skip in mock mode)
+      console.log('🔧 FunctionPlanner: Updating TCC status to IN_PROGRESS...');
+      const tccInProgress = {
+        ...tcc,
+        status: OrchestrationStatusEnum.enum.in_progress,
+        updatedAt: new Date().toISOString()
+      };
+      await saveTCC(tccInProgress);
+      console.log('🔧 FunctionPlanner: ✅ TCC status updated to IN_PROGRESS');
+    }
 
     // Generate function signatures using AI with proper model selection
     console.log('🔧 FunctionPlanner: Calling AI to generate function signatures...');
@@ -103,35 +118,37 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
     const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
     console.log('🔧 FunctionPlanner: ✅ AI generated function signatures:', functionSignatures);
 
-    // Update TCC with function signatures
-    console.log('🔧 FunctionPlanner: Updating TCC with generated function signatures...');
-    const updatedTCC: ToolConstructionContext = {
-      ...tcc,
-      currentOrchestrationStep: OrchestrationStepEnum.enum.designing_state_logic,
-      status: OrchestrationStatusEnum.enum.pending,
-      definedFunctionSignatures: functionSignatures,
-      functionSignatures: functionSignatures, // Add backward compatibility alias
-      updatedAt: new Date().toISOString()
-    };
+    if (!mockTcc) {
+      // Update TCC with function signatures (skip in mock mode)
+      console.log('🔧 FunctionPlanner: Updating TCC with generated function signatures...');
+      const updatedTCC: ToolConstructionContext = {
+        ...tcc,
+        currentOrchestrationStep: OrchestrationStepEnum.enum.designing_state_logic,
+        status: OrchestrationStatusEnum.enum.pending,
+        definedFunctionSignatures: functionSignatures,
+        functionSignatures: functionSignatures, // Add backward compatibility alias
+        updatedAt: new Date().toISOString()
+      };
 
-    await saveTCC(updatedTCC);
-    console.log('🔧 FunctionPlanner: ✅ TCC updated with function signatures');
-    console.log('🔧 FunctionPlanner: TCC function signature fields set:', {
-      definedFunctionSignatures: functionSignatures.length,
-      functionSignatures: functionSignatures.length, // Both fields should be identical
-      signatureNames: functionSignatures.map(f => f.name)
-    });
-    console.log('🔧 FunctionPlanner: Next orchestration step set to:', OrchestrationStepEnum.enum.designing_state_logic);
+      await saveTCC(updatedTCC);
+      console.log('🔧 FunctionPlanner: ✅ TCC updated with function signatures');
+      console.log('🔧 FunctionPlanner: TCC function signature fields set:', {
+        definedFunctionSignatures: functionSignatures.length,
+        functionSignatures: functionSignatures.length, // Both fields should be identical
+        signatureNames: functionSignatures.map(f => f.name)
+      });
+      console.log('🔧 FunctionPlanner: Next orchestration step set to:', OrchestrationStepEnum.enum.designing_state_logic);
 
-    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - COMPLETED...');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'completed',
-      `Generated ${functionSignatures.length} function signatures for component interaction.`,
-      { functionCount: functionSignatures.length, signatures: functionSignatures.map(f => f.name) }
-    );
-    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - COMPLETED');
+      console.log('🔧 FunctionPlanner: Emitting WebSocket progress - COMPLETED...');
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.planning_function_signatures,
+        'completed',
+        `Generated ${functionSignatures.length} function signatures for component interaction.`,
+        { functionCount: functionSignatures.length, signatures: functionSignatures.map(f => f.name) }
+      );
+      console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - COMPLETED');
+    }
 
     logger.info({ 
       jobId, 
@@ -173,15 +190,17 @@ export async function planFunctionSignatures(request: FunctionPlannerRequest): P
       } : String(error) 
     }, '🔧 FunctionPlanner: Error planning function signatures');
     
-    console.log('🔧 FunctionPlanner: Emitting WebSocket progress - FAILED...');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'failed',
-      `Failed to plan function signatures: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      { errorDetails: { message: String(error) } }
-    );
-    console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - FAILED');
+    if (!mockTcc) {
+      console.log('🔧 FunctionPlanner: Emitting WebSocket progress - FAILED...');
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.planning_function_signatures,
+        'failed',
+        `Failed to plan function signatures: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { errorDetails: { message: String(error) } }
+      );
+      console.log('🔧 FunctionPlanner: ✅ WebSocket progress emitted - FAILED');
+    }
 
     console.error('🔧 FunctionPlanner: ==================== FUNCTION SIGNATURE PLANNING FAILED ====================');
     return {

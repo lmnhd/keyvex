@@ -14,9 +14,44 @@ export async function POST(request: NextRequest) {
       jobId: body.jobId,
       selectedModel: body.selectedModel || 'default',
       hasJobId: !!body.jobId,
+      hasMockTcc: !!body.mockTcc,
       bodyKeys: Object.keys(body)
     });
 
+    // Check if this is a mock testing scenario
+    if (body.mockTcc) {
+      console.log('🏗️ JSXLayout Route: 🧪 MOCK TESTING MODE DETECTED');
+      console.log('🏗️ JSXLayout Route: Using provided mock TCC for testing');
+      
+      console.log('🏗️ JSXLayout Route: Calling designJsxLayout with mock data...');
+      const startTime = Date.now();
+      const result = await designJsxLayout({
+        jobId: body.mockTcc.jobId || crypto.randomUUID(),
+        selectedModel: body.selectedModel || body.mockTcc.agentModelMapping?.['jsx-layout'] || 'gpt-4-turbo',
+        mockTcc: body.mockTcc
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('🏗️ JSXLayout Route: ✅ Mock testing completed:', {
+        success: result.success,
+        duration: `${duration}ms`,
+        hasJsxLayout: !!result.jsxLayout,
+        componentStructureLength: result.jsxLayout?.componentStructure?.length || 0,
+        elementMapCount: result.jsxLayout?.elementMap?.length || 0,
+        error: result.error || 'none'
+      });
+
+      // For mock testing, return immediately without triggering orchestration
+      return NextResponse.json({
+        success: result.success,
+        jsxLayout: result.jsxLayout,
+        message: result.success ? 'JSX layout designed successfully (mock mode)' : 'JSX layout design failed (mock mode)',
+        mockMode: true,
+        error: result.error
+      });
+    }
+
+    // Normal orchestration mode
     console.log('🏗️ JSXLayout Route: Calling designJSXLayout core function...');
     const startTime = Date.now();
     const result = await designJsxLayout({

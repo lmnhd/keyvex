@@ -3,8 +3,52 @@ import { planFunctionSignatures } from './core-logic';
 import { getTCC } from '@/lib/db/tcc-store';
 
 export async function POST(request: NextRequest) {
+  console.log('📋 FunctionPlanner Route: ==================== INCOMING REQUEST ====================');
+  console.log('📋 FunctionPlanner Route: Request received at:', new Date().toISOString());
+
   try {
     const body = await request.json();
+    
+    console.log('📋 FunctionPlanner Route: ✅ Request body parsed:', {
+      jobId: body.jobId,
+      selectedModel: body.selectedModel || 'default',
+      hasJobId: !!body.jobId,
+      hasMockTcc: !!body.mockTcc,
+      bodyKeys: Object.keys(body)
+    });
+
+    // Check if this is a mock testing scenario
+    if (body.mockTcc) {
+      console.log('📋 FunctionPlanner Route: 🧪 MOCK TESTING MODE DETECTED');
+      console.log('📋 FunctionPlanner Route: Using provided mock TCC for testing');
+      
+      console.log('📋 FunctionPlanner Route: Calling planFunctionSignatures with mock data...');
+      const startTime = Date.now();
+      const result = await planFunctionSignatures({
+        jobId: body.mockTcc.jobId || crypto.randomUUID(),
+        selectedModel: body.selectedModel || body.mockTcc.agentModelMapping?.['function-planner'] || 'gpt-4-turbo',
+        mockTcc: body.mockTcc
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('📋 FunctionPlanner Route: ✅ Mock testing completed:', {
+        success: result.success,
+        duration: `${duration}ms`,
+        functionSignaturesCount: result.functionSignatures?.length || 0,
+        error: result.error || 'none'
+      });
+
+      // For mock testing, return immediately without triggering orchestration
+      return NextResponse.json({
+        success: result.success,
+        functionSignatures: result.functionSignatures,
+        message: result.success ? 'Function signatures planned successfully (mock mode)' : 'Function planning failed (mock mode)',
+        mockMode: true,
+        error: result.error
+      });
+    }
+
+    // Normal orchestration mode
     const result = await planFunctionSignatures({
       jobId: body.jobId,
       selectedModel: body.selectedModel

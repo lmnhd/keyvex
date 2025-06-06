@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { currentUser } from '@clerk/nextjs/server';
-import ProductToolService from '@/lib/db/dynamodb/product-tools';
-import { CreateProductToolRequest, ProductToolStatus, ProductToolType } from '@/lib/types/product-tool';
+import { ProductToolService } from '@/lib/db/dynamodb';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
+
+// Define missing types
+type ProductToolStatus = 'draft' | 'published' | 'archived' | 'public';
+type ProductToolType = string;
+
+interface CreateProductToolRequest {
+  definition: ProductToolDefinition;
+}
 
 // ============================================================================
 // GET /api/product-tools - List product tools
@@ -27,7 +35,18 @@ export async function GET(request: NextRequest) {
       filters.userId = user.id;
     }
     
-    const result = await ProductToolService.listProductTools(filters);
+    // Use existing method for listing - adjust filters accordingly
+    let result;
+    if (filters.userId) {
+      result = await ProductToolService.listUserTools(filters.userId);
+    } else if (filters.status) {
+      result = await ProductToolService.getToolsByStatus(filters.status, filters.limit);
+    } else if (filters.type) {
+      result = await ProductToolService.getToolsByType(filters.type, filters.limit);
+    } else {
+      // Default to published tools for public browsing
+      result = await ProductToolService.getToolsByStatus('published', filters.limit);
+    }
     
     return NextResponse.json({
       success: true,
@@ -87,7 +106,7 @@ export async function POST(request: NextRequest) {
       status: body.definition.status || 'draft' as ProductToolStatus
     };
     
-    const result = await ProductToolService.createProductTool(
+    const result = await ProductToolService.saveProductTool(
       definition,
       user.id
     );

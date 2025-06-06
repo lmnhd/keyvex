@@ -8,10 +8,26 @@ import { generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
+// Type definitions for JSX layout components
+export type ElementMap = {
+  elementId: string;
+  type: string;
+  purpose: string;
+  placeholderClasses: string[];
+};
+
+export type JsxLayoutResult = {
+  componentStructure: string;
+  elementMap: ElementMap[];
+  accessibilityFeatures: string[];
+  responsiveBreakpoints: string[];
+};
+
 // Input schema
 const JsxLayoutRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
 });
 
 export type JsxLayoutRequest = z.infer<typeof JsxLayoutRequestSchema>;
@@ -29,20 +45,10 @@ function createModelInstance(provider: string, modelId: string) {
  */
 export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
   success: boolean;
-  jsxLayout?: {
-    componentStructure: string;
-    elementMap: Array<{
-      elementId: string;
-      type: string;
-      purpose: string;
-      placeholderClasses: string[];
-    }>;
-    accessibilityFeatures: string[];
-    responsiveBreakpoints: string[];
-  };
+  jsxLayout?: JsxLayoutResult;
   error?: string;
 }> {
-  const { jobId, selectedModel } = JsxLayoutRequestSchema.parse(request);
+  const { jobId, selectedModel, mockTcc } = JsxLayoutRequestSchema.parse(request);
 
   console.log('🏗️ JSXLayout: ==================== STARTING JSX LAYOUT DESIGN ====================');
   console.log('🏗️ JSXLayout: Request parameters:', { 
@@ -52,8 +58,17 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
   });
 
   try {
-    const tcc = await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+    let tcc: ToolConstructionContext;
+    
+    if (mockTcc) {
+      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Using provided mock TCC');
+      tcc = mockTcc as ToolConstructionContext;
+    } else {
+      console.log('🏗️ JSXLayout: Loading TCC state from store...');
+      const loadedTcc = await getTCC(jobId);
+      if (!loadedTcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+      tcc = loadedTcc;
+    }
 
     console.log('🏗️ JSXLayout: ✅ TCC loaded successfully');
     console.log('🏗️ JSXLayout: TCC Analysis:', {
@@ -78,17 +93,21 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
       hasStateLogic: !!tcc.stateLogic 
     }, '🏗️ JSXLayout: Starting JSX layout design');
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'started', 'Designing JSX layout...');
+    if (!mockTcc) {
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'started', 'Designing JSX layout...');
 
-    // Update TCC status
-    console.log('🏗️ JSXLayout: Updating TCC status to IN_PROGRESS...');
-    const tccInProgress = {
-      ...tcc,
-      status: OrchestrationStatusEnum.enum.in_progress,
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(tccInProgress);
-    console.log('🏗️ JSXLayout: ✅ TCC status updated to IN_PROGRESS');
+      // Update TCC status
+      console.log('🏗️ JSXLayout: Updating TCC status to IN_PROGRESS...');
+      const tccInProgress = {
+        ...tcc,
+        status: OrchestrationStatusEnum.enum.in_progress,
+        updatedAt: new Date().toISOString()
+      };
+      await saveTCC(tccInProgress);
+      console.log('🏗️ JSXLayout: ✅ TCC status updated to IN_PROGRESS');
+    } else {
+      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Skipping WebSocket and TCC status updates');
+    }
 
     // Generate JSX layout with AI
     console.log('🏗️ JSXLayout: Calling AI to generate JSX layout...');
@@ -107,23 +126,27 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
       elementTypes: jsxLayout.elementMap.map(el => el.type)
     });
 
-    // Update TCC with results using updateTCC to avoid race conditions
-    console.log('🏗️ JSXLayout: Updating TCC with jsxLayout using updateTCC...');
-    await updateTCC(jobId, {
-      jsxLayout,
-      steps: {
-        ...tccInProgress.steps,
-        designingJsxLayout: {
-          status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tccInProgress.steps?.designingJsxLayout?.startedAt || new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          result: jsxLayout
+    if (!mockTcc) {
+      // Update TCC with results using updateTCC to avoid race conditions
+      console.log('🏗️ JSXLayout: Updating TCC with jsxLayout using updateTCC...');
+      await updateTCC(jobId, {
+        jsxLayout,
+        steps: {
+          ...tcc.steps,
+          designingJsxLayout: {
+            status: OrchestrationStatusEnum.enum.completed,
+            startedAt: tcc.steps?.designingJsxLayout?.startedAt || new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            result: jsxLayout
+          }
         }
-      }
-    });
-    console.log('🏗️ JSXLayout: ✅ TCC updated successfully with jsxLayout data');
+      });
+      console.log('🏗️ JSXLayout: ✅ TCC updated successfully with jsxLayout data');
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'completed', `Generated JSX layout with ${jsxLayout.elementMap.length} elements`);
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'completed', `Generated JSX layout with ${jsxLayout.elementMap.length} elements`);
+    } else {
+      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Skipping TCC updates and WebSocket progress');
+    }
 
     logger.info({ 
       jobId, 
@@ -178,7 +201,7 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
 /**
  * Generate JSX layout using AI
  */
-async function generateJsxLayout(tcc: ToolConstructionContext, selectedModel?: string) {
+async function generateJsxLayout(tcc: ToolConstructionContext, selectedModel?: string): Promise<JsxLayoutResult> {
   // Model selection logic
   let modelConfig: { provider: string; modelId: string };
   let actualModelName: string;

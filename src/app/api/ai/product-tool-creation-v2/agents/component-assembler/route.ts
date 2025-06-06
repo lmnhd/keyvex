@@ -17,9 +17,51 @@ async function checkParallelCompletion(baseUrl: string, jobId: string) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('🔧 ComponentAssembler Route: ==================== INCOMING REQUEST ====================');
+  console.log('🔧 ComponentAssembler Route: Request received at:', new Date().toISOString());
+
   try {
     const body = await request.json();
     
+    console.log('🔧 ComponentAssembler Route: ✅ Request body parsed:', {
+      jobId: body.jobId,
+      selectedModel: body.selectedModel || 'default',
+      hasJobId: !!body.jobId,
+      hasMockTcc: !!body.mockTcc,
+      bodyKeys: Object.keys(body)
+    });
+
+    // Check if this is a mock testing scenario
+    if (body.mockTcc) {
+      console.log('🔧 ComponentAssembler Route: 🧪 MOCK TESTING MODE DETECTED');
+      console.log('🔧 ComponentAssembler Route: Using provided mock TCC for testing');
+      
+      console.log('🔧 ComponentAssembler Route: Calling assembleComponent with mock data...');
+      const startTime = Date.now();
+      const result = await assembleComponent({
+        ...body,
+        mockTcc: body.mockTcc
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('🔧 ComponentAssembler Route: ✅ Mock testing completed:', {
+        success: result.success,
+        duration: `${duration}ms`,
+        hasAssembledComponent: !!result.assembledComponent,
+        error: result.error || 'none'
+      });
+
+      // For mock testing, return immediately without triggering orchestration
+      return NextResponse.json({
+        success: result.success,
+        assembledComponent: result.assembledComponent,
+        message: result.success ? 'Component assembled successfully (mock mode)' : 'Component assembly failed (mock mode)',
+        mockMode: true,
+        error: result.error
+      });
+    }
+
+    // Normal orchestration mode
     logger.info({ jobId: body.jobId }, '🔧 ComponentAssembler: Route handler started');
     
     const result = await assembleComponent(body);

@@ -15,9 +15,44 @@ export async function POST(request: NextRequest) {
       jobId: body.jobId,
       selectedModel: body.selectedModel || 'default',
       hasJobId: !!body.jobId,
+      hasMockTcc: !!body.mockTcc,
       bodyKeys: Object.keys(body)
     });
 
+    // Check if this is a mock testing scenario
+    if (body.mockTcc) {
+      console.log('🎨 TailwindStyling Route: 🧪 MOCK TESTING MODE DETECTED');
+      console.log('🎨 TailwindStyling Route: Using provided mock TCC for testing');
+      
+      console.log('🎨 TailwindStyling Route: Calling applyStyling with mock data...');
+      const startTime = Date.now();
+      const result = await applyStyling({
+        jobId: body.mockTcc.jobId || crypto.randomUUID(),
+        selectedModel: body.selectedModel || body.mockTcc.agentModelMapping?.['tailwind-styling'] || 'claude-3-5-sonnet-20240620',
+        mockTcc: body.mockTcc
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('🎨 TailwindStyling Route: ✅ Mock testing completed:', {
+        success: result.success,
+        duration: `${duration}ms`,
+        hasStyling: !!result.styling,
+        styleMapCount: result.styling?.styleMap?.length || 0,
+        colorSchemeKeys: result.styling?.colorScheme ? Object.keys(result.styling.colorScheme).length : 0,
+        error: result.error || 'none'
+      });
+
+      // For mock testing, return immediately without triggering orchestration
+      return NextResponse.json({
+        success: result.success,
+        styling: result.styling,
+        message: result.success ? 'Tailwind styling applied successfully (mock mode)' : 'Tailwind styling failed (mock mode)',
+        mockMode: true,
+        error: result.error
+      });
+    }
+
+    // Normal orchestration mode
     console.log('🎨 TailwindStyling Route: Calling applyStyling core function...');
     const startTime = Date.now();
     const result = await applyStyling({

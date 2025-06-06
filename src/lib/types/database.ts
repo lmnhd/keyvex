@@ -12,9 +12,9 @@ export interface KeyvexTableItem {
   createdAt: number;    // Unix timestamp
   updatedAt: number;    // Unix timestamp
   ttl?: number;         // Auto-expire for temporary data
-  metadata: Record<string, any>; // Extensible metadata
+  metadata: Record<string, unknown>; // Extensible metadata
   version: number;      // For optimistic locking
-  [key: string]: any;   // Entity-specific fields
+  [key: string]: unknown;   // Entity-specific fields
 }
 
 export type EntityType = 
@@ -47,8 +47,8 @@ export interface UserItem extends KeyvexTableItem {
   profileImage?: string;
   subscriptionTier: string;
   subscriptionStatus: string;
-  preferences: Record<string, any>;
-  usage: Record<string, any>;
+  preferences: Record<string, unknown>;
+  usage: Record<string, unknown>;
   lastLoginAt?: number;
 }
 
@@ -67,9 +67,9 @@ export interface ToolItem extends KeyvexTableItem {
   description: string;
   type: string;
   status: string;
-  configuration: Record<string, any>;
-  styling: Record<string, any>;
-  analytics: Record<string, any>;
+  configuration: Record<string, unknown>;
+  styling: Record<string, unknown>;
+  analytics: Record<string, unknown>;
   publishedAt?: number;
 }
 
@@ -85,7 +85,7 @@ export interface AISessionItem extends KeyvexTableItem {
   toolId?: string;
   currentStep: string;
   status: string;
-  sessionData: Record<string, any>;
+  sessionData: Record<string, unknown>;
   expiresAt?: number;
 }
 
@@ -113,8 +113,8 @@ export interface LeadItem extends KeyvexTableItem {
   email: string;
   name?: string;
   phone?: string;
-  customFields: Record<string, any>;
-  responses: Record<string, any>[];
+  customFields: Record<string, unknown>;
+  responses: Record<string, unknown>[];
   score?: number;
   result?: string;
   resultCategory?: string;
@@ -133,7 +133,7 @@ export interface ToolInteractionItem extends KeyvexTableItem {
   sessionId?: string;
   userId?: string;
   interactionType: string;
-  interactionData: Record<string, any>;
+  interactionData: Record<string, unknown>;
   timestamp: number;
 }
 
@@ -203,7 +203,7 @@ export interface UserIntegrationItem extends KeyvexTableItem {
   integrationId: string;
   type: string;
   name: string;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   status: string;
   lastSync?: number;
   syncErrors?: string[];
@@ -257,7 +257,7 @@ export interface TeamItem extends KeyvexTableItem {
   name: string;
   slug: string;
   ownerId: string;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
 }
 
 // Team Member entity
@@ -279,23 +279,23 @@ export interface TeamMemberItem extends KeyvexTableItem {
 
 // Query patterns and helper types
 export interface QueryParams {
-  PK: string;
+  PK?: string;
   SK?: string;
   GSI1PK?: string;
   GSI1SK?: string;
   GSI2PK?: string;
   GSI2SK?: string;
   limit?: number;
-  exclusiveStartKey?: Record<string, any>;
+  exclusiveStartKey?: Record<string, unknown>;
   scanIndexForward?: boolean;
   filterExpression?: string;
   expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, any>;
+  expressionAttributeValues?: Record<string, unknown>;
 }
 
 export interface QueryResult<T extends KeyvexTableItem> {
   items: T[];
-  lastEvaluatedKey?: Record<string, any>;
+  lastEvaluatedKey?: Record<string, unknown>;
   count: number;
   scannedCount: number;
 }
@@ -317,7 +317,7 @@ export interface UpdateRequest {
   SK: string;
   updateExpression: string;
   expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, any>;
+  expressionAttributeValues?: Record<string, unknown>;
   conditionExpression?: string;
 }
 
@@ -326,7 +326,7 @@ export interface ConditionCheckRequest {
   SK: string;
   conditionExpression: string;
   expressionAttributeNames?: Record<string, string>;
-  expressionAttributeValues?: Record<string, any>;
+  expressionAttributeValues?: Record<string, unknown>;
 }
 
 // Database operation types

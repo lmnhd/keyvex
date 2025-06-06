@@ -8,10 +8,30 @@ import { generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
+// Type definitions for component assembly
+export type AssembledComponent = {
+  finalComponentCode: string;
+  imports: string[];
+  hooks: string[];
+  functions: string[];
+  metadata: {
+    componentName: string;
+    dependencies: string[];
+    estimatedLines: number;
+  };
+};
+
+export type ComponentAssemblerResult = {
+  success: boolean;
+  assembledComponent?: AssembledComponent;
+  error?: string;
+};
+
 // Input schema
 const ComponentAssemblerRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
 });
 
 export type ComponentAssemblerRequest = z.infer<typeof ComponentAssemblerRequestSchema>;
@@ -27,62 +47,67 @@ function createModelInstance(provider: string, modelId: string) {
 /**
  * Component Assembler Agent - Combines JSX, state, and styling into final React component
  */
-export async function assembleComponent(request: ComponentAssemblerRequest): Promise<{
-  success: boolean;
-  assembledComponent?: {
-    finalComponentCode: string;
-    imports: string[];
-    hooks: string[];
-    functions: string[];
-    metadata: {
-      componentName: string;
-      dependencies: string[];
-      estimatedLines: number;
-    };
-  };
-  error?: string;
-}> {
-  const { jobId, selectedModel } = ComponentAssemblerRequestSchema.parse(request);
+export async function assembleComponent(request: ComponentAssemblerRequest): Promise<ComponentAssemblerResult> {
+  const { jobId, selectedModel, mockTcc } = ComponentAssemblerRequestSchema.parse(request);
 
   try {
-    const tcc = await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+    let tcc: ToolConstructionContext;
+    
+    if (mockTcc) {
+      console.log('🔧 ComponentAssembler: 🧪 MOCK MODE - Using provided mock TCC');
+      tcc = mockTcc as ToolConstructionContext;
+    } else {
+      console.log('🔧 ComponentAssembler: Loading TCC state from store...');
+      const loadedTcc = await getTCC(jobId);
+      if (!loadedTcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+      tcc = loadedTcc;
+    }
 
-    logger.info({ jobId, selectedModel: selectedModel || 'default' }, '🔧 ComponentAssembler: Starting');
+    logger.info({ 
+      jobId, 
+      selectedModel: selectedModel || 'default',
+      isMockMode: !!mockTcc 
+    }, '🔧 ComponentAssembler: Starting');
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'started', 'Assembling final component...');
+    if (!mockTcc) {
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'started', 'Assembling final component...');
+    }
 
     // Validate we have all required pieces
     if (!tcc.jsxLayout) throw new Error('JSX Layout not found in TCC');
     if (!tcc.stateLogic) throw new Error('State Logic not found in TCC');
     if (!(tcc as any).styling) throw new Error('Styling not found in TCC');
 
-    // Update TCC status
-    const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
-    await saveTCC(tccInProgress);
+    if (!mockTcc) {
+      // Update TCC status (skip in mock mode)
+      const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
+      await saveTCC(tccInProgress);
+    }
 
     // Assemble the component with AI
     const assembledComponent = await generateAssembledComponent(tcc, selectedModel);
 
-    // Update TCC with results
-    const updatedTCC = {
-      ...tccInProgress,
-      assembledComponentCode: assembledComponent.finalComponentCode,
-      steps: {
-        ...tccInProgress.steps,
-        assemblingComponent: {
-          status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tccInProgress.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          result: assembledComponent
-        }
-      },
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(updatedTCC);
+    if (!mockTcc) {
+      // Update TCC with results (skip in mock mode)
+      const updatedTCC = {
+        ...tcc,
+        assembledComponentCode: assembledComponent.finalComponentCode,
+        steps: {
+          ...tcc.steps,
+          assemblingComponent: {
+            status: OrchestrationStatusEnum.enum.completed,
+            startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            result: assembledComponent
+          }
+        },
+        updatedAt: new Date().toISOString()
+      };
+      await saveTCC(updatedTCC);
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
-      `Component assembled: ${assembledComponent.metadata.estimatedLines} lines, ${assembledComponent.metadata.dependencies.length} dependencies`);
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
+        `Component assembled: ${assembledComponent.metadata.estimatedLines} lines, ${assembledComponent.metadata.dependencies.length} dependencies`);
+    }
 
     logger.info({ 
       jobId, 
@@ -94,8 +119,12 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
 
   } catch (error) {
     logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '🔧 ComponentAssembler: Error');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
-      `Component assembly failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    
+    if (!mockTcc) {
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
+        `Component assembly failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
   }
 }

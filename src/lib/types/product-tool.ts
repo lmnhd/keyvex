@@ -47,7 +47,7 @@ export interface ProductToolDefinition {
   id: string;
   slug: string;
   version: string;
-  status: 'draft' | 'published' | 'archived';
+  status: 'draft' | 'published' | 'archived' | 'public';
   createdAt: number;
   updatedAt: number;
   createdBy: string;

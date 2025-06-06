@@ -487,15 +487,107 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         setTestJob({ modelId: agentModel, status: 'loading', startTime: Date.now() });
         addWSLog(`Debug: Testing ${selectedAgent} with model ${agentModel}`);
         
-        // Call individual agent endpoint
+        // Call individual agent endpoint with proper mock TCC structure
+        const mockTcc = {
+          jobId: crypto.randomUUID(), // Generate proper UUID
+          userInput: selectedBrainstorm.result?.userInput || {
+            toolType: selectedBrainstorm.toolType || 'Test Tool',
+            targetAudience: selectedBrainstorm.targetAudience || 'General Users',
+            businessContext: selectedBrainstorm.result?.userInput?.businessContext || 'Test tool for agent isolation testing',
+            selectedModel: agentModel
+          },
+          brainstormResult: {
+            description: selectedBrainstorm.result?.userInput?.businessContext || 'Test tool for agent isolation testing',
+            targetAudience: selectedBrainstorm.targetAudience || 'General Users',
+            toolType: selectedBrainstorm.toolType || 'Test Tool',
+            features: ['Basic functionality', 'User interface', 'Data processing'],
+            designConsiderations: ['Clean interface', 'Responsive design', 'Accessibility']
+          },
+          agentModelMapping: agentModelMapping || {},
+          // Add mock function signatures for agents that need them
+          ...(selectedAgent !== 'function-planner' && {
+            functionSignatures: [
+              {
+                name: 'processData',
+                description: 'Process input data',
+                parameters: [
+                  { name: 'input', type: 'any', description: 'Input data to process' }
+                ],
+                returnType: 'ProcessedData'
+              }
+            ]
+          }),
+          // Add mock state logic for agents that need it
+          ...((['jsx-layout', 'tailwind-styling', 'component-assembler'].includes(selectedAgent)) && {
+            stateLogic: {
+              stateVariables: [
+                {
+                  name: 'data',
+                  type: 'any',
+                  initialValue: 'null',
+                  description: 'Main data state'
+                },
+                {
+                  name: 'isLoading',
+                  type: 'boolean',
+                  initialValue: 'false',
+                  description: 'Loading state'
+                }
+              ],
+              functions: [
+                {
+                  name: 'handleDataUpdate',
+                  body: 'setData(newData); setIsLoading(false);',
+                  description: 'Update data state',
+                  dependencies: ['data', 'isLoading']
+                }
+              ]
+            }
+          }),
+          // Add mock JSX layout for styling and assembly agents
+          ...((['tailwind-styling', 'component-assembler'].includes(selectedAgent)) && {
+            jsxLayout: {
+              componentStructure: '<div><h1>Test Component</h1><div>Content</div></div>',
+              elementMap: [
+                { elementId: 'header', purpose: 'Main heading', type: 'h1' },
+                { elementId: 'content', purpose: 'Main content area', type: 'div' }
+              ]
+            }
+          }),
+          // Add mock styling for component assembler
+          ...(selectedAgent === 'component-assembler' && {
+            styling: {
+              styleMap: {
+                'header': 'text-2xl font-bold text-gray-900',
+                'content': 'p-4 bg-gray-50 rounded-lg'
+              },
+              colorScheme: {
+                primary: '#3b82f6',
+                secondary: '#64748b',
+                accent: '#8b5cf6',
+                background: '#ffffff',
+                surface: '#f9fafb',
+                text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+                border: '#e5e7eb',
+                success: '#10b981',
+                warning: '#f59e0b',
+                error: '#ef4444'
+              }
+            }
+          })
+        };
+
         const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${selectedAgent}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userInput: selectedBrainstorm.result?.userInput || {},
+            mockTcc,
             selectedModel: agentModel,
-            selectedModels: selectedModelIds,
-            agentModelMapping,
+            testingOptions: {
+              enableWebSocketStreaming: true,  // Enable streaming for testing
+              enableTccOperations: false,      // Skip TCC store operations
+              enableOrchestrationTriggers: false // Skip orchestration triggers
+            }
           }),
         });
 

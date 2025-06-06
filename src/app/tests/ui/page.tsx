@@ -38,6 +38,7 @@ import { InteractionPanel } from '@/components/tool-creator-ui/interaction-panel
 import { BrainstormingPanel } from '@/components/tool-creator-ui/brainstorming-panel';
 import { SavedLogicPanel } from '@/components/tool-creator-ui/saved-logic-panel';
 import { SavedToolsPanel } from '@/components/tool-creator-ui/saved-tools-panel';
+import { SavedToolsPopup } from './saved-tools-popup';
 import { initBehaviorTracker, getBehaviorTracker } from '@/lib/ai/behavior-tracker';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
@@ -208,6 +209,7 @@ export default function TestUIPage() {
   const [savedTools, setSavedTools] = useState<SavedTool[]>([]);
   const [showLogicSelect, setShowLogicSelect] = useState(false);
   const [showToolsSelect, setShowToolsSelect] = useState(false);
+  const [showSavedToolsPopup, setShowSavedToolsPopup] = useState(false);
 
   // NEW: Saved brainstorm selection mode
   const [useSavedBrainstorm, setUseSavedBrainstorm] = useState(false);
@@ -234,15 +236,18 @@ export default function TestUIPage() {
   // Initialize with first mock question
   useEffect(() => {
     console.log('🔧 Initial setup useEffect triggered:', { useMockData, questionQueueLength: questionQueue.length });
-    if (useMockData && questionQueue.length === 0) {
+    if (useMockData && questionQueue.length === 0 && currentWorkflow[0]) {
       console.log('🔧 Initializing with first mock question');
       setQuestionQueue([currentWorkflow[0]]);
       setCurrentQuestionIndex(0);
       // Also add to question history for consistent editing
       setQuestionHistory([currentWorkflow[0]]);
     }
-    // Note: Removed the AI mode clearing logic to prevent circular dependency
-    // AI responses should be allowed to set questionQueue without interference
+    // Clear question history when switching to AI mode to prevent errors
+    if (!useMockData) {
+      console.log('🔧 Clearing question history for AI mode');
+      setQuestionHistory([]);
+    }
   }, [useMockData, currentWorkflow]); // Removed questionQueue.length dependency
 
   // Handle mode switching - clear queue when switching to AI mode
@@ -276,6 +281,10 @@ export default function TestUIPage() {
   useEffect(() => {
     openToolDB().then(() => {
       console.log("Database opened successfully");
+      
+      // Clear any corrupted tool on startup to prevent rendering errors
+      setProductToolDefinition(null);
+      
       initializeFromStorage(); // Load data from IndexedDB
       
       // Initialize behavior tracker after DB is open and initial data load attempted
@@ -305,7 +314,7 @@ export default function TestUIPage() {
         date: new Date(tool.updatedAt || tool.createdAt || Date.now()).toLocaleString(),
         title: tool.metadata?.title || 'Untitled Tool',
         tool: tool,
-      }));
+      })) as SavedTool[];
       setSavedTools(formattedTools);
       console.log('💾 Loaded saved tools from IndexedDB:', formattedTools.length);
     } catch (error) {
@@ -488,6 +497,13 @@ export default function TestUIPage() {
     const currentQuestion = questionQueue[currentQuestionIndex];
     let tempCollectedAnswers = { ...collectedAnswers };
 
+    // In AI mode, allow freeform input even without a current question
+    if (!currentQuestion && useMockData) {
+      console.warn('No current question available in mock mode');
+      setIsLoading(false);
+      return;
+    }
+
     // Track the interaction before processing
     if (tracker && currentQuestion) {
       const questionId = isInMultiPart 
@@ -514,7 +530,7 @@ export default function TestUIPage() {
       });
     }
 
-    if (currentInput.trim() || currentQuestion.inputType === 'file-upload' || currentQuestion.inputType === 'color-picker') {
+    if (currentQuestion && (currentInput.trim() || currentQuestion.inputType === 'file-upload' || currentQuestion.inputType === 'color-picker')) {
         if (currentQuestion.inputType === 'file-upload') {
             // File upload handling logic (remains unchanged, assuming it doesn't directly save to LS for tools/logic)
         } else if (currentQuestion.inputType === 'color-picker') {
@@ -527,39 +543,58 @@ export default function TestUIPage() {
     }
 
     if (useMockData) {
-      // ... (mock data handling)
+      // Mock data workflow processing
+      console.log("🧪 Mock mode - processing workflow");
+      await processMockWorkflow(tempCollectedAnswers);
+      setIsLoading(false);
     } else {
       // AI Workflow
-      console.log("🤖 AI Workflow: Processing with AI");
-      setIsLoading(true); // Moved setIsLoading here for AI path
-      setLastAIMessage("Processing your input..."); // Moved setLastAIMessage here
-      try {
-        await processWithAI(
-          tempCollectedAnswers,
-          conversationHistory,
-          currentStep,
-          setLastAIMessage,
-          handleAIGeneratedQuestion,
-          setShowBrainstormingPanel,
-          setIsBrainstorming,
-          setBrainstormingThoughts,
-          setIsGeneratingTool,
-          setLatestBrainstormingResult,
-          stubSaveLogicResult, // Add stub function
-          stubSetSavedLogicResults, // Add stub function  
-          stubGetSavedLogicResults, // Add stub function
-          transitionToNewContent,
-          productToolDefinition,
-          setProductToolDefinition
-        );
-        // After processing, if a brainstorm result might have been saved by processWithAI (via ai-processing.ts),
-        // refresh the list from IndexedDB.
-        await loadAndSetSavedLogicResults();
-      } catch (error) {
-        console.error("AI processing error:", error);
-        setLastAIMessage("Sorry, I encountered an error. Please try again.");
-      } finally {
-        setIsLoading(false); // Ensure isLoading is reset
+      console.log("🤖 AI Workflow: Processing with AI", {
+        currentInput,
+        hasCurrentQuestion: !!currentQuestion,
+        tempCollectedAnswers,
+        conversationHistoryLength: conversationHistory.length
+      });
+      
+      if (!currentQuestion && currentInput.trim()) {
+        // Freeform chat mode - use the dedicated freeform handler
+        console.log("🤖 Freeform chat mode detected");
+        await handleMockFreeformInput(currentInput);
+      } else {
+        // Standard AI workflow with questions
+        setIsLoading(true);
+        setLastAIMessage("Processing your input...");
+        try {
+          await processWithAI(
+            tempCollectedAnswers,
+            conversationHistory,
+            currentStep,
+            setLastAIMessage,
+            handleAIGeneratedQuestion,
+            setShowBrainstormingPanel,
+            setIsBrainstorming,
+            setBrainstormingThoughts,
+            setIsGeneratingTool,
+            setLatestBrainstormingResult,
+            stubSaveLogicResult, // Add stub function
+            stubSetSavedLogicResults, // Add stub function  
+            stubGetSavedLogicResults, // Add stub function
+            transitionToNewContent,
+            productToolDefinition,
+            setProductToolDefinition
+          );
+          
+          // Clear the input after processing
+          setCurrentInput('');
+          // After processing, if a brainstorm result might have been saved by processWithAI (via ai-processing.ts),
+          // refresh the list from IndexedDB.
+          await loadAndSetSavedLogicResults();
+        } catch (error) {
+          console.error("AI processing error:", error);
+          setLastAIMessage("Sorry, I encountered an error. Please try again.");
+        } finally {
+          setIsLoading(false); // Ensure isLoading is reset
+        }
       }
     }
     // ... (advanceToNextQuestion or other logic previously here)
@@ -750,6 +785,7 @@ export default function TestUIPage() {
   };
 
   const processMockWorkflow = async (answers: Record<string, string>) => {
+    console.log('🔧 processMockWorkflow called:', { currentStep, workflowLength: currentWorkflow.length, answers });
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     if (currentStep < currentWorkflow.length) {
@@ -880,6 +916,9 @@ export default function TestUIPage() {
     setEditingTarget(null);
     setEditingOverlayFadingOut(false);
     setQuestionHistory([currentWorkflow[0]]); // Reset and start with first question
+    
+    // Clear any corrupted tool on canvas
+    setProductToolDefinition(null);
     
     // Set appropriate welcome message based on workflow
     if (useIteratorTest) {
@@ -1091,6 +1130,17 @@ export default function TestUIPage() {
     // Refresh lists from DB (they should be empty now)
     await loadAndSetSavedTools();
     await loadAndSetSavedLogicResults();
+  };
+
+  // Handler for deleting saved tools
+  const handleDeleteSavedTool = async (toolId: string) => {
+    try {
+      await deleteToolFromDBList(toolId);
+      await loadAndSetSavedTools(); // Refresh the list
+    } catch (error) {
+      console.error('Error deleting tool:', error);
+      throw error; // Re-throw so popup can handle error display
+    }
   };
 
   // Mock tool creation function for testing
@@ -1397,7 +1447,7 @@ function MockBusinessCalculator() {
                   onToggleHistoryPanel={() => setHistoryPanelSide(historyPanelSide === 'left' ? 'right' : 'left')}
                   onResetWorkflow={resetWorkflow}
                   onShowLogicSelect={() => setShowLogicSelect(true)}
-                  onShowToolsSelect={() => setShowToolsSelect(true)}
+                  onShowToolsSelect={() => setShowSavedToolsPopup(true)}
                   onTestBrainstorming={() => {
                     // Test brainstorming functionality
                     setShowOptionsMenu(false);
@@ -1569,7 +1619,7 @@ function MockBusinessCalculator() {
         onClose={() => setShowHistoryPanel(false)}
         side={historyPanelSide}
         answers={collectedAnswers}
-        questionHistory={questionHistory}
+        questionHistory={questionHistory.filter(q => q && q.id && q.inputType && q.message)}
         onAnswerUpdate={handleAnswerUpdate}
         isDarkMode={isDarkMode}
       />
@@ -1653,6 +1703,21 @@ function MockBusinessCalculator() {
           await loadAndSetSavedTools(); // Refresh saved tools list from IndexedDB
           setShowToolsSelect(false);
         }}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* Saved Tools Popup */}
+      <SavedToolsPopup
+        isOpen={showSavedToolsPopup}
+        onClose={() => setShowSavedToolsPopup(false)}
+        savedTools={savedTools}
+        onLoadTool={async (tool) => {
+          console.log('Loading saved tool from popup:', tool);
+          setProductToolDefinition(tool);
+          await saveLastActiveToolToDB(tool); // Save to IndexedDB as last active
+          // Don't close the popup - let user browse multiple tools
+        }}
+        onDeleteTool={handleDeleteSavedTool}
         isDarkMode={isDarkMode}
       />
     </div>

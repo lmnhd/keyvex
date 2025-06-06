@@ -14,9 +14,54 @@ export async function POST(request: NextRequest) {
       jobId: body.jobId,
       selectedModel: body.selectedModel || 'default',
       hasJobId: !!body.jobId,
+      hasMockTcc: !!body.mockTcc,
       bodyKeys: Object.keys(body)
     });
 
+    // Check if this is a mock testing scenario
+    if (body.mockTcc) {
+      const testingMode = body.testingOptions ? 'Enhanced Testing' : 'Basic Mock';
+      console.log(`🎯 StateDesign Route: 🧪 ${testingMode.toUpperCase()} MODE DETECTED`);
+      console.log('🎯 StateDesign Route: Using provided mock TCC for testing');
+      
+      if (body.testingOptions) {
+        console.log('🎯 StateDesign Route: Testing options:', {
+          enableWebSocketStreaming: body.testingOptions.enableWebSocketStreaming || false,
+          enableTccOperations: body.testingOptions.enableTccOperations || false,
+          enableOrchestrationTriggers: body.testingOptions.enableOrchestrationTriggers || false
+        });
+      }
+      
+      console.log('🎯 StateDesign Route: Calling designStateLogic with mock data...');
+      const startTime = Date.now();
+      const result = await designStateLogic({
+        jobId: body.mockTcc.jobId || crypto.randomUUID(),
+        selectedModel: body.selectedModel || body.mockTcc.agentModelMapping?.['state-design'] || 'gpt-4-turbo',
+        mockTcc: body.mockTcc,
+        testingOptions: body.testingOptions
+      });
+      const duration = Date.now() - startTime;
+      
+      console.log('🎯 StateDesign Route: ✅ Mock testing completed:', {
+        success: result.success,
+        duration: `${duration}ms`,
+        hasStateLogic: !!result.stateLogic,
+        stateVariableCount: result.stateLogic?.stateVariables?.length || 0,
+        functionCount: result.stateLogic?.functions?.length || 0,
+        error: result.error || 'none'
+      });
+
+      // For mock testing, return immediately without triggering orchestration
+      return NextResponse.json({
+        success: result.success,
+        stateLogic: result.stateLogic,
+        message: result.success ? 'State logic designed successfully (mock mode)' : 'State logic design failed (mock mode)',
+        mockMode: true,
+        error: result.error
+      });
+    }
+
+    // Normal orchestration mode
     console.log('🎯 StateDesign Route: Calling designStateLogic core function...');
     const startTime = Date.now();
     const result = await designStateLogic({

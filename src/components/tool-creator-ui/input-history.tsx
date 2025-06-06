@@ -20,7 +20,7 @@ interface InputHistoryProps {
   answers: Record<string, string>;
   questionHistory: Array<{
     id: string;
-    message: string;
+    message?: string;
     inputType: string;
     options?: Array<{ value: string; label: string }>;
   }>;
@@ -66,7 +66,7 @@ export function InputHistory({
 
   const getQuestionText = (questionId: string) => {
     const question = questionHistory.find(q => q.id === questionId);
-    if (!question) return questionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    if (!question || !question.message) return questionId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     
     // Extract the key part of the question message
     const message = question.message;
@@ -98,7 +98,7 @@ export function InputHistory({
       value,
       inputType: question?.inputType || 'text'
     };
-  });
+  }).filter(answer => answer.questionText); // Filter out any answers with empty question text
 
   return (
     <>
