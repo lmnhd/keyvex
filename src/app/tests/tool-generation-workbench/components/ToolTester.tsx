@@ -134,6 +134,31 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   const { connect, disconnect, connectionStatus, progressUpdates } = useToolGenerationStream({ onProgress: handleProgress });
 
+  // Get default model for agent from processModels in default-models.json
+  const getDefaultModelForAgent = useCallback((agentId: string): string => {
+    const processModelsMapping: { [key: string]: string } = {
+      'function-planner': 'functionPlanner',
+      'validator': 'validation',
+      'tool-finalizer': 'toolCreator',
+      'component-assembler': 'toolCreator',
+      'state-design': 'toolCreator',
+      'jsx-layout': 'toolCreator', 
+      'tailwind-styling': 'styleMaster'
+    };
+
+    const processName = processModelsMapping[agentId];
+    if (processName && DEFAULT_MODELS.processModels?.[processName]?.primary?.model) {
+      const modelId = DEFAULT_MODELS.processModels[processName].primary.model;
+      console.log(`🎯 Using default model for ${agentId}: ${modelId} (from processModels.${processName})`);
+      return modelId;
+    }
+
+    // Fallback to gpt-4.1-mini if no specific mapping
+    const fallback = 'gpt-4.1-mini';
+    console.log(`⚠️ No processModel mapping for ${agentId}, using fallback: ${fallback}`);
+    return fallback;
+  }, []);
+
   // Fetch the configured default model from the toolCreator API
   const fetchDefaultModel = useCallback(async () => {
     try {
@@ -231,34 +256,51 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
+    console.log('🔄 useEffect for initialization triggered');
+    console.log('📊 State: availableModels.length =', availableModels.length, 'selectedModelIds.length =', selectedModelIds.length);
+    
     if (availableModels.length > 0 && selectedModelIds.length === 0) {
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
       
+      console.log('💾 Raw localStorage data:', {
+        storedSelectedModels,
+        storedAgentMapping
+      });
+      
       // Validate stored models exist in current available models
-      const validStoredModels = storedSelectedModels.filter((modelId: string) => 
-        availableModels.some(m => m.id === modelId)
-      );
+      console.log('🔍 Validating stored models against available models...');
+      console.log('📋 Available model IDs:', availableModels.map(m => m.id));
+      
+      const validStoredModels = storedSelectedModels.filter((modelId: string) => {
+        const exists = availableModels.some(m => m.id === modelId);
+        console.log(`🤖 Model ${modelId}: ${exists ? '✅ exists' : '❌ not found'}`);
+        return exists;
+      });
+      
+      console.log('✅ Valid stored models:', validStoredModels);
       
       if (validStoredModels.length > 0) {
         // Use stored selections
+        console.log('📝 Setting selectedModelIds to:', validStoredModels);
         setSelectedModelIds(validStoredModels);
         
         // Validate and set stored agent mapping
         const validAgentMapping: AgentModelMapping = {};
         availableAgents.forEach(agent => {
           const storedModel = storedAgentMapping[agent.id];
-          if (storedModel && validStoredModels.includes(storedModel)) {
+          if (storedModel && availableModels.some(m => m.id === storedModel)) {
+            // Use stored model if it's valid
             validAgentMapping[agent.id] = storedModel;
           } else {
-            // Fall back to first valid stored model or first selected model
-            validAgentMapping[agent.id] = validStoredModels[0];
+            // Fall back to default model from processModels
+            validAgentMapping[agent.id] = getDefaultModelForAgent(agent.id);
           }
         });
         setAgentModelMapping(validAgentMapping);
         
-        console.log('Loaded model selections from localStorage:', {
+        console.log('✅ Loaded model selections from localStorage:', {
           models: validStoredModels,
           agentMapping: validAgentMapping
         });
@@ -275,10 +317,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           setSelectedModelIds(defaultModels);
           saveToLocalStorage(STORAGE_KEYS.selectedModels, defaultModels);
           
-          // Initialize agent model mapping with default model
+          // Initialize agent model mapping with models from processModels
           const initialMapping: AgentModelMapping = {};
           availableAgents.forEach(agent => {
-            initialMapping[agent.id] = defaultModel.id;
+            initialMapping[agent.id] = getDefaultModelForAgent(agent.id);
           });
           setAgentModelMapping(initialMapping);
           saveToLocalStorage(STORAGE_KEYS.agentMapping, initialMapping);
@@ -287,7 +329,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         }
       }
     }
-  }, [availableModels, defaultPrimaryModel, selectedModelIds.length, availableAgents, loadFromLocalStorage, saveToLocalStorage]);
+  }, [availableModels, defaultPrimaryModel, selectedModelIds.length, availableAgents, loadFromLocalStorage, saveToLocalStorage, getDefaultModelForAgent]);
 
   // Set first brainstorm as default when available
   useEffect(() => {
@@ -680,8 +722,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                 <strong>🐛 Debug Info:</strong> availableModels.length = {availableModels.length}, selectedModelIds = {JSON.stringify(selectedModelIds)}
               </div>
               
-              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
-                <strong>🐛 Debug:</strong> availableModels.length = {availableModels.length}, selectedModelIds = {JSON.stringify(selectedModelIds)}
+              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs space-y-1">
+                <div><strong>🐛 Debug State:</strong></div>
+                <div>• availableModels.length = {availableModels.length}</div>
+                <div>• selectedModelIds = {JSON.stringify(selectedModelIds)}</div>
+                <div>• First 3 available models: {JSON.stringify(availableModels.slice(0, 3).map(m => ({id: m.id, name: m.name})))}</div>
               </div>
               
               {availableModels.length > 0 ? (
@@ -780,14 +825,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                                 <SelectValue placeholder="Select model..." />
                               </SelectTrigger>
                               <SelectContent>
-                                {selectedModelIds.map(modelId => {
-                                  const model = availableModels.find(m => m.id === modelId);
-                                  return (
-                                    <SelectItem key={modelId} value={modelId}>
-                                      {model?.name || modelId}
-                                    </SelectItem>
-                                  );
-                                })}
+                                {availableModels.map(model => (
+                                  <SelectItem key={model.id} value={model.id}>
+                                    {model.name}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
@@ -840,14 +882,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                           <SelectValue placeholder="Choose model for this agent..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {selectedModelIds.map(modelId => {
-                            const model = availableModels.find(m => m.id === modelId);
-                            return (
-                              <SelectItem key={modelId} value={modelId}>
-                                {model?.name || modelId}
-                              </SelectItem>
-                            );
-                          })}
+                          {availableModels.map(model => (
+                            <SelectItem key={model.id} value={model.id}>
+                              {model.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
