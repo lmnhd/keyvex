@@ -150,34 +150,67 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   }, []);
 
   const fetchModels = useCallback(() => {
+    console.log('🔄 Starting fetchModels...');
+    console.log('DEFAULT_MODELS structure:', DEFAULT_MODELS);
+    
     try {
       const parsedModels: ModelOption[] = [];
       
+      if (!DEFAULT_MODELS || !DEFAULT_MODELS.providers) {
+        console.error('❌ DEFAULT_MODELS or providers is undefined!');
+        setError('DEFAULT_MODELS data is not properly loaded.');
+        return;
+      }
+      
+      console.log('📁 Found providers:', Object.keys(DEFAULT_MODELS.providers));
+      
       for (const providerKey in DEFAULT_MODELS.providers) {
         const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+        console.log(`🏢 Processing provider: ${providerKey}`, provider);
+        
+        if (!provider || !provider.models) {
+          console.warn(`⚠️ Provider ${providerKey} has no models`);
+          continue;
+        }
+        
+        console.log(`📋 Found ${Object.keys(provider.models).length} models in ${providerKey}`);
         
         for (const modelKey in provider.models) {
           const model = (provider.models as any)[modelKey];
+          console.log(`🤖 Processing model: ${modelKey}`, model);
           
           // Skip deprecated models (but only if explicitly marked as deprecated)
           if (model.deprecated === true) {
+            console.log(`⚠️ Skipping deprecated model: ${modelKey}`);
             continue;
           }
           
-          // Include all non-deprecated models (remove capability filtering for now)
+          if (!model.id || !model.name) {
+            console.warn(`⚠️ Model ${modelKey} missing id or name:`, model);
+            continue;
+          }
+          
+          // Include all non-deprecated models
           const modelOption = { 
             id: model.id, 
             name: `${model.name} (${provider.name})`,
             provider: provider.name
           };
+          console.log(`✅ Adding model:`, modelOption);
           parsedModels.push(modelOption);
         }
       }
       
-      console.log(`Loaded ${parsedModels.length} models:`, parsedModels);
-      setAvailableModels(parsedModels);
+      console.log(`🎯 Final result: Loaded ${parsedModels.length} models:`, parsedModels);
+      
+      if (parsedModels.length === 0) {
+        console.error('❌ No models were loaded! This is a problem.');
+        setError('No AI models were found in the configuration.');
+      } else {
+        setAvailableModels(parsedModels);
+      }
     } catch (err) {
-      console.error('Failed to parse models:', err);
+      console.error('❌ Failed to parse models:', err);
       setError('Failed to load AI models from default-models.json. Check console.');
     }
   }, []);
@@ -633,6 +666,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                 <Label>2. Select AI Models (Max 5)</Label>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{selectedModelIds.length}/5 selected</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    Models: {availableModels.length}
+                  </Badge>
                   {loadFromLocalStorage(STORAGE_KEYS.selectedModels, []).length > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       💾 Restored
@@ -640,6 +676,14 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   )}
                 </div>
             </div>
+              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                <strong>🐛 Debug Info:</strong> availableModels.length = {availableModels.length}, selectedModelIds = {JSON.stringify(selectedModelIds)}
+              </div>
+              
+              <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-xs">
+                <strong>🐛 Debug:</strong> availableModels.length = {availableModels.length}, selectedModelIds = {JSON.stringify(selectedModelIds)}
+              </div>
+              
               {availableModels.length > 0 ? (
                 <ScrollArea className="h-48 rounded-md border p-3">
                   <div className="space-y-2">
@@ -664,7 +708,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   </div>
                 </ScrollArea>
               ) : (
-                <p className="text-sm text-gray-500">Loading models...</p>
+                <div>
+                  <p className="text-sm text-gray-500">Loading models...</p>
+                  <p className="text-xs text-red-500 mt-1">🔍 Check browser console for fetchModels debugging output</p>
+                  <p className="text-xs text-red-500 mt-1">🔍 Check browser console for fetchModels debugging output</p>
+                </div>
               )}
             </div>
           </div>
