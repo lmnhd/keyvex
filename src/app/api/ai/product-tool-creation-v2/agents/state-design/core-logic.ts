@@ -151,7 +151,12 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
         }
       }
     });
-    console.log('🎯 StateDesign: TCC updated successfully with stateLogic data');
+    console.log('🎯 StateDesign: ✅ TCC updated successfully with stateLogic data');
+    
+    // CRITICAL: Small delay to ensure filesystem sync before parallel completion check
+    console.log('🎯 StateDesign: Waiting for filesystem sync...');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    console.log('🎯 StateDesign: ✅ Filesystem sync delay completed');
 
     console.log('🎯 StateDesign: Emitting WebSocket progress - COMPLETED...');
     await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'completed', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);

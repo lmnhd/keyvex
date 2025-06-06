@@ -57,6 +57,12 @@ export async function POST(request: NextRequest) {
     }, '🔍 CHECK-COMPLETION: State before TCC refresh');
     
     console.log('🔍 CHECK-COMPLETION: Calling getTCC to refresh data...');
+    
+    // CRITICAL FIX: Add delay to ensure TCC save operations have completed
+    // This prevents race conditions where we check completion before saves are committed
+    // Using 500ms to ensure filesystem + memory sync on Windows
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     tcc = await getTCC(jobId);
     if (!tcc) {
       console.error('🔍 CHECK-COMPLETION: ❌ CRITICAL ERROR - TCC not found on refresh');
@@ -220,6 +226,24 @@ function checkParallelStepCompletion(tcc: any): {
       
       console.log('🔍 CHECK-COMPLETION: Full TCC stateLogic:', JSON.stringify(tcc.stateLogic, null, 2));
       console.log('🔍 CHECK-COMPLETION: Full TCC jsxLayout:', JSON.stringify(tcc.jsxLayout, null, 2));
+      
+      // Additional debugging for race condition detection
+      console.log('🔍 CHECK-COMPLETION: TCC Last Updated:', tcc.updatedAt);
+      console.log('🔍 CHECK-COMPLETION: TCC Status:', tcc.status);
+      console.log('🔍 CHECK-COMPLETION: TCC All Top-Level Keys:', Object.keys(tcc));
+      
+      // Check if we have stateLogic but it's empty or missing critical fields
+      if (tcc.stateLogic) {
+        console.log('🔍 CHECK-COMPLETION: StateLogic Analysis:', {
+          keys: Object.keys(tcc.stateLogic),
+          hasVariables: 'variables' in tcc.stateLogic,
+          hasStateVariables: 'stateVariables' in tcc.stateLogic,
+          variablesLength: tcc.stateLogic.variables?.length,
+          stateVariablesLength: tcc.stateLogic.stateVariables?.length,
+          variablesType: typeof tcc.stateLogic.variables,
+          stateVariablesType: typeof tcc.stateLogic.stateVariables
+        });
+      }
       
       return {
         isComplete: bothParallelAgentsComplete,
