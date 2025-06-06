@@ -2,199 +2,35 @@
 
 ## Executive Summary
 
-Keyvex is an AI-powered platform that enables independent consultants, coaches, and B2B service providers to create interactive lead magnets (calculators, quizzes, assessments) through AI co-creation. The platform emphasizes real-time streaming AI interactions while managing Vercel timeout constraints through a hybrid architecture approach, enhanced with comprehensive user behavior learning for personalized AI experiences.
+Keyvex is an AI-powered platform that enables independent consultants, coaches, and B2B service providers to create interactive lead magnets (calculators, quizzes, assessments) through AI co-creation. The platform emphasizes real-time streaming AI interactions while managing Vercel timeout constraints through a hybrid architecture approach, enhanced with comprehensive user behavior learning for personalized AI experiences and advanced tool data integration capabilities.
 
-## ✅ **MAJOR ACHIEVEMENTS: Component Architecture Refactoring & Clean Separation**
+## Recent Architectural Enhancements
 
-**Recent Major Updates (January 2025):**
+The platform has undergone significant architectural improvements, focusing on modularity, maintainability, and professional-grade output.
 
-### **Complete AI Prompt Separation Architecture** ✅ COMPLETED
-- **✅ CONSOLIDATED PROMPTS**: All AI prompts moved from API routes to dedicated `/lib/prompts/` files
-- **✅ XML-STRUCTURED PROMPTS**: Enhanced prompts with structured XML format for better AI processing
-- **✅ DYNAMIC BUILDERS**: Created sophisticated prompt builder functions for contextual prompt generation
-- **✅ CLEAN API SEPARATION**: API routes now focus purely on request handling with zero inline prompt content
-- **✅ GRID LAYOUT MANDATES**: Enforced sophisticated grid-based layouts eliminating outdated vertical form stacking
+### AI and Prompt Architecture
+- **Complete Prompt Separation**: All AI prompts have been moved from API routes to dedicated `/lib/prompts/` files. This improves organization, reusability, and maintainability.
+- **XML-Structured Prompts**: Prompts now use a structured XML format, enhancing AI processing, compliance, and validation.
+- **Dynamic Prompt Builders**: Sophisticated builder functions generate contextual prompts, keeping API routes clean and focused on logic.
+- **Grid Layout Mandates**: Prompts enforce sophisticated grid-based layouts, moving away from simple vertical forms to modern, dashboard-style UIs.
 
-### **Enhanced Quality Assurance & Auto-Fix Systems** ✅ COMPLETED
-- **✅ REACT KEYS VALIDATION FIX**: Fixed false positive validation by only checking actual array contexts instead of all React.createElement elements
-- **✅ AI TOOL FIXER ENHANCED**: Added arrow function detection and automatic conversion to function declarations
-- **✅ FUNCTION DECLARATION REQUIREMENT**: Updated prompts to enforce function declaration syntax required by DynamicComponentRenderer
-- **✅ SAVED BRAINSTORM DROPDOWN FIX**: Added loadAndSetSavedLogicResults() to refresh brainstorm options after tool creation
-- **✅ ENHANCED DEBUGGING**: Added function name identifiers to all TRACE logs for better debugging clarity
+### Quality Assurance and Auto-Fix Systems
+- **React Keys Validation Fix**: Improved validation now correctly checks for missing `key` props only within actual array contexts, eliminating false positives.
+- **AI Tool Fixer Enhanced**: The auto-fix system can now detect and convert arrow functions to standard function declarations, resolving compatibility issues with the dynamic renderer.
+- **Saved Brainstorm Dropdown Fix**: The "Choose a saved brainstorm" dropdown is now correctly refreshed after tool creation, ensuring the latest data is always available.
+- **Enhanced Debugging**: All `TRACE` logs now include function name identifiers for clearer, more precise debugging.
 
-### **Professional UI Standards & Component Quality** ✅ COMPLETED
-- **✅ MANDATORY MAIN CARD WRAPPER**: Required entire tool to be wrapped in primary ShadCN Card component with specialized backgrounds
-- **✅ MANDATORY INFO POPUP SYSTEM**: Required comprehensive info tooltips in every tool header using ShadCN Tooltip components
-- **✅ PROMPT OPTIMIZATION**: Streamlined tool creation prompt by removing redundancy while maintaining critical functionality
-- **✅ SHADCN COMPONENT EMPHASIS**: Enhanced component guidance with clear examples and implementation patterns
+### UI and Component Quality
+- **Mandatory Main Card Wrapper**: All tools are required to be wrapped in a primary ShadCN Card component, ensuring a consistent and professional look.
+- **Mandatory Info Popup System**: All tool headers must include a comprehensive info tooltip using ShadCN Tooltip components, improving user guidance.
+- **ShadCN Component Emphasis**: Development guidelines now place a strong emphasis on using ShadCN components to ensure a high-quality, consistent UI.
 
-### **Component Architecture Refactoring** ✅ COMPLETED
-- **✅ MASSIVE TEST FILE OPTIMIZATION**: Refactored 4600+ line test file for better maintainability
-- **✅ REUSABLE UI COMPONENTS**: Extracted production-ready components from test implementations
-- **✅ MODULAR COMPONENT STRUCTURE**: Created organized component hierarchy for tool creation UI
-- **✅ CLEAN IMPORT SEPARATION**: Eliminated inline component definitions in favor of proper imports
-- **✅ FOLDER STRUCTURE REORGANIZATION**: Established clear component ownership and location standards
+### Component Architecture Refactoring
+- **Test File Optimization**: A massive 4,600+ line test file was refactored for better maintainability.
+- **Reusable UI Components**: Production-ready components were extracted from test implementations into a modular `/components/tool-creator-ui/` hierarchy.
+- **Clean Import Separation**: Inline component definitions have been eliminated in favor of proper module imports, resolving conflicts and improving code structure.
 
-### **Extracted Reusable Components**
-
-**Tool Creator UI Components** (`/components/tool-creator-ui/`):
-
-1. **DynamicInput Component** (`/inputs/DynamicInput.tsx`) - ~650 lines
-   - **Purpose**: Universal input handler for complex form interactions
-   - **Input Types**: select, multiSelect, colorSelect, textarea, yesNoMaybe, fileUpload
-   - **Features**: 
-     - Pagination for large option sets
-     - Custom input toggle with "Enter Custom Value" functionality
-     - Color picker integration with live preview
-     - Real-time preview updates for tool styling
-     - Loading states and validation
-   - **Production Ready**: ✅ Fully tested with comprehensive type safety
-
-2. **ColorPickerPopup Component** (`/inputs/ColorPickerPopup.tsx`) - ~280 lines
-   - **Purpose**: Dual color picker with live preview and confirmation workflow
-   - **Features**:
-     - Primary and secondary color selection with full color pickers
-     - Live preview section showing color combination effects
-     - Real-time color value display (hex codes)
-     - Gradient preview backgrounds
-     - Confirmation workflow with preview-then-submit pattern
-   - **Production Ready**: ✅ Complete with dark mode support
-
-3. **FullFormPopup Component** (`/inputs/FullFormPopup.tsx`) - ~135 lines
-   - **Purpose**: Multi-question form handler with validation and progress tracking
-   - **Features**:
-     - Sequential question rendering with individual DynamicInput integration
-     - Progress tracking ("Question X of Y" display)
-     - Form validation requiring all questions to be answered
-     - Scrollable interface for large question sets
-     - Submit-all-answers workflow with error handling
-   - **Production Ready**: ✅ Integrated with main DynamicInput component
-
-**Component Integration Benefits:**
-- **Reusability**: Components can be used across tool creation, testing, and production flows
-- **Maintainability**: Single source of truth for complex UI patterns
-- **Testing**: Isolated components enable focused unit testing
-- **Performance**: Reduced bundle size through proper code splitting
-- **Type Safety**: Full TypeScript implementation with comprehensive interfaces
-
-### **Test File Architecture Improvements**
-
-**Before Refactoring:**
-- Single monolithic test file: `tests/ui/page.tsx` (~4600 lines)
-- Inline component definitions mixed with test logic
-- Import conflicts and linter errors
-- Difficult to maintain and update
-- No component reusability
-
-**After Refactoring:**
-- Modular component structure with clean imports
-- Production-ready components extracted to `/tool-creator-ui/inputs/`
-- Test file focuses on workflow logic and API integration
-- Eliminated all linter errors and import conflicts
-- Components ready for production use across the application
-
-**File Structure Changes:**
-```
-Before:
-└── tests/ui/page.tsx (4600+ lines with inline components)
-
-After:
-├── components/tool-creator-ui/inputs/
-│   ├── DynamicInput.tsx (650 lines)
-│   ├── ColorPickerPopup.tsx (280 lines) 
-│   ├── FullFormPopup.tsx (135 lines)
-│   └── index.ts (export declarations)
-└── tests/ui/page.tsx (reduced size, imports from components)
-```
-
-### **Prompt Architecture Achievements**
-
-**Main Tool Creation Prompt** (`/lib/prompts/tool-creation-prompt.ts`):
-```typescript
-export const TOOL_CREATION_PROMPT = `...`; // Comprehensive XML-structured core prompt
-
-// Dynamic prompt builders for API integration
-export function buildCompleteSystemPrompt(logicBrainstorming?: any): string
-export function buildBrainstormingIntegration(logicBrainstorming: any): string  
-export function buildToolCreationUserPrompt(userIntent, context, existingTool?, updateType?): string
-```
-
-**Key Features Enhanced:**
-- **Grid Layout Enforcement**: Mandatory 2-3 column input sections, dashboard-style results displays
-- **XML Structured Sections**: `<purpose>`, `<instructions>`, `<component-types>`, `<layout-requirements>`, `<output-requirements>`
-- **Logic Architect Integration**: Dynamic brainstorming result processing with structured XML tags
-- **Context Processing**: Sophisticated user conversation, brand analysis, and file upload handling
-- **Component Validation**: Complete schema validation preventing malformed AI outputs
-- **🚨 FUNCTION DECLARATION REQUIREMENT**: Mandatory `function ComponentName() {}` syntax for DynamicComponentRenderer compatibility
-- **🚨 MAIN CARD WRAPPER REQUIREMENT**: Entire tool must be wrapped in primary ShadCN Card component with specialized backgrounds
-- **🚨 MANDATORY INFO POPUP**: Every tool header must include comprehensive info tooltip using ShadCN Tooltip components
-
-**Enhanced Component Structure Requirements:**
-```typescript
-// MANDATORY STRUCTURE PATTERN:
-<required-function-format>
-    ✅ REQUIRED FORMAT (Function Declaration):
-    'use client';
-    const { useState } = React;
-    function ComponentName() {
-      const [state, setState] = useState('');
-      return React.createElement(Card, { 'data-style-id': 'main-card' }, [
-        // Tool content with info tooltip in header
-      ]);
-    }
-    
-    ❌ FORBIDDEN FORMAT (Arrow Function):
-    const ComponentName = () => { ... };
-</required-function-format>
-
-<mandatory-structure>
-    🚨 MAIN CARD WRAPPER: Tool must be wrapped in ShadCN Card
-    🚨 INFO TOOLTIP: Header must include ShadCN Tooltip with tool description
-    🚨 GRID LAYOUTS: 2-3 column input sections, dashboard-style results
-    🚨 DATA-STYLE-ID: All elements must have style identifiers
-</mandatory-structure>
-```
-
-**API Route Transformation** (`/app/api/ai/create-tool/route.ts`):
-```typescript
-// BEFORE: Mixed prompt content with server logic (200+ lines of inline prompts)
-const systemPrompt = `${TOOL_CREATION_PROMPT}...` // + 200 lines of inline XML
-
-// AFTER: Clean separation with builder functions (3 lines)
-const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
-const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
-```
-
-### **Grid Layout Revolution**
-**Problem Solved**: AI was generating "90's web forms" with vertical stacking
-**Solution Implemented**: Comprehensive grid-based layout requirements
-
-**Grid Layout Mandates:**
-- 🚨 **FORBIDDEN**: Single column vertical stacking, contact form layouts
-- ✅ **REQUIRED**: 2-3 column input grids, dashboard-style results, horizontal grouping
-- ✅ **HIERARCHY**: container → section → grid organization
-- ✅ **EXAMPLES**: ROI calculators with multi-column inputs and results dashboards
-
-**Layout Examples Enforced:**
-```xml
-<roi-calculator>
-    INPUT SECTION (grid: "1fr 1fr"):
-    ├── currency-input (Initial Investment)
-    └── currency-input (Monthly Revenue)
-    
-    RESULTS SECTION (grid: "1fr 1fr 1fr"):
-    ├── metric-display (ROI Percentage)
-    ├── currency-display (Net Profit)  
-    └── calculation-display (Payback Period)
-</roi-calculator>
-```
-
-### **XML Prompt Structuring Benefits**
-- **Better AI Processing**: Structured sections improve AI comprehension and compliance
-- **Systematic Validation**: XML tags enable better component and layout validation
-- **Dynamic Integration**: Clean separation of static rules from dynamic context
-- **Maintenance**: Changes to prompt logic happen in one dedicated file
-- **Reusability**: Core prompts can be used by multiple agents
+---
 
 ## Core Architecture Strategy
 
@@ -213,15 +49,6 @@ const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool
 - **State Management**: Zustand + React Query
 - **Infrastructure**: AWS CDK for all AWS resources
 
-**Key UI Components:**
-- **History Panel**: Sliding panel for viewing and editing previous responses
-- **Dynamic Input System**: Context-aware input components (select, multiSelect, colorSelect, etc.)
-- **Edit-in-Place Functionality**: Return to original question state for modifications
-- **Canvas Tool Preview**: Real-time tool preview with live updates
-- **Conversation State Management**: Track and restore editing contexts seamlessly
-- **Behavior Dashboard**: Real-time user behavior insights and adaptation recommendations
-- **Evolution Timeline**: Visual representation of behavioral changes over time
-
 **AWS Infrastructure Layer:**
 - **DynamoDB**: Primary database for users, tools, leads, AI sessions, analytics, metrics
 - **DynamoDB (Behavior)**: Dedicated table for user behavior tracking, evolution history, and analysis
@@ -237,13 +64,13 @@ const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool
 **Agent Separation Architecture:**
 ```typescript
 // Primary Agents (Vercel-compatible):
-POST /api/ai/test-ui        # Conversation Agent (10-15 seconds) ✅
-POST /api/ai/create-tool    # Tool Creation Agent (15-25 seconds) ✅
+POST /api/ai/test-ui        # Conversation Agent (10-15 seconds)
+POST /api/ai/create-tool    # Tool Creation Agent (15-25 seconds)
 
 // Future Specialized Agents:
-POST /api/ai/content-crafter    # Content Generation (15-20 seconds) ✅
-POST /api/ai/style-master       # Style Customization (15-20 seconds) ✅
-POST /api/ai/analytics-processor # Analytics Agent (20-25 seconds) ✅
+POST /api/ai/content-crafter    # Content Generation (15-20 seconds)
+POST /api/ai/style-master       # Style Customization (15-20 seconds)
+POST /api/ai/analytics-processor # Analytics Agent (20-25 seconds)
 
 // Complex Operations (Lambda offload):
 Lambda: complex-ai-processor    # Multi-step AI chains (60+ seconds)
@@ -252,882 +79,260 @@ Lambda: advanced-analytics      # Deep data analysis and insights
 ```
 
 **Agent Communication Pattern:**
-- **Conversation Agent**: Handles UI flow, signals when specialized work needed
-- **Specialized Agents**: Handle specific tasks with proper validation using clean prompt separation
-- **Lambda Workers**: Background processing for complex multi-step operations
-- **Frontend Integration**: Seamless handoffs between agents with real-time updates
+- **Conversation Agent**: Handles UI flow, signals when specialized work is needed.
+- **Specialized Agents**: Handle specific tasks (e.g., tool creation, styling) with structured, validated outputs.
+- **Lambda Workers**: Execute long-running jobs queued via SQS.
+- **Frontend Integration**: Manages seamless handoffs between agents with real-time UI updates.
 
 **State Management Between Agent Calls:**
-- Client-side state with Zustand for immediate UI updates
-- DynamoDB for server-side session persistence and conversation history
-- ElastiCache Redis for high-performance caching between agent calls
-- SQS for queuing complex operations that require Lambda processing
-- Agent-aware conversation history for context continuity across handoffs
+- Client-side state with Zustand for immediate UI updates.
+- DynamoDB for server-side session persistence and conversation history.
+- ElastiCache Redis for high-performance caching.
+- SQS for queuing complex operations that require Lambda processing.
 
-**Agent Timeout Thresholds:**
-- **Conversation Agent**: 10-15 seconds (single LLM call, streaming response)
-- **Tool Creation Agent**: 15-25 seconds (structured output with validation)
-- **Content/Style Agents**: 15-20 seconds (focused generation tasks)
-- **Analytics Agent**: 20-25 seconds (data processing and insights)
-- **Lambda Threshold**: >25 seconds (complex multi-agent workflows)
-
-**Lambda Offload Triggers:**
-- Complex multi-step AI chains requiring 3+ specialized agents
-- Large-scale content generation (bulk tool creation, template libraries)
-- Advanced data analysis requiring cross-user behavioral insights
-- Image/video generation and processing workflows
-- Complex business logic requiring multiple model calls and validation steps
-
-## Project Structure
-
-```
+### 3. Project Structure
 KEYVEX_PROJECT/
-├── aws_infra/                          # AWS CDK Infrastructure
-│   ├── lib/
-│   │   ├── database-stack.ts          # DynamoDB + ElastiCache + SQS
-│   │   ├── user-behavior-dynamodb-stack.ts  # DynamoDB for behavior tracking
-│   │   ├── compute-stack.ts           # Lambda functions for AI processing
-│   │   ├── api-stack.ts               # API Gateway + WebSocket
-│   │   ├── security-stack.ts          # IAM roles + Secrets Manager
-│   │   ├── monitoring-stack.ts        # CloudWatch + Alarms + X-Ray
-│   │   └── networking-stack.ts        # VPC + Security Groups (if needed)
-│   ├── lambda/
-│   │   ├── ai-processor/              # Long-running AI chains
-│   │   ├── behavior-processor/        # User behavior analysis
-│   │   ├── image-generator/           # AI image generation
-│   │   ├── websocket-handler/         # WebSocket connection management
-│   │   ├── queue-processor/           # SQS message processing
-│   │   └── shared/                    # Shared utilities and layers
-│   └── cdk.json
+├── aws_infra/ # AWS CDK Infrastructure
+│ ├── lib/
+│ │ ├── database-stack.ts # DynamoDB + ElastiCache + SQS
+│ │ ├── user-behavior-dynamodb-stack.ts # DynamoDB for behavior tracking
+│ │ └── ...
+│ ├── lambda/
+│ │ ├── ai-processor/ # Long-running AI chains
+│ │ ├── behavior-processor/ # User behavior analysis
+│ │ └── ...
+│ └── cdk.json
 │
-├── keyvex_app/                         # Next.js Application
-│   ├── src/
-│   │   ├── app/                       # App Router
-│   │   │   ├── (auth)/               # Authentication routes
-│   │   │   ├── dashboard/            # User dashboard
-│   │   │   ├── create/               # Tool creation flow
-│   │   │   ├── product-tools/        # Product tool public pages
-│   │   │   │   └── [slug]/           # Individual tool pages
-│   │   │   ├── tests/                # Testing Suite (Centralized)
-│   │   │   │   ├── page.tsx          # Main test navigation dashboard
-│   │   │   │   ├── api/              # API routes testing
-│   │   │   │   ├── api-legacy/       # Legacy API testing (backup)
-│   │   │   │   ├── ui/               # UI components & workflow testing
-│   │   │   │   ├── brand-intelligence/ # Brand analysis testing
-│   │   │   │   ├── model-config/     # AI model configuration testing
-│   │   │   │   ├── multi-iterator/   # Multi-question iterator testing
-│   │   │   │   ├── dynamic-tools/    # Dynamic tool generation testing
-│   │   │   │   ├── product-tools/    # Product tools infrastructure testing
-│   │   │   │   └── admin/            # Admin testing utilities
-│   │   │   │       └── test-data/    # Test data generation
-│   │   │   ├── admin/                # Admin dashboard & monitoring
-│   │   │   │   └── page.tsx          # Main admin dashboard
-│   │   │   ├── api/                  # API routes
-│   │   │   │   ├── ai/              # AI orchestration endpoints
-│   │   │   │   │   ├── test-ui/     # Conversation Agent (UI/UX flow)
-│   │   │   │   │   ├── create-tool/ # Tool Creation Agent (ProductToolDefinition generation)
-│   │   │   │   │   ├── product-tool-creation-v2/  # V2 Multi-Agent Orchestration System ✨ NEW
-│   │   │   │   │   │   ├── route.ts         # Main V2 orchestration endpoint
-│   │   │   │   │   │   ├── agents/         # Specialized V2 Agents
-│   │   │   │   │   │   │   ├── function-planner/     # Function signature planning agent
-│   │   │   │   │   │   │   ├── state-design/        # React state & logic design agent
-│   │   │   │   │   │   │   ├── jsx-layout/          # Component layout & structure agent
-│   │   │   │   │   │   │   └── tailwind-styling/    # Professional styling agent
-│   │   │   │   │   │   └── orchestrate/    # Orchestration Control Endpoints
-│   │   │   │   │   │       ├── start/               # Initialize multi-agent workflow
-│   │   │   │   │   │       ├── check-parallel-completion/  # Monitor agent progress
-│   │   │   │   │   │       └── trigger-next-step/   # Advance orchestration steps
-│   │   │   │   │   ├── brand-analyzer/   # Legacy brand analysis
-│   │   │   │   │   ├── content-crafter/  # Future Content Generation Agent
-│   │   │   │   │   ├── logic-architect/  # Legacy logic processing
-│   │   │   │   │   ├── magic-spark/      # Legacy initial spark generation
-│   │   │   │   │   ├── style-master/     # Future Style Customization Agent
-│   │   │   │   │   └── test-model/       # Model testing utilities
-│   │   │   │   ├── admin/           # Admin metrics & monitoring
-│   │   │   │   │   └── metrics/     # Metrics tracking API
-│   │   │   │   ├── analytics/       # Tool analytics API
-│   │   │   │   ├── product-tools/   # Product tools CRUD API
-│   │   │   │   │   ├── [toolId]/    # Individual tool operations
-│   │   │   │   │   └── search/      # Search functionality
-│   │   │   │   ├── auth/            # Clerk webhooks
-│   │   │   │   ├── stripe/          # Payment webhooks
-│   │   │   │   └── integrations/    # Third-party APIs
-│   │   │   └── globals.css
-│   │   │
-│   │   ├── components/
-│   │   │   ├── ui/                   # ShadCN components
-│   │   │   ├── ai/                   # AI interaction components
-│   │   │   │   ├── magic-spark.tsx
-│   │   │   │   ├── logic-architect.tsx
-│   │   │   │   ├── content-crafter.tsx
-│   │   │   │   ├── style-master.tsx
-│   │   │   │   └── behavior-dashboard.tsx     # User behavior insights dashboard
-│   │   │   ├── product-tools/        # Product tool components
-│   │   │   │   ├── product-tool-renderer.tsx        # Main dynamic renderer
-│   │   │   │   └── product-tool-component-factory.tsx  # Dynamic component factory
-│   │   │   ├── tool-creator-ui/      # Tool Creation UI Components (REFACTORED)
-│   │   │   │   ├── input-history.tsx          # History panel with edit functionality
-│   │   │   │   ├── canvas-tool.tsx            # Real-time tool preview
-│   │   │   │   ├── inputs/                    # Production-Ready Input Components
-│   │   │   │   │   ├── DynamicInput.tsx       # Universal input handler (650 lines)
-│   │   │   │   │   │                          # - All input types: select, multiSelect, colorSelect, etc.
-│   │   │   │   │   │                          # - Pagination, custom input toggle, live preview
-│   │   │   │   │   │                          # - Full TypeScript with comprehensive interfaces
-│   │   │   │   │   ├── ColorPickerPopup.tsx   # Dual color picker with preview (280 lines)
-│   │   │   │   │   │                          # - Primary/secondary color selection
-│   │   │   │   │   │                          # - Live preview, hex value display, dark mode
-│   │   │   │   │   ├── FullFormPopup.tsx      # Multi-question form handler (135 lines)
-│   │   │   │   │   │                          # - Sequential question rendering
-│   │   │   │   │   │                          # - Progress tracking, validation, scrollable
-│   │   │   │   │   └── index.ts               # Clean export declarations
-│   │   │   │   └── conversation-flow.tsx      # AI conversation state management
-│   │   │   ├── dashboard/            # Dashboard components
-│   │   │   └── shared/               # Reusable components
-│   │   │
-│   │   ├── lib/
-│   │   │   ├── ai/                   # AI Agent Modules
-│   │   │   │   ├── agents/
-│   │   │   │   │   ├── magic-spark.ts
-│   │   │   │   │   ├── logic-architect.ts
-│   │   │   │   │   ├── content-crafter.ts
-│   │   │   │   │   └── style-master.ts
-│   │   │   │   ├── behavior-tracker.ts        # User behavior learning system
-│   │   │   │   ├── models/           # Centralized Model Configuration
-│   │   │   │   │   ├── default-models.json    # Model definitions & pricing
-│   │   │   │   │   ├── model-config.ts        # Configuration utilities
-│   │   │   │   │   └── ai-provider-factory.ts # Provider abstraction
-│   │   │   │   ├── providers/
-│   │   │   │   │   ├── openai.ts
-│   │   │   │   │   └── anthropic.ts
-│   │   │   │   └── utils/
-│   │   │   │       ├── streaming.ts
-│   │   │   │       ├── validation.ts
-│   │   │   │       └── metrics-tracker.ts    # Automatic metrics tracking
-│   │   │   │
-│   │   │   ├── auth/                 # Authentication & Debug System
-│   │   │   │   └── debug.ts          # Centralized debug authentication
-│   │   │   │
-│   │   │   ├── prompts/              # All AI Prompts
-│   │   │   │   ├── magic-spark.ts
-│   │   │   │   ├── logic-architect.ts
-│   │   │   │   ├── content-crafter.ts
-│   │   │   │   └── style-master.ts
-│   │   │   │
-│   │   │   ├── orchestration/        # AI Orchestration Logic
-│   │   │   │   ├── session-manager.ts
-│   │   │   │   ├── state-machine.ts
-│   │   │   │   └── timeout-handler.ts
-│   │   │   │
-│   │   │   ├── types/                # TypeScript Definitions
-│   │   │   │   ├── ai.ts
-│   │   │   │   ├── product-tool.ts   # Product tool type definitions
-│   │   │   │   ├── product-tool-creation-v2/  # V2 Multi-Agent System Types ✨ NEW
-│   │   │   │   │   └── tcc.ts        # Tool Construction Context (TCC) schema
-│   │   │   │   ├── tool-definition.ts # Legacy tool definition types
-│   │   │   │   ├── user.ts
-│   │   │   │   └── database.ts
-│   │   │   │
-│   │   │   ├── db/                   # Database Layer
-│   │   │   │   ├── dynamodb/        # DynamoDB utilities
-│   │   │   │   │   ├── client.ts
-│   │   │   │   │   ├── users.ts
-│   │   │   │   │   ├── product-tools.ts      # Product tools CRUD operations
-│   │   │   │   │   ├── sessions.ts
-│   │   │   │   │   ├── conversations.ts
-│   │   │   │   │   ├── leads.ts
-│   │   │   │   │   ├── analytics.ts
-│   │   │   │   │   ├── metrics.ts    # Admin metrics storage
-│   │   │   │   │   └── behavior.ts   # User behavior tracking storage
-│   │   │   │   ├── redis/           # ElastiCache Redis utilities
-│   │   │   │   │   ├── cache.ts
-│   │   │   │   │   └── client.ts
-│   │   │   │   └── sqs/             # SQS utilities
-│   │   │   │       ├── queues.ts
-│   │   │   │       └── client.ts
-│   │   │   │
-│   │   │   ├── integrations/         # Third-party Integrations
-│   │   │   │   ├── clerk.ts
-│   │   │   │   ├── stripe.ts
-│   │   │   │   ├── unsplash.ts
-│   │   │   │   └── email-providers/
-│   │   │   │
-│   │   │   ├── utils/                # Utility Functions
-│   │   │   │   ├── logger.ts
-│   │   │   │   ├── websocket.ts
-│   │   │   │   └── validation.ts
-│   │   │   │
-│   │   │   ├── hooks/                # React Hooks
-│   │   │   │   └── useProductToolCreationV2.ts  # V2 Multi-Agent Orchestration Hook ✨ NEW
-│   │   │   │
-│   │   │   └── stores/               # Zustand Stores
-│   │   │       ├── ai-session.ts
-│   │   │       ├── tool-builder.ts
-│   │   │       └── user-preferences.ts
-│   │   │
-│   │   └── styles/                   # Global Styles
-│   │       ├── globals.css
-│   │       └── components.css
-│   │
-│   ├── public/                       # Static Assets
-│   ├── package.json
-│   ├── next.config.js
-│   ├── tailwind.config.js
-│   └── tsconfig.json
-│
-├── REFERENCE_CODE/                     # Reference Implementation Patterns
-│   ├── hooks/
-│   ├── security/
-│   ├── prompts/
-│   ├── voice-message/
-│   └── [existing files...]
-│
-├── .cursor/
-│   └── PRIMARY_RULES                          # Development Rules
-│
-├── ADMIN_DASHBOARD_README.md          # Admin dashboard documentation
-├── DEBUG_AUTH_README.md               # Debug authentication guide
-└── README.md
-```
+├── keyvex_app/ # Next.js Application
+│ ├── src/
+│ │ ├── app/
+│ │ │ ├── api/
+│ │ │ │ ├── ai/
+│ │ │ │ │ ├── create-tool/ # V1 Tool Creation Agent
+│ │ │ │ │ ├── product-tool-creation-v2/ # V2 Multi-Agent Orchestration System
+│ │ │ │ │ │ ├── agents/ # Specialized V2 Agents (planner, state, jsx, styling)
+│ │ │ │ │ │ └── orchestrate/ # Orchestration Control Endpoints
+│ │ │ │ │ └── ...
+│ │ │ │ ├── data-sources/ # Data source integration APIs
+│ │ │ │ └── ...
+│ │ │ └── ...
+│ │ ├── components/
+│ │ │ ├── product-tools/
+│ │ │ │ ├── product-tool-renderer.tsx # Main dynamic renderer
+│ │ │ │ └── ...
+│ │ │ ├── tool-creator-ui/
+│ │ │ │ ├── inputs/
+│ │ │ │ │ ├── DynamicInput.tsx # Universal input handler
+│ │ │ │ │ ├── ColorPickerPopup.tsx # Dual color picker with preview
+│ │ │ │ │ └── FullFormPopup.tsx # Multi-question form handler
+│ │ │ │ └── ...
+│ │ │ └── ...
+│ │ ├── lib/
+│ │ │ ├── ai/
+│ │ │ │ ├── agents/
+│ │ │ │ ├── models/ # Centralized Model Configuration
+│ │ │ │ └── ...
+│ │ │ ├── data/ # Data Integration Layer
+│ │ │ │ ├── connectors/ # Data source connectors (SQL, files, cloud, API)
+│ │ │ │ ├── processors/ # Data processing utilities (CSV, Excel, etc.)
+│ │ │ │ ├── ai/ # AI-powered data intelligence
+│ │ │ │ └── ...
+│ │ │ ├── prompts/ # All AI Prompts (separated by agent)
+│ │ │ ├── types/
+│ │ │ │ ├── product-tool-creation-v2/
+│ │ │ │ │ └── tcc.ts # Tool Construction Context (TCC) schema
+│ │ │ │ ├── data-sources.ts # Data integration type definitions
+│ │ │ │ └── ...
+│ │ │ ├── db/
+│ │ │ │ ├── dynamodb/
+│ │ │ │ │ ├── product-tools.ts
+│ │ │ │ │ ├── data-sources.ts
+│ │ │ │ │ └── ...
+│ │ │ │ └── ...
+│ │ │ ├── hooks/
+│ │ │ │ └── useProductToolCreationV2.ts # V2 Multi-Agent Orchestration Hook
+│ │ │ └── ...
+│ │ └── ...
+│ └── ...
+└── ...
 
+---
 ## Core AI Agent Architecture
 
 ### Agent Separation Strategy
-
-**Philosophy**: Single responsibility per agent with clean separation of concerns and complete prompt separation. Each agent is optimized for specific tasks with all prompting logic centralized in dedicated files rather than mixed with server code.
+The architecture is built on the philosophy of single responsibility per agent with a clean separation of concerns. All prompting logic is centralized in dedicated files, not mixed with server code.
 
 **Key Principles**:
-- **Complete Prompt Separation**: All AI prompts moved to `/lib/prompts/` with dynamic builder functions
-- **XML-Structured Prompts**: Enhanced prompt organization for better AI processing
-- **No Over-Engineering**: Removed all algorithmic helper functions and keyword detection
-- **AI Intelligence First**: Let AI models make decisions without programmatic intervention
-- **Structured Validation**: Use proper schema validation for complex outputs
-- **Scalable Pattern**: Easily add new specialized agents following the same pattern
-- **Grid Layout Enforcement**: All tools use sophisticated dashboard-style layouts
+- **Complete Prompt Separation**: All AI prompts are in `/lib/prompts/` with dynamic builder functions.
+- **XML-Structured Prompts**: Enhanced prompt organization for better AI processing.
+- **AI Intelligence First**: Let AI models make decisions without programmatic intervention.
+- **Structured Validation**: Use Zod schema validation for complex outputs.
+- **Scalable Pattern**: Easily add new specialized agents.
+- **Grid Layout Enforcement**: All tools use sophisticated dashboard-style layouts.
 
 ### Primary Agent Types
 
 #### 1. Conversation Agent (`/api/ai/test-ui/`)
-**Purpose**: Handle conversation flow and UI interactions
-**Responsibility**: ONLY conversation management and user experience
-**Timeout Risk**: Low (single LLM call for conversation)
-**Implementation**: Vercel API Route with streaming
-**Prompts**: Uses consolidated prompts from `/lib/prompts/conversation-prompt.ts`
+- **Purpose**: Handle conversation flow and UI interactions.
+- **Responsibility**: Manages the user experience, asks clarifying questions, and determines when to hand off to a specialized agent.
+- **Timeout Risk**: Low (typically a single, fast LLM call).
 
+#### 2. Tool Creation Agent (`/api/ai/create-tool/`)
+- **Purpose**: Generate and modify `ProductToolDefinition` objects.
+- **Responsibility**: Tool architecture and code generation with professional, grid-based layouts.
+- **Timeout Risk**: Medium (requires structured output and validation).
+- **Implementation**: Uses `generateObject` from the Vercel AI SDK with a comprehensive Zod schema.
+
+---
+## Product Tool Creation V2: Multi-Agent System
+
+This is a cutting-edge V2 multi-agent orchestration system that replaces monolithic AI generation with specialized, collaborative agents.
+
+#### V2 System Overview
+
+- **Architecture Philosophy**: Vercel-first with frontend-controlled orchestration.
+- **Frontend Orchestration**: A React hook (`useProductToolCreationV2`) manages the entire multi-agent workflow.
+- **Specialized Agents**: Each agent handles one specific aspect of tool creation (planning, state, JSX, styling).
+- **Tool Construction Context (TCC)**: A shared state object, persisted in DynamoDB, for communication between agents.
+- **Polling-Based Coordination**: The frontend polls for progress, avoiding Vercel function timeouts.
+
+#### V2 Specialized Agent Architecture
+
+1.  **Function Signature Planner**: Analyzes requirements and plans the tool's functional architecture.
+2.  **State Design Agent**: Designs React state management (`useState` hooks) and business logic.
+3.  **JSX Layout Agent**: Creates the component structure using professional, grid-based layouts.
+4.  **Tailwind Styling Agent**: Applies a complete, responsive Tailwind CSS styling system.
+
+#### Frontend Orchestration (`useProductToolCreationV2`)
+The hook encapsulates the logic to:
+1.  Initialize the orchestration job.
+2.  Poll for agent completion status.
+3.  Trigger the next steps in the sequence.
+4.  Handle progress tracking, errors, and state management.
+
+---
+
+## Architectural Pivot: From JSON Definitions to Direct React Component Generation
+
+A fundamental architectural decision was made to shift from generating complex JSON definitions to generating React component code directly.
+
+### Previous Architecture: JSON-Based Definitions
+The original approach used a verbose JSON schema to define a tool's layout, components, and logic.
+**Problems included:**
+- A complex and brittle "component factory" was needed to map JSON to React components.
+- Limited flexibility to express complex React patterns, state, or custom logic.
+- Poor performance due to multiple layers of abstraction.
+- Difficult for the AI to generate and for developers to debug.
+
+### New Architecture: Direct React Component Generation
+The AI now generates a string of clean, familiar React JSX code for the entire tool.
 ```typescript
-// Conversation Agent Response Schema
-interface ConversationResponse {
-  message: string;
-  inputType?: string;
-  options?: Array<{ value: string; label: string }>;
-  shouldCreateTool?: boolean;          // Signal tool creation needed
-  toolCreationContext?: {              // Context for tool creation
-    userIntent: string;
-    targetAudience?: string;
-    industry?: string;
-    toolType?: string;
-    features?: string[];
-    businessDescription?: string;
-    updateType?: string;
-  };
+// The AI generates this directly as a string
+function ROICalculator() {
+  const [investment, setInvestment] = useState(0);
+  const [revenue, setRevenue] = useState(0);
+  const roi = revenue > 0 ? ((revenue - investment) / investment) * 100 : 0;
+  
+  return (
+    <Card>
+      <CardHeader>...</CardHeader>
+      <CardContent>
+        {/* Inputs and results display */}
+      </CardContent>
+    </Card>
+  );
 }
 ```
 
-**Key Features**:
-- Natural conversation flow without programmatic logic
-- Dynamic question generation based on context
-- Signals when tool creation/modification is needed
-- Provides rich context for specialized agents
-- Handles UI component selection (select, multiSelect, colorSelect, etc.)
+**Benefits of the Pivot:**
+- **AI Simplicity & Quality**: LLMs excel at generating code. The output is higher quality and more flexible.
+- **Unlimited Flexibility**: The full React ecosystem is available (hooks, state, third-party libraries).
+- **Performance**: Fewer layers of abstraction lead to faster rendering.
+- **Developer Experience**: Debugging standard React code is far simpler than debugging JSON mappings and factory logic.
 
-#### 2. Tool Creation Agent (`/api/ai/create-tool/`) ✅ FULLY REFACTORED
-**Purpose**: Generate and modify ProductToolDefinitions with proper validation
-**Responsibility**: ONLY tool architecture and generation with grid-based layouts
-**Timeout Risk**: Medium (structured output with validation)
-**Implementation**: Vercel API Route with GPT-4o and structured output
-**Prompts**: Uses consolidated prompts from `/lib/prompts/tool-creation-prompt.ts`
+This pivot to a **generative-first architecture** is the foundation of Keyvex's competitive advantage.
 
+---
+
+## Data Integration Architecture
+
+A sophisticated data integration system allows users to connect their tools to real data sources, turning them from demos into production-ready business applications.
+
+### Key Features
+- **Multi-Format Support**: Connect to CSV, Excel, and Access files, SQL databases, cloud services (Google Sheets, Salesforce, Airtable), and external APIs.
+- **Smart Data Detection**: AI-powered analysis of data structure and automatic field mapping suggestions.
+- **Real-time Sync Monitoring**: Connection health tracking and automatic error detection.
+- **Mock-to-Real Migration**: A seamless workflow to transition tools from demonstration data to live, production data.
+
+### Data Source Management
+The system provides a full suite of tools for managing data connections.
+- **Dashboard Integration**: A "Tool Data" section in the user dashboard provides an overview of sources, a "Quick Connect" wizard, and tools to manage existing connections.
+- **AI-Powered Integration**: AI assists with data analysis, schema mapping, and even recommends what kind of tool to build based on the connected data.
+
+### Data Source & Analysis Types
 ```typescript
-// Clean API Route with Prompt Separation
-export async function POST(request: NextRequest) {
-  // STEP 1: Logic Architect Brainstorming
-  let logicBrainstorming = await getOrCreateBrainstorming(context);
-  
-  // STEP 2: Get model configuration
-  const model = getPrimaryModel('toolCreator');
-  
-  // STEP 3: Build prompts using consolidated builder functions ✅ NEW
-  const systemPrompt = buildCompleteSystemPrompt(logicBrainstorming);
-  const userPrompt = buildToolCreationUserPrompt(userIntent, context, existingTool, updateType);
-  
-  // STEP 4: Generate tool with structured output validation
-  const { object: productTool } = await generateObject({
-    model: modelInstance,
-    schema: productToolDefinitionSchema,  // Full Zod validation
-    system: systemPrompt,
-    prompt: userPrompt,
-    temperature: 0.3,
-    maxRetries: 2
-  });
-  
-  return { success: true, tool: productTool };
-}
-```
-
-**Key Features**:
-- ✅ **Complete Prompt Separation**: Zero inline prompt content in API route
-- ✅ **XML-Structured Prompts**: Enhanced prompt organization and AI processing
-- ✅ **Grid Layout Enforcement**: Mandatory 2-3 column layouts, dashboard-style results
-- ✅ **Dynamic Context Integration**: Logic Architect results, user conversation, brand analysis
-- ✅ **Component Validation**: Full schema validation preventing malformed outputs
-- ✅ **Professional Quality**: Business-grade styling and realistic calculations
-
-**Grid Layout Achievements**:
-- 🚨 **Eliminated**: Vertical form stacking, amateur-looking layouts
-- ✅ **Enforced**: Horizontal input grouping, multi-column results dashboards
-- ✅ **Mandated**: container → section → grid hierarchy
-- ✅ **Implemented**: ROI calculators, assessment tools with sophisticated layouts
-
-#### 3. Future Specialized Agents (Following Same Pattern)
-
-**Content Generation Agent** (`/api/ai/content-crafter/`):
-- **Purpose**: Generate marketing copy, descriptions, and user-facing content
-- **Signals**: `shouldGenerateContent: true` from conversation agent
-- **Output**: Structured content objects with validation
-- **Prompts**: Centralized in `/lib/prompts/content-crafter-prompt.ts`
-
-**Style Customization Agent** (`/api/ai/style-master/`):
-- **Purpose**: Advanced styling, theming, and brand customization
-- **Signals**: `shouldCustomizeStyle: true` from conversation agent
-- **Output**: Complete styling configurations with color theory
-- **Prompts**: Centralized in `/lib/prompts/style-master-prompt.ts`
-
-**Analytics Agent** (`/api/ai/analytics-processor/`):
-- **Purpose**: Data analysis, insights, and performance recommendations
-- **Signals**: `shouldAnalyzeData: true` from conversation agent
-- **Output**: Actionable insights and optimization suggestions
-- **Prompts**: Centralized in `/lib/prompts/analytics-prompt.ts`
-
-### Agent Communication Flow
-
-```typescript
-// 1. User Input → Conversation Agent (using centralized prompts)
-const conversationResult = await fetch('/api/ai/test-ui', {
-  method: 'POST',
-  body: JSON.stringify({ userInput: "create an ROI calculator" })
-});
-
-// 2. Conversation Agent Response
-{
-  message: "I'll create an ROI calculator for you...",
-  shouldCreateTool: true,
-  toolCreationContext: {
-    userIntent: "create an ROI calculator",
-    toolType: "calculator",
-    targetAudience: "business professionals"
-  }
-}
-
-// 3. Frontend Detects Signal → Calls Tool Creation Agent (with separated prompts)
-const toolResult = await fetch('/api/ai/create-tool', {
-  method: 'POST',
-  body: JSON.stringify({
-    userIntent: toolCreationContext.userIntent,
-    context: toolCreationContext
-  })
-});
-
-// 4. Tool Creation Agent Response (using buildCompleteSystemPrompt())
-{
-  success: true,
-  tool: { /* Complete ProductToolDefinition with grid layouts */ },
-  validationPassed: true
-}
-
-// 5. Frontend Updates Canvas in Real-Time
-setProductToolDefinition(toolResult.tool);
-```
-
-### Benefits of Agent Separation with Prompt Consolidation
-
-**Complete Prompt Separation**:
-- ✅ **Maintainability**: All prompt changes happen in dedicated files
-- ✅ **Reusability**: Core prompts can be used by multiple agents
-- ✅ **Testing**: Prompt logic can be unit tested independently
-- ✅ **Versioning**: Easy to track prompt evolution and A/B test
-- ✅ **Clean Code**: API routes focus purely on request handling
-
-**XML-Structured Prompts**:
-- ✅ **Better AI Processing**: Structured sections improve AI comprehension
-- ✅ **Systematic Validation**: XML tags enable better compliance checking
-- ✅ **Dynamic Integration**: Clean separation of static rules from dynamic context
-- ✅ **Component Validation**: Enhanced validation with structured error handling
-
-**Grid Layout Revolution**:
-- ✅ **Professional Tools**: Eliminated outdated vertical form stacking
-- ✅ **Modern Layouts**: Dashboard-style organization with multi-column sections
-- ✅ **Space Efficiency**: Horizontal grouping maximizes screen real estate
-- ✅ **User Experience**: Sophisticated, business-grade tool presentation
-
-**Single Responsibility**:
-- Each agent optimized for specific tasks
-- Easier debugging and maintenance
-- Clear error boundaries and handling
-
-**Structured Output with Validation**:
-- Tool Creation Agent uses Zod schemas for validation
-- Prevents malformed or incomplete tool definitions
-- Type-safe outputs with proper error handling
-
-**Scalable Architecture**:
-- Easy to add new specialized agents
-- Consistent patterns across all agents
-- Independent deployment and optimization
-
-**AI Intelligence Without Over-Engineering**:
-- No keyword detection or algorithmic helpers
-- AI models make all intelligence decisions
-- Clean separation between AI logic and business logic
-
-**Enhanced User Experience**:
-- Real-time tool updates on canvas
-- Seamless handoffs between agents
-- Proper error handling and user feedback
-
-### Agent Timeout Management
-
-**Conversation Agent** (10-15 seconds):
-- Single LLM call for conversation
-- Streaming responses for immediate feedback
-- Lightweight processing for UI decisions
-
-**Tool Creation Agent** (15-25 seconds):
-- Structured output generation with validation
-- Complex tool architecture decisions using consolidated prompts
-- Comprehensive schema validation with grid layout enforcement
-
-**Future Complex Agents** (25+ seconds):
-- Lambda offload for operations exceeding Vercel limits
-- SQS queuing for background processing
-- WebSocket updates for long-running operations
-
-### Development Pattern for New Agents
-
-```typescript
-// 1. Create Dedicated Prompt File ✅ NEW PATTERN
-// /lib/prompts/new-agent-prompt.ts
-export const NEW_AGENT_PROMPT = `
-<purpose>
-  You are a specialized [AgentType] AI. Your ONLY job is to [specific responsibility].
-</purpose>
-
-<instructions>
-  [XML-structured instructions]
-</instructions>
-`;
-
-export function buildNewAgentSystemPrompt(context?: any): string {
-  return `${NEW_AGENT_PROMPT}\n\n${buildContextSection(context)}`;
-}
-
-// 2. Define Agent Schema
-const agentOutputSchema = z.object({
-  // Define expected output structure
-});
-
-// 3. Implement Clean API Route
-export async function POST(request: NextRequest) {
-  // Validate input
-  // Build prompts using centralized functions ✅
-  const systemPrompt = buildNewAgentSystemPrompt(context);
-  
-  // Call AI model with structured output
-  // Return validated result
-}
-
-// 4. Add Signal Detection to Conversation Agent
-// shouldCallNewAgent: true
-// newAgentContext: { /* context for specialized agent */ }
-
-// 5. Update Frontend to Handle New Agent
-// Detect signal and call specialized agent
-// Update UI based on agent response
-```
-
-This architecture ensures each agent excels at its specific responsibility while maintaining clean separation of concerns, complete prompt separation, and optimal user experience with sophisticated grid-based tool generation.
-
-## ✅ **MAJOR ACHIEVEMENT: Product Tool Creation V2 Multi-Agent System** (January 2025)
-
-### **Revolutionary Multi-Agent Orchestration Architecture**
-
-The Keyvex platform now features a cutting-edge V2 multi-agent orchestration system that represents a fundamental advancement in AI-powered tool creation. This system replaces monolithic AI generation with specialized, collaborative agents working together through a sophisticated orchestration framework.
-
-#### **V2 System Overview**
-
-**Architecture Philosophy**: VERCEL FIRST with Frontend-Controlled Orchestration
-- **Frontend Orchestration**: React hook manages the entire multi-agent workflow
-- **Specialized Agents**: Each agent handles one specific aspect of tool creation
-- **Tool Construction Context (TCC)**: Shared state management between agents
-- **Polling-Based Coordination**: Avoids Vercel timeout constraints through intelligent polling
-- **Step-by-Step Progress**: Real-time progress tracking with WebSocket-style updates
-
-#### **V2 Specialized Agent Architecture**
-
-**1. Function Signature Planner Agent** (`/api/ai/product-tool-creation-v2/agents/function-planner/`)
-- **Purpose**: Analyze requirements and plan the tool's functional architecture
-- **Output**: Defined function signatures and architectural blueprint
-- **Timeout**: 10-15 seconds (planning and analysis)
-- **TCC Integration**: Populates `definedFunctionSignatures` in Tool Construction Context
-
-**2. State Design Agent** (`/api/ai/product-tool-creation-v2/agents/state-design/`)
-- **Purpose**: Design React state management and business logic
-- **Output**: State variables, useState hooks, and calculation functions
-- **Timeout**: 15-20 seconds (complex state logic design)
-- **TCC Integration**: Populates `stateLogic` with variables and functions
-
-**3. JSX Layout Agent** (`/api/ai/product-tool-creation-v2/agents/jsx-layout/`)
-- **Purpose**: Create sophisticated component structure and accessibility
-- **Output**: Professional JSX layouts with grid-based organization
-- **Timeout**: 15-20 seconds (layout design and responsive structure)
-- **TCC Integration**: Populates `jsxLayout` with component structure and element mapping
-
-**4. Tailwind Styling Agent** (`/api/ai/product-tool-creation-v2/agents/tailwind-styling/`)
-- **Purpose**: Apply professional Tailwind CSS styling to components
-- **Output**: Complete styling system with responsive design
-- **Timeout**: 10-15 seconds (styling application)
-- **TCC Integration**: Populates `tailwindStyles` with element-specific class mappings
-
-#### **Tool Construction Context (TCC) Schema**
-
-**Central State Management**: The TCC serves as the shared memory between all agents, storing incremental progress and enabling seamless handoffs.
-
-```typescript
-interface ToolConstructionContext {
-  jobId: string;                                    // Unique job identifier
-  userId: string;                                   // User association
-  currentOrchestrationStep: OrchestrationStep;      // Current processing step
-  status: OrchestrationStatus;                      // Overall job status
-  
-  // Agent Outputs
-  definedFunctionSignatures?: DefinedFunctionSignature[];  // From Function Planner
-  stateLogic?: StateLogic;                                 // From State Design Agent
-  jsxLayout?: JsxLayout;                                   // From JSX Layout Agent
-  tailwindStyles?: TailwindStyles;                         // From Tailwind Styling Agent
-  
-  // Assembly & Validation
-  assembledComponentCode?: string;                  // Final combined component
-  validationResult?: ValidationResult;             // Code validation results
-  finalProductToolDefinition?: ProductToolDefinition; // Final output
-  
-  // Progress Tracking
-  progressLog: ProgressEvent[];                    // Detailed step-by-step log
-  steps: {                                         // Agent-specific step tracking
-    designingStateLogic?: StepStatus;
-    designingJsxLayout?: StepStatus;
-    applyingTailwindStyling?: StepStatus;
-  };
-  
-  // User Context
-  userInput: {                                     // Original user requirements
-    description: string;
-    targetAudience?: string;
-    industry?: string;
-    toolType?: string;
-    features?: string[];
-  };
-}
-```
-
-#### **Frontend Orchestration System**
-
-**React Hook Architecture**: `useProductToolCreationV2`
-```typescript
-const useProductToolCreationV2 = () => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [progress, setProgress] = useState<ToolCreationV2Progress[]>([]);
-  const [currentStep, setCurrentStep] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const createTool = async (params: ToolCreationV2Params) => {
-    // 1. Initialize orchestration (/orchestrate/start)
-    // 2. Poll for completion (/orchestrate/check-parallel-completion)
-    // 3. Trigger next steps (/orchestrate/trigger-next-step)
-    // 4. Handle errors and retries
-    // 5. Return final ProductToolDefinition
-  };
-
-  return { createTool, isCreating, progress, currentStep, error, resetState };
-};
-```
-
-**Key Features**:
-- **Timeout Management**: 1-second polling with 5-minute total timeout
-- **Progress Tracking**: Real-time step-by-step progress updates
-- **Error Handling**: Comprehensive error recovery and user feedback
-- **Abort Control**: AbortController for cancellation support
-- **State Management**: Clean state transitions and reset capabilities
-
-#### **API Orchestration Endpoints**
-
-**Start Orchestration** (`/api/ai/product-tool-creation-v2/orchestrate/start/`)
-- **Purpose**: Initialize new tool creation job and start first agent
-- **Flow**: Validate input → Create TCC → Start Function Planner Agent
-- **Response**: Job ID and initial progress status
-
-**Check Parallel Completion** (`/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion/`)
-- **Purpose**: Monitor agent completion and coordinate handoffs
-- **Flow**: Check TCC status → Determine if agents are complete → Signal next step
-- **Response**: Current status and completion indicators
-
-**Trigger Next Step** (`/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step/`)
-- **Purpose**: Advance orchestration to next stage after agent completion
-- **Flow**: Validate current state → Start next agent(s) → Update TCC
-- **Response**: Updated progress and next step information
-
-#### **V2 vs V1 Comparison**
-
-| Aspect | V1 (Direct) | V2 (Multi-Agent) |
-|--------|------------|------------------|
-| **Architecture** | Monolithic single agent | Specialized collaborative agents |
-| **Timeout Risk** | High (25+ seconds) | Low (10-20 seconds per agent) |
-| **Quality Control** | Basic validation | Multi-stage validation and refinement |
-| **Debugging** | Complex monolithic debugging | Agent-specific isolated debugging |
-| **Scalability** | Limited by single agent complexity | Unlimited through agent specialization |
-| **Progress Tracking** | Binary (loading/complete) | Granular step-by-step progress |
-| **Error Recovery** | Full restart required | Agent-specific retry and recovery |
-| **Customization** | Prompt modification only | Agent-specific optimization |
-
-#### **Advanced V2 Features**
-
-**Pause/Resume Orchestration** (Frontend-Controlled):
-- **Pause**: Frontend stops polling and holds current state
-- **Resume**: Frontend resumes polling from last completed step
-- **Manual Stepping**: Advance one step at a time for debugging
-
-**Isolation Testing**:
-- **Agent-Specific Testing**: Test individual agents with controlled inputs
-- **TCC State Injection**: Load specific TCC states for agent testing
-- **Validation Testing**: Isolate validation and assembly steps
-
-**Progress Visualization**:
-- **Step-by-Step Display**: Real-time progress with timestamps and status badges
-- **Agent Performance Tracking**: Monitor agent execution times and success rates
-- **Error Visualization**: Clear error reporting with agent-specific context
-
-#### **Integration with Existing System**
-
-**Tool Generation Workbench Integration**:
-- **V1/V2 Toggle**: Seamless switching between orchestration systems
-- **Shared Infrastructure**: Uses same brainstorming results and tool preview system
-- **Unified Results**: Both systems output compatible ProductToolDefinition objects
-- **Progressive Enhancement**: V2 system enhances rather than replaces V1 capabilities
-
-**Database Integration**:
-- **TCC Persistence**: Tool Construction Context stored in DynamoDB with TTL
-- **Progress Logging**: Comprehensive audit trail of agent execution
-- **Error Tracking**: Detailed error storage for debugging and optimization
-- **Performance Metrics**: Agent-specific performance monitoring
-
-#### **Benefits of V2 Architecture**
-
-**Development Benefits**:
-- **Modular Development**: Each agent can be developed and optimized independently
-- **Specialized Expertise**: Agents focus on specific aspects (state, layout, styling)
-- **Easy Testing**: Agent isolation enables focused unit testing
-- **Rapid Iteration**: Changes to one agent don't affect others
-
-**User Experience Benefits**:
-- **Transparent Progress**: Users see exactly what's happening at each step
-- **Better Error Handling**: Specific error messages with recovery options
-- **Higher Success Rate**: Specialized agents produce higher quality outputs
-- **Faster Iterations**: Failed steps can be retried without full restart
-
-**Technical Benefits**:
-- **Vercel Compatibility**: No agent exceeds Vercel timeout limits
-- **Scalable Architecture**: Easy to add new specialized agents
-- **Maintainable Codebase**: Clear separation of concerns and responsibilities
-- **Performance Optimization**: Each agent optimized for its specific task
-
-#### **Future V2 Enhancements**
-
-**Advanced Orchestration**:
-- **Parallel Agent Execution**: Multiple agents working simultaneously on compatible tasks
-- **Dynamic Agent Selection**: AI-driven selection of optimal agents for specific requirements
-- **Agent Collaboration**: Inter-agent communication for complex decision making
-- **Template-Based Orchestration**: Pre-configured agent workflows for common tool types
-
-**Intelligence Enhancements**:
-- **Learning System**: Agents learn from successful tool creation patterns
-- **Quality Scoring**: Automatic quality assessment and optimization suggestions
-- **User Adaptation**: Agent behavior adapts to user preferences and patterns
-- **Performance Optimization**: Dynamic agent optimization based on success metrics
-
-### User Behavior Learning System
-
-**Comprehensive Behavioral Intelligence:**
-The platform includes a sophisticated user behavior learning system that tracks interactions, analyzes patterns, and adapts AI responses for personalized experiences.
-
-**Key Features:**
-- **Real-time Interaction Tracking**: Response times, input preferences, editing patterns, workflow choices
-- **Evolution Detection**: Automatic detection of behavioral changes over time (becoming expert vs beginner)
-- **Analysis History**: Versioned analysis storage with cross-comparison capabilities
-- **Adaptive AI Responses**: Dynamic question complexity, input type selection, and suggestion customization
-- **Admin Dashboard Integration**: Centralized behavior insights in admin interface
-
-**Integration with Agent Architecture:**
-- **Conversation Agent Adaptation**: Behavioral data influences question complexity and input type selection
-- **Specialized Agent Optimization**: User patterns inform which agents to use for specific tasks
-- **Cross-Agent Learning**: Behavioral insights shared across all specialized agents
-- **Real-time Personalization**: Adaptive responses based on user evolution and preferences
-
-**Data Architecture:**
-```typescript
-interface UserInteraction {
+interface DataSource {
   id: string;
-  userId: string;
-  interactionType: 'question_response' | 'edit_previous' | 'workflow_choice' | 'agent_handoff';
-  questionType: string; // 'select', 'multiSelect', 'colorSelect', etc.
-  agentType?: string;   // Which agent handled the interaction
-  responseTime: number; // milliseconds
-  usedSuggestions: boolean;
-  usedCustomInput: boolean;
-  confidence: number;   // 0-1 based on response behavior
+  name: string;
+  type: 'file' | 'database' | 'cloud' | 'api';
+  status: 'active' | 'error' | 'pending';
+  config: {
+    // Source-specific connection details
+    fileName?: string;
+    host?: string;
+    provider?: 'googlesheets' | 'salesforce' | 'airtable';
+    endpoint?: string;
+  };
+  mapping: Record<string, string>; // Field mappings
+  syncSettings: {
+    frequency: 'realtime' | 'hourly' | 'daily' | 'manual';
+    lastSync: number;
+  };
+  healthStatus: {
+    isConnected: boolean;
+    lastError?: string;
+  };
+  metadata: {
+    recordCount: number;
+    dataTypes: Record<string, string>;
+    sampleData: any[];
+    aiAnalysis?: DataAnalysisResult;
+  };
 }
 
-interface BehaviorEvolution {
-  responseSpeedTrend: 'faster' | 'slower' | 'stable';
-  explorationTrend: 'more_experimental' | 'more_conservative' | 'stable';
-  overallTrend: 'becoming_expert' | 'becoming_beginner' | 'stable' | 'inconsistent';
-  changeIntensity: Record<string, number>; // 0-1 magnitude of changes
-  agentPreferences: Record<string, number>; // Preference for specific agents
-}
-
-interface UserProfile {
-  preferredInputTypes: string[]; // Ranked by frequency
-  averageResponseTime: number;
-  explorationTendency: number; // 0-1 conservative to experimental
-  suggestedWorkflow: 'guided' | 'flexible' | 'expert';
-  preferredAgents: string[];   // Ranked by success rate
-  evolutionHistory: UserEvolution[];
-  confidenceScore: number; // Profile reliability 0-1
-}
-```
-
-**Storage Strategy:**
-- **Development**: localStorage with rolling buffers (last 100 interactions, 50 analyses)
-- **Production**: Dedicated DynamoDB table with 90-day TTL for interactions
-- **Analytics**: Real-time insights through admin dashboard with agent performance correlation
-- **Privacy**: User-controlled data retention and export capabilities
-
-### History Panel & Edit Functionality
-
-**Advanced User Experience Features:**
-- **Sliding History Panel**: Configurable left/right positioning with smooth animations
-- **Edit-in-Place**: Click any previous answer to return to original question component
-- **Question State Restoration**: Preserves component type (select, colorSelect, multiSelect, etc.)
-- **Visual Feedback**: Floating overlay indicators during edit mode
-- **Conversation Tracking**: Comprehensive state management for seamless editing flow
-- **Agent-Aware Editing**: Tracks which agent generated each question for proper restoration
-
-**Key Components:**
-```typescript
-// History Panel with edit capabilities
-interface InputHistoryProps {
-  isOpen: boolean;
-  side: 'left' | 'right';
-  answers: Record<string, string>;
-  questionHistory: Array<QuestionDefinition>;
-  onAnswerUpdate: (questionId: string, newValue: string) => void;
-}
-
-// Dynamic question tracking for AI and mock workflows
-interface QuestionDefinition {
-  id: string;
-  message: string;
-  inputType: 'select' | 'multiSelect' | 'colorSelect' | 'text' | 'textarea' | 'yesNoMaybe';
-  options?: Array<{ value: string; label: string }>;
-  placeholder?: string;
-  allowCustom?: boolean;
-  maxSelections?: number;
-  agentSource?: string; // Which agent generated this question
+interface DataAnalysisResult {
+  dataStructure: {
+    columns: Array<{
+      name: string;
+      type: 'string' | 'number' | 'date' | 'boolean' | 'currency';
+    }>;
+    rowCount: number;
+  };
+  suggestedToolTypes: Array<{
+    type: 'calculator' | 'quiz' | 'assessment';
+    confidence: number;
+    reasoning: string;
+  }>;
+  fieldMappings: Array<{
+    sourceField: string;
+    suggestedTarget: string;
+    confidence: number;
+  }>;
 }
 ```
 
-**Universal Edit System:**
-- Works with questions generated by any agent (conversation, tool creation, etc.)
-- Dynamic question history tracking for all question sources
-- Preserves component state and pre-populates values
-- Seamless integration with conversation flow management
-- Agent-aware restoration for complex multi-agent workflows
+---
 
 ## Database Architecture Design
 
-### Dynamic Input Component System
-
-**Context-Aware Input Routing:**
-The system dynamically renders appropriate input components based on question type and configuration:
-
-```typescript
-// Input component selection logic
-function DynamicInput({ currentQuestion, value, onChange, onSubmit }) {
-  switch (currentQuestion.inputType) {
-    case 'select':        // Dropdown with custom option
-    case 'multiSelect':   // Horizontal chips with checkboxes  
-    case 'colorSelect':   // Color swatches with custom picker
-    case 'yesNoMaybe':    // Radio buttons for simple choices
-    case 'textarea':      // Multi-line text input
-    case 'text':          // Single-line with suggestion chips
-    case 'multiPart':     // Sequential question flow
-  }
-}
-```
-
-**Enhanced UI/UX Features:**
-- **Pagination Controls**: Navigate through option sets with chevron buttons
-- **Custom Color Picker**: Full-featured color selection modal with live preview
-- **Suggestion Chips**: Smart suggestions for text inputs
-- **Visual Feedback**: Hover states, selection indicators, and smooth animations
-- **Responsive Design**: Consistent container sizing across all input types
-- **Accessibility**: Proper ARIA labels and keyboard navigation
-
-**Question History Integration:**
-- **Real-time Tracking**: All questions (mock and AI) stored for editing
-- **Type Icon System**: Visual indicators for different input types (Palette, Type, List, etc.)
-- **Compact Display**: Truncated question text with expandable details
-- **Edit Button Visibility**: Hover-only edit controls for clean interface
-
 ### Single-Database Strategy with DynamoDB
-
-**DynamoDB (Primary Database):**
-- ALL application data using single-table design
-- Users, tools, leads, analytics, AI sessions, conversations, metrics, alerts
-- High-performance read/write operations with auto-scaling
-- Built-in backup and point-in-time recovery
-- Global Secondary Indexes (GSIs) for different query patterns
-- Managed via CDK with proper IAM permissions
-
-**DynamoDB (User Behavior Tracking):**
-- Dedicated table for user behavior analytics using single-table design
-- User interactions, profiles, evolution history, analysis records
-- Automatic TTL cleanup for interaction data (90 days)
-- Cross-user analytics via Global Secondary Indexes
-- Real-time behavior insights and adaptation recommendations
-- Managed via separate CDK stack for modular deployment
-
-**ElastiCache Redis (Caching Layer):**
-- Application-level caching for frequently accessed data
-- Session caching for performance optimization
-- Rate limiting counters and temporary computation results
-- Cache invalidation strategies for data consistency
-
-**SQS (Background Processing):**
-- Queue long-running AI operations that exceed Vercel timeouts
-- Background behavior analysis and pattern detection
-- Dead letter queues for failed operations
-- Integration with Lambda for async processing
-- Decoupling of AI processing from API responses
+- **Primary Database**: A single DynamoDB table houses ALL application data (users, tools, leads, sessions, etc.) using a single-table design pattern.
+- **Behavior Tracking**: A separate, dedicated DynamoDB table is used for user behavior analytics, allowing for specialized query patterns and data lifecycle management (e.g., TTL for interaction data).
+- **Caching Layer**: ElastiCache Redis is used for application-level caching, session storage, and rate limiting.
+- **Background Processing**: SQS queues are used to decouple long-running AI operations and background tasks (like data source syncing), which are then processed by Lambda functions.
 
 ### DynamoDB Single-Table Design
-
+The primary table uses a flexible structure with generic keys and specific entity types to enable diverse query patterns.
 ```typescript
 // Primary table structure using single-table design
 interface KeyvexTableItem {
@@ -1137,1218 +342,102 @@ interface KeyvexTableItem {
   GSI1SK?: string;      // Global Secondary Index 1 SK
   GSI2PK?: string;      // Global Secondary Index 2 PK
   GSI2SK?: string;      // Global Secondary Index 2 SK
-  entityType: string;   // 'USER' | 'TOOL' | 'SESSION' | 'LEAD' | 'INTERACTION' | 'METRIC' | 'ALERT'
-  createdAt: number;    // Unix timestamp
-  updatedAt: number;    // Unix timestamp
-  ttl?: number;         // Auto-expire for temporary data
-  metadata: Record<string, any>; // Extensible metadata
-  version: number;      // For optimistic locking
+  entityType: string;   // 'USER' | 'TOOL' | 'SESSION' | 'LEAD' | 'DATA_SOURCE' | ...
+  createdAt: number;
+  updatedAt: number;
   [key: string]: any;   // Entity-specific fields
 }
 
 // User entity
 interface UserItem extends KeyvexTableItem {
-  PK: `USER#${string}`;           // USER#{clerkId}
+  PK: `USER#${string}`; // USER#{clerkId}
   SK: 'PROFILE';
-  GSI1PK: `EMAIL#${string}`;      // For email lookups
-  GSI1SK: 'USER';
   entityType: 'USER';
-  clerkId: string;
-  email: string;
-  subscriptionTier: string;
-  preferences: {
-    defaultModels: Record<string, string>;
-    debugMode: boolean;
-    notifications: boolean;
-  };
-  // ... other user fields
+  // ...
 }
 
 // Tool entity
 interface ToolItem extends KeyvexTableItem {
-  PK: `USER#${string}`;           // USER#{clerkId}
-  SK: `TOOL#${string}`;           // TOOL#{toolId}
-  GSI1PK: `TOOL#${string}`;       // For tool-specific queries
-  GSI1SK: `STATUS#${string}`;     // For filtering by status
-  GSI2PK: `TYPE#${string}`;       // For filtering by tool type
-  GSI2SK: `CREATED#${number}`;    // For sorting by creation date
+  PK: `USER#${string}`;
+  SK: `TOOL#${string}`; // TOOL#{toolId}
   entityType: 'TOOL';
-  toolId: string;
+  // ...
+}
+
+// Data Source entity
+interface DataSourceItem extends KeyvexTableItem {
+  PK: `USER#${string}`;
+  SK: `DATA_SOURCE#${string}`; // DATA_SOURCE#{sourceId}
+  GSI1PK: `DATA_SOURCE#${string}`;
+  GSI1SK: `STATUS#${string}`;
+  GSI2PK: `TYPE#${string}`;
+  GSI2SK: `CREATED#${number}`;
+  entityType: 'DATA_SOURCE';
+  sourceId: string;
   userId: string;
   name: string;
-  type: 'calculator' | 'quiz' | 'assessment';
-  status: 'draft' | 'published' | 'archived';
-  configuration: any;
-  styling: any;
-  analytics: {
-    totalViews: number;
-    totalCompletions: number;
-    totalLeads: number;
-    conversionRate: number;
-    lastActivity: number;
-  };
-  // ... other tool fields
+  type: 'file' | 'database' | 'cloud' | 'api';
+  status: 'active' | 'error' | 'pending' | 'archived';
+  config: { [key: string]: any };
+  mapping: Record<string, string>;
+  syncSettings: { /* ... */ };
+  healthStatus: { /* ... */ };
+  metadata: { /* ... */ };
 }
 
-// AI Session entity
-interface AISessionItem extends KeyvexTableItem {
-  PK: `SESSION#${string}`;        // SESSION#{sessionId}
-  SK: 'METADATA';
-  GSI1PK: `USER#${string}`;       // For user's sessions
-  GSI1SK: `SESSION#${number}`;    // Sorted by creation time
-  entityType: 'SESSION';
-  sessionId: string;
-  userId: string;
-  toolId?: string;
-  currentStep: string;
-  status: 'active' | 'completed' | 'abandoned';
-  sessionData: {
-    currentAgent: string;
-    progress: number;
-    totalSteps: number;
-    modelUsage: Record<string, number>;
-    totalCost: number;
-  };
-  // ... other session fields
+// Data Source Activity entity (for monitoring)
+interface DataSourceActivityItem extends KeyvexTableItem {
+  PK: `DATA_SOURCE#${string}`;
+  SK: `ACTIVITY#${number}#${string}`; // ACTIVITY#{timestamp}#{activityId}
+  GSI1PK: `ACTIVITY#${string}`;
+  GSI1SK: `${number}`;
+  entityType: 'DATA_ACTIVITY';
+  activityType: 'sync' | 'test' | 'error' | 'connection' | 'configuration';
+  status: 'success' | 'error' | 'pending';
+  ttl: number; // Auto-expire after 30 days
 }
 
-// Conversation Message entity
-interface ConversationMessageItem extends KeyvexTableItem {
-  PK: `SESSION#${string}`;        // SESSION#{sessionId}
-  SK: `MESSAGE#${number}#${string}`; // MESSAGE#{timestamp}#{messageId}
-  entityType: 'MESSAGE';
-  sessionId: string;
-  messageId: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: number;
-  agent?: string;
-  modelUsed?: string;
-  tokenCount?: number;
-  cost?: number;
-  // ... other message fields
-}
-
-// Lead entity
-interface LeadItem extends KeyvexTableItem {
-  PK: `TOOL#${string}`;           // TOOL#{toolId}
-  SK: `LEAD#${string}`;           // LEAD#{leadId}
-  GSI1PK: `EMAIL#${string}`;      // For email lookups
-  GSI1SK: `LEAD#${number}`;       // Sorted by creation time
-  entityType: 'LEAD';
-  leadId: string;
+// Tool-Data Source Relationship entity
+interface ToolDataSourceItem extends KeyvexTableItem {
+  PK: `TOOL#${string}`;
+  SK: `DATA_SOURCE#${string}`;
+  GSI1PK: `DATA_SOURCE#${string}`; // For reverse lookups
+  GSI1SK: `TOOL#${string}`;
+  entityType: 'TOOL_DATA_LINK';
   toolId: string;
-  email: string;
-  name?: string;
-  company?: string;
-  phone?: string;
-  responses: any;
-  score?: number;
-  resultCategory?: string;
-  source: {
-    referrer?: string;
-    utm?: Record<string, string>;
-    userAgent?: string;
-  };
-  // ... other lead fields
-}
-
-// Tool Interaction entity (for analytics)
-interface ToolInteractionItem extends KeyvexTableItem {
-  PK: `TOOL#${string}`;           // TOOL#{toolId}
-  SK: `INTERACTION#${number}#${string}`; // INTERACTION#{timestamp}#{interactionId}
-  GSI1PK: `ANALYTICS#${string}`;  // For analytics queries
-  GSI1SK: `${string}#${number}`;  // {interactionType}#{timestamp}
-  entityType: 'INTERACTION';
-  toolId: string;
-  interactionId: string;
-  sessionId?: string;
-  interactionType: 'view' | 'start' | 'complete' | 'abandon' | 'lead_capture' | 'share';
-  interactionData?: {
-    stepCompleted?: number;
-    totalSteps?: number;
-    timeSpent?: number;
-    userAgent?: string;
-    referrer?: string;
-  };
-  // ... other interaction fields
-}
-
-// AI Metrics entity (for admin dashboard)
-interface AIMetricItem extends KeyvexTableItem {
-  PK: `METRIC#${string}`;         // METRIC#{date}
-  SK: `REQUEST#${number}#${string}`; // REQUEST#{timestamp}#{requestId}
-  GSI1PK: `PROCESS#${string}`;    // For process-specific queries
-  GSI1SK: `${number}`;            // Timestamp for sorting
-  GSI2PK: `PROVIDER#${string}`;   // For provider-specific queries
-  GSI2SK: `${number}`;            // Timestamp for sorting
-  entityType: 'METRIC';
-  requestId: string;
-  userId: string;
-  process: string;                // magicSpark, logicArchitect, etc.
-  provider: string;               // openai, anthropic
-  model: string;                  // gpt-4, claude-3-5-sonnet, etc.
-  inputTokens: number;
-  outputTokens: number;
-  cost: number;
-  latency: number;
-  success: boolean;
-  error?: string;
-  timestamp: number;
-  ttl: number;                    // Auto-expire after 30 days
-}
-
-// Alert entity (for admin dashboard)
-interface AlertItem extends KeyvexTableItem {
-  PK: `ALERT#${string}`;          // ALERT#{alertId}
-  SK: 'ALERT';
-  GSI1PK: `ALERT_TYPE#${string}`; // For type-specific queries
-  GSI1SK: `${string}#${number}`;  // {severity}#{timestamp}
-  entityType: 'ALERT';
-  alertId: string;
-  type: 'cost' | 'performance' | 'error';
-  severity: 'low' | 'medium' | 'high';
-  message: string;
-  timestamp: number;
-  resolved: boolean;
-  resolvedAt?: number;
-  resolvedBy?: string;
-  data?: Record<string, any>;     // Alert-specific data
-  ttl: number;                    // Auto-expire after 90 days
-}
-
-// WebSocket Connection entity
-interface WebSocketConnectionItem extends KeyvexTableItem {
-  PK: `CONNECTION#${string}`;     // CONNECTION#{connectionId}
-  SK: 'METADATA';
-  GSI1PK: `USER#${string}`;       // For user's connections
-  GSI1SK: `CONNECTION#${number}`; // Sorted by connection time
-  entityType: 'CONNECTION';
-  connectionId: string;
-  userId: string;
-  sessionId?: string;
-  connectedAt: number;
-  lastActivity: number;
-  ttl: number; // Auto-cleanup stale connections
-}
-
-// Model Configuration entity (for centralized config)
-interface ModelConfigItem extends KeyvexTableItem {
-  PK: 'CONFIG';
-  SK: `MODEL_CONFIG#${string}`;   // MODEL_CONFIG#{version}
-  entityType: 'CONFIG';
-  version: string;
+  sourceId: string;
+  mapping: Record<string, string>;
   isActive: boolean;
-  configuration: {
-    providers: Record<string, any>;
-    processModels: Record<string, any>;
-    environment: Record<string, any>;
-    features: Record<string, boolean>;
-    rateLimits: Record<string, any>;
-  };
-  updatedBy: string;
-  changeLog: string;
 }
 ```
 
 ### Query Patterns and GSI Usage
+- **GSI1**: Used for querying by user, email, tool analytics, data source status, and more.
+- **GSI2**: Used for querying tools by type, status, or creation date, and data sources by type.
 
-**GSI1 (GSI1PK, GSI1SK):**
-- User's tools: `GSI1PK = USER#{clerkId}`, `SK begins_with TOOL#`
-- User's sessions: `GSI1PK = USER#{clerkId}`, `SK begins_with SESSION#`
-- Email lookups: `GSI1PK = EMAIL#{email}`
-- Tool analytics: `GSI1PK = ANALYTICS#{toolId}`
-- Process metrics: `GSI1PK = PROCESS#{processName}`
-- Alert types: `GSI1PK = ALERT_TYPE#{type}`
+---
 
-**GSI2 (GSI2PK, GSI2SK):**
-- Tools by type: `GSI2PK = TYPE#{toolType}`
-- Tools by creation date: Sort by `GSI2SK = CREATED#{timestamp}`
-- Published tools: `GSI2PK = STATUS#published`
-- Provider metrics: `GSI2PK = PROVIDER#{providerName}`
+## User Behavior Learning System
 
-## Centralized AI Model Configuration
+The platform includes a sophisticated user behavior learning system that tracks interactions, analyzes patterns, and adapts AI responses for a personalized experience.
 
-### Model Configuration System
-- **Central Configuration**: `default-models.json` with all model definitions
-- **Provider Abstraction**: Unified interface for OpenAI, Anthropic, and future providers
-- **Process-Specific Models**: Optimized model selection per AI process
-- **Cost Tracking**: Automatic cost calculation with real pricing
-- **Fallback Support**: Automatic failover to secondary models
-- **Environment Overrides**: Different models for dev/staging/production
+**Key Features**:
+- **Real-time Interaction Tracking**: Captures response times, input preferences, editing patterns, and workflow choices.
+- **Evolution Detection**: Automatically detects behavioral shifts, such as a user transitioning from a beginner to an expert.
+- **Adaptive AI Responses**: Dynamically adjusts question complexity, input types, and suggestions based on the user's learned profile.
+- **Admin Dashboard Integration**: Provides centralized insights into user behavior.
 
-### Key Features
-- **Real-time Cost Monitoring**: Track spending across all AI operations
-- **Performance Analytics**: Monitor latency, success rates, and throughput
-- **Model Optimization**: Data-driven model selection based on performance
-- **Budget Controls**: Automatic alerts and limits for cost management
+---
+## Development & Deployment
+The project follows a multi-environment strategy (development and production) with complete resource isolation managed via the AWS CDK. Deployment scripts (`deploy-dev`, `deploy-prod`) handle the deployment of environment-specific stacks.
 
-## Admin Dashboard & Monitoring
+### Environment Variables
+Separate environment variables are configured in Vercel for development and production, pointing to the respective AWS resources (DynamoDB tables, SQS queues, API Gateway endpoints, etc.).
 
-### Comprehensive Monitoring System
-- **Cost Analysis**: Real-time spending tracking across models and processes
-- **Usage Metrics**: Request volumes, success rates, and usage patterns
-- **Performance Monitoring**: Latency analysis, error tracking, and throughput
-- **Alert System**: Proactive notifications for cost, performance, and errors
-- **User Behavior Analytics**: Comprehensive behavioral insights and evolution tracking
+### Secrets Management
+Secrets (API keys, database credentials) are stored in AWS Secrets Manager, with separate secrets for each environment.
 
-### Key Components
-- **Real-time Dashboard**: Auto-refreshing metrics with visual charts
-- **Test Data Generation**: Sample data for development and testing
-- **Metrics API**: RESTful endpoints for tracking and querying metrics
-- **Automatic Tracking**: Seamless integration with all AI operations
-- **Behavior Intelligence Dashboard**: Real-time user behavior insights with evolution timeline
-- **Cross-User Analytics**: Aggregate behavior patterns across user base
-- **Adaptive AI Recommendations**: Data-driven suggestions for improving AI interactions
-
-### Behavior Analytics Features
-- **Profile Confidence Scoring**: Track reliability of behavioral predictions
-- **Evolution Detection**: Identify when users transition between skill levels
-- **Pattern Recognition**: Discover common interaction sequences and preferences
-- **Personalization Metrics**: Measure effectiveness of adaptive AI responses
-- **Export Capabilities**: Download behavioral data for external analysis
-
-## Authentication & Debug System
-
-### Centralized Authentication
-- **Production**: Full Clerk authentication with proper security
-- **Development**: Optional debug mode with configurable test users
-- **Environment-Based**: Automatic detection of debug vs production modes
-- **Centralized Logging**: Comprehensive debug logging across all routes
-
-### Debug Features
-- **Bypass Authentication**: For development and testing
-- **Debug Logging**: Detailed operation tracking
-- **Test User Management**: Configurable debug user IDs
-- **Route-Specific Control**: Enable/disable debug mode per route
-
-## Development & Deployment Phases
-
-### Phase 1: Foundation & AI Core (Weeks 1-3) ✅ COMPLETED
-**Infrastructure Setup:**
-- ✅ Set up AWS CDK infrastructure (DynamoDB, ElastiCache, SQS)
-- ✅ Deploy User Behavior DynamoDB stack with proper TTL configuration
-- ✅ Configure Vercel deployment with environment variables
-- ✅ Set up Clerk authentication with debug system
-- ✅ Create centralized model configuration system
-
-**Core AI Development:**
-- ✅ Implement Conversation Agent (`/api/ai/test-ui/`) with streaming
-- ✅ Implement Tool Creation Agent (`/api/ai/create-tool/`) with structured output validation
-- ✅ Create agent separation architecture with signal-based communication
-- ✅ Build dynamic input component system with editing functionality
-- ✅ Implement real-time tool creation and preview canvas
-- ✅ Initialize User Behavior Learning System with localStorage
-
-**Agent Architecture Achievements:**
-- ✅ **Single Responsibility**: Each agent handles only its specific domain
-- ✅ **Structured Validation**: Tool Creation Agent uses full Zod schema validation
-- ✅ **Signal-Based Communication**: Conversation Agent signals when specialized work needed
-- ✅ **Real-time Updates**: Frontend seamlessly handles agent handoffs and canvas updates
-- ✅ **Scalable Pattern**: Established pattern for future specialized agents
-
-**✅ MAJOR MILESTONE: Complete Prompt Separation & XML Structuring (January 2025)**
-- ✅ **Consolidated All Prompts**: Moved all AI prompts from API routes to dedicated `/lib/prompts/` files
-- ✅ **XML-Structured Prompts**: Enhanced prompts with structured XML format for better AI processing
-- ✅ **Dynamic Prompt Builders**: Created sophisticated builder functions for contextual prompt generation
-- ✅ **Clean API Separation**: API routes now focus purely on request handling with zero inline content
-- ✅ **Grid Layout Revolution**: Eliminated vertical form stacking, enforced dashboard-style layouts
-- ✅ **Enhanced Component Validation**: Improved schema validation with structured error handling
-
-**Testing Infrastructure:**
-- ✅ Set up admin dashboard with basic monitoring
-- ✅ Create comprehensive test UI with mock and real AI modes
-- ✅ Implement debug logging and error tracking
-- ✅ Test agent separation with real tool generation workflows
-- ✅ Validate grid layout enforcement and professional tool generation
-
-**✅ MAJOR MILESTONE: V2 Multi-Agent Orchestration System (January 2025)**
-- ✅ **Specialized Agent Development**: Created 4 specialized agents (Function Planner, State Design, JSX Layout, Tailwind Styling)
-- ✅ **Tool Construction Context (TCC)**: Implemented comprehensive shared state management schema
-- ✅ **Frontend Orchestration**: Built React hook with polling-based coordination and timeout management
-- ✅ **API Orchestration Endpoints**: Created start, check-completion, and trigger-next-step endpoints
-- ✅ **Progress Tracking**: Real-time step-by-step progress with timestamps and status visualization
-- ✅ **Error Handling**: Comprehensive error recovery with agent-specific retry capabilities
-- ✅ **Integration Testing**: Complete V1/V2 toggle system in Tool Generation Workbench
-- ✅ **Advanced Controls**: Pause/resume functionality and isolation testing framework
-
-**V2 Architecture Achievements:**
-- ✅ **VERCEL FIRST**: All agents respect Vercel timeout limits (10-20 seconds each)
-- ✅ **Frontend Controlled**: Complete orchestration managed by React hook
-- ✅ **Modular Design**: Agent-specific development and optimization
-- ✅ **Quality Enhancement**: Multi-stage validation and specialized expertise
-- ✅ **Debugging Excellence**: Agent isolation and step-by-step progress tracking
-- ✅ **Scalable Foundation**: Easy addition of new specialized agents
-
-### Phase 2: User Experience & Refinement (Weeks 4-6)
-**Enhanced User Experience:**
-- Complete conversation history panel with edit-in-place functionality
-- Implement multi-part question iterator component
-- Add real-time tool preview updates
-- Complete adaptive color picker and custom color management
-- Enhance User Behavior Learning with evolution tracking
-
-**AI Agent Development:**
-- Develop Content Crafter and Logic Architect agents
-- Implement conversation state management
-- Add brand intelligence and visual analysis capabilities
-- Complete Style Master agent with comprehensive styling
-
-**Behavior Intelligence:**
-- Implement production DynamoDB behavior tracking
-- Add real-time behavior analysis and adaptation
-- Complete admin behavior dashboard with evolution timeline
-- Deploy behavior analysis Lambda functions
-
-### Phase 3: Production Polish & Launch (Weeks 7-8)
-**Production Readiness:**
-- Complete error handling and fallback systems
-- Implement comprehensive monitoring and alerting
-- Add rate limiting and security measures
-- Complete payment integration with Stripe
-- Finalize behavior data export and privacy controls
-
-**Advanced Features:**
-- Launch webhook system for third-party integrations
-- Complete lead capture and management system
-- Add advanced analytics with cross-user behavior insights
-- Implement tool sharing and collaboration features
-- Deploy behavior-driven AI personalization
-
-**Quality Assurance:**
-- Comprehensive testing across all user flows
-- Performance optimization and load testing
-- Security audit and penetration testing
-- User acceptance testing with behavior tracking validation
-
-## Key Technical Decisions
-
-### 1. Hybrid Architecture Strategy
-**Decision**: Vercel-first with AWS backend for complex operations
-**Rationale**: Maximizes developer experience while solving timeout limitations
-**Implementation**: AI orchestration on Vercel, complex processing on Lambda
-
-### 2. Single-Table DynamoDB Design
-**Decision**: Use single-table design for main application data, separate table for behavior tracking
-**Rationale**: Optimal performance and cost efficiency with specialized analytics
-**Implementation**: Careful entity design with proper GSI patterns for behavior queries
-
-### 3. User Behavior Learning Architecture
-**Decision**: Comprehensive behavior tracking with evolution detection and adaptive AI responses
-**Rationale**: Personalized user experiences improve engagement and tool creation success
-**Implementation**: 
-- Development: localStorage with rolling buffers for rapid iteration
-- Production: Dedicated DynamoDB table with TTL and privacy controls
-- Analytics: Real-time admin dashboard with cross-user insights
-- Adaptation: Dynamic AI responses based on behavioral patterns
-
-### 4. Agent Separation with Signal-Based Communication
-**Decision**: Specialized agents with single responsibilities instead of monolithic AI system
-**Rationale**: Better maintainability, structured validation, and optimal user experience
-**Implementation**: 
-- Conversation Agent handles UI flow and signals when specialized work needed
-- Tool Creation Agent uses structured output with complete schema validation
-- Frontend seamlessly handles agent handoffs with real-time canvas updates
-- Scalable pattern for future specialized agents (content, style, analytics)
-
-### 5. Structured Output with Schema Validation
-**Decision**: Use Zod schemas and structured output for complex AI generation tasks
-**Rationale**: Prevents malformed outputs, ensures type safety, and enables better error handling
-**Implementation**: Tool Creation Agent generates validated ProductToolDefinitions using Vercel AI SDK's generateObject with comprehensive schemas
-
-### 6. Component-Based Dynamic UI
-**Decision**: Context-aware input components with edit-in-place functionality  
-**Rationale**: Flexible conversation flows with seamless editing experience
-**Implementation**: Type-safe component routing with state restoration
-
-### 7. Comprehensive Monitoring Strategy
-**Decision**: Multi-layered monitoring with behavior analytics integration
-**Rationale**: Proactive issue detection and continuous user experience optimization
-**Implementation**: 
-- Cost tracking across all AI operations
-- Performance monitoring with behavioral correlation
-- User behavior evolution tracking with trend analysis
-- Adaptive recommendation system based on behavioral patterns
-
-### 8. V2 Multi-Agent Orchestration Architecture
-**Decision**: Frontend-controlled multi-agent system with specialized agents and shared state management
-**Rationale**: Solve Vercel timeout constraints while maintaining high-quality tool generation through specialized expertise
-**Implementation**:
-- **Agent Specialization**: Function Planner, State Design, JSX Layout, Tailwind Styling agents
-- **Frontend Orchestration**: React hook manages workflow with polling-based coordination
-- **Tool Construction Context (TCC)**: Shared state management between agents with DynamoDB persistence
-- **VERCEL FIRST**: All agents designed to complete within Vercel timeout limits
-- **Progressive Enhancement**: V2 system enhances rather than replaces V1 capabilities
-- **Error Recovery**: Agent-specific retry and recovery with comprehensive error tracking
-
-## Monitoring & Observability
-
-### CloudWatch Integration
-- **Application Metrics**: Request rates, error rates, latency percentiles
-- **AI Model Metrics**: Token usage, completion rates, model performance
-- **Database Metrics**: DynamoDB read/write capacity, query performance
-- **Behavior Analytics**: Interaction patterns, user evolution trends, adaptation effectiveness
-- **Custom Dashboards**: Real-time monitoring with behavioral insights
-
-### Alerting Strategy
-- **Cost Alerts**: Spending thresholds with model-specific breakdowns
-- **Performance Alerts**: Latency spikes, error rate increases
-- **Business Metrics**: User drop-off points, tool completion rates
-- **Behavior Anomalies**: Unusual interaction patterns, evolution trend alerts
-- **AI Quality**: Response quality degradation, adaptation effectiveness
-
-### User Experience Monitoring
-- **Real User Monitoring (RUM)**: Frontend performance tracking
-- **Conversion Funnel**: Tool creation completion rates with behavioral correlation
-- **Error Tracking**: Frontend errors with user context and behavior patterns
-- **Feature Usage**: Component utilization with user preference analysis
-- **Behavioral Health**: Profile confidence scores, evolution detection accuracy
-
-### Admin Dashboard Features
-- **Real-time Metrics**: Live updating charts and graphs
-- **Cost Analysis**: Detailed spending breakdown by model and operation
-- **User Analytics**: Registration, usage patterns, and tool creation metrics
-- **Behavior Intelligence**: User evolution timelines, adaptation success rates
-- **Alert Management**: Configure thresholds and notification channels
-- **Data Export**: Download metrics and behavioral data for external analysis
-
-### Debug & Development
-- **Comprehensive Logging**: Structured logging with correlation IDs
-- **Request Tracing**: Full request lifecycle with behavioral context
-- **Performance Profiling**: Identify bottlenecks with user behavior correlation
-- **AI Operation Debugging**: Detailed AI request/response logging with behavioral adaptation tracking
-
-## Risk Mitigation
-
-### Technical Risks
-1. **Vercel Timeouts**: Granular architecture + Lambda offload
-2. **AI Reliability**: Multiple providers + retry logic + centralized config
-3. **Cost Control**: Real-time monitoring + automated alerts + budget limits
-4. **Performance**: Caching + optimization + comprehensive monitoring
-
-### Business Risks
-1. **User Adoption**: Comprehensive onboarding + templates
-2. **Churn**: Analytics to identify drop-off points
-3. **Competition**: Focus on unique AI co-creation experience
-4. **Scalability**: Cloud-native architecture from day one
-
-## Success Metrics
-
-### Technical KPIs
-- AI operation success rate (>95%)
-- Average response time (<3 seconds for streaming start)
-- System uptime (>99.9%)
-- Error rate (<1%)
-- Cost per successful operation (<$0.50)
-
-### Business KPIs
-- Trial to paid conversion (target: >15%)
-- Monthly active users growth
-- Tools created per user (target: >3)
-- Lead capture rate for user tools (target: >25%)
-
-## AWS Infrastructure Deployment
-
-### Multi-Environment Strategy
-
-The Keyvex project uses a multi-environment deployment strategy with complete resource isolation:
-
-#### Development Environment
-```bash
-# Deploy development stacks
-npm run deploy-dev
-# Equivalent to: cdk deploy --all --context environment=development
-```
-
-**Creates resources with `-development` suffix:**
-- Stack Names: `Keyvex-development-Security`, `Keyvex-development-Database`, etc.
-- Resource Names: `keyvex-main-table-development`, `keyvex-ai-processor-development`
-
-#### Production Environment
-```bash
-# Deploy production stacks
-npm run deploy-prod
-# Equivalent to: cdk deploy --all --context environment=production
-```
-
-**Creates resources with `-production` suffix:**
-- Stack Names: `Keyvex-production-Security`, `Keyvex-production-Database`, etc.
-- Resource Names: `keyvex-main-table-production`, `keyvex-ai-processor-production`
-
-### Deployed AWS Resources (Development)
-
-**Core Infrastructure:**
-- **DynamoDB Table**: `keyvex-main-table-development` with GSI1 and GSI2
-- **Lambda Functions**: AI processor, analytics processor, websocket handler, email processor
-- **API Endpoints**: 
-  - REST API: `https://y4omo4wsug.execute-api.us-east-1.amazonaws.com/prod/`
-  - WebSocket: `wss://4pfmheijde.execute-api.us-east-1.amazonaws.com`
-- **CloudWatch Dashboard**: `keyvex-dashboard-development`
-- **S3 Buckets**: Public assets, tool assets, user uploads
-- **CloudFront**: Asset delivery distribution
-
-**Security & Secrets:**
-- **Secrets Manager**: AI, integration, and database secrets
-- **IAM Roles**: Least-privilege access for all services
-- **SNS Alerts**: Email notifications for monitoring
-
-## Environment Variables Configuration
-
-### Development Environment Variables
-
-For Vercel development/preview deployments, use these environment variables:
-
-```bash
-# AWS Configuration
-AWS_REGION=us-east-1
-DYNAMODB_TABLE_NAME=keyvex-main-table-development
-
-# SQS Queue URLs
-SQS_AI_PROCESSING_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-ai-processing-queue-development
-SQS_ANALYTICS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-analytics-queue-development
-SQS_EMAIL_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-email-queue-development
-
-# API Gateway Endpoints
-WEBSOCKET_API_ENDPOINT=wss://4pfmheijde.execute-api.us-east-1.amazonaws.com
-REST_API_ENDPOINT=https://y4omo4wsug.execute-api.us-east-1.amazonaws.com/prod/
-
-# Secrets Manager ARNs
-AI_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/ai/development-ZSw7gi
-INTEGRATION_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/integrations/development-J6TbaU
-DATABASE_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/database/development-Rz5198
-
-# CloudFront Distribution
-CLOUDFRONT_DOMAIN=d252oh2pudf1vi.cloudfront.net
-
-# S3 Buckets
-S3_PUBLIC_ASSETS_BUCKET=keyvex-public-assets-development-622703699030
-S3_TOOL_ASSETS_BUCKET=keyvex-tool-assets-development-622703699030
-S3_USER_UPLOADS_BUCKET=keyvex-user-uploads-development-622703699030
-
-# Existing Variables (keep current values)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-STRIPE_SECRET_KEY=sk_test_...
-UNSPLASH_ACCESS_KEY=...
-
-# Debug Configuration (development only)
-DISABLE_AUTH_FOR_DEBUG=true
-DEBUG_USER_ID=debug-user-123
-ENABLE_METRICS_TRACKING=true
-```
-
-### Production Environment Variables
-
-For Vercel production deployments, use these environment variables (after deploying production stacks):
-
-```bash
-# AWS Configuration
-AWS_REGION=us-east-1
-DYNAMODB_TABLE_NAME=keyvex-main-table-production
-
-# SQS Queue URLs
-SQS_AI_PROCESSING_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-ai-processing-queue-production
-SQS_ANALYTICS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-analytics-queue-production
-SQS_EMAIL_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/622703699030/keyvex-email-queue-production
-
-# API Gateway Endpoints (will be different URLs)
-WEBSOCKET_API_ENDPOINT=wss://[production-api-id].execute-api.us-east-1.amazonaws.com
-REST_API_ENDPOINT=https://[production-api-id].execute-api.us-east-1.amazonaws.com/prod/
-
-# Secrets Manager ARNs
-AI_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/ai/production-[suffix]
-INTEGRATION_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/integrations/production-[suffix]
-DATABASE_SECRETS_ARN=arn:aws:secretsmanager:us-east-1:622703699030:secret:keyvex/database/production-[suffix]
-
-# CloudFront Distribution (will be different)
-CLOUDFRONT_DOMAIN=[production-cloudfront-domain].cloudfront.net
-
-# S3 Buckets
-S3_PUBLIC_ASSETS_BUCKET=keyvex-public-assets-production-622703699030
-S3_TOOL_ASSETS_BUCKET=keyvex-tool-assets-production-622703699030
-S3_USER_UPLOADS_BUCKET=keyvex-user-uploads-production-622703699030
-
-# Production Variables (use production keys)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
-CLERK_SECRET_KEY=sk_live_...
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-STRIPE_SECRET_KEY=sk_live_...
-UNSPLASH_ACCESS_KEY=...
-
-# Debug Configuration (production - disabled)
-DISABLE_AUTH_FOR_DEBUG=false
-ENABLE_METRICS_TRACKING=true
-```
-
-### Secrets Manager Configuration
-
-Each environment requires these secrets to be configured in AWS Secrets Manager:
-
-#### AI Secrets (`keyvex/ai/{environment}`)
-```json
-{
-  "openai": {
-    "apiKey": "sk-...",
-    "organization": "org-..." 
-  },
-  "anthropic": {
-    "apiKey": "sk-ant-..."
-  }
-}
-```
-
-#### Integration Secrets (`keyvex/integrations/{environment}`)
-```json
-{
-  "unsplash": {
-    "accessKey": "...",
-    "secretKey": "..."
-  },
-  "sendgrid": {
-    "apiKey": "SG...",
-    "fromEmail": "noreply@keyvex.com"
-  },
-  "stripe": {
-    "secretKey": "sk_test_... or sk_live_...",
-    "publishableKey": "pk_test_... or pk_live_...",
-    "webhookSecret": "whsec_..."
-  }
-}
-```
-
-#### Database Secrets (`keyvex/database/{environment}`)
-```json
-{
-  "encryptionKey": "base64-encoded-key-for-sensitive-data",
-  "jwtSecret": "your-jwt-secret-for-tokens"
-}
-```
-
-### Deployment Protocol
-
-1. **Development Deployment**:
-   ```bash
-   cd aws_infra
-   npm run deploy-dev
-   ```
-
-2. **Configure Development Secrets** in AWS Secrets Manager
-
-3. **Set Vercel Development Environment Variables** with `-development` suffixed resources
-
-4. **Production Deployment**:
-   ```bash
-   cd aws_infra
-   npm run deploy-prod
-   ```
-
-5. **Configure Production Secrets** in AWS Secrets Manager
-
-6. **Set Vercel Production Environment Variables** with `-production` suffixed resources
-
+---
 ## Conclusion
 
-This technical outline provides a comprehensive roadmap for building Keyvex with the new specialized agent architecture. The system prioritizes AI intelligence over algorithmic complexity, ensuring each agent excels at its specific responsibility while maintaining clean separation of concerns and optimal user experience.
-
-**Key Architectural Achievements:**
-- **Agent Separation**: Conversation and Tool Creation agents with single responsibilities
-- **Structured Validation**: Full schema validation for complex AI outputs
-- **Real-time Experience**: Seamless agent handoffs with immediate canvas updates
-- **Scalable Pattern**: Established foundation for future specialized agents
-- **User Intelligence**: Comprehensive behavior learning integrated across all agents
-
-The platform is built to scale efficiently while solving Vercel timeout challenges through intelligent agent design rather than infrastructure complexity.
-
----
-
-## Addendum: Architectural Pivot from JSON to React Components
-
-### **The Great Pivot (January 2025)**
-
-During development, we made a **fundamental architectural decision** that transformed how Keyvex generates and renders business tools. This pivot from JSON-based tool definitions to **direct React component generation** represents one of the most significant technical improvements in the project's evolution.
-
-### **The Original JSON-Based Approach**
-
-**Initial Architecture:**
-```typescript
-// Original approach - Complex JSON schema
-interface ToolDefinition {
-  metadata: { title, description, type };
-  layout: { structure, responsive, sections };
-  components: Array<{
-    id: string;
-    type: 'textInput' | 'numberInput' | 'button' | 'display';
-    props: Record<string, any>;
-    validation: ValidationRules;
-  }>;
-  logic: {
-    calculations: Array<FormulaDefinition>;
-    conditions: Array<ConditionalLogic>;
-    actions: Array<ActionDefinition>;
-  };
-  styling: { theme, colors, typography };
-}
-```
-
-**Problems with JSON Approach:**
-1. **Complex Component Factory**: Required massive switch statements to map JSON to React components
-2. **Limited Flexibility**: JSON couldn't capture complex React patterns, state logic, or custom behaviors
-3. **Validation Nightmare**: Extensive validation required for every possible component configuration
-4. **Performance Issues**: Multiple layers of abstraction from JSON → Factory → Component
-5. **Developer Experience**: Difficult to debug, modify, or extend component behaviors
-6. **AI Generation Complexity**: Required AI to understand complex nested JSON schemas
-
-**Example of the Complexity:**
-```typescript
-// Old approach - Component Factory Hell
-function renderComponent(componentDef: ComponentDefinition) {
-  switch (componentDef.type) {
-    case 'textInput':
-      return <TextInput 
-        {...componentDef.props} 
-        validation={componentDef.validation}
-        onChange={generateChangeHandler(componentDef)}
-      />;
-    case 'calculation':
-      return <CalculationDisplay
-        formula={componentDef.logic.formula}
-        dependencies={componentDef.logic.dependencies}
-        format={componentDef.logic.format}
-      />;
-    // ... hundreds of lines of component mapping
-  }
-}
-```
-
-### **The React Component Revolution**
-
-**New Architecture:**
-```typescript
-// Revolutionary approach - Direct React component code
-interface ProductToolDefinition {
-  metadata: { title, description, type };
-  componentCode: string; // ← THE GAME CHANGER
-  styling: { colors, theme };
-}
-
-// AI generates this directly:
-const componentCode = `
-function ROICalculator() {
-  const [investment, setInvestment] = useState(0);
-  const [revenue, setRevenue] = useState(0);
-  
-  const roi = ((revenue - investment) / investment) * 100;
-  
-  return (
-    <div className="max-w-2xl mx-auto p-6">
-      <Card style={{ borderColor: '#059669' }}>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input 
-              value={investment}
-              onChange={(e) => setInvestment(Number(e.target.value))}
-              placeholder="Initial Investment"
-            />
-            <Input 
-              value={revenue}
-              onChange={(e) => setRevenue(Number(e.target.value))}
-              placeholder="Expected Revenue"
-            />
-          </div>
-          <div className="text-center p-4 bg-green-50 rounded-lg">
-            <h3>ROI: {roi.toFixed(2)}%</h3>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}`;
-```
-
-### **Why the Pivot Was Revolutionary**
-
-#### **1. AI Generation Simplicity**
-**Before:** AI had to understand complex JSON schemas with hundreds of validation rules
-**After:** AI generates familiar React JSX code - something it excels at
-
-```typescript
-// Old prompt (complex)
-"Generate a tool definition JSON with components array, layout structure, validation rules..."
-
-// New prompt (natural)
-"Generate a React component that creates an ROI calculator with two inputs and a results display"
-```
-
-#### **2. Unlimited Flexibility**
-**Before:** Limited to predefined component types and configurations
-**After:** Full React ecosystem - hooks, state management, custom logic, third-party components
-
-```javascript
-// Now possible: Complex state logic, animations, custom components
-const [step, setStep] = useState(1);
-const [errors, setErrors] = useState({});
-const debouncedCalculation = useDebounce(calculate, 300);
-```
-
-#### **3. Performance Revolution**
-**Before:** JSON → Factory → Validation → Component (4 layers)
-**After:** String → React.createElement → Component (2 layers)
-
-```typescript
-// Simple, fast compilation
-const compiledComponent = new Function(
-  'React', 'useState', 'Card', 'Input', 'Button',
-  `return ${componentCode}`
-)(React, useState, Card, Input, Button);
-```
-
-#### **4. Developer Experience Excellence**
-**Before:** Debug complex JSON mappings and factory logic
-**After:** Debug familiar React component code with proper source maps
-
-#### **5. Professional Quality Output**
-**Before:** Generic, template-like tools limited by factory patterns
-**After:** Custom, professional tools indistinguishable from hand-crafted components
-
-### **Technical Implementation**
-
-#### **Dynamic Component Renderer**
-```typescript
-export function DynamicComponentRenderer({ productToolDefinition }) {
-  // Safely compile and execute React component code
-  const compiledComponent = React.useMemo(() => {
-    try {
-      return new Function(
-        'React', 'useState', 'useEffect', 'Card', 'Input', 'Button', 'Label',
-        `const { useState, useEffect } = React;
-         ${productToolDefinition.componentCode}
-         return ${getComponentName(productToolDefinition.componentCode)};`
-      )(React, useState, useEffect, Card, Input, Button, Label);
-    } catch (error) {
-      return () => <ErrorFallback error={error} />;
-    }
-  }, [productToolDefinition.componentCode]);
-  
-  return (
-    <ErrorBoundary>
-      {React.createElement(compiledComponent)}
-    </ErrorBoundary>
-  );
-}
-```
-
-#### **AI Prompt Evolution**
-```typescript
-// New tool creation prompt focuses on React generation
-export const TOOL_CREATION_PROMPT = `
-<purpose>
-Generate complete React component code for business tools.
-</purpose>
-
-<component-requirements>
-- Generate COMPLETE React function component as string
-- Use modern React hooks (useState, useEffect)
-- Include grid-based layouts (2-3 columns)
-- Implement real business calculations
-- Apply professional styling with provided colors
-</component-requirements>
-
-<output-format>
-Return componentCode as complete React function:
-\`\`\`javascript
-function ToolName() {
-  // Full React component implementation
-  return <div>...</div>;
-}
-\`\`\`
-</output-format>
-`;
-```
-
-### **Benefits Realized**
-
-#### **1. Development Velocity**
-- **95% reduction** in component factory complexity
-- **Instant previews** of AI-generated tools
-- **Zero configuration** required for new tool types
-
-#### **2. AI Generation Quality**
-- **Professional-grade tools** generated in single AI call
-- **Complex business logic** possible (multi-step calculations, validations)
-- **Modern UI patterns** (grid layouts, responsive design, animations)
-
-#### **3. User Experience**
-- **Immediate tool availability** - no build/compile steps
-- **Professional appearance** - indistinguishable from custom development
-- **Full interactivity** - real-time calculations, form validation, animations
-
-#### **4. Maintenance**
-- **Single source of truth** - component code is the definition
-- **Standard React debugging** - familiar tools and patterns
-- **Easy customization** - modify component code directly
-
-### **The Technical Breakthrough**
-
-This pivot solved the **"configuration vs. generation"** problem that plagues many no-code/low-code platforms:
-
-**Configuration Approach (Old):**
-- Limited by predefined templates
-- Complex configuration UIs
-- Generic, templated outputs
-- Restricted functionality
-
-**Generation Approach (New):**
-- Unlimited possibilities through code generation
-- Natural language prompting
-- Custom, professional outputs
-- Full programming language capabilities
-
-### **Impact on Keyvex's Competitive Position**
-
-This architectural decision positions Keyvex uniquely in the market:
-
-1. **Beyond No-Code**: Generate actual React components, not configurations
-2. **Professional Quality**: Tools indistinguishable from custom development
-3. **AI-Native**: Optimized for AI generation rather than human configuration
-4. **Developer-Friendly**: Standard React code for customization and debugging
-5. **Scalable**: No limits on tool complexity or functionality
-
-### **Lessons Learned**
-
-1. **Trust AI Intelligence**: Modern LLMs excel at code generation over configuration
-2. **Simplicity Wins**: Direct approaches often outperform layered abstractions
-3. **Developer Experience Matters**: Familiar patterns reduce complexity
-4. **Performance Through Simplicity**: Fewer layers = better performance
-5. **Flexibility is Key**: Generated code offers unlimited customization
-
-### **Future Implications**
-
-This pivot establishes a **generative-first architecture** that can extend to:
-- **Style Generation**: AI-generated CSS/styling
-- **Logic Generation**: Complex business rule engines
-- **Integration Generation**: API connections and data flows
-- **Test Generation**: Automated testing for generated components
-
----
-
-**This architectural pivot from JSON to React components represents the foundation of Keyvex's competitive advantage and positions the platform for unlimited growth and capabilities.**
-
-## User Behavior Tracking Schema Reference
-
-```typescript
-// User Behavior Tracking Table Schema (Separate DynamoDB Table)
-interface UserBehaviorTableItem {
-  PK: string;           // USER#{userId} | ANALYSIS#{analysisId} | INTERACTION#{interactionType}
-  SK: string;           // PROFILE#CURRENT | INTERACTION#{timestamp}#{id} | ANALYSIS#{timestamp}#{id}
-  GSI1PK?: string;      // INTERACTION#{interactionType} | ANALYSIS#{version}
-  GSI1SK?: string;      // {timestamp} for time-based queries
-  entityType: 'USER_PROFILE' | 'USER_INTERACTION' | 'BEHAVIOR_ANALYSIS' | 'USER_EVOLUTION';
-  createdAt: number;    // Unix timestamp
-  updatedAt: number;    // Unix timestamp
-  ttl?: number;         // Auto-expire for interaction data (90 days)
-  userId: string;       // User identifier
-  version: string;      // Analysis algorithm version
-  agentType?: string;   // Which agent handled the interaction
-  [key: string]: any;   // Entity-specific fields
-}
-
-// User Behavior Profile
-interface UserBehaviorProfileItem extends UserBehaviorTableItem {
-  PK: `USER#${string}`;           // USER#{userId}
-  SK: 'PROFILE#CURRENT';
-  entityType: 'USER_PROFILE';
-  totalInteractions: number;
-  preferredInputTypes: string[];
-  averageResponseTime: number;
-  explorationTendency: number;    // 0-1 conservative to experimental
-  suggestedWorkflow: 'guided' | 'flexible' | 'expert';
-  preferredAgents: string[];      // Ranked by success rate
-  evolutionHistory: any[];        // Array of evolution records
-  confidenceScore: number;        // Profile reliability 0-1
-}
-
-// User Interaction Record (with Agent Tracking)
-interface UserInteractionItem extends UserBehaviorTableItem {
-  PK: `USER#${string}`;           // USER#{userId}
-  SK: `INTERACTION#${number}#${string}`; // INTERACTION#{timestamp}#{interactionId}
-  GSI1PK: `INTERACTION#${string}`; // INTERACTION#{interactionType}
-  GSI1SK: number;                 // timestamp for sorting
-  entityType: 'USER_INTERACTION';
-  interactionId: string;
-  sessionId: string;
-  interactionType: 'question_response' | 'edit_previous' | 'workflow_choice' | 'agent_handoff';
-  questionType: string;           // 'select', 'multiSelect', 'colorSelect', etc.
-  agentType: string;              // 'conversation' | 'tool_creation' | 'content_generation' | etc.
-  responseTime: number;           // milliseconds
-  usedSuggestions: boolean;
-  usedCustomInput: boolean;
-  confidence: number;             // 0-1 based on response behavior
-  agentSuccess: boolean;          // Whether the agent interaction was successful
-  ttl: number;                    // Auto-expire after 90 days
-}
-
-// Behavior Analysis Record (with Cross-Agent Analytics)
-interface BehaviorAnalysisItem extends UserBehaviorTableItem {
-  PK: `USER#${string}`;           // USER#{userId}
-  SK: `ANALYSIS#${number}#${string}`; // ANALYSIS#{timestamp}#{analysisId}
-  GSI1PK: `ANALYSIS#${string}`;   // ANALYSIS#{version}
-  GSI1SK: number;                 // timestamp for sorting
-  entityType: 'BEHAVIOR_ANALYSIS';
-  analysisId: string;
-  interactionCount: number;
-  agentPerformance: Record<string, {
-    successRate: number;
-    averageResponseTime: number;
-    userSatisfaction: number;
-  }>;
-  patterns: {
-    responseSpeed: 'fast' | 'moderate' | 'deliberate';
-    editingFrequency: 'low' | 'medium' | 'high';
-    explorationLevel: 'conservative' | 'balanced' | 'experimental';
-    workflowPreference: 'linear' | 'non-linear' | 'mixed';
-    agentPreference: string[];  // Ranked preferred agents
-  };
-  evolution?: {
-    overallTrend: 'becoming_expert' | 'becoming_beginner' | 'stable' | 'inconsistent';
-    changeIntensity: Record<string, number>;
-    confidenceInTrend: number;
-    agentAdaptation: Record<string, number>; // How well user adapts to each agent
-  };
-}
-```
-
-## Enhanced AI Tool Fixer System
-
-### **Comprehensive Auto-Fix Capabilities**
-
-The AI Tool Fixer has been enhanced with sophisticated pattern detection and automatic resolution capabilities for common component generation issues.
-
-#### **Auto-Fix Patterns**
-
-**Arrow Function to Function Declaration Conversion:**
-- **Detection**: Identifies `const ComponentName = () => {}` syntax that causes DynamicComponentRenderer failures
-- **Resolution**: Converts to `function ComponentName() {}` syntax required by component detection
-- **Trigger**: "No valid React component function found" errors
-
-**React Keys Issue Resolution:**
-- **Detection**: Missing keys in array elements causing React warnings
-- **Resolution**: Adds unique key props to all array-rendered elements
-- **Trigger**: "[react-keys] Component has React arrays without proper keys" errors
-
-**Style Attribute Enhancement:**
-- **Detection**: Missing `data-style-id` attributes preventing dynamic styling
-- **Resolution**: Adds appropriate style identifiers to all styleable elements
-- **Trigger**: Style mapping validation failures
-
-#### **Enhanced Error Examples**
-
-```typescript
-// BEFORE (Arrow function - causes detection errors):
-const PricingCalculator = () => {
-  const [state, setState] = useState('');
-  return React.createElement('div', {}, 'Content');
-};
-
-// AFTER (Function declaration - required format):
-function PricingCalculator() {
-  const [state, setState] = useState('');
-  return React.createElement('div', {}, 'Content');
-}
-```
-
-#### **Integration with Validation System**
-
-- **Real-time Detection**: Issues identified during component compilation
-- **Automatic Retry**: Failed components automatically sent to Tool Fixer
-- **Progressive Enhancement**: Multiple fix attempts with increasing sophistication
-- **Success Tracking**: Monitor fix success rates for continuous improvement
-```
-
-### **Real-Time Validation System Improvements**
-
-#### **Enhanced React Keys Validation**
-- **Problem Solved**: Previous validation incorrectly flagged all React.createElement elements as needing keys
-- **Solution Implemented**: Now only validates elements that are ACTUALLY in array contexts using pattern detection
-- **Pattern Detection**: `arrayPatterns.match(/\\[[^\\]]*React\\.createElement[^\\]]*\\]/g)`
-- **Result**: Eliminated false positive validation errors that blocked tool creation
-
-#### **Improved Validation Logic**
-```typescript
-// NEW: Only check elements in actual arrays
-const arrayPatterns = toolDefinition.componentCode.match(/\\[[^\\]]*React\\.createElement[^\\]]*\\]/g) || [];
-
-if (arrayPatterns.length > 0) {
-  // Only validate React elements that are actually in arrays
-  arrayPatterns.forEach((arrayPattern) => {
-    const elementsInArray = arrayPattern.match(/React\\.createElement/g) || [];
-    const keyedElements = arrayPattern.match(/key:\\s*['"`]/g) || [];
-    
-    if (elementsInArray.length > keyedElements.length) {
-      // Report missing keys only for array contexts
-    }
-  });
-}
-```
-
-#### **Validation Categories Enhanced**
-- **react-keys**: Now accurately detects missing keys only in array contexts (Warning - non-blocking, auto-fixable)
-- **component-structure**: Enhanced to detect arrow function vs function declaration issues (Error - blocking)
-- **execution**: JavaScript execution safety testing (Error - blocking)
-- **style-mapping**: Validates data-style-id attributes for dynamic styling (Warning - auto-fixable)
-- **undefined-values**: Detects problematic undefined patterns (Error - blocking)
-- **syntax**: Validates React.createElement usage and safe patterns (Error - blocking)
-```
-
-### **Enhanced Debugging & Monitoring**
-
-#### **Function-Specific TRACE Logging**
-- **Problem Solved**: Generic TRACE logs made it difficult to identify which function generated specific debug output
-- **Solution Implemented**: All TRACE logs now include function name identifiers for precise debugging
-- **Pattern**: `🏭 TRACE [processToolCreation]: processToolCreation START`
-- **Benefits**: Immediate identification of debug output source, easier issue tracking
-
-#### **Enhanced Debug Output Examples**
-```typescript
-// NEW: Function-specific debug identification
-console.log('🏭 TRACE [processToolCreation]: processToolCreation START');
-console.log('🏭 TRACE [processToolCreation]: userIntent:', userIntent);
-console.log('🏭 TRACE [processToolCreation]: context received:', JSON.stringify(context, null, 2));
-console.log('🏭 TRACE [processToolCreation]: existingTool:', existingTool?.id || 'none');
-
-// Process-specific logging throughout the pipeline
-console.log('🏭 TRACE [processToolCreation]: ✅ External brainstorming loaded');
-console.log('🏭 TRACE [processToolCreation]: Building user prompt');
-console.log('🏭 TRACE [processToolCreation]: User prompt built, length:', userPrompt.length);
-```
-
-#### **Debug Benefits**
-- **Precise Issue Location**: Immediately identify which function generated debug output
-- **Process Flow Tracking**: Follow execution path through complex multi-agent workflows
-- **Performance Monitoring**: Track timing and performance at function level
-- **Error Context**: Better error reporting with specific function context
-
-### **Brainstorm Dropdown State Management**
-
-#### **Problem Solved**
-- **Issue**: "Choose a saved brainstorm" dropdown showed outdated data after tool creation
-- **Root Cause**: `onTestToolCreation` called `loadAndSetSavedTools()` but not `loadAndSetSavedLogicResults()`
-- **Impact**: Users couldn't access newly created brainstorm results for testing
-
-#### **Solution Implemented**
-```typescript
-// BEFORE: Only refreshed saved tools
-await loadAndSetSavedTools(); // Refresh saved tools list
-
-// AFTER: Refresh both tools and brainstorm results
-await loadAndSetSavedTools(); // Refresh saved tools list
-await loadAndSetSavedLogicResults(); // Refresh saved brainstorming results list
-```
-
-#### **Benefits**
-- **Real-time Updates**: Brainstorm dropdown immediately shows new results
-- **Testing Workflow**: Users can immediately test with newly created brainstorms
-- **Data Consistency**: All dropdowns stay synchronized with latest data
-- **User Experience**: Seamless workflow without manual refresh needed
+This technical outline provides a comprehensive roadmap for the Keyvex platform. The architecture prioritizes AI intelligence, developer experience, and professional-quality output. The shift to a generative-first, multi-agent system, combined with robust data integration and user behavior learning, positions Keyvex as a highly advanced and scalable solution in its market.

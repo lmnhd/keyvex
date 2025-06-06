@@ -18,7 +18,8 @@ import {
   ArrowRight,
   FileText,
   Cog,
-  Save
+  Save,
+  Wifi
 } from 'lucide-react';
 
 const TEST_PAGES = [
@@ -100,6 +101,14 @@ const TEST_PAGES = [
     path: '/tests/admin/test-data',
     icon: FileText,
     category: 'Admin',
+    status: 'active'
+  },
+  {
+    title: 'WebSocket Testing',
+    description: 'Test WebSocket connections, real-time messaging, and V2 orchestration progress updates',
+    path: '/tests/websocket-test',
+    icon: Wifi,
+    category: 'API',
     status: 'active'
   },
 ];

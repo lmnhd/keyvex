@@ -6,10 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, RefreshCw, Save, Wand2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff } from 'lucide-react';
 import {
   loadLogicResultsFromDB,
   runToolCreationProcess,
@@ -20,6 +21,9 @@ import { saveToolToDBList } from '../../ui/db-utils';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { useToolGenerationStream, StepProgress } from '../hooks/useToolGenerationStream';
+import ProgressLog from './ProgressLog';
+import TCCVisualizer from './TCCVisualizer';
 
 interface ModelOption {
   id: string;
@@ -27,37 +31,101 @@ interface ModelOption {
   provider?: string;
 }
 
+interface AgentModelMapping {
+  [agentName: string]: string;
+}
+
+type WorkflowMode = 'v1' | 'v2' | 'debug';
+type OrchestrationStatus = 'free' | 'paused' | 'runone';
+
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
   const [savedBrainstorms, setSavedBrainstorms] = useState<SavedLogicResult[]>([]);
   const [selectedBrainstormId, setSelectedBrainstormId] = useState<string | undefined>(undefined);
   
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
-  const [selectedModelId, setSelectedModelId] = useState<string>(''); // Single model selection
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]); // Multiple model selection (up to 5)
+  const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
 
   const [isLoading, setIsLoading] = useState(false);
-  const [testJob, setTestJob] = useState<ToolCreationJob | null>(null); // Single job state
+  const [testJob, setTestJob] = useState<ToolCreationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
+  const [assembledCode, setAssembledCode] = useState<string | null>(null);
+
+  // New state for advanced controls
+  const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('v2');
+  const [orchestrationStatus, setOrchestrationStatus] = useState<OrchestrationStatus>('free');
+  const [selectedAgent, setSelectedAgent] = useState<string>('');
+  
+  // TCC monitoring state
+  const [tccData, setTccData] = useState<any>(null);
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
+
+  // WebSocket logging state
+  const [wsLogs, setWsLogs] = useState<string[]>([]);
+  const [streamingExample, setStreamingExample] = useState<string>('');
+
+  // Available agents for individual testing
+  const availableAgents = [
+    { id: 'function-planner', name: 'Function Signature Planner', description: 'Plans tool functions and signatures' },
+    { id: 'state-design', name: 'State Design Agent', description: 'Designs React state management' },
+    { id: 'jsx-layout', name: 'JSX Layout Agent', description: 'Creates component structure' },
+    { id: 'tailwind-styling', name: 'Tailwind Styling Agent', description: 'Applies complete styling system' },
+    { id: 'component-assembler', name: 'Component Assembler', description: 'Combines all agent outputs' },
+    { id: 'validator', name: 'Validator Agent', description: 'Validates generated code' },
+    { id: 'tool-finalizer', name: 'Tool Finalizer', description: 'Creates final tool definition' }
+  ];
+
+  const addWSLog = useCallback((message: string) => {
+    setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
+  }, []);
+
+  const handleProgress = (progress: StepProgress) => {
+    // Update current step
+    setCurrentStep(progress.stepName);
+    
+    // Add WebSocket log
+    addWSLog(`Progress: ${progress.stepName} - ${progress.status}`);
+    
+    // Update TCC data if available
+    if (progress.data?.tcc) {
+      setTccData(progress.data.tcc);
+      addWSLog(`TCC updated with new data from ${progress.stepName}`);
+    }
+    
+    // Handle assembled code
+    if (progress.stepName === 'ComponentAssemblerAgent' && progress.status === 'completed' && progress.data?.assembledComponentCode) {
+      setAssembledCode(progress.data.assembledComponentCode);
+      addWSLog(`Component code assembled successfully`);
+    }
+
+    // Handle streaming example (simulate streamObject/streamText response)
+    if (progress.stepName === 'FunctionSignaturePlannerAgent' && progress.status === 'running') {
+      setStreamingExample(prev => prev + `Streaming: Planning function ${Math.random().toString(36).substring(7)}...\n`);
+    }
+  };
+
+  const { connect, disconnect, connectionStatus, progressUpdates } = useToolGenerationStream({ onProgress: handleProgress });
 
   // Fetch the configured default model from the toolCreator API
   const fetchDefaultModel = useCallback(async () => {
     try {
-      // This should point to the new V2 config endpoint if available, but create-tool is fine for now
       const response = await fetch('/api/ai/create-tool'); 
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.defaultModel?.primary?.id) {
           setDefaultPrimaryModel(data.defaultModel.primary.id);
-          if (!selectedModelId) {
-            setSelectedModelId(data.defaultModel.primary.id);
+          if (selectedModelIds.length === 0) {
+            setSelectedModelIds([data.defaultModel.primary.id]);
           }
         }
       }
     } catch (error) {
       console.warn('Failed to fetch default model, using fallback:', error);
     }
-  }, [selectedModelId]);
+  }, [selectedModelIds]);
 
   const fetchModels = useCallback(() => {
     try {
@@ -76,19 +144,28 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           }
         }
       }
+      // Show ALL models (no limit)
       setAvailableModels(parsedModels);
-      if (parsedModels.length > 0 && !selectedModelId) {
+      if (parsedModels.length > 0 && selectedModelIds.length === 0) {
         const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
         const defaultModel = parsedModels.find(m => m.id === targetDefaultId) || 
                             parsedModels.find(m => m.id === 'gpt-4.1-mini') || 
                             parsedModels.find(m => m.id === 'gpt-4o');
-        if (defaultModel) setSelectedModelId(defaultModel.id);
+        if (defaultModel) {
+          setSelectedModelIds([defaultModel.id]);
+          // Initialize agent model mapping with default model
+          const initialMapping: AgentModelMapping = {};
+          availableAgents.forEach(agent => {
+            initialMapping[agent.id] = defaultModel.id;
+          });
+          setAgentModelMapping(initialMapping);
+        }
       }
     } catch (err) {
       console.error('Failed to parse models:', err);
       setError('Failed to load AI models from default-models.json. Check console.');
     }
-  }, [selectedModelId, defaultPrimaryModel]);
+  }, [selectedModelIds, defaultPrimaryModel, availableAgents]);
 
   const fetchBrainstorms = useCallback(async () => {
     try {
@@ -113,6 +190,21 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     fetchBrainstorms();
   }, [fetchDefaultModel, fetchModels, fetchBrainstorms, newBrainstormFlag]);
 
+  const handleModelToggle = (modelId: string, checked: boolean) => {
+    if (checked && selectedModelIds.length < 5) {
+      setSelectedModelIds(prev => [...prev, modelId]);
+    } else if (!checked) {
+      setSelectedModelIds(prev => prev.filter(id => id !== modelId));
+    }
+  };
+
+  const handleAgentModelChange = (agentId: string, modelId: string) => {
+    setAgentModelMapping(prev => ({
+      ...prev,
+      [agentId]: modelId
+    }));
+  };
+
   const handleJobUpdate = (updatedJob: ToolCreationJob) => {
     setTestJob(updatedJob);
   };
@@ -122,8 +214,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setError('Please select a brainstorm result to test.');
       return;
     }
-    if (!selectedModelId) {
-      setError(`Please select an AI model.`);
+    if (selectedModelIds.length === 0) {
+      setError(`Please select at least one AI model.`);
       return;
     }
 
@@ -133,21 +225,220 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       return;
     }
 
+    const primaryModelId = selectedModelIds[0]; // Use first selected model as primary
+
     setIsLoading(true);
     setError(null);
-    setTestJob({ modelId: selectedModelId, status: 'pending' });
+    setTestJob(null);
+    setAssembledCode(null);
+    setWsLogs([]);
+    setStreamingExample('');
+    disconnect(); // Disconnect from any previous session
 
-    // Call the new V2 process
-    const resultJob = await runToolCreationProcess(selectedBrainstorm, selectedModelId, handleJobUpdate);
-    setTestJob(resultJob); 
-    
-    if (resultJob.status !== 'error') {
-      // TODO: Implement WebSocket listener here based on resultJob.jobId
-      console.log(`Tool creation started with Job ID: ${resultJob.jobId}. Now listening for updates...`);
-      // For now, we'll just stop the loading spinner. The UI will show "loading" based on job status.
-      // In a real scenario, we might not set isLoading to false until the WebSocket signals 'completed' or 'failed'.
+    addWSLog(`Starting ${workflowMode} workflow with ${selectedModelIds.length} models`);
+
+    if (workflowMode === 'v1') {
+      // Call the original V1 create-tool API
+      try {
+        setTestJob({ modelId: primaryModelId, status: 'loading', startTime: Date.now() });
+        addWSLog(`V1: Starting tool creation with model ${primaryModelId}`);
+        
+        const response = await fetch('/api/ai/create-tool', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userIntent: selectedBrainstorm.result?.userInput || {},
+            context: {
+              targetAudience: selectedBrainstorm.targetAudience,
+              industry: selectedBrainstorm.industry,
+              toolType: selectedBrainstorm.toolType
+            },
+            selectedModels: selectedModelIds,
+          }),
+        });
+
+        const result = await response.json();
+        
+        if (result.success && result.tool) {
+          setTestJob({ 
+            modelId: primaryModelId, 
+            status: 'success', 
+            result: result.tool,
+            endTime: Date.now(),
+            startTime: Date.now() - 10000
+          });
+          addWSLog(`V1: Tool creation completed successfully`);
+        } else {
+          setTestJob({ 
+            modelId: primaryModelId, 
+            status: 'error', 
+            error: result.error || 'V1 tool creation failed',
+            endTime: Date.now()
+          });
+          addWSLog(`V1: Tool creation failed - ${result.error}`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'V1 creation failed';
+        setTestJob({ 
+          modelId: primaryModelId, 
+          status: 'error', 
+          error: errorMsg,
+          endTime: Date.now()
+        });
+        addWSLog(`V1: Error - ${errorMsg}`);
+      }
+    } else if (workflowMode === 'v2') {
+      // V2 Orchestration Mode with WebSocket streaming
+      addWSLog(`V2: Starting orchestration with models: ${selectedModelIds.join(', ')}`);
+      const resultJob = await runToolCreationProcess(selectedBrainstorm, primaryModelId, handleJobUpdate);
+      setTestJob(resultJob);
+      
+      if (resultJob.status !== 'error' && resultJob.jobId) {
+        console.log(`Tool creation started with Job ID: ${resultJob.jobId}. Now listening for updates...`);
+        addWSLog(`V2: Connected to WebSocket for job ${resultJob.jobId}`);
+        connect(resultJob.jobId);
+
+        // Simulate streamObject example for function planner
+        addWSLog(`V2: Starting streamObject example for Function Planner`);
+        setStreamingExample('Starting streamObject streaming...\n');
+      } else {
+        setError(resultJob.error || 'Failed to start tool creation process.');
+        addWSLog(`V2: Failed to start - ${resultJob.error}`);
+      }
+    } else if (workflowMode === 'debug') {
+      // Debug Mode - Individual Agent Testing
+      if (!selectedAgent) {
+        setError('Please select an agent to test in debug mode.');
+        setIsLoading(false);
+        return;
+      }
+      
+      const agentModel = agentModelMapping[selectedAgent] || primaryModelId;
+      
+      try {
+        setTestJob({ modelId: agentModel, status: 'loading', startTime: Date.now() });
+        addWSLog(`Debug: Testing ${selectedAgent} with model ${agentModel}`);
+        
+        // Call individual agent endpoint
+        const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${selectedAgent}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userInput: selectedBrainstorm.result?.userInput || {},
+            selectedModel: agentModel,
+            selectedModels: selectedModelIds,
+            agentModelMapping,
+          }),
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          setTestJob({ 
+            modelId: agentModel, 
+            status: 'success', 
+            result: result,
+            endTime: Date.now(),
+            startTime: Date.now() - 5000
+          });
+          addWSLog(`Debug: ${selectedAgent} completed successfully`);
+        } else {
+          setTestJob({ 
+            modelId: agentModel, 
+            status: 'error', 
+            error: result.error || `${selectedAgent} agent failed`,
+            endTime: Date.now()
+          });
+          addWSLog(`Debug: ${selectedAgent} failed - ${result.error}`);
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Agent testing failed';
+        setTestJob({ 
+          modelId: agentModel, 
+          status: 'error', 
+          error: errorMsg,
+          endTime: Date.now()
+        });
+        addWSLog(`Debug: Error - ${errorMsg}`);
+      }
     }
+
     setIsLoading(false);
+  };
+
+  const handlePause = async () => {
+    if (testJob?.jobId) {
+      try {
+        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/pause`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: testJob.jobId }),
+        });
+        setOrchestrationStatus('paused');
+        addWSLog(`Orchestration paused for job ${testJob.jobId}`);
+      } catch (error) {
+        console.error('Failed to pause orchestration:', error);
+        setError('Failed to pause the orchestration process.');
+        addWSLog(`Failed to pause orchestration: ${error}`);
+      }
+    }
+  };
+
+  const handleResume = async () => {
+    if (testJob?.jobId) {
+      try {
+        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/resume`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: testJob.jobId }),
+        });
+        setOrchestrationStatus('free');
+        addWSLog(`Orchestration resumed for job ${testJob.jobId}`);
+      } catch (error) {
+        console.error('Failed to resume orchestration:', error);
+        setError('Failed to resume the orchestration process.');
+        addWSLog(`Failed to resume orchestration: ${error}`);
+      }
+    }
+  };
+
+  const handleStepForward = async () => {
+    if (testJob?.jobId) {
+      try {
+        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/step`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: testJob.jobId }),
+        });
+        setOrchestrationStatus('runone');
+        addWSLog(`Step forward executed for job ${testJob.jobId}`);
+      } catch (error) {
+        console.error('Failed to step forward:', error);
+        setError('Failed to step forward in the orchestration process.');
+        addWSLog(`Failed to step forward: ${error}`);
+      }
+    }
+  };
+
+  const handleRefreshTCC = async () => {
+    if (testJob?.jobId) {
+      setIsRefreshingTCC(true);
+      try {
+        const response = await fetch(`/api/ai/product-tool-creation-v2/orchestrate/tcc/${testJob.jobId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.tcc) {
+            setTccData(data.tcc);
+            addWSLog(`TCC refreshed successfully`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh TCC:', error);
+        addWSLog(`Failed to refresh TCC: ${error}`);
+      } finally {
+        setIsRefreshingTCC(false);
+      }
+    }
   };
 
   const getSelectedBrainstormDetails = () => {
@@ -159,17 +450,39 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       await saveToolToDBList(tool);
       setSavedToolIds(prev => new Set([...prev, tool.id]));
       console.log(`✅ Tool saved to IndexedDB: ${tool.metadata.title}`);
+      addWSLog(`Tool saved: ${tool.metadata.title}`);
     } catch (error) {
       console.error('❌ Error saving tool to IndexedDB:', error);
       setError('Failed to save tool to IndexedDB. Check console for details.');
+      addWSLog(`Failed to save tool: ${error}`);
+    }
+  };
+
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'connecting':
+        return <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />;
+      default:
+        return <WifiOff className="h-4 w-4 text-gray-400" />;
     }
   };
 
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center"><Wand2 className="mr-2 h-6 w-6 text-purple-500" /> Create & Refine Tool</CardTitle>
-        <CardDescription>Select a brainstorm, choose a model, and generate your tool using the V2 Orchestrator.</CardDescription>
+        <CardTitle className="flex items-center">
+          <Wand2 className="mr-2 h-6 w-6 text-purple-500" /> 
+          Enhanced Tool Generation Workbench
+          <div className="ml-auto flex items-center gap-2">
+            {getConnectionStatusIcon()}
+            <Badge variant="outline" className="text-xs">
+              {connectionStatus}
+            </Badge>
+          </div>
+        </CardTitle>
+        <CardDescription>Advanced tool creation with multi-model selection, real-time streaming, and granular agent control.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
@@ -184,27 +497,22 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="selectedBrainstorm">1. Select Saved Brainstorm</Label>
-              <div className="flex items-center gap-2">
-                <Select 
-                  value={selectedBrainstormId}
-                  onValueChange={setSelectedBrainstormId} 
-                  disabled={isLoading || savedBrainstorms.length === 0}
-                >
-                  <SelectTrigger id="selectedBrainstorm">
-                    <SelectValue placeholder={savedBrainstorms.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {savedBrainstorms.map(bs => (
-                      <SelectItem key={bs.id} value={bs.id}>
-                        {bs.toolType} for {bs.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                 <Button variant="outline" size="icon" onClick={fetchBrainstorms} disabled={isLoading} title="Refresh Brainstorms">
-                    <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
+              <Select 
+                value={selectedBrainstormId}
+                onValueChange={setSelectedBrainstormId} 
+                disabled={isLoading || savedBrainstorms.length === 0}
+              >
+                <SelectTrigger id="selectedBrainstorm">
+                  <SelectValue placeholder={savedBrainstorms.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {savedBrainstorms.map(bs => (
+                    <SelectItem key={bs.id} value={bs.id}>
+                      {bs.toolType} for {bs.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {selectedBrainstormId && getSelectedBrainstormDetails() && (
@@ -226,17 +534,23 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             )}
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center mb-1">
-              <Label>2. Select AI Model</Label>
-            </div>
-            {availableModels.length > 0 ? (
-              <ScrollArea className="h-48 rounded-md border p-3">
-                <RadioGroup value={selectedModelId} onValueChange={setSelectedModelId} disabled={isLoading}>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center mb-1">
+                <Label>2. Select AI Models (Max 5)</Label>
+                <Badge variant="outline">{selectedModelIds.length}/5 selected</Badge>
+              </div>
+              {availableModels.length > 0 ? (
+                <ScrollArea className="h-48 rounded-md border p-3">
                   <div className="space-y-2">
                     {availableModels.map(model => (
                       <div key={model.id} className="flex items-center space-x-2">
-                        <RadioGroupItem value={model.id} id={`model-${model.id}`} />
+                        <Checkbox 
+                          id={`model-${model.id}`}
+                          checked={selectedModelIds.includes(model.id)}
+                          onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
+                          disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
+                        />
                         <Label htmlFor={`model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
                           {model.name}
                           {model.id === defaultPrimaryModel && (
@@ -248,107 +562,366 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       </div>
                     ))}
                   </div>
-                </RadioGroup>
-              </ScrollArea>
-            ) : (
-              <p className="text-sm text-gray-500">{(error && error.includes('AI models')) ? 'Error loading models.' : 'Loading models...'}</p>
-            )}
+                </ScrollArea>
+              ) : (
+                <p className="text-sm text-gray-500">Loading models...</p>
+              )}
+            </div>
           </div>
         </div>
 
-        <Button onClick={handleSubmit} disabled={isLoading || !selectedBrainstormId || !selectedModelId} className="w-full">
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-          Generate Tool
-        </Button>
-
-        {testJob && (
-          <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-3">Generation Status</h3>
-            <Card className="w-full mt-2">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-base truncate" title={availableModels.find(m=>m.id === testJob.modelId)?.name || testJob.modelId}>
-                    {availableModels.find(m=>m.id === testJob.modelId)?.name || testJob.modelId}
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                    Job ID: {testJob.jobId || 'N/A'} | Status: <span className={`font-semibold \
-                        ${testJob.status === 'loading' || testJob.status === 'pending' ? 'text-yellow-500' : ''}\
-                        ${testJob.status === 'success' ? 'text-green-500' : ''}\
-                        ${testJob.status === 'error' ? 'text-red-500' : ''}`}>\
-                        {testJob.status} {testJob.status === 'loading' && <Loader2 className="inline-block ml-1 h-3 w-3 animate-spin" />}\
-                                                {testJob.status === 'success' && <CheckCircle className="inline-block ml-1 h-3 w-3" />}\
-                                                {testJob.status === 'error' && <AlertCircle className="inline-block ml-1 h-3 w-3" />}
-                    </span>
-                    {testJob.startTime && testJob.endTime && (
-                        <span className="ml-2 text-gray-500 dark:text-gray-400">
-                        (Took {((testJob.endTime - testJob.startTime) / 1000).toFixed(2)}s)
-                        </span>
-                    )}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                {(testJob.status === 'loading' || testJob.status === 'pending') && (
-                    <div className="flex flex-col items-center justify-center h-40">
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                        <p className="mt-2 text-sm text-gray-500">Orchestrator is working... Waiting for progress updates.</p>
-                        {/* TODO: This is where the live progress log from WebSocket will go */}
+        <div className="space-y-4">
+          <Label>3. Select Workflow Mode</Label>
+          
+          <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="v1" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                V1 Legacy
+              </TabsTrigger>
+              <TabsTrigger value="v2" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                V2 Orchestration
+              </TabsTrigger>
+              <TabsTrigger value="debug" className="flex items-center gap-2">
+                <Bug className="h-4 w-4" />
+                Debug & Inspect
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="v1" className="mt-4">
+              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <Settings className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100">V1 Legacy Mode</h4>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">Uses the original monolithic tool creation approach. Single API call, no streaming.</p>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="v2" className="mt-4">
+              <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-3">
+                    <Zap className="h-5 w-5 text-green-600" />
+                    <div>
+                      <h4 className="font-medium text-green-900 dark:text-green-100">V2 Multi-Agent Orchestration</h4>
+                      <p className="text-sm text-green-700 dark:text-green-300">Advanced multi-agent workflow with real-time progress streaming via WebSocket.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="debug" className="mt-4">
+              <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <Bug className="h-5 w-5 text-red-600" />
+                    <div>
+                      <h4 className="font-medium text-red-900 dark:text-red-100">Debug & Inspect Mode</h4>
+                      <p className="text-sm text-red-700 dark:text-red-300">Test individual agents in isolation with model assignment per agent.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="agent-select">Select Agent to Test</Label>
+                    <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                      <SelectTrigger id="agent-select">
+                        <SelectValue placeholder="Choose an agent to test..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableAgents.map(agent => (
+                          <SelectItem key={agent.id} value={agent.id}>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{agent.name}</span>
+                              <span className="text-xs text-muted-foreground">{agent.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedAgent && (
+                    <div className="space-y-2">
+                      <Label>Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
+                      <Select 
+                        value={agentModelMapping[selectedAgent] || ''} 
+                        onValueChange={(value) => handleAgentModelChange(selectedAgent, value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose model for this agent..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedModelIds.map(modelId => {
+                            const model = availableModels.find(m => m.id === modelId);
+                            return (
+                              <SelectItem key={modelId} value={modelId}>
+                                {model?.name || modelId}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="flex justify-center items-center pt-4 gap-4">
+          <Button 
+            onClick={handleSubmit} 
+            disabled={isLoading || !selectedBrainstormId || selectedModelIds.length === 0 || (workflowMode === 'debug' && !selectedAgent)} 
+            size="lg" 
+            className="flex-1"
+          >
+            {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <TestTube2 className="mr-2 h-5 w-5" />}
+            {workflowMode === 'v1' ? 'Generate Tool (V1)' : 
+             workflowMode === 'v2' ? 'Start V2 Orchestration' : 
+             'Test Selected Agent'}
+          </Button>
+
+          {workflowMode === 'v2' && testJob && (
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleResume}
+                disabled={orchestrationStatus !== 'paused' || isLoading}
+                title="Resume"
+              >
+                <Play className="h-4 w-4"/>
+              </Button>
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handlePause}
+                disabled={orchestrationStatus === 'paused' || isLoading}
+                title="Pause"
+              >
+                <Pause className="h-4 w-4"/>
+              </Button>
+               <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleStepForward}
+                disabled={orchestrationStatus !== 'paused' || isLoading}
+                title="Step Forward"
+              >
+                <StepForward className="h-4 w-4"/>
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardContent>
+      
+      { (testJob || progressUpdates.length > 0) && (
+        <CardFooter className="flex-col items-start space-y-6 pt-6 border-t">
+          <Tabs defaultValue="progress" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="progress">Progress</TabsTrigger>
+              <TabsTrigger value="tcc" disabled={workflowMode !== 'v2' || !testJob?.jobId}>TCC Monitor</TabsTrigger>
+              <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
+              <TabsTrigger value="preview" disabled={!assembledCode}>Live Preview</TabsTrigger>
+              <TabsTrigger value="result" disabled={testJob?.status !== 'success'}>Final Result</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="progress" className="mt-4">
+              {workflowMode === 'v2' ? (
+                <ProgressLog progressUpdates={progressUpdates} isDarkMode={isDarkMode} />
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    {testJob?.status === 'loading' && (
+                      <div className="flex flex-col items-center justify-center h-40">
+                        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                        <p className="mt-2 text-sm text-gray-500">
+                          {workflowMode === 'v1' ? 'V1 tool creation in progress...' : 'Testing selected agent...'}
+                        </p>
+                      </div>
                     )}
-                    {testJob.status === 'error' && testJob.error && (
-                    <Alert variant="destructive" className="mt-2">
+                    {testJob?.status === 'error' && testJob.error && (
+                      <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Generation Failed</AlertTitle>
                         <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
-                    </Alert>
+                      </Alert>
                     )}
-                    {testJob.status === 'success' && testJob.result && (
-                    <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                            ✅ Tool "{testJob.result.metadata.title}" generated successfully
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleSaveTool(testJob.result!)}
-                            disabled={savedToolIds.has(testJob.result.id)}
-                            className="flex items-center gap-2"
-                        >
-                            <Save className="h-4 w-4" />
-                            {savedToolIds.has(testJob.result.id) ? 'Saved' : 'Save Tool'}
-                        </Button>
-                        </div>
-                        <Tabs defaultValue="preview" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="preview"><Eye className="mr-1 h-4 w-4" />Preview</TabsTrigger>
-                            <TabsTrigger value="code"><Code className="mr-1 h-4 w-4" />Code</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="preview">
-                        <div className="mt-2 p-2 border rounded-md min-h-[300px] bg-white dark:bg-black">
-                            <CanvasTool
-                            productToolDefinition={testJob.result}
-                            isDarkMode={isDarkMode}
-                            isGenerating={false}
-                            generatingMessage={undefined}
-                            onValidationIssues={() => {}}
-                            />
-                        </div>
-                        </TabsContent>
-                        <TabsContent value="code">
-                        <ScrollArea className="mt-2 h-[400px] rounded-md border bg-gray-900 p-1">
-                            <pre className="text-xs text-white p-2 break-all whitespace-pre-wrap">
-                            {testJob.result.componentCode}
-                            </pre>
-                            <ScrollBar />
-                        </ScrollArea>
-                        </TabsContent>
-                    </Tabs>
+                    {testJob?.status === 'success' && (
+                      <div className="text-center">
+                        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold">
+                          {workflowMode === 'v1' ? 'V1 Tool Created Successfully!' : 'Agent Test Completed!'}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-2">
+                          Models used: {selectedModelIds.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="tcc" className="mt-4">
+              {workflowMode === 'v2' && testJob?.jobId ? (
+                <TCCVisualizer 
+                  tccData={tccData}
+                  currentStep={currentStep}
+                  jobId={testJob.jobId}
+                  onRefreshTCC={handleRefreshTCC}
+                  isLoading={isRefreshingTCC}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="flex items-center justify-center h-48 pt-6">
+                    <div className="text-center">
+                      <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">TCC Monitor is only available in V2 Orchestration mode</p>
                     </div>
-                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="websocket" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    {getConnectionStatusIcon()}
+                    <span className="ml-2">WebSocket Activity & Streaming Logs</span>
+                  </CardTitle>
+                  <CardDescription>Real-time logs from WebSocket connection and streaming responses</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label className="text-sm font-medium">Connection Status & Logs:</Label>
+                    <ScrollArea className="h-32 mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md border">
+                      <div className="space-y-1">
+                        {wsLogs.length === 0 ? (
+                          <p className="text-sm text-gray-500">No WebSocket activity yet...</p>
+                        ) : (
+                          wsLogs.map((log, index) => (
+                            <p key={index} className="text-xs font-mono">{log}</p>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                  
+                  {streamingExample && (
+                    <div>
+                      <Label className="text-sm font-medium">StreamObject/StreamText Example:</Label>
+                      <ScrollArea className="h-32 mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200">
+                        <pre className="text-xs font-mono whitespace-pre-wrap">{streamingExample}</pre>
+                      </ScrollArea>
+                    </div>
+                  )}
                 </CardContent>
-            </Card>
-          </div>
-        )}
-      </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="preview" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5"/>Component Preview</CardTitle>
+                  <CardDescription>Live preview of the generated component. Interact with it to test functionality.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {assembledCode ? (
+                    <CanvasTool productToolDefinition={{
+                      componentCode: assembledCode, 
+                      id: testJob?.result?.id || 'preview-tool',
+                      slug: testJob?.result?.slug || 'preview-tool',
+                      version: testJob?.result?.version || '1.0.0',
+                      status: testJob?.result?.status || 'draft',
+                      createdAt: testJob?.result?.createdAt || Date.now(),
+                      updatedAt: testJob?.result?.updatedAt || Date.now(),
+                      createdBy: testJob?.result?.createdBy || 'preview-user',
+                      metadata: testJob?.result?.metadata || {
+                        title: 'Preview Tool',
+                        description: 'Generated tool preview',
+                        category: 'calculator',
+                        tags: []
+                      },
+                      componentSet: testJob?.result?.componentSet || 'shadcn',
+                      colorScheme: testJob?.result?.colorScheme || {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                        background: '#ffffff',
+                        surface: '#f8fafc',
+                        text: {
+                          primary: '#1e293b',
+                          secondary: '#475569',
+                          muted: '#94a3b8'
+                        },
+                        border: '#e2e8f0',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        error: '#ef4444'
+                      },
+                      analytics: testJob?.result?.analytics || {
+                        enabled: false,
+                        completions: 0,
+                        averageTime: 0
+                      }
+                    }} isDarkMode={isDarkMode} />
+                  ) : (
+                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
+                      <p className="text-gray-500">Waiting for component code...</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="result" className="mt-4">
+               {testJob?.status === 'success' && testJob.result ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center"><CheckCircle className="mr-2 h-5 w-5 text-green-500"/>Generation Complete</CardTitle>
+                    <CardDescription>The final tool definition has been created and is ready to be saved.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline">Models Used:</Badge>
+                      {selectedModelIds.map(modelId => (
+                        <Badge key={modelId} variant="secondary" className="text-xs">
+                          {availableModels.find(m => m.id === modelId)?.name?.split(' ')[0] || modelId}
+                        </Badge>
+                      ))}
+                    </div>
+                    <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
+                      {JSON.stringify(testJob.result, null, 2)}
+                    </pre>
+                    {workflowMode === 'v1' && testJob.result && (
+                      <Button 
+                        onClick={() => handleSaveTool(testJob.result!)} 
+                        disabled={savedToolIds.has(testJob.result!.id)}
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
+                  <p className="text-gray-500">Tool generation is not yet complete.</p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardFooter>
+      )}
     </Card>
   );
 };

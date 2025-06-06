@@ -2,6 +2,8 @@ import pino from 'pino';
 import { createWriteStream } from 'fs';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
+// Add a specific flag for AI debugging to avoid interfering with other logs
+const isAiDebugging = process.env.AI_DEBUG === 'true' || process.env.PINO_DEBUG === 'true';
 
 // Create a simple file stream for logging
 const logFile = createWriteStream('./app.log', { flags: 'a' });
@@ -40,26 +42,46 @@ const prettyStream = {
   }
 };
 
-// Create multistream logger
-const logger = pino({
-  level: isDevelopment ? 'trace' : 'info',
-  timestamp: pino.stdTimeFunctions.isoTime,
-}, pino.multistream([
-  // Pretty console output using custom formatter
-  {
-    level: 'trace',
-    stream: prettyStream
-  },
-  // JSON file output 
-  {
-    level: 'trace',
-    stream: logFile
+// Create conditional streams based on debugging mode
+const createStreams = () => {
+  const streams = [];
+  
+  // Always log to file in development
+  if (isDevelopment) {
+    streams.push({
+      level: 'trace',
+      stream: logFile
+    });
   }
-]));
+  
+  // Only add custom console formatting when explicitly debugging AI
+  if (isAiDebugging) {
+    streams.push({
+      level: 'trace',
+      stream: prettyStream
+    });
+  }
+  
+  return streams;
+};
 
-// Test message
-if (isDevelopment) {
+// Create logger with conditional streams
+const streams = createStreams();
+const logger = streams.length > 0 
+  ? pino({
+      level: isDevelopment ? 'trace' : 'info',
+      timestamp: pino.stdTimeFunctions.isoTime,
+    }, pino.multistream(streams))
+  : pino({
+      level: isDevelopment ? 'trace' : 'info',
+      timestamp: pino.stdTimeFunctions.isoTime,
+    });
+
+// Test message only when AI debugging is enabled
+if (isAiDebugging) {
   logger.info('🚀 Logger initialized with custom pretty console + JSON file');
+} else if (isDevelopment) {
+  logger.info('📝 Logger initialized (file logging only - set AI_DEBUG=true for console formatting)');
 }
 
 export default logger; 
