@@ -7,6 +7,17 @@ alwaysApply: true
 
 ## 🚨 CRITICAL DIRECTIVES - NON-NEGOTIABLE - VIOLATION IS NOT PERMITTED:
 
+### 🔥 WORKING DIRECTORY AWARENESS: ABSOLUTELY MANDATORY
+**AGENTS MUST ALWAYS VERIFY THEIR WORKING DIRECTORY BEFORE CREATING OR MODIFYING FILES.** The correct working directory is `/keyvex_app/` (the Next.js application root). **NEVER** create files in the parent `Keyvex_Project/` directory.
+
+**MANDATORY CHECKS:**
+- **ALWAYS** verify `pwd` or current working directory before any file operations
+- **ALWAYS** use `keyvex_app/` as the application root for all component, page, and library files
+- **NEVER** create `src/` directories in the parent project folder
+- **ALL** React components **MUST** be created within `keyvex_app/src/components/`
+- **ALL** pages **MUST** be created within `keyvex_app/src/app/`
+- **ALL** utilities **MUST** be created within `keyvex_app/src/lib/`
+
 ### 🔥 DEVELOPMENT SERVER: STRICTLY PROHIBITED
 **UNDER NO CIRCUMSTANCES** are agents to attempt to start, stop, restart, or manage the Next.js development server in ANY way. This is exclusively handled by the user. **ANY DEVIATION IS A CRITICAL FAILURE.**
 
@@ -20,7 +31,33 @@ All operations **MUST** assume **WINDOWS 11** with **Windows PowerShell**. UNIX/
 **AGENTS MUST ALWAYS** stop between tasks and obtain explicit confirmation from the user before proceeding to the next step of any multi-step process. **DO NOT** perform multiple editing steps in sequence without verifying each individual step with the user. **FAILURE TO COMPLY IS A CRITICAL ERROR.**
 
 ### 🔥 GIT CHECKPOINT STRATEGY: MANDATORY FOR SIGNIFICANT CHANGES
-Before making ANY significant structural changes, large refactoring, or modifications affecting multiple files, agents **MUST ALWAYS** create a git checkpoint. This involves committing current work with a descriptive message like "checkpoint: before [description of major change]". This is a **NON-NEGOTIABLE** step to ensure reversibility and maintain a clear history.
+Before making ANY significant structural changes, large refactoring, or modifications affecting multiple files, agents **MUST ALWAYS** create a git checkpoint from the **`/keyvex_app/` directory** (NOT the parent `Keyvex_Project/` directory). This involves committing current work with a descriptive message like "checkpoint: before [description of major change]". This is a **NON-NEGOTIABLE** step to ensure reversibility and maintain a clear history.
+
+**GIT DIRECTORY REQUIREMENTS:**
+- **ALWAYS** run git commands from `/keyvex_app/` directory
+- **NEVER** run git commands from the parent `Keyvex_Project/` level
+- **VERIFY** working directory with `pwd` before any git operations
+
+---
+
+## 📁 PROJECT STRUCTURE OVERVIEW
+
+```
+Keyvex_Project/                    ← PARENT LEVEL (DO NOT WORK HERE)
+├── keyvex_app/                   ← CORRECT WORKING DIRECTORY 
+│   ├── src/
+│   │   ├── app/                  ← Next.js 15 App Router pages
+│   │   ├── components/           ← Reusable UI components
+│   │   └── lib/                  ← Utilities, AI logic, database
+│   ├── public/
+│   ├── .next/
+│   └── package.json
+├── aws_infra/                    ← Infrastructure code
+├── REFERENCE_CODE/               ← Examples and inspiration
+└── .cursor/                      ← Cursor IDE configuration
+```
+
+**CRITICAL**: All development work happens in `keyvex_app/` - this is the Next.js application root.
 
 ---
 
