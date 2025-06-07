@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ProductToolService } from '@/lib/db/dynamodb/product-tools';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { requireAuth } from '@/lib/auth/debug';
 
 interface UpdateProductToolRequest {
   definition: ProductToolDefinition;
@@ -12,11 +13,11 @@ interface UpdateProductToolRequest {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { toolId: string } }
+  { params }: { params: Promise<{ toolId: string }> }
 ) {
   try {
-    const { toolId } = params;
-    const userId = request.headers.get('x-user-id') || 'dev-user-123'; // Fallback for dev
+    const userId = await requireAuth();
+    const { toolId } = await params;
 
     if (!toolId) {
       return NextResponse.json({ success: false, error: 'Tool ID is required' }, { status: 400 });
@@ -43,11 +44,11 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { toolId: string } }
+  { params }: { params: Promise<{ toolId: string }> }
 ) {
   try {
-    const { toolId } = params;
-    const userId = request.headers.get('x-user-id') || 'dev-user-123'; // Fallback for dev
+    const userId = await requireAuth();
+    const { toolId } = await params;
 
     if (!toolId) {
       return NextResponse.json({ success: false, error: 'Tool ID is required' }, { status: 400 });
