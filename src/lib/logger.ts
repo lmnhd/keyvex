@@ -1,12 +1,17 @@
 import pino from 'pino';
-import { createWriteStream } from 'fs';
+import { Stream } from 'stream';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 // Add a specific flag for AI debugging to avoid interfering with other logs
 const isAiDebugging = process.env.AI_DEBUG === 'true' || process.env.PINO_DEBUG === 'true';
 
-// Create a simple file stream for logging
-const logFile = createWriteStream('./app.log', { flags: 'a' });
+// Conditionally create file stream only in development
+let logFile: Stream | null = null;
+if (isDevelopment) {
+  // Use dynamic import for fs to avoid it being bundled in production
+  const fs = require('fs');
+  logFile = fs.createWriteStream('./app.log', { flags: 'a' });
+}
 
 // Custom pretty formatter for console (Turbopack-compatible)
 const prettyStream = {
@@ -46,8 +51,8 @@ const prettyStream = {
 const createStreams = () => {
   const streams = [];
   
-  // Always log to file in development
-  if (isDevelopment) {
+  // Only log to file in development if it exists
+  if (isDevelopment && logFile) {
     streams.push({
       level: 'trace',
       stream: logFile
