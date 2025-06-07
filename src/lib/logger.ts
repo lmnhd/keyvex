@@ -1,12 +1,12 @@
 import pino from 'pino';
-import { Stream } from 'stream';
+import { Writable } from 'stream';
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 // Add a specific flag for AI debugging to avoid interfering with other logs
 const isAiDebugging = process.env.AI_DEBUG === 'true' || process.env.PINO_DEBUG === 'true';
 
 // Conditionally create file stream only in development
-let logFile: Stream | null = null;
+let logFile: Writable | null = null;
 if (isDevelopment) {
   // Use dynamic import for fs to avoid it being bundled in production
   const fs = require('fs');
@@ -14,10 +14,11 @@ if (isDevelopment) {
 }
 
 // Custom pretty formatter for console (Turbopack-compatible)
-const prettyStream = {
-  write: (chunk: string) => {
+// Implemented as a proper Writable stream to ensure type compatibility
+const prettyStream = new Writable({
+  write(chunk, encoding, callback) {
     try {
-      const log = JSON.parse(chunk);
+      const log = JSON.parse(chunk.toString());
       const time = new Date(log.time).toLocaleTimeString();
       const levelEmojis: Record<number, string> = {
         10: '🔍',
@@ -44,8 +45,9 @@ const prettyStream = {
       // If parsing fails, just output raw
       process.stdout.write(chunk);
     }
+    callback();
   }
-};
+});
 
 // Create conditional streams based on debugging mode
 const createStreams = () => {
@@ -76,7 +78,7 @@ const logger = streams.length > 0
   ? pino({
       level: isDevelopment ? 'trace' : 'info',
       timestamp: pino.stdTimeFunctions.isoTime,
-    }, pino.multistream(streams))
+    }, pino.multistream(streams as pino.StreamEntry<any>[])) // Cast to satisfy pino's type
   : pino({
       level: isDevelopment ? 'trace' : 'info',
       timestamp: pino.stdTimeFunctions.isoTime,
