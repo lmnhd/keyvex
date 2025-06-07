@@ -4,6 +4,20 @@ import { requireAuth } from '@/lib/auth/debug';
 import logger from '@/lib/logger';
 
 export async function GET() {
+  // Environment variable diagnostic check
+  const clerkKeyLoaded = !!process.env.CLERK_SECRET_KEY;
+  const awsAccessKeyLoaded = !!process.env.DYNAMODB_AWS_ACCESS_KEY_ID;
+  const awsSecretKeyLoaded = !!process.env.DYNAMODB_AWS_SECRET_ACCESS_KEY;
+  const dbTableNameLoaded = !!process.env.DYNAMODB_TABLE_NAME;
+
+  logger.info({
+    clerkKeyLoaded,
+    awsAccessKeyLoaded,
+    awsSecretKeyLoaded,
+    dbTableNameLoaded,
+    nodeEnv: process.env.NODE_ENV
+  }, '[API /product-tools/list] - Environment Variable Check');
+
   logger.info('[API /product-tools/list] - Request received.');
   try {
     const userId = await requireAuth();

@@ -8,6 +8,7 @@ import {
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { DatabaseError } from '@/lib/types/database';
 
+// Note: Ensure DYNAMODB_TABLE_NAME is set in production environments.
 const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || 'keyvex-main-table-development';
 
 export class ProductToolService {
