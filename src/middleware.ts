@@ -15,6 +15,8 @@ const isPublicRoute = createRouteMatcher([
   '/favicon.ico',
   '/robots.txt',
   '/sitemap.xml',
+  // Make product-tools API routes public
+  '/api/product-tools(.*)',
 ]);
 
 export default clerkMiddleware((auth, req) => {

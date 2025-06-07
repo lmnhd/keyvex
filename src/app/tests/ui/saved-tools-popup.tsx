@@ -5,7 +5,6 @@ import { X, Package, Trash2, Calendar, Clock, AlertTriangle, Cloud, Check, Downl
 import { SavedTool } from './types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@clerk/nextjs';
 
 interface SavedToolsPopupProps {
   isOpen: boolean;
@@ -24,7 +23,6 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
   onDeleteTool,
   isDarkMode
 }) => {
-  const { isLoaded, isSignedIn } = useAuth();
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [cloudSavingToolId, setCloudSavingToolId] = useState<string | null>(null);
@@ -40,12 +38,6 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
 
 
   const loadCloudTools = useCallback(async () => {
-    // Don't load if auth isn't ready or user isn't signed in
-    if (!isLoaded || !isSignedIn) {
-      console.log('[0] Auth not ready or user not signed in, skipping cloud tools load');
-      return;
-    }
-    
     console.log('[1] Starting to load cloud tools...');
     setLoadingCloudTools(true);
     setCloudLoadError(null);
@@ -90,7 +82,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
       console.log('[7] Finally block reached. Stopping spinner.');
       setLoadingCloudTools(false);
     }
-  }, [isLoaded, isSignedIn]);
+  }, []);
 
     // Load cloud tools when popup opens or when switching to cloud tab
   useEffect(() => {

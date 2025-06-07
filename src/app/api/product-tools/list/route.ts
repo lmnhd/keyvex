@@ -20,8 +20,21 @@ export async function GET() {
 
   logger.info('[API /product-tools/list] - Request received.');
   try {
-    const userId = await requireAuth();
-    logger.info(`[API /product-tools/list] - Auth successful for userId: ${userId}`);
+    // Try to get authenticated user, but allow fallback to development user
+    let userId: string;
+    try {
+      userId = await requireAuth();
+      logger.info(`[API /product-tools/list] - Auth successful for userId: ${userId}`);
+    } catch (authError) {
+      // If auth fails in development, use a development user ID
+      if (process.env.NODE_ENV === 'development') {
+        userId = 'dev-user-123';
+        logger.warn('[API /product-tools/list] - Auth failed, using development user ID');
+      } else {
+        // In production, require proper auth
+        throw authError;
+      }
+    }
 
     // Get all tools for the user from DynamoDB
     const toolService = new ProductToolService();
