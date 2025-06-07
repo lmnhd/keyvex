@@ -338,8 +338,8 @@ export default function TestUIPage() {
     const lastTool = await loadLastActiveToolFromDB();
     if (lastTool && isValidProductToolDefinition(lastTool)) {
       console.log('✅ Loaded last active tool from DB:', lastTool.metadata.title);
-      // Temporarily disabled to prevent crash from corrupted tool. Will be re-enabled.
-      // setProductToolDefinition(lastTool); 
+      // Re-enabled: Load the last active tool at startup
+      setProductToolDefinition(lastTool); 
     } else if (lastTool) {
       console.warn('🚨 Found corrupted tool in DB, clearing it.');
       await clearLastActiveToolFromDB();
