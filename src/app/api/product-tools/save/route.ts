@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ProductToolService from '@/lib/db/dynamodb/product-tools';
+import { ProductToolService } from '@/lib/db/dynamodb/product-tools';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Skip auth for development - use hardcoded user ID
-    const userId = 'dev-user-123';
-    
-    const body = await request.json();
-    const { toolDefinition } = body as { toolDefinition: ProductToolDefinition };
+    const body = await req.json();
+    const { tool } = body as { tool: ProductToolDefinition };
 
-    if (!toolDefinition) {
-      return NextResponse.json({ error: 'Tool definition required' }, { status: 400 });
+    if (!tool) {
+      return NextResponse.json({ success: false, error: 'Tool data not provided' }, { status: 400 });
     }
 
-    const savedTool = await ProductToolService.saveProductTool(toolDefinition, userId);
-    return NextResponse.json({ success: true, tool: savedTool });
+    const toolService = new ProductToolService();
+    await toolService.saveProductTool(tool);
 
+    return NextResponse.json({ success: true, message: 'Tool saved successfully' });
   } catch (error) {
     console.error('Error saving product tool:', error);
-    return NextResponse.json({ error: 'Failed to save tool' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to save tool' }, { status: 500 });
   }
 }

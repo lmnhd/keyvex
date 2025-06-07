@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { ProductToolService } from '@/lib/db/dynamodb/product-tools';
+import { requireAuth } from '@/lib/auth/debug';
 
 export async function GET() {
   try {
-    // For development, we'll use a hardcoded userId
-    // In production, this would come from authentication
-    const userId = 'dev-user-123';
-    
+    const userId = await requireAuth();
+
     // Get all tools for the user from DynamoDB
-    const tools = await ProductToolService.listUserTools(userId);
+    const toolService = new ProductToolService();
+    const tools = await toolService.listUserTools(userId);
     
     return NextResponse.json({
       success: true,

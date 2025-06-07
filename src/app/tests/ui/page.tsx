@@ -250,18 +250,6 @@ export default function TestUIPage() {
     }
   }, [useMockData, currentWorkflow]); // Removed questionQueue.length dependency
 
-  // Handle mode switching - clear queue when switching to AI mode
-  /* DISABLED: This useEffect was clearing AI-generated questions
-  useEffect(() => {
-    console.log('🔧 Mode switch detected, clearing queue for AI mode');
-    if (!useMockData) {
-      setQuestionQueue([]);
-      setCurrentQuestionIndex(0);
-      setCurrentInput('');
-    }
-  }, [useMockData]); // Only trigger when useMockData changes
-  */
-
   // Handle workflow switching
   useEffect(() => {
     const newWorkflow = useIteratorTest ? iteratorTestWorkflow : mockWorkflow;
@@ -346,26 +334,21 @@ export default function TestUIPage() {
 
   // Initialize data from IndexedDB (called after DB is confirmed open)
   const initializeFromStorage = async () => {
-    console.log('🔧 Initializing from storage (IndexedDB)...');
-    setIsLoading(true); // Optional: manage loading state
-    try {
-      const lastTool = await loadLastActiveToolFromDB();
-      if (lastTool) {
-        console.log('🔧 Loaded last active tool from IndexedDB:', lastTool.metadata.title);
-        setProductToolDefinition(lastTool);
-      } else {
-        console.log('🔧 No last active tool found in IndexedDB.');
-      }
-
-      await loadAndSetSavedTools();
-      await loadAndSetSavedLogicResults();
-      
-    } catch (error) {
-      console.error('❌ Error initializing from IndexedDB:', error);
-    } finally {
-      setIsLoading(false); // Optional: manage loading state
-      console.log('🔧 Storage initialization complete.');
+    console.log('🔄 Initializing from IndexedDB...');
+    const lastTool = await loadLastActiveToolFromDB();
+    if (lastTool && isValidProductToolDefinition(lastTool)) {
+      console.log('✅ Loaded last active tool from DB:', lastTool.metadata.title);
+      // Temporarily disabled to prevent crash from corrupted tool. Will be re-enabled.
+      // setProductToolDefinition(lastTool); 
+    } else if (lastTool) {
+      console.warn('🚨 Found corrupted tool in DB, clearing it.');
+      await clearLastActiveToolFromDB();
     }
+
+    await loadAndSetSavedTools();
+    await loadAndSetSavedLogicResults();
+    
+    console.log('🔧 Storage initialization complete.');
   };
 
   const currentQuestion = isInMultiPart 

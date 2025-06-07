@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Package, Trash2, Calendar, Clock, AlertTriangle, Cloud, Check, Download, RefreshCw } from 'lucide-react';
 import { SavedTool } from './types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
@@ -33,46 +33,54 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
   const [loadingCloudTools, setLoadingCloudTools] = useState(false);
   const [cloudLoadError, setCloudLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'local' | 'cloud'>('local');
+  const [hasLoadedCloudTools, setHasLoadedCloudTools] = useState(false);
 
 
 
-  const loadCloudTools = async () => {
+  const loadCloudTools = useCallback(async () => {
+    console.log('[1] Starting to load cloud tools...');
     setLoadingCloudTools(true);
     setCloudLoadError(null);
     
     try {
+      console.log('[2] Calling fetch for /api/product-tools/list...');
       const response = await fetch('/api/product-tools/list', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
       });
+      console.log('[3] Fetch response received:', response.status, response.statusText);
 
       if (!response.ok) {
+        console.error('[4a] Response was not OK. Reading error data...');
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to load tools from cloud');
       }
 
+      console.log('[4b] Response was OK. Reading data...');
       const data = await response.json();
+      console.log('[5] Data received:', data);
       setCloudTools(data.tools || []);
+      setHasLoadedCloudTools(true);
     } catch (error) {
-      console.error('Error loading cloud tools:', error);
+      console.error('[6] Error caught in loadCloudTools:', error);
       setCloudLoadError(error instanceof Error ? error.message : 'Failed to load cloud tools');
     } finally {
+      console.log('[7] Finally block reached. Stopping spinner.');
       setLoadingCloudTools(false);
     }
-  };
+  }, []);
 
     // Load cloud tools when popup opens or when switching to cloud tab
   useEffect(() => {
-    if (isOpen && activeTab === 'cloud' && cloudTools.length === 0) {
+    if (isOpen && activeTab === 'cloud' && !hasLoadedCloudTools) {
       loadCloudTools();
     }
-  }, [isOpen, activeTab, cloudTools.length, loadCloudTools]);
+  }, [isOpen, activeTab, hasLoadedCloudTools, loadCloudTools]);
 
   const refreshCloudTools = () => {
-    setCloudTools([]);
-    loadCloudTools();
+    setHasLoadedCloudTools(false);
   };
 
   if (!isOpen) return null;
@@ -103,7 +111,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          toolDefinition: tool
+          tool: tool
         }),
       });
 
@@ -156,7 +164,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="font-medium truncate">
-                {tool.metadata.title}
+                {tool.metadata?.title || 'Untitled Tool'}
               </h3>
               {source === 'cloud' && (
                 <Cloud className="h-4 w-4 text-blue-500 flex-shrink-0" />
@@ -172,7 +180,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
               </span>
               <span className="flex items-center gap-1">
                 <Package className="h-3 w-3" />
-                {tool.metadata.type}
+                {tool.metadata?.type || 'N/A'}
               </span>
             </div>
           </div>
@@ -183,7 +191,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
           ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}
           text-sm mb-4 line-clamp-2
         `}>
-          {tool.metadata.shortDescription || tool.metadata.description}
+          {tool.metadata?.shortDescription || tool.metadata?.description || 'No description available.'}
         </p>
 
         {/* Tool Details */}
@@ -192,10 +200,10 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
             ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}
             text-xs flex items-center gap-4
           `}>
-            <span>Industry: {tool.metadata.industry}</span>
-            <span>Audience: {tool.metadata.targetAudience}</span>
+            <span>Industry: {tool.metadata?.industry || 'N/A'}</span>
+            <span>Audience: {tool.metadata?.targetAudience || 'N/A'}</span>
           </div>
-          {tool.metadata.features.length > 0 && (
+          {(tool.metadata?.features?.length || 0) > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {tool.metadata.features.slice(0, 3).map((feature, index) => (
                 <span
