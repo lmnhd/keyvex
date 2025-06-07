@@ -5,6 +5,7 @@ import { X, Package, Trash2, Calendar, Clock, AlertTriangle, Cloud, Check, Downl
 import { SavedTool } from './types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@clerk/nextjs';
 
 interface SavedToolsPopupProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
   onDeleteTool,
   isDarkMode
 }) => {
+  const { isLoaded, isSignedIn } = useAuth();
   const [deletingToolId, setDeletingToolId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [cloudSavingToolId, setCloudSavingToolId] = useState<string | null>(null);
@@ -38,24 +40,42 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
 
 
   const loadCloudTools = useCallback(async () => {
+    // Don't load if auth isn't ready or user isn't signed in
+    if (!isLoaded || !isSignedIn) {
+      console.log('[0] Auth not ready or user not signed in, skipping cloud tools load');
+      return;
+    }
+    
     console.log('[1] Starting to load cloud tools...');
     setLoadingCloudTools(true);
     setCloudLoadError(null);
     
     try {
       console.log('[2] Calling fetch for /api/product-tools/list...');
+      
+      // Add a small delay to ensure auth is ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       const response = await fetch('/api/product-tools/list', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
+        // Add credentials to ensure cookies are sent
+        credentials: 'same-origin',
       });
       console.log('[3] Fetch response received:', response.status, response.statusText);
 
       if (!response.ok) {
         console.error('[4a] Response was not OK. Reading error data...');
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load tools from cloud');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.error('[4a-1] Failed to parse error response as JSON:', parseError);
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        throw new Error(errorData.error || `Failed to load tools from cloud (${response.status})`);
       }
 
       console.log('[4b] Response was OK. Reading data...');
@@ -70,7 +90,7 @@ export const SavedToolsPopup: React.FC<SavedToolsPopupProps> = ({
       console.log('[7] Finally block reached. Stopping spinner.');
       setLoadingCloudTools(false);
     }
-  }, []);
+  }, [isLoaded, isSignedIn]);
 
     // Load cloud tools when popup opens or when switching to cloud tab
   useEffect(() => {
