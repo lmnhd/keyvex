@@ -74,72 +74,68 @@ function createModelInstance(provider: string, modelId: string) {
 /**
  * JSX Layout Agent - Generates React component structure from AI
  */
-export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
+export async function designJsxLayout(request: {
+  jobId: string;
+  selectedModel?: string;
+  tcc: ToolConstructionContext; // Always expect the full TCC
+}): Promise<{
   success: boolean;
   jsxLayout?: JsxLayoutResult;
   error?: string;
+  updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel, mockTcc } = JsxLayoutRequestSchema.parse(request);
+  const { jobId, selectedModel, tcc } = request;
 
   logger.info({ jobId }, '🏗️ JSXLayout: Starting JSX layout design');
 
   try {
-    const tcc = mockTcc
-      ? (mockTcc as ToolConstructionContext)
-      : await getTCC(jobId);
     if (!tcc) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    if (!mockTcc) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.designing_jsx_layout,
-        'started',
-        'Designing JSX layout...',
-      );
-      await saveTCC({
-        ...tcc,
-        status: OrchestrationStatusEnum.enum.in_progress,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'started',
+      'Designing JSX layout...',
+    );
 
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
 
-    if (!mockTcc) {
-      logger.info({ jobId }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
-
-      const updateData: Partial<ToolConstructionContext> = {
-        jsxLayout,
-        steps: {
-          ...tcc.steps,
-          designingJsxLayout: {
-            status: 'completed',
-            startedAt:
-              tcc.steps?.designingJsxLayout?.startedAt ||
-              new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-            result: jsxLayout,
-          },
+    logger.info({ jobId }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
+    
+    const updatedTcc: ToolConstructionContext = {
+      ...tcc,
+      jsxLayout,
+      steps: {
+        ...tcc.steps,
+        designingJsxLayout: {
+          status: 'completed',
+          startedAt:
+            tcc.steps?.designingJsxLayout?.startedAt ||
+            new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          result: jsxLayout,
         },
-      };
+      },
+      updatedAt: new Date().toISOString()
+    };
 
-      await updateTCC(jobId, updateData);
+    await saveTCC(updatedTcc); // Still save for persistence
 
-      logger.info({ jobId },'🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.designing_jsx_layout,
-        'completed',
-        `Generated JSX layout with ${jsxLayout.elementMap.length} elements`,
-      );
+    logger.info({ jobId },'🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'completed',
+      `Generated JSX layout with ${jsxLayout.elementMap.length} elements`,
+    );
 
-      await triggerNextOrchestrationStep(jobId);
-    }
-
+    // This agent no longer triggers the next step directly. The route handler does.
+    
     logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
-    return { success: true, jsxLayout };
+    return { success: true, jsxLayout, updatedTcc };
+
   } catch (error) {
     logger.error({ jobId, error }, '🏗️ JSXLayout: Error designing JSX layout');
     await emitStepProgress(
@@ -170,7 +166,7 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId }),
+        body: JSON.stringify({ jobId }), // THIS IS NOW HANDLED BY THE ROUTE WITH THE FULL TCC
       },
     );
     if (!response.ok) {

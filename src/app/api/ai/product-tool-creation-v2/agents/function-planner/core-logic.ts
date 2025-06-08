@@ -32,19 +32,20 @@ const functionSignaturesSchema = z.object({
 export async function planFunctionSignatures(request: {
   jobId: string;
   selectedModel?: string;
-  mockTcc?: ToolConstructionContext;
+  tcc: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   functionSignatures?: DefinedFunctionSignature[];
   error?: string;
+  updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, mockTcc } = request;
+  const { jobId, selectedModel, tcc } = request;
 
   try {
     logger.info({ jobId }, '🔧 FunctionPlanner: Starting function signature planning');
-    const tcc = mockTcc || (await getTCC(jobId));
+    
     if (!tcc || !tcc.agentModelMapping) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
+      throw new Error(`Valid TCC was not provided for jobId: ${jobId}`);
     }
 
     if (selectedModel) {
@@ -61,49 +62,42 @@ export async function planFunctionSignatures(request: {
 
     const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
 
-    // COMPREHENSIVE LOGGING: TCC State BEFORE changes
+    const updatedTcc = { ...tcc };
+
     logger.info({ 
       jobId,
       beforeChanges: {
-        currentOrchestrationStep: tcc.currentOrchestrationStep,
-        status: tcc.status,
-        hasFunctionSignatures: !!tcc.definedFunctionSignatures,
-        functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-        hasStateLogic: !!tcc.stateLogic,
-        hasJsxLayout: !!tcc.jsxLayout,
-        updatedAt: tcc.updatedAt
+        currentOrchestrationStep: updatedTcc.currentOrchestrationStep,
+        status: updatedTcc.status,
+        hasFunctionSignatures: !!updatedTcc.definedFunctionSignatures,
+        functionSignatureCount: updatedTcc.definedFunctionSignatures?.length || 0,
       }
     }, '🔧 FunctionPlanner: TCC state BEFORE applying changes');
 
-    tcc.definedFunctionSignatures = functionSignatures;
-    tcc.currentOrchestrationStep = OrchestrationStepEnum.enum.designing_state_logic; // Move to parallel phase
-    tcc.status = OrchestrationStatusEnum.enum.in_progress;
+    updatedTcc.definedFunctionSignatures = functionSignatures;
+    updatedTcc.currentOrchestrationStep = OrchestrationStepEnum.enum.designing_state_logic;
+    updatedTcc.status = OrchestrationStatusEnum.enum.in_progress;
 
-    // COMPREHENSIVE LOGGING: TCC State AFTER changes but BEFORE save
     logger.info({ 
       jobId,
       afterChanges: {
-        currentOrchestrationStep: tcc.currentOrchestrationStep,
-        status: tcc.status,
-        hasFunctionSignatures: !!tcc.definedFunctionSignatures,
-        functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
+        currentOrchestrationStep: updatedTcc.currentOrchestrationStep,
+        status: updatedTcc.status,
+        hasFunctionSignatures: !!updatedTcc.definedFunctionSignatures,
+        functionSignatureCount: updatedTcc.definedFunctionSignatures?.length || 0,
         newFunctionNames: functionSignatures.map(f => f.name),
-        hasStateLogic: !!tcc.stateLogic,
-        hasJsxLayout: !!tcc.jsxLayout,
         changesMade: 'Added function signatures, updated orchestration step to designing_state_logic'
       }
     }, '🔧 FunctionPlanner: TCC state AFTER applying changes, about to save');
 
-    await saveTCC(tcc);
+    await saveTCC(updatedTcc);
 
-    // COMPREHENSIVE LOGGING: Confirm save operation
     logger.info({ 
       jobId,
       savedState: {
-        currentOrchestrationStep: tcc.currentOrchestrationStep,
-        status: tcc.status,
-        functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-        timestamp: new Date().toISOString()
+        currentOrchestrationStep: updatedTcc.currentOrchestrationStep,
+        status: updatedTcc.status,
+        functionSignatureCount: updatedTcc.definedFunctionSignatures?.length || 0,
       }
     }, '🔧 FunctionPlanner: TCC successfully saved with new state');
 
@@ -115,7 +109,7 @@ export async function planFunctionSignatures(request: {
     );
 
     logger.info({ jobId, count: functionSignatures.length }, '🔧 FunctionPlanner: Successfully planned function signatures');
-    return { success: true, functionSignatures };
+    return { success: true, functionSignatures, updatedTcc };
   } catch (error) {
     logger.error({ jobId, error }, '🔧 FunctionPlanner: Error planning function signatures');
     await emitStepProgress(

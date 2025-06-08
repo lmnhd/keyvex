@@ -12,6 +12,7 @@ import { generateObject } from 'ai';
 import {
   getPrimaryModel,
   getFallbackModel,
+  getModelProvider,
 } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
@@ -27,12 +28,13 @@ type FinalProduct = z.infer<typeof finalProductSchema>;
 
 export async function finalizeTool(request: {
   jobId: string;
+  selectedModel?: string;
 }): Promise<{
   success: boolean;
   finalProduct?: FinalProduct;
   error?: string;
 }> {
-  const { jobId } = request;
+  const { jobId, selectedModel } = request;
 
   try {
     logger.info({ jobId }, '✅ ToolFinalizer: Starting finalization');
@@ -48,11 +50,9 @@ export async function finalizeTool(request: {
       'Assembling the final tool...'
     );
 
-    const modelInfo = getPrimaryModel('toolFinalizer');
-    if (!modelInfo) {
-      throw new Error('No primary model configured for ToolFinalizer.');
-    }
-    const model = createModelInstance(modelInfo.provider, modelInfo.modelInfo.id);
+    const { provider, modelId } = getModelForAgent('toolFinalizer', selectedModel);
+    logger.info({ provider, modelId, agent: 'toolFinalizer' }, '✅ ToolFinalizer: Using model');
+    const model = createModelInstance(provider, modelId);
 
     const { object: finalProduct } = await generateObject({
       model,
@@ -79,18 +79,37 @@ export async function finalizeTool(request: {
     return { success: true, finalProduct };
 
   } catch (error) {
-    logger.error({ jobId, error }, '✅ ToolFinalizer: Error finalizing tool');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : 'No stack available';
+    logger.error({ jobId, error: errorMessage, stack }, '✅ ToolFinalizer: Error finalizing tool');
+    
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.finalizing_tool,
       'failed',
-      error instanceof Error ? error.message : 'Unknown error'
+      errorMessage
     );
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
+}
+
+function getModelForAgent(agentName: string, selectedModel?: string): { provider: string; modelId: string } {
+    if (selectedModel && selectedModel !== 'default') {
+        const provider = getModelProvider(selectedModel);
+        if (provider !== 'unknown') {
+            return { provider, modelId: selectedModel };
+        }
+    }
+    const primaryModel = getPrimaryModel(agentName);
+    if (primaryModel && 'modelInfo' in primaryModel) {
+        return { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
+    }
+    // Final fallback if no config is found
+    logger.warn({ agentName }, 'No specific model config found, using global fallback gpt-4o.');
+    return { provider: 'openai', modelId: 'gpt-4o' };
 }
 
 function createModelInstance(provider: string, modelId: string) {

@@ -76,136 +76,42 @@ function createModelInstance(provider: string, modelId: string) {
 /**
  * State Design Agent - Generates React state logic from AI
  */
-export async function designStateLogic(request: StateDesignRequest): Promise<{
+export async function designStateLogic(request: {
+  jobId: string;
+  selectedModel?: string;
+  tcc: ToolConstructionContext; // Always expect the full TCC
+}): Promise<{
   success: boolean;
   stateLogic?: StateLogicResult;
   error?: string;
+  updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel, mockTcc, testingOptions } = StateDesignRequestSchema.parse(request);
+  const { jobId, selectedModel, tcc } = request;
 
   console.log('🎯 StateDesign: ==================== STARTING STATE LOGIC DESIGN ====================');
-      console.log('🎯 StateDesign: Request parameters:', { 
+  console.log('🎯 StateDesign: Request parameters:', { 
       jobId, 
       selectedModel: selectedModel || 'default',
-      isMockMode: !!mockTcc,
-      testingOptions: testingOptions || 'none',
       timestamp: new Date().toISOString()
-    });
+  });
 
   try {
-    let tcc: ToolConstructionContext;
+    if (!tcc) {
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
+    }
+
+    console.log('🎯 StateDesign: ✅ TCC received directly');
     
-    if (mockTcc) {
-      console.log('🎯 StateDesign: 🧪 MOCK MODE - Using provided mock TCC');
-      tcc = mockTcc as ToolConstructionContext;
-    } else {
-      console.log('🎯 StateDesign: Loading TCC state from store...');
-      const loadedTcc = await getTCC(jobId);
-      if (!loadedTcc) {
-        const errorMsg = `TCC not found for jobId: ${jobId}`;
-        console.error('🎯 StateDesign: ❌ CRITICAL ERROR - TCC not found:', errorMsg);
-        throw new Error(errorMsg);
-      }
-      tcc = loadedTcc;
-    }
-
-    console.log('🎯 StateDesign: ✅ TCC loaded successfully');
-    console.log('🎯 StateDesign: TCC Analysis:', {
-      currentStep: tcc.currentOrchestrationStep,
-      status: tcc.status,
-      hasUserInput: !!tcc.userInput,
-      userInputKeys: Object.keys(tcc.userInput || {}),
-      targetAudience: tcc.targetAudience || 'not specified',
-      hasFunctionSignatures: !!tcc.functionSignatures?.length,
-      functionSignatureCount: tcc.definedFunctionSignatures?.length || tcc.functionSignatures?.length || 0,
-      functionNames: tcc.functionSignatures?.map((f: DefinedFunctionSignature) => f.name) || [],
-      hasDefinedFunctionSignatures: !!tcc.definedFunctionSignatures?.length,
-      definedFunctionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-      definedFunctionNames: tcc.definedFunctionSignatures?.map((f: DefinedFunctionSignature) => f.name) || [],
-      
-    });
-
-    // Enhanced testing mode logic
-    const shouldStreamWebSocket = !mockTcc || testingOptions?.enableWebSocketStreaming;
-    const shouldUpdateTcc = !mockTcc || testingOptions?.enableTccOperations;
-    const shouldTriggerOrchestration = !mockTcc || testingOptions?.enableOrchestrationTriggers;
-    
-    // Progress update 1: TCC data loaded and validated
-    if (shouldStreamWebSocket) {
-      console.log('🎯 StateDesign: Emitting WebSocket progress - TCC LOADED...');
-      const functionCount = tcc.definedFunctionSignatures?.length || tcc.functionSignatures?.length || 0;
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'initiated', `TCC loaded with ${functionCount} function signatures to implement`);
-      console.log('🎯 StateDesign: ✅ WebSocket progress emitted - TCC LOADED');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping TCC loaded progress emission');
-    }
-
-    logger.info({ 
-      jobId, 
-      selectedModel: selectedModel || 'default',
-      isMockMode: !!mockTcc,
-      testingOptions: testingOptions || 'none'
-    }, '🎯 StateDesign: Starting');
-    
-    if (shouldStreamWebSocket) {
-      console.log('🎯 StateDesign: Emitting WebSocket progress - STARTED...');
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'started', 'Designing React state logic...');
-      console.log('🎯 StateDesign: ✅ WebSocket progress emitted - STARTED');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping WebSocket progress emission');
-    }
-
-    if (shouldUpdateTcc) {
-      // Update TCC status
-      console.log('🎯 StateDesign: Updating TCC status to IN_PROGRESS...');
-      const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
-      await saveTCC(tccInProgress);
-      console.log('🎯 StateDesign: ✅ TCC status updated to IN_PROGRESS');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping TCC status updates');
-    }
-
-    // Progress update 2: About to call AI for state logic generation
-    console.log('🎯 StateDesign: DEBUG - shouldStreamWebSocket value:', shouldStreamWebSocket, 'testingOptions:', testingOptions);
-    if (shouldStreamWebSocket) {
-      console.log('🎯 StateDesign: Emitting WebSocket progress - AI GENERATION STARTING...');
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'llm_call_pending', 'Calling AI to generate React state variables and functions...');
-      console.log('🎯 StateDesign: ✅ WebSocket progress emitted - AI GENERATION STARTING');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping AI generation starting progress emission');
-    }
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'started', 'Designing React state logic...');
 
     // Generate state logic with AI
     console.log('🎯 StateDesign: Calling AI to generate state logic...');
-    console.log('🎯 StateDesign: AI Input parameters:', {
-      selectedModel: selectedModel || 'default',
-      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...' || 'No description',
-      targetAudience: tcc.targetAudience || 'not specified',
-      functionSignatureCount: tcc.definedFunctionSignatures?.length || tcc.functionSignatures?.length || 0
-    });
     const stateLogic = await generateStateLogic(tcc, selectedModel);
     console.log('🎯 StateDesign: ✅ AI generated state logic successfully');
-    console.log('🎯 StateDesign: Generated state logic summary:', {
-      stateVariableCount: stateLogic?.stateVariables?.length || 0,
-      functionCount: stateLogic?.functions?.length || 0,
-      importsCount: stateLogic?.imports?.length || 0,
-      hooksCount: stateLogic?.hooks?.length || 0
-    });
-    console.log('🎯 StateDesign: Full stateLogic data:', JSON.stringify(stateLogic, null, 2));
 
-    // Progress update 3: AI generation completed, now processing data
-    console.log('🎯 StateDesign: DEBUG - shouldStreamWebSocket for AI completed:', shouldStreamWebSocket);
-    if (shouldStreamWebSocket) {
-      console.log('🎯 StateDesign: Emitting WebSocket progress - AI GENERATION COMPLETED...');
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'llm_data_received', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);
-      console.log('🎯 StateDesign: ✅ WebSocket progress emitted - AI GENERATION COMPLETED');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping AI generation completed progress emission');
-    }
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'llm_data_received', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);
 
     // Convert to TCC-compatible format
-    console.log('🎯 StateDesign: Converting state logic to TCC-compatible format...');
-    
     const tccCompatibleStateLogic = {
       variables: stateLogic.stateVariables.map((v: StateVariable): TccStateVariable => ({
         name: v.name,
@@ -221,117 +127,57 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
       })),
       imports: stateLogic.imports,
     };
-    console.log('🎯 StateDesign: ✅ State logic converted to TCC format');
-    console.log('🎯 StateDesign: TCC-compatible format summary:', {
-      variableCount: tccCompatibleStateLogic.variables?.length || 0,
-      functionCount: tccCompatibleStateLogic.functions?.length || 0,
-      variableNames: tccCompatibleStateLogic.variables?.map((v: TccStateVariable) => v.name) || [],
-      functionNames: tccCompatibleStateLogic.functions?.map((f: TccStateFunction) => f.name) || []
-    });
-
-    if (shouldUpdateTcc) {
-      // COMPREHENSIVE LOGGING: TCC State BEFORE State Design update
-      logger.info({ 
-        jobId,
-        beforeStateDesignUpdate: {
-          currentOrchestrationStep: tcc.currentOrchestrationStep,
-          status: tcc.status,
-          hasFunctionSignatures: !!tcc.definedFunctionSignatures,
-          functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-          hasStateLogic: !!tcc.stateLogic,
-          hasJsxLayout: !!tcc.jsxLayout,
-          existingStateVariableCount: tcc.stateLogic?.variables?.length || 0,
-          updatedAt: tcc.updatedAt
+    
+    const updatedTcc: ToolConstructionContext = {
+      ...tcc,
+      stateLogic: tccCompatibleStateLogic,
+      steps: {
+        ...tcc.steps,
+        stateDesign: {
+          status: OrchestrationStatusEnum.enum.completed,
+          startedAt: tcc.steps?.stateDesign?.startedAt || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          result: stateLogic
         }
-      }, '🎯 StateDesign: TCC state BEFORE State Design update');
+      },
+      updatedAt: new Date().toISOString()
+    };
 
-      // Update TCC with results using updateTCC to avoid race conditions
-      console.log('🎯 StateDesign: About to update TCC with stateLogic using updateTCC...');
-      const updateData = {
-        stateLogic: tccCompatibleStateLogic,
-        currentOrchestrationStep: tcc.currentOrchestrationStep, // Preserve orchestration step
-        steps: {
-          ...tcc.steps,
-          designingStateLogic: {
-            status: OrchestrationStatusEnum.enum.completed,
-            startedAt: tcc.steps?.designingStateLogic?.startedAt || new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-            result: stateLogic
-          }
-        }
-      };
+    logger.info({ 
+      jobId,
+      updateData: {
+        stateVariableCount: updatedTcc.stateLogic?.variables?.length,
+        functionCount: updatedTcc.stateLogic?.functions?.length
+      }
+    }, '🎯 StateDesign: Update data being applied to TCC');
 
-      // COMPREHENSIVE LOGGING: What we're about to update
-      logger.info({ 
-        jobId,
-        updateData: {
-          preservedOrchestrationStep: updateData.currentOrchestrationStep,
-          newStateVariableCount: updateData.stateLogic.variables?.length || 0,
-          newFunctionCount: updateData.stateLogic.functions?.length || 0,
-          stateVariableNames: updateData.stateLogic.variables?.map(v => v.name) || [],
-          functionNames: updateData.stateLogic.functions?.map(f => f.name) || [],
-          stepStatus: updateData.steps.designingStateLogic.status
-        }
-      }, '🎯 StateDesign: Update data being applied to TCC');
+    // Persist the changes to the central store
+    await saveTCC(updatedTcc);
 
-      await updateTCC(jobId, updateData);
+    // COMPREHENSIVE LOGGING: TCC State AFTER State Design update
+    const finalTccState = await getTCC(jobId, { forceRefresh: true }); // Verify from DB
+    logger.info({
+      jobId,
+      finalTccState: {
+        currentStep: finalTccState?.currentOrchestrationStep,
+        status: finalTccState?.status,
+        hasStateLogic: !!finalTccState?.stateLogic,
+        stateVarCount: finalTccState?.stateLogic?.variables.length,
+        stateFuncCount: finalTccState?.stateLogic?.functions.length
+      }
+    }, '🎯 StateDesign: TCC state AFTER State Design update (verified from DB)');
+    
+    await triggerNextOrchestrationStep(jobId);
 
-      // COMPREHENSIVE LOGGING: Verify TCC state after update
-      const updatedTCC = await getTCC(jobId);
-      logger.info({ 
-        jobId,
-        afterStateDesignUpdate: {
-          currentOrchestrationStep: updatedTCC?.currentOrchestrationStep,
-          status: updatedTCC?.status,
-          hasStateLogic: !!updatedTCC?.stateLogic,
-          stateVariableCount: updatedTCC?.stateLogic?.variables?.length || 0,
-          hasJsxLayout: !!updatedTCC?.jsxLayout,
-          updatedAt: updatedTCC?.updatedAt,
-          orchestrationStepPreserved: updatedTCC?.currentOrchestrationStep === tcc.currentOrchestrationStep
-        }
-      }, '🎯 StateDesign: TCC state AFTER State Design update (verified from DB)');
-
-      console.log('🎯 StateDesign: ✅ TCC updated successfully with stateLogic data');
-      
-      // CRITICAL: Small delay to ensure filesystem sync before parallel completion check
-      console.log('🎯 StateDesign: Waiting for filesystem sync...');
-      await new Promise(resolve => setTimeout(resolve, 200));
-      console.log('🎯 StateDesign: ✅ Filesystem sync delay completed');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping TCC updates');
-    }
-
-    if (shouldStreamWebSocket) {
-      console.log('🎯 StateDesign: Emitting WebSocket progress - COMPLETED...');
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'completed', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);
-      console.log('🎯 StateDesign: ✅ WebSocket progress emitted - COMPLETED');
-    } else {
-      console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping WebSocket progress completion');
-    }
-
-    // CRITICAL: Trigger the next step in the orchestration
-    if (shouldTriggerOrchestration) {
-        await new Promise(resolve => setTimeout(resolve, 200)); // Filesystem sync
-        await triggerNextOrchestrationStep(jobId);
-    }
-
-    logger.info({ jobId, stateVariablesGenerated: stateLogic.stateVariables.length, functionsGenerated: stateLogic.functions.length }, '🎯 StateDesign: Completed successfully');
-
-    console.log('🎯 StateDesign: ==================== STATE LOGIC DESIGN COMPLETED SUCCESSFULLY ====================');
-    console.log('🎯 StateDesign: Final result summary:', {
-      success: true,
-      stateVariableCount: stateLogic.stateVariables.length,
-      functionCount: stateLogic.functions.length,
-      variableNames: stateLogic.stateVariables.map((v: StateVariable) => v.name),
-      functionNames: stateLogic.functions.map((f: StateFunction) => f.name)
-    });
-
-    return { success: true, stateLogic };
+    console.log('🎯 StateDesign: Completed successfully');
+    
+    return { success: true, stateLogic, updatedTcc };
 
   } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '🎯 StateDesign: Error');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'failed', `State design failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ jobId, error: errorMessage }, '🎯 StateDesign: Error');
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'failed', `State design failed: ${errorMessage}`);
+    return { success: false, error: errorMessage };
   }
 }
 

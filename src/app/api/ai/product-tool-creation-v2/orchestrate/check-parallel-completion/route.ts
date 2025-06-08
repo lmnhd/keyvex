@@ -1,40 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getTCC } from '@/lib/db/tcc-store';
+// No longer needed: import { getTCC } from '@/lib/db/tcc-store';
 import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
+  ToolConstructionContext, // Import TCC type
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
 
 // Input schema for checking completion
 const CheckCompletionRequestSchema = z.object({
   jobId: z.string().uuid(),
+  tcc: z.custom<ToolConstructionContext>(), // Expect the TCC in the request
 });
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobId } = CheckCompletionRequestSchema.parse(body);
+    const { jobId, tcc } = CheckCompletionRequestSchema.parse(body);
 
     logger.info(
       { jobId },
-      '🔍 CHECK-COMPLETION: Checking parallel agent completion status',
+      '🔍 CHECK-COMPLETION: Checking parallel agent completion status using passed-in TCC',
     );
 
-    // CRITICAL: Get FRESH TCC to avoid race conditions with parallel agents
-    let tcc = await getTCC(jobId, { forceRefresh: true });
     if (!tcc) {
+      // This case should ideally not be reached if the calling agent is refactored correctly
       return NextResponse.json(
         {
           success: false,
-          error: 'TCC not found',
+          error: 'TCC not provided in request body',
           jobId,
         },
-        { status: 404 },
+        { status: 400 },
       );
     }
-
+    
     // Check if the TCC status indicates failure
     if (tcc.status === OrchestrationStatusEnum.enum.error) {
       return NextResponse.json(
@@ -49,131 +50,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // RACE CONDITION FIX: Refresh TCC right before completion check
-    // This ensures we have the latest data from parallel agents
-    console.log(
-      '🔍 CHECK-COMPLETION: ==================== REFRESHING TCC FOR LATEST DATA ====================',
-    );
-    console.log('🔍 CHECK-COMPLETION: State before TCC refresh:', {
-      hasStateLogic: !!tcc.stateLogic,
-      hasJsxLayout: !!tcc.jsxLayout,
-      currentStep: tcc.currentOrchestrationStep,
-      status: tcc.status,
-      lastUpdated: tcc.updatedAt,
-    });
+    // The entire block for refreshing TCC is removed as we now trust the passed-in object.
 
     logger.info(
       {
         jobId,
-        beforeRefresh: {
+        stateFromRequest: {
           hasStateLogic: !!tcc.stateLogic,
           hasJsxLayout: !!tcc.jsxLayout,
+          currentStep: tcc.currentOrchestrationStep
         },
       },
-      '🔍 CHECK-COMPLETION: State before TCC refresh',
+      '🔍 CHECK-COMPLETION: Using TCC state from request body',
     );
-
-    console.log('🔍 CHECK-COMPLETION: Calling getTCC to refresh data...');
-
-    // CRITICAL FIX: Add delay to ensure TCC save operations have completed
-    // This prevents race conditions where we check completion before saves are committed
-    // Using 500ms to ensure filesystem + memory sync on Windows
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    tcc = await getTCC(jobId, { forceRefresh: true });
-    if (!tcc) {
-      console.error(
-        '🔍 CHECK-COMPLETION: ❌ CRITICAL ERROR - TCC not found on refresh',
-      );
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'TCC not found on refresh',
-          jobId,
-        },
-        { status: 404 },
-      );
-    }
-
-    console.log('🔍 CHECK-COMPLETION: ✅ TCC refreshed successfully');
-    console.log('🔍 CHECK-COMPLETION: State after TCC refresh:', {
-      hasStateLogic: !!tcc.stateLogic,
-      hasJsxLayout: !!tcc.jsxLayout,
-      stateLogicStructure: tcc.stateLogic
-        ? {
-            hasVariables: !!tcc.stateLogic.variables,
-            variableCount: tcc.stateLogic.variables?.length || 0,
-            hasFunctions: !!tcc.stateLogic.functions,
-            functionCount: tcc.stateLogic.functions?.length || 0,
-            keys: Object.keys(tcc.stateLogic),
-          }
-        : 'null',
-      jsxLayoutStructure: tcc.jsxLayout
-        ? {
-            hasComponentStructure: !!tcc.jsxLayout.componentStructure,
-            componentStructureLength:
-              tcc.jsxLayout.componentStructure?.length || 0,
-            hasElementMap: !!tcc.jsxLayout.elementMap,
-            elementMapCount: tcc.jsxLayout.elementMap?.length || 0,
-            keys: Object.keys(tcc.jsxLayout),
-          }
-        : 'null',
-      currentStep: tcc.currentOrchestrationStep,
-      status: tcc.status,
-      lastUpdated: tcc.updatedAt,
-    });
-
-    logger.info(
-      {
-        jobId,
-        afterRefresh: {
-          hasStateLogic: !!tcc.stateLogic,
-          hasJsxLayout: !!tcc.jsxLayout,
-          stateLogicKeys: tcc.stateLogic ? Object.keys(tcc.stateLogic) : 'none',
-          jsxLayoutKeys: tcc.jsxLayout ? Object.keys(tcc.jsxLayout) : 'none',
-        },
-      },
-      '🔍 CHECK-COMPLETION: State after TCC refresh',
-    );
-
-    // COMPREHENSIVE LOGGING: Complete TCC analysis before decision
-    logger.info(
-      {
-        jobId,
-        completeStateAnalysis: {
-          currentOrchestrationStep: tcc.currentOrchestrationStep,
-          status: tcc.status,
-          hasFunctionSignatures: !!tcc.definedFunctionSignatures,
-          functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-          hasStateLogic: !!tcc.stateLogic,
-          stateLogicDetail: tcc.stateLogic
-            ? {
-                hasVariables: !!tcc.stateLogic.variables,
-                variableCount: tcc.stateLogic.variables?.length || 0,
-                hasStateVariables: !!tcc.stateLogic.stateVariables,
-                stateVariableCount: tcc.stateLogic.stateVariables?.length || 0,
-                hasFunctions: !!tcc.stateLogic.functions,
-                functionCount: tcc.stateLogic.functions?.length || 0,
-              }
-            : null,
-          hasJsxLayout: !!tcc.jsxLayout,
-          jsxLayoutDetail: tcc.jsxLayout
-            ? {
-                hasComponentStructure: !!tcc.jsxLayout.componentStructure,
-                componentStructureLength:
-                  tcc.jsxLayout.componentStructure?.length || 0,
-                hasElementMap: !!tcc.jsxLayout.elementMap,
-                elementMapCount: tcc.jsxLayout.elementMap?.length || 0,
-              }
-            : null,
-          updatedAt: tcc.updatedAt,
-          allTopLevelKeys: Object.keys(tcc),
-        },
-      },
-      '🔍 CHECK-COMPLETION: Complete TCC state analysis',
-    );
-
-    // V5 ORCHESTRATION LOGIC: Handle parallel completion properly
+    
+    // V5 ORCHESTRATION LOGIC: Handle parallel completion properly using the passed-in TCC
     const parallelCompletionResult = checkParallelStepCompletion(tcc);
 
     // COMPREHENSIVE LOGGING: Decision details
@@ -216,6 +107,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             nextStep: parallelCompletionResult.nextStep,
+            tcc, // Pass the TCC along to the next step
           }),
         },
       ).catch(error => {
@@ -248,6 +140,7 @@ export async function POST(request: NextRequest) {
         jsxLayoutCreated: !!tcc.jsxLayout,
         stylingApplied: !!(tcc as any).styling,
         componentAssembled: !!tcc.assembledComponentCode,
+        validated: !!tcc.validationResult?.isValid,
       },
     };
 
@@ -270,8 +163,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 },
     );
@@ -279,7 +171,9 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * V5 ORCHESTRATION: Check parallel step completion and determine next step
+ * Checks if the parallel steps (State Design, JSX Layout) are complete.
+ * @param tcc The full ToolConstructionContext object.
+ * @returns An object indicating completion status and the next step.
  */
 function checkParallelStepCompletion(tcc: any): {
   isComplete: boolean;
