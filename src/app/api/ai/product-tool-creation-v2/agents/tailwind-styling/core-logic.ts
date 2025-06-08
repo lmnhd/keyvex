@@ -64,38 +64,56 @@ function createModelInstance(provider: string, modelId: string) {
   }
 }
 
-export async function applyStyling(request: TailwindStylingRequest): Promise<{
+export async function applyStyling(request: {
+  jobId: string;
+  selectedModel?: string;
+  tcc: ToolConstructionContext;
+}): Promise<{
   success: boolean;
   styling?: TccStyling;
   error?: string;
+  updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, mockTcc } = request;
+  const { jobId, selectedModel, tcc } = request;
   logger.info({ jobId }, '🎨 TailwindStyling: Starting styling application');
 
   try {
-    const tcc = mockTcc ? (mockTcc as ToolConstructionContext) : await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
-
-    if (!mockTcc) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'started', 'Applying comprehensive Tailwind CSS styling...');
-      await saveTCC({ ...tcc, status: OrchestrationStatusEnum.enum.in_progress });
+    if (!tcc) {
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'started', 'Applying comprehensive Tailwind CSS styling...');
+    
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
 
-    if (!mockTcc) {
-      await updateTCC(jobId, { styling });
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'completed', `Applied styling to ${Object.keys(styling.styleMap).length} elements`);
-      await triggerNextOrchestrationStep(jobId, OrchestrationStepEnum.enum.assembling_component);
-    }
+    const updatedTcc: ToolConstructionContext = {
+      ...tcc,
+      styling,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.assembling_component,
+      steps: {
+        ...tcc.steps,
+        applyingTailwindStyling: {
+          status: 'completed',
+          startedAt:
+            tcc.steps?.applyingTailwindStyling?.startedAt ||
+            new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          result: styling,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
+    
+    await saveTCC(updatedTcc);
+
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'completed', `Applied styling to ${Object.keys(styling.styleMap).length} elements`);
 
     logger.info({ jobId }, '🎨 TailwindStyling: Applied styling successfully');
-    return { success: true, styling };
+    return { success: true, styling, updatedTcc };
+
   } catch (error) {
     logger.error({ jobId, error }, '🎨 TailwindStyling: Error applying styling');
-    if (!mockTcc) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'failed', `Styling failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'failed', `Styling failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
   }
 }

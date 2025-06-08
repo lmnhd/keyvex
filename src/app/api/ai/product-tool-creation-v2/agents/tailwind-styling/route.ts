@@ -1,57 +1,66 @@
 import { applyStyling } from './core-logic';
 import { NextRequest, NextResponse } from 'next/server';
 import logger from '@/lib/logger';
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
 export async function POST(request: NextRequest) {
   console.log('🎨 TailwindStyling Route: ==================== INCOMING REQUEST ====================');
   
   try {
-    const body = await request.json();
-    const { jobId, selectedModel, mockTcc } = body;
+    const body: { jobId: string; selectedModel?: string; tcc: ToolConstructionContext; } = await request.json();
+    const { jobId, selectedModel, tcc } = body;
 
-    if (!jobId && !mockTcc) {
-      throw new Error("jobId is required for orchestration mode.");
+    if (!jobId || !tcc) {
+      throw new Error("jobId and tcc must be provided in the request body.");
     }
-    
-    // Asynchronous processing starts here
-    // We don't await this call, allowing the response to be sent immediately
-    applyStyling({
-      jobId: jobId || mockTcc.jobId,
-      selectedModel: selectedModel,
-      mockTcc: mockTcc
-    }).catch(error => {
-      // Log errors from the async operation
-      logger.error({ 
-        jobId: jobId || mockTcc?.jobId,
-        error: error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack,
-        } : String(error),
-        agent: 'tailwind-styling'
-      }, "🎨 TailwindStyling: Background processing failed");
+
+    const result = await applyStyling({
+      jobId,
+      selectedModel,
+      tcc, // Pass the in-memory TCC
     });
 
-    console.log(`🎨 TailwindStyling Route: ✅ Task for jobId ${jobId} accepted for background processing.`);
-    
-    // Immediately return 202 Accepted
-    return new NextResponse(JSON.stringify({ 
-      success: true, 
-      message: 'Styling request accepted and is being processed in the background.' 
-    }), { 
-      status: 202,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    if (result.success && result.updatedTcc) {
+      // Trigger the next step in the orchestration with the new TCC
+      await triggerNextOrchestrationStep(request.nextUrl.origin, jobId, result.updatedTcc);
+
+      return NextResponse.json({ success: true, styling: result.styling });
+    } else {
+      return NextResponse.json({ 
+        success: false, 
+        error: result.error || 'Styling application failed to return an updated TCC.' 
+      }, { status: 500 });
+    }
 
   } catch (error) {
-    console.error('🎨 TailwindStyling Route: ==================== ROUTE ERROR ====================');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ error: errorMessage, stack: error instanceof Error ? error.stack : undefined }, '🎨 TailwindStyling: Route failed to process request.');
+    logger.error({ error: errorMessage, stack: error instanceof Error ? error.stack : undefined }, '🎨 TailwindStyling: Route failed');
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
+  }
+}
 
-    return NextResponse.json({
-      success: false,
-      error: `Failed to accept styling request: ${errorMessage}`
-    }, { status: 400 }); // Bad Request for parsing errors or missing data
+// Triggers the main orchestrator to proceed to the next step
+async function triggerNextOrchestrationStep(
+  baseUrl: string, 
+  jobId: string,
+  tcc: ToolConstructionContext
+): Promise<void> {
+  try {
+    const nextStep = tcc.currentOrchestrationStep; // The core logic should have set this.
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, nextStep, tcc }), // Pass the full TCC
+    });
+
+    if (!response.ok) {
+      throw new Error(`Orchestrator responded with status: ${response.status}`);
+    }
+
+    logger.info({ jobId, nextStep }, '🎨 TailwindStyling: Successfully triggered next orchestration step.');
+  } catch (error) {
+    logger.error({ jobId, error }, '🎨 TailwindStyling: Failed to trigger next orchestration step.');
+    throw error;
   }
 }
 
