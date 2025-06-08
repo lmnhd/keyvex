@@ -97,12 +97,13 @@ export async function POST(request: NextRequest) {
 
         await saveTCC(tcc);
 
-        await emitStepProgress(jobId, {
-          stepName: nextStep as any,
-          status: 'started',
-          message: `[DEV-FALLBACK] Starting ${stepDisplayName}...`,
-          details: { tcc }
-        });
+        await emitStepProgress(
+          jobId,
+          nextStep as any,
+          'started',
+          `[DEV-FALLBACK] Starting ${stepDisplayName}...`,
+          { tcc }
+        );
 
         fetch(agentUrl.toString(), {
           method: 'POST',
@@ -112,11 +113,12 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({ jobId, tcc: updatedTCC }),
         }).catch(fetchError => {
           logger.error({ jobId, agentPath, fetchError }, '🚀 TRIGGER-NEXT: Failed to trigger agent');
-          emitStepProgress(jobId, {
-            stepName: nextStep as any,
-            status: 'failed',
-            message: `Failed to start ${stepDisplayName}: ${fetchError.message}`
-          }).catch(console.error);
+          emitStepProgress(
+            jobId,
+            nextStep as any,
+            'failed',
+            `Failed to start ${stepDisplayName}: ${fetchError.message}`
+          ).catch(console.error);
         });
 
         logger.info({ jobId, agentPath, stepDisplayName }, '🚀 TRIGGER-NEXT: Agent triggered successfully');
@@ -140,11 +142,12 @@ export async function POST(request: NextRequest) {
         };
         await saveTCC(failedTCC);
 
-        await emitStepProgress(jobId, {
-          stepName: nextStep as any,
-          status: 'failed',
-          message: `Failed to trigger ${stepDisplayName}: ${triggerError instanceof Error ? triggerError.message : 'Unknown error'}`
-        });
+        await emitStepProgress(
+          jobId,
+          nextStep as any,
+          'failed',
+          `Failed to trigger ${stepDisplayName}: ${triggerError instanceof Error ? triggerError.message : 'Unknown error'}`
+        );
 
         return NextResponse.json({
           success: false,
@@ -162,11 +165,12 @@ export async function POST(request: NextRequest) {
         };
         await saveTCC(completedTCC);
 
-        await emitStepProgress(jobId, {
-          stepName: nextStep as any,
-          status: 'completed',
-          message: 'Tool creation process completed successfully!'
-        });
+        await emitStepProgress(
+          jobId,
+          nextStep as any,
+          'completed',
+          'Tool creation process completed successfully!'
+        );
 
         logger.info({ jobId }, '🚀 TRIGGER-NEXT: Process marked as completed');
         
@@ -178,11 +182,12 @@ export async function POST(request: NextRequest) {
           message: 'Tool creation process completed!'
         });
       } else {
-        await emitStepProgress(jobId, {
-          stepName: nextStep as any,
-          status: 'initiated',
-          message: `${stepDisplayName} step reached - awaiting implementation`
-        });
+        await emitStepProgress(
+          jobId,
+          nextStep as any,
+          'initiated',
+          `${stepDisplayName} step reached - awaiting implementation`
+        );
 
         return NextResponse.json({
           success: true,
