@@ -115,11 +115,25 @@ export async function updateTCC(jobId: string, updates: Partial<ToolConstruction
     console.log(`[TCC_STORE] DEBUG: Updates being applied to TCC ${jobId}:`, {
       updatesKeys: Object.keys(updates),
       hasStyling: !!(updates as any).styling,
-      stylingKeys: (updates as any).styling ? Object.keys((updates as any).styling) : []
+      stylingKeys: (updates as any).styling ? Object.keys((updates as any).styling) : [],
+      hasStateLogic: !!(updates as any).stateLogic,
+      stateLogicKeys: (updates as any).stateLogic ? Object.keys((updates as any).stateLogic) : [],
+      stateLogicVariableCount: (updates as any).stateLogic?.variables?.length || 0
     });
 
     // Validate the entire updated object before saving
-    ToolConstructionContextSchema.parse(updatedTCCData);
+    const validationResult = ToolConstructionContextSchema.safeParse(updatedTCCData);
+    if (!validationResult.success) {
+      console.error(`[TCC_STORE] SCHEMA VALIDATION FAILED for jobId: ${jobId}:`, {
+        errors: validationResult.error.errors,
+        problematicData: {
+          hasStateLogic: !!updatedTCCData.stateLogic,
+          stateLogicStructure: updatedTCCData.stateLogic ? Object.keys(updatedTCCData.stateLogic) : null,
+          stateLogicVariableCount: updatedTCCData.stateLogic?.variables?.length || 0
+        }
+      });
+      throw new Error(`Schema validation failed: ${JSON.stringify(validationResult.error.errors)}`);
+    }
     
     // Save the updated TCC
     await saveTCC(updatedTCCData);

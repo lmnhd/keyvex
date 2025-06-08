@@ -220,7 +220,6 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
         dependencies: f.parameters,
       })),
       imports: stateLogic.imports,
-      stateVariables: stateLogic.stateVariables,
     };
     console.log('🎯 StateDesign: ✅ State logic converted to TCC format');
     console.log('🎯 StateDesign: TCC-compatible format summary:', {
