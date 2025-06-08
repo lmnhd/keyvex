@@ -52,34 +52,42 @@ export async function saveTCC(tcc: ToolConstructionContext): Promise<void> {
 /**
  * Retrieves the ToolConstructionContext from the store.
  * @param jobId The job ID of the TCC to retrieve.
+ * @param forceRefresh Bypasses the in-memory cache to get the latest version from persistent storage.
  * @returns A promise that resolves with the TCC object, or null if not found.
  */
-export async function getTCC(jobId: string): Promise<ToolConstructionContext | null> {
+export async function getTCC(
+  jobId: string,
+  options: { forceRefresh?: boolean } = {},
+): Promise<ToolConstructionContext | null> {
   console.log(`[TCC_STORE] Getting TCC for jobId: ${jobId}`);
   console.log(`[TCC_STORE] Available TCC jobIds in store:`, Object.keys(tccInMemoryStore));
-  
-  // First try in-memory store
-  let tcc = tccInMemoryStore[jobId];
-  if (tcc) {
-    console.log(`[TCC_STORE] TCC for jobId: ${jobId} retrieved from memory.`);
-    // Return a deep copy to prevent direct modification of the stored object
-    return JSON.parse(JSON.stringify(tcc));
+
+  // If not forcing a refresh, first try in-memory store
+  if (!options.forceRefresh) {
+    const tcc = tccInMemoryStore[jobId];
+    if (tcc) {
+      console.log(`[TCC_STORE] TCC for jobId: ${jobId} retrieved from memory.`);
+      // Return a deep copy to prevent direct modification of the stored object
+      return JSON.parse(JSON.stringify(tcc));
+    }
   }
-  
-  // Fallback to filesystem if not in memory (development hot reload scenario)
+
+  // Fallback to filesystem if not in memory or if refresh is forced
   try {
     const filePath = getTCCFilePath(jobId);
     if (fs.existsSync(filePath)) {
       const fileContent = fs.readFileSync(filePath, 'utf-8');
-      tcc = JSON.parse(fileContent);
-      
+      const tcc = JSON.parse(fileContent);
+
       // Validate the loaded TCC
       ToolConstructionContextSchema.parse(tcc);
-      
+
       // Put it back in memory for faster access
       tccInMemoryStore[jobId] = JSON.parse(JSON.stringify(tcc));
-      
-      console.log(`[TCC_STORE] TCC for jobId: ${jobId} retrieved from filesystem and restored to memory.`);
+
+      console.log(
+        `[TCC_STORE] TCC for jobId: ${jobId} retrieved from filesystem and restored to memory.`,
+      );
       return JSON.parse(JSON.stringify(tcc));
     }
   } catch (error) {
@@ -97,11 +105,14 @@ export async function getTCC(jobId: string): Promise<ToolConstructionContext | n
  * @returns A promise that resolves with the updated TCC object, or null if not found.
  * @throws Error if the TCC is not found or if the update fails schema validation.
  */
-export async function updateTCC(jobId: string, updates: Partial<ToolConstructionContext>): Promise<ToolConstructionContext | null> {
+export async function updateTCC(
+  jobId: string,
+  updates: Partial<ToolConstructionContext>,
+): Promise<ToolConstructionContext | null> {
   console.log(`[TCC_STORE] Updating TCC for jobId: ${jobId}`);
-  
+
   // Get existing TCC (will check both memory and filesystem)
-  const existingTCC = await getTCC(jobId);
+  const existingTCC = await getTCC(jobId, { forceRefresh: true }); // Always get the freshest for updates
   if (!existingTCC) {
     console.error(`[TCC_STORE] Error updating TCC: JobId ${jobId} not found.`);
     throw new Error(`Cannot update TCC: JobId ${jobId} not found.`);

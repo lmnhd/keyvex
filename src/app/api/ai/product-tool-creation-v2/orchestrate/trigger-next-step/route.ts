@@ -76,6 +76,16 @@ export async function POST(request: NextRequest) {
         stepDisplayName = 'Component Assembly';
         break;
         
+      case OrchestrationStepEnum.enum.validating_code:
+        agentPath = 'validator';
+        stepDisplayName = 'Code Validation';
+        break;
+
+      case OrchestrationStepEnum.enum.finalizing_tool:
+        agentPath = 'tool-finalizer';
+        stepDisplayName = 'Tool Finalization';
+        break;
+        
       case OrchestrationStepEnum.enum.completed:
         agentPath = null;
         stepDisplayName = 'Completed';
@@ -111,7 +121,7 @@ export async function POST(request: NextRequest) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ jobId }),
+          body: JSON.stringify({ jobId, tcc: updatedTCC }),
         }).catch(fetchError => {
           logger.error({ jobId, agentPath, fetchError }, '🚀 TRIGGER-NEXT: Failed to trigger agent');
           // Emit failure progress

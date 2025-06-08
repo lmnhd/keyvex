@@ -76,7 +76,7 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
       `Validation ${validationStatus}: ${errorCount} errors, ${validationResult.warnings.length} warnings`);
 
     // CRITICAL: Trigger the next step in the orchestration
-    await triggerNextOrchestrationStep(jobId);
+    await triggerNextOrchestrationStep(jobId, OrchestrationStepEnum.enum.finalizing_tool);
 
     logger.info({ 
       jobId, 
@@ -96,19 +96,20 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
 }
 
 /**
- * Triggers the check-parallel-completion endpoint to move the orchestration forward.
+ * Triggers the trigger-next-step endpoint to move the orchestration forward.
  * @param jobId The ID of the current tool creation job.
+ * @param nextStep The next step to trigger in the orchestration.
  */
-async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
+async function triggerNextOrchestrationStep(jobId: string, nextStep: OrchestrationStepEnum): Promise<void> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
   
   try {
-    logger.info({ jobId, baseUrl }, '🔍 Validator: Triggering next orchestration step...');
+    logger.info({ jobId, baseUrl, nextStep }, '🔍 Validator: Triggering next orchestration step...');
     
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId }),
+      body: JSON.stringify({ jobId, nextStep }),
     });
 
     if (!response.ok) {

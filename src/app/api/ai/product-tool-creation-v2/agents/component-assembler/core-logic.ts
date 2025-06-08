@@ -4,22 +4,24 @@ import { getTCC, saveTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+import { generateText, generateObject } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
+const assembledComponentSchema = z.object({
+  finalComponentCode: z.string().describe('The complete, single string of final React component code.'),
+  imports: z.array(z.string()).describe('An array of required import statements.'),
+  hooks: z.array(z.string()).describe('An array of React hooks used in the component.'),
+  functions: z.array(z.string()).describe('An array of functions defined within the component.'),
+  metadata: z.object({
+    componentName: z.string().describe('The name of the generated component.'),
+    dependencies: z.array(z.string()).describe('An array of npm package dependencies.'),
+    estimatedLines: z.number().describe('An estimate of the total lines of code.'),
+  }),
+});
+
 // Type definitions for component assembly
-export type AssembledComponent = {
-  finalComponentCode: string;
-  imports: string[];
-  hooks: string[];
-  functions: string[];
-  metadata: {
-    componentName: string;
-    dependencies: string[];
-    estimatedLines: number;
-  };
-};
+export type AssembledComponent = z.infer<typeof assembledComponentSchema>;
 
 export type ComponentAssemblerResult = {
   success: boolean;
@@ -51,15 +53,24 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
   const { jobId, selectedModel, mockTcc } = ComponentAssemblerRequestSchema.parse(request);
 
   try {
+    // Add a small delay to mitigate filesystem race conditions in a serverless environment.
+    // This gives the TCC file, updated by the previous agent, time to be fully available.
+    await new Promise(resolve => setTimeout(resolve, 750));
+    
+    logger.info({ jobId }, '🔧 ComponentAssembler: Route handler started');
     let tcc: ToolConstructionContext;
     
     if (mockTcc) {
-      console.log('🔧 ComponentAssembler: 🧪 MOCK MODE - Using provided mock TCC');
+      logger.info({ jobId }, '🔧 ComponentAssembler: 🧪 MOCK MODE - Using provided mock TCC');
       tcc = mockTcc as ToolConstructionContext;
     } else {
-      console.log('🔧 ComponentAssembler: Loading TCC state from store...');
-      const loadedTcc = await getTCC(jobId);
-      if (!loadedTcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+      logger.info({ jobId }, '🔧 ComponentAssembler: Loading TCC state from store with forced refresh...');
+      // Force a refresh to ensure we get the latest TCC state, including updates from parallel agents.
+      const loadedTcc = await getTCC(jobId, { forceRefresh: true });
+      if (!loadedTcc) {
+        logger.error({ jobId }, '🔧 ComponentAssembler: CRITICAL - TCC not found in store.');
+        throw new Error(`TCC not found for jobId: ${jobId}`);
+      }
       tcc = loadedTcc;
     }
 
@@ -74,8 +85,14 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
     }
 
     // Validate we have all required pieces
-    if (!tcc.jsxLayout) throw new Error('JSX Layout not found in TCC');
-    if (!tcc.stateLogic) throw new Error('State Logic not found in TCC');
+    if (!tcc.jsxLayout) {
+      logger.error({ jobId, missingField: 'jsxLayout' }, '🔧 ComponentAssembler: Prerequisite missing in TCC.');
+      throw new Error('JSX Layout not found in TCC');
+    }
+    if (!tcc.stateLogic) {
+      logger.error({ jobId, missingField: 'stateLogic' }, '🔧 ComponentAssembler: Prerequisite missing in TCC.');
+      throw new Error('State Logic not found in TCC');
+    }
     
     // DEBUG: Log what fields ARE present in TCC
     logger.info({
@@ -87,7 +104,8 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
       currentStep: tcc.currentOrchestrationStep
     }, '🔧 ComponentAssembler: DEBUG - TCC fields analysis');
     
-    if (!(tcc as any).styling) {
+    if (!tcc.styling) {
+      logger.error({ jobId, availableFields: Object.keys(tcc) }, '🔧 ComponentAssembler: CRITICAL - Styling data not found in TCC.');
       throw new Error(`Styling not found in TCC. Available fields: ${Object.keys(tcc).join(', ')}`);
     }
 
@@ -140,14 +158,16 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
     return { success: true, assembledComponent };
 
   } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '🔧 ComponentAssembler: Error');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    logger.error({ jobId, error: errorMessage, stack }, '🔧 ComponentAssembler: Error in main execution block');
     
     if (!mockTcc) {
       await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
-        `Component assembly failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        `Component assembly failed: ${errorMessage}`);
     }
     
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    return { success: false, error: errorMessage };
   }
 }
 
@@ -185,136 +205,85 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 /**
  * Generate assembled component using AI
  */
-async function generateAssembledComponent(tcc: ToolConstructionContext, selectedModel?: string) {
-  // Model selection logic (same as other agents)
-  let modelConfig: { provider: string; modelId: string };
-  let actualModelName: string;
+async function generateAssembledComponent(tcc: ToolConstructionContext, selectedModel?: string): Promise<AssembledComponent> {
+  // Model selection logic
+  const { provider, modelId } = getModelForAgent('componentAssembler', selectedModel);
+  logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
+  const modelInstance = createModelInstance(provider, modelId);
 
-  if (selectedModel && selectedModel !== 'default') {
-    const provider = getModelProvider(selectedModel);
-    if (provider !== 'unknown') {
-      modelConfig = { provider, modelId: selectedModel };
-      actualModelName = selectedModel;
-    } else {
-      const primaryModel = getPrimaryModel('toolCreator');
-      modelConfig = primaryModel && 'modelInfo' in primaryModel ? 
-        { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } :
-        { provider: 'openai', modelId: 'gpt-4o' };
-      actualModelName = modelConfig.modelId;
-    }
-  } else {
-    try {
-      const primaryModel = getPrimaryModel('toolCreator');
-      if (primaryModel && 'modelInfo' in primaryModel) {
-        modelConfig = { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
-        actualModelName = primaryModel.modelInfo.id;
-      } else {
-        const fallbackModel = getFallbackModel('toolCreator');
-        modelConfig = fallbackModel && 'modelInfo' in fallbackModel ?
-          { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id } :
-          { provider: 'openai', modelId: 'gpt-4o' };
-        actualModelName = modelConfig.modelId;
-      }
-    } catch (error) {
-      modelConfig = { provider: 'openai', modelId: 'gpt-4o' };
-      actualModelName = 'gpt-4o';
-    }
-  }
-
-  logger.info({ provider: modelConfig.provider, modelName: actualModelName }, '🔧 ComponentAssembler: Using model');
-
-  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
-
-  const systemPrompt = `You are a React component assembler. Combine JSX layout, state logic, and styling into a complete React component.
+  const systemPrompt = `You are an expert React component assembler. Combine the provided JSX layout, state logic, and styling into a single, complete, and functional React component.
 
 CRITICAL REQUIREMENTS:
-1. Create a COMPLETE, FUNCTIONAL React component
-2. Apply ALL styling from the styleMap to the correct elements
-3. Integrate ALL state variables and functions
-4. Ensure ALL function signatures are properly implemented
-5. Use TypeScript with proper types
-6. Include all necessary imports
+1. Create a COMPLETE, FUNCTIONAL React component file content as a single string.
+2. Apply ALL styling from the styleMap to the correct elements using the 'className' prop.
+3. Integrate ALL state variables and functions from the state logic.
+4. Ensure ALL function signatures from the state logic are implemented correctly.
+5. Use TypeScript with proper types for props, state, and event handlers.
+6. Include all necessary imports (React, hooks, etc.).
+7. Return a single JSON object that strictly conforms to the provided schema.`;
 
-Return your component wrapped in tsx code blocks.`;
+  const userPrompt = `Please assemble the React component using the following parts.
 
-  const userPrompt = `Component Name: ${generateComponentName(tcc.userInput.description)}
+Component Name Suggestion: ${generateComponentName(tcc.userInput.description)}
 
-JSX LAYOUT:
+JSX LAYOUT (the structural blueprint):
+\`\`\`jsx
 ${tcc.jsxLayout?.componentStructure}
+\`\`\`
 
-STATE LOGIC:
-Variables: ${JSON.stringify(tcc.stateLogic?.variables, null, 2)}
-Functions: ${JSON.stringify(tcc.stateLogic?.functions, null, 2)}
+STATE LOGIC (the brains and functionality):
+\`\`\`json
+${JSON.stringify(tcc.stateLogic, null, 2)}
+\`\`\`
 
-STYLING (Apply to matching elements):
-${JSON.stringify(tcc.styling?.styleMap, null, 2)}
+STYLING (the visual appearance - apply to matching element IDs):
+\`\`\`json
+${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
+\`\`\`
 
-FUNCTION SIGNATURES TO IMPLEMENT:
-${tcc.definedFunctionSignatures?.map(sig => `${sig.name}() - ${sig.description || 'No description'}`).join('\n')}
+Generate the complete JSON object containing the final component code and all associated metadata.`;
 
-Assemble these pieces into a complete, functional React component.`;
-
-  logger.info({ modelId: modelConfig.modelId, promptLength: userPrompt.length }, '🔧 ComponentAssembler: Calling AI');
-
-  const { text: content } = await generateText({
-    model: modelInstance,
-    system: systemPrompt,
-    prompt: userPrompt,
-    temperature: 0.2,
-    maxTokens: 4000
-  });
-
-  if (!content) throw new Error('No response from AI model');
-
-  // Parse the AI response
-  return parseComponentResponse(content, tcc);
+  try {
+    const { object } = await generateObject({
+      model: modelInstance,
+      schema: assembledComponentSchema,
+      prompt: userPrompt,
+      system: systemPrompt,
+      temperature: 0.1,
+      maxTokens: 8192,
+    });
+    return object;
+  } catch (error) {
+    logger.error({ error, provider, modelId }, '🔧 ComponentAssembler: AI call failed. Returning fallback component.');
+    return generateFallbackComponent(tcc);
+  }
 }
 
-/**
- * Parse AI response for the assembled component
- */
-function parseComponentResponse(content: string, tcc: ToolConstructionContext) {
-  // Extract component code from AI response
-  const componentMatch = content.match(/```(?:tsx|typescript|ts)?\s*([\s\S]*?)\s*```/);
-  
-  let finalComponentCode: string;
-  if (componentMatch) {
-    finalComponentCode = componentMatch[1];
-    logger.info({ codeLength: finalComponentCode.length }, '🔧 ComponentAssembler: AI FIRST - Using AI component');
-  } else {
-    // Fallback assembly
-    finalComponentCode = generateFallbackComponent(tcc);
-    logger.warn('🔧 ComponentAssembler: No AI component found, using fallback');
-  }
-
-  // Extract metadata from the component
-  const imports = extractImports(finalComponentCode);
-  const hooks = extractHooks(finalComponentCode);
-  const functions = extractFunctions(finalComponentCode);
-  
-  return {
-    finalComponentCode,
-    imports,
-    hooks,
-    functions,
-    metadata: {
-      componentName: generateComponentName(tcc.userInput.description),
-      dependencies: [...new Set([...imports, 'react', '@types/react'])],
-      estimatedLines: finalComponentCode.split('\n').length
+function getModelForAgent(agentName: string, selectedModel?: string): { provider: string; modelId: string } {
+    if (selectedModel && selectedModel !== 'default') {
+        const provider = getModelProvider(selectedModel);
+        if (provider !== 'unknown') {
+            return { provider, modelId: selectedModel };
+        }
     }
-  };
+    const primaryModel = getPrimaryModel(agentName as any);
+    if (primaryModel && 'modelInfo' in primaryModel) {
+        return { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
+    }
+    const fallbackModel = getFallbackModel(agentName as any);
+    if (fallbackModel && 'modelInfo' in fallbackModel) {
+        return { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id };
+    }
+    return { provider: 'openai', modelId: 'gpt-4o' }; // Final fallback
 }
 
 /**
  * Generate component name from user input
  */
 function generateComponentName(userInput: string): string {
-  return userInput
-    .replace(/[^a-zA-Z0-9\s]/g, '')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join('')
-    .replace(/\s/g, '') + 'Tool';
+  const name = userInput || 'Tool';
+  const cleanedName = name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '');
+  return cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
 }
 
 /**
@@ -344,10 +313,11 @@ function extractFunctions(code: string): string[] {
 /**
  * Generate fallback component when AI parsing fails
  */
-function generateFallbackComponent(tcc: ToolConstructionContext): string {
+function generateFallbackComponent(tcc: ToolConstructionContext): AssembledComponent {
   const componentName = generateComponentName(tcc.userInput.description);
   
-  return `import React, { useState } from 'react';
+  return {
+    finalComponentCode: `import React, { useState } from 'react';
 
 interface ${componentName}Props {}
 
@@ -386,5 +356,14 @@ export const ${componentName}: React.FC<${componentName}Props> = () => {
   );
 };
 
-export default ${componentName};`;
+export default ${componentName};`,
+    imports: [...new Set(['react', '@types/react'])],
+    hooks: [],
+    functions: [],
+    metadata: {
+      componentName,
+      dependencies: ['react', '@types/react'],
+      estimatedLines: 10
+    }
+  };
 } 

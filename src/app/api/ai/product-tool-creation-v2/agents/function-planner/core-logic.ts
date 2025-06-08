@@ -9,10 +9,21 @@ import { getTCC, saveTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+import { generateObject } from 'ai';
 import logger from '@/lib/logger';
 import { getFunctionPlannerSystemPrompt } from '@/lib/prompts/v2/function-planner-prompt';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+
+const functionSignaturesSchema = z.object({
+  signatures: z.array(
+    z.object({
+      name: z.string().describe('The camelCase name of the function.'),
+      description: z
+        .string()
+        .describe('A brief explanation of what the function does.'),
+    }),
+  ),
+});
 
 /**
  * Main exported function for the Function Planner agent.
@@ -128,21 +139,23 @@ async function generateFunctionSignatures(
   tcc: ToolConstructionContext,
   selectedModel?: string
 ): Promise<DefinedFunctionSignature[]> {
-    const primaryModelInfo = getPrimaryModel('functionPlanner');
-    if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
-    const primaryModel = createModelInstance(primaryModelInfo.provider, primaryModelInfo.modelInfo.id);
-    logger.info({ provider: primaryModelInfo.provider, modelName: primaryModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Attempting primary model');
+  const primaryModelInfo = getPrimaryModel('functionPlanner');
+  if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
+  const primaryModel = createModelInstance(primaryModelInfo.provider, primaryModelInfo.modelInfo.id);
+  logger.info({ provider: primaryModelInfo.provider, modelName: primaryModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Attempting primary model');
 
   try {
-    const { text: content } = await generateText({
+    const {
+      object: { signatures },
+    } = await generateObject({
       model: primaryModel,
+      schema: functionSignaturesSchema,
       system: getFunctionPlannerSystemPrompt(false),
       prompt: createUserPrompt(tcc),
       temperature: 0.2,
       maxTokens: 2000,
     });
-    if (!content) throw new Error('Primary model returned no content.');
-    return JSON.parse(content);
+    return signatures;
   } catch (error) {
     logger.warn({ error }, `🔧 FunctionPlanner: Primary model failed. Attempting fallback.`);
     
@@ -152,15 +165,17 @@ async function generateFunctionSignatures(
     const fallbackModel = createModelInstance(fallbackModelInfo.provider, fallbackModelInfo.modelInfo.id);
     logger.info({ provider: fallbackModelInfo.provider, modelName: fallbackModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Using fallback model');
 
-    const { text: content } = await generateText({
-        model: fallbackModel,
-        system: getFunctionPlannerSystemPrompt(false),
-        prompt: createUserPrompt(tcc),
-        temperature: 0.2,
-        maxTokens: 2000,
+    const {
+      object: { signatures },
+    } = await generateObject({
+      model: fallbackModel,
+      schema: functionSignaturesSchema,
+      system: getFunctionPlannerSystemPrompt(false),
+      prompt: createUserPrompt(tcc),
+      temperature: 0.2,
+      maxTokens: 2000,
     });
-    if (!content) throw new Error('Fallback model also returned no content.');
-    return JSON.parse(content);
+    return signatures;
   }
 }
 

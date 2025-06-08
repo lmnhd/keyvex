@@ -268,24 +268,13 @@ export const ToolConstructionContextSchema = z.object({
     }).optional(),
   }).optional(),
   
-  assembledComponentCode: z.string().optional(), // The full .tsx code string
-  validationResult: ValidationResultSchema.optional(),
-  
-  progressLog: z.array(ProgressEventSchema).default([]),
-  
-  // The final output, conforming to the existing ProductToolDefinition
-  // This is populated at the 'finalizing_tool' step.
-  finalProductToolDefinition: FinalProductToolDefinitionSchema.optional(),
+  assembledComponentCode: z.string().optional(),
+  validationResult: z.any().optional(),
+  finalProduct: z.any().optional(),
 
-  // For managing retries or specific error states
-  errorDetails: z.object({
-    message: z.string().optional(),
-    stepFailed: OrchestrationStepEnum.optional(),
-    attempts: z.number().optional(),
-  }).optional(),
-
-  createdAt: z.string().datetime().default(() => new Date().toISOString()),
-  updatedAt: z.string().datetime().default(() => new Date().toISOString()),
+  // Timestamps and versioning
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
   
   // Versioning for the TCC itself, if we want to track schema changes of TCC
   tccVersion: z.string().default('1.0.0'), 
@@ -317,9 +306,7 @@ export function createTCC(jobId: string, userInput: any): ToolConstructionContex
     steps: undefined,
     assembledComponentCode: undefined,
     validationResult: undefined,
-    progressLog: [],
-    finalProductToolDefinition: undefined,
-    errorDetails: undefined,
+    finalProduct: undefined,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     tccVersion: TCC_VERSION,

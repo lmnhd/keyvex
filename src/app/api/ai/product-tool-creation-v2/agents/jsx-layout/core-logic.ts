@@ -1,42 +1,73 @@
 import { z } from 'zod';
-import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import {
+  ToolConstructionContext,
+  DefinedFunctionSignature,
+  OrchestrationStepEnum,
+  OrchestrationStatusEnum,
+} from '@/lib/types/product-tool-creation-v2/tcc';
 import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
-import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
+import { generateObject } from 'ai';
+import {
+  getPrimaryModel,
+  getFallbackModel,
+  getModelProvider,
+} from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
-// Type definitions for JSX layout components
-export type ElementMap = {
-  elementId: string;
-  type: string;
-  purpose: string;
-  placeholderClasses: string[];
-};
+// Zod schema for the element map
+const elementMapSchema = z.object({
+  elementId: z.string().describe('The unique ID of the HTML element.'),
+  type: z
+    .string()
+    .describe('The HTML tag type (e.g., "div", "input", "button").'),
+  purpose: z.string().describe("A brief description of the element's role."),
+  placeholderClasses: z
+    .array(z.string())
+    .describe('An array of placeholder CSS class names.'),
+});
 
-export type JsxLayoutResult = {
-  componentStructure: string;
-  elementMap: ElementMap[];
-  accessibilityFeatures: string[];
-  responsiveBreakpoints: string[];
-};
+// Zod schema for the entire JSX layout result
+const jsxLayoutSchema = z.object({
+  componentStructure: z
+    .string()
+    .describe(
+      'The complete JSX component structure as a single string of semantic HTML.',
+    ),
+  elementMap: z
+    .array(elementMapSchema)
+    .describe('An array of objects mapping element IDs to their details.'),
+  accessibilityFeatures: z
+    .array(z.string())
+    .describe('A list of key accessibility features implemented.'),
+  responsiveBreakpoints: z
+    .array(z.string())
+    .describe('A list of responsive breakpoints considered (e.g., "mobile").'),
+});
+
+// Type definitions for JSX layout components, inferred from Zod schemas
+export type ElementMap = z.infer<typeof elementMapSchema>;
+export type JsxLayoutResult = z.infer<typeof jsxLayoutSchema>;
 
 // Input schema
 const JsxLayoutRequestSchema = z.object({
   jobId: z.string().uuid(),
   selectedModel: z.string().optional(),
-  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional(),
 });
 
 export type JsxLayoutRequest = z.infer<typeof JsxLayoutRequestSchema>;
 
 function createModelInstance(provider: string, modelId: string) {
   switch (provider) {
-    case 'openai': return openai(modelId);
-    case 'anthropic': return anthropic(modelId);
-    default: return openai('gpt-4o');
+    case 'openai':
+      return openai(modelId);
+    case 'anthropic':
+      return anthropic(modelId);
+    default:
+      return openai('gpt-4o');
   }
 }
 
@@ -50,326 +81,205 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
 }> {
   const { jobId, selectedModel, mockTcc } = JsxLayoutRequestSchema.parse(request);
 
-  console.log('🏗️ JSXLayout: ==================== STARTING JSX LAYOUT DESIGN ====================');
-  console.log('🏗️ JSXLayout: Request parameters:', { 
-    jobId, 
-    selectedModel: selectedModel || 'default',
-    timestamp: new Date().toISOString()
-  });
+  logger.info({ jobId }, '🏗️ JSXLayout: Starting JSX layout design');
 
   try {
-    let tcc: ToolConstructionContext;
-    
-    if (mockTcc) {
-      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Using provided mock TCC');
-      tcc = mockTcc as ToolConstructionContext;
-    } else {
-      console.log('🏗️ JSXLayout: Loading TCC state from store...');
-      const loadedTcc = await getTCC(jobId);
-      if (!loadedTcc) throw new Error(`TCC not found for jobId: ${jobId}`);
-      tcc = loadedTcc;
+    const tcc = mockTcc
+      ? (mockTcc as ToolConstructionContext)
+      : await getTCC(jobId);
+    if (!tcc) {
+      throw new Error(`TCC not found for jobId: ${jobId}`);
     }
 
-    console.log('🏗️ JSXLayout: ✅ TCC loaded successfully');
-    console.log('🏗️ JSXLayout: TCC Analysis:', {
-      currentStep: tcc.currentOrchestrationStep,
-      status: tcc.status,
-      hasUserInput: !!tcc.userInput,
-      userInputKeys: Object.keys(tcc.userInput || {}),
-      targetAudience: tcc.targetAudience || 'not specified',
-      hasFunctionSignatures: !!(tcc.definedFunctionSignatures || tcc.functionSignatures)?.length,
-      functionSignatureCount: (tcc.definedFunctionSignatures || tcc.functionSignatures)?.length || 0,
-      functionNames: (tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(f => f.name) || [],
-      hasStateLogic: !!tcc.stateLogic,
-      stateVariableCount: tcc.stateLogic?.variables?.length || 0
-    });
-
-    logger.info({ 
-      jobId, 
-      selectedModel: selectedModel || 'default',
-      stepName: 'designing_jsx_layout',
-      hasUserInput: !!tcc.userInput,
-      hasFunctionSignatures: !!(tcc.definedFunctionSignatures || tcc.functionSignatures)?.length,
-      hasStateLogic: !!tcc.stateLogic 
-    }, '🏗️ JSXLayout: Starting JSX layout design');
-
     if (!mockTcc) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'started', 'Designing JSX layout...');
-
-      // Update TCC status
-      console.log('🏗️ JSXLayout: Updating TCC status to IN_PROGRESS...');
-      const tccInProgress = {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.designing_jsx_layout,
+        'started',
+        'Designing JSX layout...',
+      );
+      await saveTCC({
         ...tcc,
         status: OrchestrationStatusEnum.enum.in_progress,
-        updatedAt: new Date().toISOString()
-      };
-      await saveTCC(tccInProgress);
-      console.log('🏗️ JSXLayout: ✅ TCC status updated to IN_PROGRESS');
-    } else {
-      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Skipping WebSocket and TCC status updates');
+        updatedAt: new Date().toISOString(),
+      });
     }
 
-    // Generate JSX layout with AI
-    console.log('🏗️ JSXLayout: Calling AI to generate JSX layout...');
-    console.log('🏗️ JSXLayout: AI Input parameters:', {
-      selectedModel: selectedModel || 'default',
-      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...' || 'No description',
-      targetAudience: tcc.targetAudience || 'not specified',
-      functionSignatureCount: (tcc.definedFunctionSignatures || tcc.functionSignatures)?.length || 0,
-      hasStateLogic: !!tcc.stateLogic
-    });
-    const jsxLayout = await generateJsxLayout(tcc, selectedModel);
-    console.log('🏗️ JSXLayout: ✅ AI generated JSX layout successfully');
-    console.log('🏗️ JSXLayout: Generated layout summary:', {
-      componentStructureLength: jsxLayout.componentStructure.length,
-      elementMapCount: jsxLayout.elementMap.length,
-      elementTypes: jsxLayout.elementMap.map(el => el.type)
-    });
+    const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
 
     if (!mockTcc) {
-      // COMPREHENSIVE LOGGING: TCC State BEFORE JSX Layout update
-      logger.info({ 
-        jobId,
-        beforeJsxLayoutUpdate: {
-          currentOrchestrationStep: tcc.currentOrchestrationStep,
-          status: tcc.status,
-          hasFunctionSignatures: !!tcc.definedFunctionSignatures,
-          functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
-          hasStateLogic: !!tcc.stateLogic,
-          hasJsxLayout: !!tcc.jsxLayout,
-          existingElementCount: tcc.jsxLayout?.elementMap?.length || 0,
-          updatedAt: tcc.updatedAt
-        }
-      }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
+      logger.info({ jobId }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
 
-      // Update TCC with results using updateTCC to avoid race conditions
-      console.log('🏗️ JSXLayout: Updating TCC with jsxLayout using updateTCC...');
-      const updateData = {
+      const updateData: Partial<ToolConstructionContext> = {
         jsxLayout,
-        currentOrchestrationStep: tcc.currentOrchestrationStep, // Preserve orchestration step
         steps: {
           ...tcc.steps,
           designingJsxLayout: {
-            status: OrchestrationStatusEnum.enum.completed,
-            startedAt: tcc.steps?.designingJsxLayout?.startedAt || new Date().toISOString(),
+            status: 'completed',
+            startedAt:
+              tcc.steps?.designingJsxLayout?.startedAt ||
+              new Date().toISOString(),
             completedAt: new Date().toISOString(),
-            result: jsxLayout
-          }
-        }
+            result: jsxLayout,
+          },
+        },
       };
-
-      // COMPREHENSIVE LOGGING: What we're about to update
-      logger.info({ 
-        jobId,
-        updateData: {
-          preservedOrchestrationStep: updateData.currentOrchestrationStep,
-          newElementCount: updateData.jsxLayout.elementMap?.length || 0,
-          elementIds: updateData.jsxLayout.elementMap?.map(el => el.elementId) || [],
-          componentStructureLength: updateData.jsxLayout.componentStructure?.length || 0,
-          stepStatus: updateData.steps.designingJsxLayout.status
-        }
-      }, '🏗️ JSXLayout: Update data being applied to TCC');
 
       await updateTCC(jobId, updateData);
 
-      // COMPREHENSIVE LOGGING: Verify TCC state after update
-      const updatedTCC = await getTCC(jobId);
-      logger.info({ 
+      logger.info({ jobId },'🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
+      await emitStepProgress(
         jobId,
-        afterJsxLayoutUpdate: {
-          currentOrchestrationStep: updatedTCC?.currentOrchestrationStep,
-          status: updatedTCC?.status,
-          hasStateLogic: !!updatedTCC?.stateLogic,
-          hasJsxLayout: !!updatedTCC?.jsxLayout,
-          elementCount: updatedTCC?.jsxLayout?.elementMap?.length || 0,
-          updatedAt: updatedTCC?.updatedAt,
-          orchestrationStepPreserved: updatedTCC?.currentOrchestrationStep === tcc.currentOrchestrationStep
-        }
-      }, '🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
+        OrchestrationStepEnum.enum.designing_jsx_layout,
+        'completed',
+        `Generated JSX layout with ${jsxLayout.elementMap.length} elements`,
+      );
 
-      console.log('🏗️ JSXLayout: ✅ TCC updated successfully with jsxLayout data');
-
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'completed', `Generated JSX layout with ${jsxLayout.elementMap.length} elements`);
-      
-      // CRITICAL: Trigger the next step in the orchestration
       await triggerNextOrchestrationStep(jobId);
-    } else {
-      console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Skipping TCC updates and WebSocket progress');
     }
 
-    logger.info({ 
-      jobId, 
-      elementsCreated: jsxLayout.elementMap.length,
-      componentStructureLength: jsxLayout.componentStructure.length 
-    }, '🏗️ JSXLayout: JSX layout designed successfully');
-
-    console.log('🏗️ JSXLayout: ==================== JSX LAYOUT DESIGN COMPLETED SUCCESSFULLY ====================');
-    console.log('🏗️ JSXLayout: Final result summary:', {
-      success: true,
-      elementCount: jsxLayout.elementMap.length,
-      componentStructureLength: jsxLayout.componentStructure.length,
-      elementIds: jsxLayout.elementMap.map(el => el.elementId)
-    });
-
-    return {
-      success: true,
-      jsxLayout
-    };
-
+    logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
+    return { success: true, jsxLayout };
   } catch (error) {
-    console.error('🏗️ JSXLayout: ==================== ERROR OCCURRED ====================');
-    console.error('🏗️ JSXLayout: ❌ Error details:', {
+    logger.error({ jobId, error }, '🏗️ JSXLayout: Error designing JSX layout');
+    await emitStepProgress(
       jobId,
-      errorType: error instanceof Error ? error.constructor.name : typeof error,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    });
-    if (error instanceof Error && error.stack) {
-      console.error('🏗️ JSXLayout: ❌ Error stack:', error.stack);
-    }
-
-    logger.error({ 
-      jobId,
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : String(error) 
-    }, '🏗️ JSXLayout: Error designing JSX layout');
-    
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'failed', `JSX layout failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-
-    console.error('🏗️ JSXLayout: ==================== JSX LAYOUT DESIGN FAILED ====================');
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'failed',
+      error instanceof Error ? error.message : 'Unknown error',
+    );
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
     };
   }
 }
 
 async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    'http://localhost:3000';
   try {
-    logger.info({ jobId, baseUrl }, '🏗️ JSXLayout: Triggering next orchestration step...');
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId }),
-    });
+    logger.info(
+      { jobId, baseUrl },
+      '🏗️ JSXLayout: Triggering next orchestration step...',
+    );
+    const response = await fetch(
+      `${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId }),
+      },
+    );
     if (!response.ok) {
       throw new Error(`Orchestrator responded with status ${response.status}`);
     }
-    logger.info({ jobId }, '🏗️ JSXLayout: Successfully triggered next orchestration step.');
+    logger.info(
+      { jobId },
+      '🏗️ JSXLayout: Successfully triggered next orchestration step.',
+    );
   } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? { message: error.message } : String(error) }, '🏗️ JSXLayout: Failed to trigger next orchestration step.');
+    logger.error(
+      { jobId, error },
+      '🏗️ JSXLayout: Failed to trigger next orchestration step.',
+    );
   }
 }
 
 /**
  * Generate JSX layout using AI
  */
-async function generateJsxLayout(tcc: ToolConstructionContext, selectedModel?: string): Promise<JsxLayoutResult> {
-  // Model selection logic
+async function generateJsxLayoutWithAI(
+  tcc: ToolConstructionContext,
+  selectedModel?: string,
+): Promise<JsxLayoutResult> {
   let modelConfig: { provider: string; modelId: string };
-  let actualModelName: string;
 
   if (selectedModel && selectedModel !== 'default') {
     const provider = getModelProvider(selectedModel);
-    if (provider !== 'unknown') {
-      modelConfig = { provider, modelId: selectedModel };
-      actualModelName = selectedModel;
-    } else {
-      const primaryModel = getPrimaryModel('toolCreator');
-      modelConfig = primaryModel && 'modelInfo' in primaryModel ? 
-        { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } :
-        { provider: 'openai', modelId: 'gpt-4o' };
-      actualModelName = modelConfig.modelId;
-    }
+    modelConfig = {
+      provider: provider !== 'unknown' ? provider : 'openai',
+      modelId: selectedModel,
+    };
   } else {
-    try {
-      const primaryModel = getPrimaryModel('toolCreator');
-      if (primaryModel && 'modelInfo' in primaryModel) {
-        modelConfig = { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
-        actualModelName = primaryModel.modelInfo.id;
-      } else {
-        const fallbackModel = getFallbackModel('toolCreator');
-        modelConfig = fallbackModel && 'modelInfo' in fallbackModel ?
-          { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id } :
-          { provider: 'openai', modelId: 'gpt-4o' };
-        actualModelName = modelConfig.modelId;
-      }
-    } catch (error) {
-      modelConfig = { provider: 'openai', modelId: 'gpt-4o' };
-      actualModelName = 'gpt-4o';
-    }
+    const primaryModel = getPrimaryModel('toolCreator');
+    modelConfig =
+      primaryModel && 'modelInfo' in primaryModel
+        ? {
+            provider: primaryModel.provider,
+            modelId: primaryModel.modelInfo.id,
+          }
+        : { provider: 'openai', modelId: 'gpt-4o' };
   }
 
-  logger.info({ provider: modelConfig.provider, modelName: actualModelName }, '🏗️ JSXLayout: Using model');
+  logger.info(
+    { provider: modelConfig.provider, modelName: modelConfig.modelId },
+    '🏗️ JSXLayout: Using model',
+  );
+  const modelInstance = createModelInstance(
+    modelConfig.provider,
+    modelConfig.modelId,
+  );
 
-  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+  const systemPrompt = `You are a React JSX layout specialist. Create a semantic HTML component structure based on the user's request.
 
-  const systemPrompt = `You are a React JSX layout specialist. Create semantic HTML component structure.
+CRITICAL: You must generate a single JSON object that conforms to the provided schema.
+- The 'componentStructure' must be a complete, valid JSX string.
+- The 'elementMap' must identify all key elements with an 'id'.
+- Focus on semantic HTML and accessibility features (ARIA labels, roles, proper form structure).
+- Do NOT include any styling, colors, or Tailwind classes in the JSX. Use placeholder class names if necessary.`;
 
-CRITICAL: Generate ONLY JSX structure - NO STYLING, NO COLORS, NO TAILWIND CLASSES.
-Use semantic HTML elements and placeholder CSS classes.
-Include accessibility features (ARIA labels, roles, proper form structure).
-
-Return your JSX wrapped in jsx code blocks.`;
-
-  const userPrompt = `Tool: ${tcc.userInput}
+  const userPrompt = `Tool: ${
+    tcc.userInput?.description || 'No description provided.'
+  }
 Target Audience: ${tcc.targetAudience || 'General users'}
 
 Function Signatures:
-${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => `- ${sig.name}: ${sig.description}`).join('\n') || 'None'}
-
-State Logic Available:
-${tcc.stateLogic?.stateVariables?.map(v => `- ${v.name}: ${v.type}`).join('\n') || 'None'}
-
-Create JSX layout structure for this tool focusing on semantic HTML and accessibility.`;
-
-  logger.info({ modelId: modelConfig.modelId, promptLength: userPrompt.length }, '🏗️ JSXLayout: Calling AI');
-
-  const { text: content } = await generateText({
-    model: modelInstance,
-    system: systemPrompt,
-    prompt: userPrompt,
-    temperature: 0.3,
-    maxTokens: 2500
-  });
-
-  if (!content) throw new Error('No response from AI model');
-
-  // AI FIRST: Parse the response
-  return parseJsxResponse(content, tcc.definedFunctionSignatures || tcc.functionSignatures || []);
+${
+  (tcc.definedFunctionSignatures || tcc.functionSignatures)
+    ?.map(sig => `- ${sig.name}: ${sig.description}`)
+    .join('\n') || 'None'
 }
 
-/**
- * AI FIRST: Parse AI response for JSX
- */
-function parseJsxResponse(content: string, functionSignatures: DefinedFunctionSignature[]): JsxLayoutResult {
-  // Extract JSX from AI response
-  const jsxMatch = content.match(/```(?:jsx|tsx|html)?\s*([\s\S]*?)\s*```/) || 
-                   content.match(/(<div[\s\S]*?<\/div>)/);
-  
-  let componentStructure: string;
-  if (jsxMatch) {
-    componentStructure = jsxMatch[1] || jsxMatch[0];
-    logger.info({ jsxLength: componentStructure.length }, '🏗️ JSXLayout: AI FIRST - Using AI JSX');
-  } else {
-    // Simple fallback
-    componentStructure = generateFallbackJsx(functionSignatures);
-    logger.warn('🏗️ JSXLayout: No AI JSX found, using fallback');
-  }
+State Logic Available:
+${
+  tcc.stateLogic?.variables?.map(v => `- ${v.name}: ${v.type}`).join('\n') ||
+  'None'
+}
 
-  // Extract element map from the JSX
-  const elementMap = extractElementMap(componentStructure);
-  
-  return {
-    componentStructure,
-    elementMap,
-    accessibilityFeatures: ['ARIA labels', 'Semantic HTML', 'Form accessibility'],
-    responsiveBreakpoints: ['mobile', 'tablet', 'desktop']
-  };
+Please generate the complete JSON object for the JSX layout.`;
+
+  logger.info({ modelId: modelConfig.modelId }, '🏗️ JSXLayout: Calling AI');
+
+  try {
+    const { object: jsxLayout } = await generateObject({
+      model: modelInstance,
+      schema: jsxLayoutSchema,
+      system: systemPrompt,
+      prompt: userPrompt,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+    logger.info({}, '🏗️ JSXLayout: AI FIRST - Using AI generated object');
+    return jsxLayout;
+  } catch (error) {
+    logger.warn({ error }, 'Primary model for JSX layout failed. Using fallback.');
+    const fallbackJsx = generateFallbackJsx(
+      tcc.definedFunctionSignatures || tcc.functionSignatures || [],
+    );
+    return {
+      componentStructure: fallbackJsx,
+      elementMap: extractElementMap(fallbackJsx),
+      accessibilityFeatures: [
+        'ARIA labels',
+        'Semantic HTML',
+        'Form accessibility',
+      ],
+      responsiveBreakpoints: ['mobile', 'tablet', 'desktop'],
+    };
+  }
 }
 
 /**
@@ -378,36 +288,43 @@ function parseJsxResponse(content: string, functionSignatures: DefinedFunctionSi
 function extractElementMap(jsx: string): ElementMap[] {
   const elementMap: any[] = [];
   const elementMatches = jsx.match(/id="([^"]+)"/g) || [];
-  
+
   elementMatches.forEach(match => {
     const idMatch = match.match(/id="([^"]+)"/);
     if (idMatch) {
       const elementId = idMatch[1];
       let type = 'div';
-      
+
       if (jsx.includes(`<input[^>]*id="${elementId}"`)) type = 'input';
       else if (jsx.includes(`<button[^>]*id="${elementId}"`)) type = 'button';
-      else if (jsx.includes(`<section[^>]*id="${elementId}"`)) type = 'section';
+      else if (jsx.includes(`<section[^>]*id="${elementId}"`))
+        type = 'section';
       else if (jsx.includes(`<header[^>]*id="${elementId}"`)) type = 'header';
-      
+
       elementMap.push({
         elementId,
         type,
         purpose: `${type} element`,
-        placeholderClasses: [`${elementId}-element`]
+        placeholderClasses: [`${elementId}-element`],
       });
     }
   });
-  
+
   return elementMap;
 }
 
 /**
  * Simple fallback JSX when AI parsing fails
  */
-function generateFallbackJsx(functionSignatures: DefinedFunctionSignature[]): string {
-  const hasSubmit = functionSignatures.some(sig => sig.name.toLowerCase().includes('submit'));
-  const hasReset = functionSignatures.some(sig => sig.name.toLowerCase().includes('reset'));
+function generateFallbackJsx(
+  functionSignatures: DefinedFunctionSignature[],
+): string {
+  const hasSubmit = functionSignatures.some(sig =>
+    sig.name.toLowerCase().includes('submit'),
+  );
+  const hasReset = functionSignatures.some(sig =>
+    sig.name.toLowerCase().includes('reset'),
+  );
 
   return `<div id="tool-container" className="tool-container">
   <header id="tool-header" className="tool-header">
@@ -416,12 +333,20 @@ function generateFallbackJsx(functionSignatures: DefinedFunctionSignature[]): st
   <main id="tool-main" className="tool-main">
     <section id="input-section" className="input-section">
       <input id="main-input" type="text" className="main-input" />
-      ${hasSubmit ? '<button id="submit-btn" type="submit" className="submit-btn">Submit</button>' : ''}
-      ${hasReset ? '<button id="reset-btn" type="button" className="reset-btn">Reset</button>' : ''}
+      ${
+        hasSubmit
+          ? '<button id="submit-btn" type="submit" className="submit-btn">Submit</button>'
+          : ''
+      }
+      ${
+        hasReset
+          ? '<button id="reset-btn" type="button" className="reset-btn">Reset</button>'
+          : ''
+      }
     </section>
     <section id="results-section" className="results-section">
       <div id="results-display" className="results-display">Results</div>
     </section>
   </main>
 </div>`;
-} 
+}
