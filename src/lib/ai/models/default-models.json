@@ -452,6 +452,22 @@
       "streaming": false,
       "temperature": 0.3,
       "maxTokens": 1000
+    },
+    "toolFinalizer": {
+      "description": "Assembles the final, production-ready tool code, including cleanup and adding metadata.",
+      "primary": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "reason": "Excellent at code synthesis, cleanup, and following complex instructions to generate the final deliverable."
+      },
+      "fallback": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong reasoning and code generation capabilities, suitable as a high-quality fallback."
+      },
+      "streaming": false,
+      "temperature": 0.1,
+      "maxTokens": 8192
     }
   },
 

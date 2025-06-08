@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import {
+  ToolConstructionContext,
+  OrchestrationStepEnum,
+  OrchestrationStatusEnum,
+} from '@/lib/types/product-tool-creation-v2/tcc';
 import { getTCC, saveTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import logger from '@/lib/logger';
@@ -9,7 +13,7 @@ import * as ts from 'typescript';
 // Input schema
 const ValidatorRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
 });
 
 export type ValidatorRequest = z.infer<typeof ValidatorRequestSchema>;
@@ -40,13 +44,23 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
 
     logger.info({ jobId }, '🔍 Validator: Starting validation');
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.validating_code, 'started', 'Validating component code...');
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'started',
+      'Validating component code...',
+    );
 
     // Validate we have the assembled component
-    if (!tcc.assembledComponentCode) throw new Error('Assembled component code not found in TCC');
+    if (!tcc.assembledComponentCode)
+      throw new Error('Assembled component code not found in TCC');
 
     // Update TCC status
-    const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
+    const tccInProgress = {
+      ...tcc,
+      status: OrchestrationStatusEnum.enum.in_progress,
+      updatedAt: new Date().toISOString(),
+    };
     await saveTCC(tccInProgress);
 
     // Validate the component
@@ -60,38 +74,62 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
         ...tccInProgress.steps,
         validatingCode: {
           status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tccInProgress.steps?.validatingCode?.startedAt || new Date().toISOString(),
+          startedAt:
+            tccInProgress.steps?.validatingCode?.startedAt ||
+            new Date().toISOString(),
           completedAt: new Date().toISOString(),
-          result: validationResult
-        }
+          result: validationResult,
+        },
       },
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     await saveTCC(updatedTCC);
 
     const validationStatus = validationResult.isValid ? 'passed' : 'failed';
-    const errorCount = validationResult.syntaxErrors.length + validationResult.typeErrors.length;
-    
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.validating_code, 'completed', 
-      `Validation ${validationStatus}: ${errorCount} errors, ${validationResult.warnings.length} warnings`);
+    const errorCount =
+      validationResult.syntaxErrors.length + validationResult.typeErrors.length;
+
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'completed',
+      `Validation ${validationStatus}: ${errorCount} errors, ${validationResult.warnings.length} warnings`,
+    );
 
     // CRITICAL: Trigger the next step in the orchestration
-    await triggerNextOrchestrationStep(jobId, OrchestrationStepEnum.enum.finalizing_tool);
+    await triggerNextOrchestrationStep(
+      jobId,
+      OrchestrationStepEnum.enum.finalizing_tool,
+    );
 
-    logger.info({ 
-      jobId, 
-      isValid: validationResult.isValid,
-      errorCount,
-      warningCount: validationResult.warnings.length
-    }, '🔍 Validator: Completed validation');
+    logger.info(
+      {
+        jobId,
+        isValid: validationResult.isValid,
+        errorCount,
+        warningCount: validationResult.warnings.length,
+      },
+      '🔍 Validator: Completed validation',
+    );
 
     return { success: true, validationResult };
-
   } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '🔍 Validator: Error');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.validating_code, 'failed', 
-      `Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    logger.error(
+      { jobId, error: error instanceof Error ? error.message : String(error) },
+      '🔍 Validator: Error',
+    );
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'failed',
+      `Validation failed: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`,
+    );
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
   }
 }
 
@@ -100,30 +138,52 @@ export async function validateComponent(request: ValidatorRequest): Promise<{
  * @param jobId The ID of the current tool creation job.
  * @param nextStep The next step to trigger in the orchestration.
  */
-async function triggerNextOrchestrationStep(jobId: string, nextStep: OrchestrationStepEnum): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
-  
+async function triggerNextOrchestrationStep(
+  jobId: string,
+  nextStep: z.infer<typeof OrchestrationStepEnum>,
+): Promise<void> {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.VERCEL_URL ||
+    'http://localhost:3000';
+
   try {
-    logger.info({ jobId, baseUrl, nextStep }, '🔍 Validator: Triggering next orchestration step...');
-    
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, nextStep }),
-    });
+    logger.info(
+      { jobId, baseUrl, nextStep },
+      '🔍 Validator: Triggering next orchestration step...',
+    );
+
+    const response = await fetch(
+      `${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, nextStep }),
+      },
+    );
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Orchestrator responded with status ${response.status}: ${errorBody}`);
+      throw new Error(
+        `Orchestrator responded with status ${response.status}: ${errorBody}`,
+      );
     }
 
-    logger.info({ jobId }, '🔍 Validator: Successfully triggered next orchestration step.');
-
+    logger.info(
+      { jobId },
+      '🔍 Validator: Successfully triggered next orchestration step.',
+    );
   } catch (error) {
-    logger.error({ 
-      jobId, 
-      error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error) 
-    }, '🔍 Validator: Failed to trigger next orchestration step.');
+    logger.error(
+      {
+        jobId,
+        error:
+          error instanceof Error
+            ? { message: error.message, stack: error.stack }
+            : String(error),
+      },
+      '🔍 Validator: Failed to trigger next orchestration step.',
+    );
   }
 }
 
@@ -139,7 +199,7 @@ async function validateCode(code: string) {
   try {
     babel.transform(code, {
       presets: ['typescript', 'react'],
-      filename: 'component.tsx'
+      filename: 'component.tsx',
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -157,14 +217,17 @@ async function validateCode(code: string) {
       noEmit: true,
       esModuleInterop: true,
       skipLibCheck: true,
-      forceConsistentCasingInFileNames: true
+      forceConsistentCasingInFileNames: true,
     },
-    reportDiagnostics: true
+    reportDiagnostics: true,
   });
 
   if (tsResult.diagnostics) {
     tsResult.diagnostics.forEach(diagnostic => {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+      const message = ts.flattenDiagnosticMessageText(
+        diagnostic.messageText,
+        '\n',
+      );
       if (diagnostic.category === ts.DiagnosticCategory.Error) {
         typeErrors.push(message);
       } else if (diagnostic.category === ts.DiagnosticCategory.Warning) {
@@ -186,8 +249,8 @@ async function validateCode(code: string) {
     metrics: {
       linesOfCode,
       componentComplexity,
-      dependencies
-    }
+      dependencies,
+    },
   };
 }
 
