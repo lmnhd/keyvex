@@ -49,123 +49,72 @@ function createModelInstance(provider: string, modelId: string) {
 /**
  * Component Assembler Agent - Combines JSX, state, and styling into final React component
  */
-export async function assembleComponent(request: ComponentAssemblerRequest): Promise<ComponentAssemblerResult> {
-  const { jobId, selectedModel, mockTcc } = ComponentAssemblerRequestSchema.parse(request);
+export async function assembleComponent(request: {
+  jobId: string;
+  selectedModel?: string;
+  tcc: ToolConstructionContext;
+}): Promise<{
+  success: boolean;
+  assembledComponent?: AssembledComponent;
+  error?: string;
+  updatedTcc?: ToolConstructionContext;
+}> {
+  const { jobId, selectedModel, tcc } = request;
 
   try {
-    // Add a small delay to mitigate filesystem race conditions in a serverless environment.
-    // This gives the TCC file, updated by the previous agent, time to be fully available.
-    await new Promise(resolve => setTimeout(resolve, 750));
-    
     logger.info({ jobId }, '🔧 ComponentAssembler: Route handler started');
-    let tcc: ToolConstructionContext;
     
-    if (mockTcc) {
-      logger.info({ jobId }, '🔧 ComponentAssembler: 🧪 MOCK MODE - Using provided mock TCC');
-      tcc = mockTcc as ToolConstructionContext;
-    } else {
-      logger.info({ jobId }, '🔧 ComponentAssembler: Loading TCC state from store with forced refresh...');
-      // Force a refresh to ensure we get the latest TCC state, including updates from parallel agents.
-      const loadedTcc = await getTCC(jobId, { forceRefresh: true });
-      if (!loadedTcc) {
-        logger.error({ jobId }, '🔧 ComponentAssembler: CRITICAL - TCC not found in store.');
-        throw new Error(`TCC not found for jobId: ${jobId}`);
-      }
-      tcc = loadedTcc;
+    if (!tcc) {
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    logger.info({ 
-      jobId, 
-      selectedModel: selectedModel || 'default',
-      isMockMode: !!mockTcc 
-    }, '🔧 ComponentAssembler: Starting');
-
-    if (!mockTcc) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'started', 'Assembling final component...');
-    }
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'started', 'Assembling final component...');
 
     // Validate we have all required pieces
-    if (!tcc.jsxLayout) {
-      logger.error({ jobId, missingField: 'jsxLayout' }, '🔧 ComponentAssembler: Prerequisite missing in TCC.');
-      throw new Error('JSX Layout not found in TCC');
-    }
-    if (!tcc.stateLogic) {
-      logger.error({ jobId, missingField: 'stateLogic' }, '🔧 ComponentAssembler: Prerequisite missing in TCC.');
-      throw new Error('State Logic not found in TCC');
-    }
-    
-    // DEBUG: Log what fields ARE present in TCC
-    logger.info({
-      jobId,
-      tccFieldsPresent: Object.keys(tcc),
-      hasStyling: !!(tcc as any).styling,
-      hasTailwindStyles: !!(tcc as any).tailwindStyles,
-      steps: tcc.steps ? Object.keys(tcc.steps) : [],
-      currentStep: tcc.currentOrchestrationStep
-    }, '🔧 ComponentAssembler: DEBUG - TCC fields analysis');
-    
-    if (!tcc.styling) {
-      logger.error({ jobId, availableFields: Object.keys(tcc) }, '🔧 ComponentAssembler: CRITICAL - Styling data not found in TCC.');
-      throw new Error(`Styling not found in TCC. Available fields: ${Object.keys(tcc).join(', ')}`);
-    }
-
-    if (!mockTcc) {
-      // Update TCC status (skip in mock mode)
-      const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
-      await saveTCC(tccInProgress);
+    if (!tcc.jsxLayout || !tcc.stateLogic || !tcc.styling) {
+      const missing = [
+        !tcc.jsxLayout && 'jsxLayout',
+        !tcc.stateLogic && 'stateLogic',
+        !tcc.styling && 'styling',
+      ].filter(Boolean).join(', ');
+      throw new Error(`Prerequisites missing in TCC: ${missing}`);
     }
 
     // Assemble the component with AI
     const assembledComponent = await generateAssembledComponent(tcc, selectedModel);
 
-    if (!mockTcc) {
-      // Update TCC with results (skip in mock mode)
-      const updatedTCC = {
-        ...tcc,
-        assembledComponentCode: assembledComponent.finalComponentCode,
-        steps: {
-          ...tcc.steps,
-          assemblingComponent: {
-            status: OrchestrationStatusEnum.enum.completed,
-            startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-            result: assembledComponent
-          }
-        },
-        updatedAt: new Date().toISOString()
-      };
-      await saveTCC(updatedTCC);
+    // Update TCC with results
+    const updatedTCC: ToolConstructionContext = {
+      ...tcc,
+      assembledComponentCode: assembledComponent.finalComponentCode,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code, // Set next step
+      steps: {
+        ...tcc.steps,
+        assemblingComponent: {
+          status: OrchestrationStatusEnum.enum.completed,
+          startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          result: assembledComponent
+        }
+      },
+      updatedAt: new Date().toISOString()
+    };
+    await saveTCC(updatedTCC);
 
-      // Emit progress with assembled component code for frontend to enable Live Preview
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
-        `Component assembled: ${assembledComponent.metadata.estimatedLines} lines, ${assembledComponent.metadata.dependencies.length} dependencies`,
-        { 
-          assembledComponent, 
-          assembledComponentCode: assembledComponent.finalComponentCode,
-          tcc: updatedTCC
-        });
+    // Emit progress with assembled component code for frontend to enable Live Preview
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
+      `Component assembled: ${assembledComponent.metadata.estimatedLines} lines`,
+      { assembledComponent });
 
-      // CRITICAL: Trigger the next step in the orchestration
-      await triggerNextOrchestrationStep(jobId);
-    }
-
-    logger.info({ 
-      jobId, 
-      componentLines: assembledComponent.metadata.estimatedLines,
-      dependencies: assembledComponent.metadata.dependencies.length 
-    }, '🔧 ComponentAssembler: Completed successfully');
-
-    return { success: true, assembledComponent };
+    logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
+    return { success: true, assembledComponent, updatedTcc: updatedTCC };
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
-    logger.error({ jobId, error: errorMessage, stack }, '🔧 ComponentAssembler: Error in main execution block');
+    logger.error({ jobId, error: errorMessage }, '🔧 ComponentAssembler: Error in main execution block');
     
-    if (!mockTcc) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
-        `Component assembly failed: ${errorMessage}`);
-    }
+    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
+      `Component assembly failed: ${errorMessage}`);
     
     return { success: false, error: errorMessage };
   }
