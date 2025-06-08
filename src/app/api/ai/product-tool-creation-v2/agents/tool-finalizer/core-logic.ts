@@ -6,8 +6,8 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, updateTCC } from '@/lib/db/tcc-store';
-import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
+// TCC Store operations removed - using prop-based TCC passing
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
@@ -83,11 +83,12 @@ export async function finalizeTool(request: {
       throw new Error(`TCC was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(jobId, {
-      stepName: OrchestrationStepEnum.enum.finalizing_tool,
-      status: 'in_progress',
-      message: 'Assembling the final tool definition...',
-    });
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.finalizing_tool,
+      'in_progress',
+      'Assembling the final tool definition...'
+    );
 
     const { provider, modelId } = getModelForAgent(
       'toolFinalizer',
@@ -109,18 +110,16 @@ export async function finalizeTool(request: {
 
     const finalProduct = createProductToolDefinition(aiResult, tcc);
 
-    await updateTCC(jobId, {
-      finalProduct,
-      status: OrchestrationStatusEnum.enum.completed,
-      currentOrchestrationStep: OrchestrationStepEnum.enum.completed,
-    });
+    // TCC Store operation removed - the route handler will manage TCC persistence
+    // The finalProduct is returned in the response for the orchestrator to handle
 
-    await emitStepProgress(jobId, {
-      stepName: OrchestrationStepEnum.enum.finalizing_tool,
-      status: 'completed',
-      message: 'Tool has been finalized successfully!',
-      details: finalProduct,
-    });
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.finalizing_tool,
+      'completed',
+      'Tool has been finalized successfully!',
+      finalProduct
+    );
 
     logger.info({ jobId }, '✅ ToolFinalizer: Tool finalized successfully.');
     return { success: true, finalProduct };
@@ -132,11 +131,12 @@ export async function finalizeTool(request: {
       '✅ ToolFinalizer: Error finalizing tool',
     );
 
-    await emitStepProgress(jobId, {
-      stepName: OrchestrationStepEnum.enum.finalizing_tool,
-      status: 'failed',
-      message: errorMessage,
-    });
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.finalizing_tool,
+      'failed',
+      errorMessage
+    );
     return {
       success: false,
       error: errorMessage,

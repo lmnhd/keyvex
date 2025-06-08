@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+// TCC Store operations removed - using prop-based TCC passing
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText, generateObject } from 'ai';
@@ -80,6 +80,13 @@ export async function assembleComponent(request: {
       throw new Error(`Prerequisites missing in TCC: ${missing}`);
     }
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
+      'Assembling final React component...'
+    );
+
     // Assemble the component with AI
     const assembledComponent = await generateAssembledComponent(
       tcc,
@@ -105,6 +112,13 @@ export async function assembleComponent(request: {
       updatedAt: new Date().toISOString(),
     };
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'completed',
+      'Component assembled successfully!'
+    );
+
     logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
     return { success: true, assembledComponent, updatedTcc: updatedTCC };
   } catch (error) {
@@ -113,6 +127,14 @@ export async function assembleComponent(request: {
       { jobId, error: errorMessage },
       '🔧 ComponentAssembler: Error in main execution block',
     );
+    
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'failed',
+      errorMessage
+    );
+    
     return { success: false, error: errorMessage };
   }
 }

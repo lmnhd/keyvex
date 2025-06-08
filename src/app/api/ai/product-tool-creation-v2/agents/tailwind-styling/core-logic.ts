@@ -5,8 +5,8 @@ import {
   OrchestrationStatusEnum,
   Styling as TccStyling,
 } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+// TCC Store operations removed - using prop-based TCC passing
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
@@ -85,6 +85,13 @@ export async function applyStyling(request: {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.applying_tailwind_styling,
+      'in_progress',
+      'Applying Tailwind CSS styling...'
+    );
+
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
 
     const updatedTcc: ToolConstructionContext = {
@@ -105,6 +112,13 @@ export async function applyStyling(request: {
       updatedAt: new Date().toISOString(),
     };
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.applying_tailwind_styling,
+      'completed',
+      'Tailwind CSS styling applied successfully!'
+    );
+
     logger.info({ jobId }, '🎨 TailwindStyling: Applied styling successfully');
     return { success: true, styling, updatedTcc };
   } catch (error) {
@@ -113,6 +127,14 @@ export async function applyStyling(request: {
       { jobId, error: errorMessage },
       '🎨 TailwindStyling: Error applying styling',
     );
+    
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.applying_tailwind_styling,
+      'failed',
+      errorMessage
+    );
+    
     return {
       success: false,
       error: errorMessage,

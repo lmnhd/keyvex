@@ -5,6 +5,7 @@ import {
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import * as babel from '@babel/standalone';
 import * as ts from 'typescript';
 
@@ -39,6 +40,13 @@ export async function validateComponent(
 
     logger.info({ jobId }, '🔍 Validator: Starting validation');
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'in_progress',
+      'Validating component code...'
+    );
+
     if (!tcc.assembledComponentCode) {
       throw new Error('Assembled component code not found in TCC');
     }
@@ -62,6 +70,13 @@ export async function validateComponent(
       updatedAt: new Date().toISOString(),
     };
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'completed',
+      `Code validation completed. ${validationResult.isValid ? 'No issues found' : `Found ${validationResult.syntaxErrors.length + validationResult.typeErrors.length} errors`}.`
+    );
+
     logger.info(
       {
         jobId,
@@ -78,6 +93,14 @@ export async function validateComponent(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ jobId, error: errorMessage }, '🔍 Validator: Error');
+    
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.validating_code,
+      'failed',
+      errorMessage
+    );
+    
     return {
       success: false,
       error: errorMessage,

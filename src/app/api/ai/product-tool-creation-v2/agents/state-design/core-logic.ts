@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+// TCC Store operations removed - using prop-based TCC passing
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
@@ -101,6 +101,13 @@ export async function designStateLogic(request: {
       );
     }
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_state_logic,
+      'in_progress',
+      'Designing state logic and functions...'
+    );
+
     logger.info({ jobId }, '🎯 StateDesign: Calling AI to generate state logic...');
     const stateLogic = await generateStateLogic(tcc, selectedModel);
     logger.info({ jobId }, '🎯 StateDesign: AI generated state logic successfully');
@@ -154,10 +161,25 @@ export async function designStateLogic(request: {
       '🎯 StateDesign: TCC update prepared',
     );
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_state_logic,
+      'completed',
+      `Successfully designed ${updatedTcc.stateLogic?.variables?.length || 0} state variables and ${updatedTcc.stateLogic?.functions?.length || 0} functions.`
+    );
+
     return { success: true, stateLogic, updatedTcc };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ jobId, error: errorMessage }, '🎯 StateDesign: Error');
+    
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_state_logic,
+      'failed',
+      errorMessage
+    );
+    
     return { success: false, error: errorMessage };
   }
 }

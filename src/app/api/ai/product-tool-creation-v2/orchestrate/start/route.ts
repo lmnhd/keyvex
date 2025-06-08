@@ -3,8 +3,9 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { createTCC, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
 import { saveTCC } from '@/lib/db/tcc-store';
-import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
+import { requireAuth } from '@/lib/auth/debug';
 
 // Input validation schema
 const StartOrchestrationSchema = z.object({
@@ -32,6 +33,7 @@ const StartOrchestrationSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const userId = await requireAuth();
   try {
     const body = await request.json();
     const { userInput, selectedModel, agentModelMapping, testingOptions } = StartOrchestrationSchema.parse(body);
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
     }, '🚀 ORCHESTRATION START: Creating new TCC');
 
     // Create initial TCC
-    const tcc = createTCC(jobId, userInput);
+    const tcc = createTCC(jobId, userInput, userId);
     
     // Add agent model mapping if provided
     if (agentModelMapping) {
@@ -62,12 +64,7 @@ export async function POST(request: NextRequest) {
     // Emit initial progress
     const shouldStream = testingOptions?.enableWebSocketStreaming !== false; // default true
     if (shouldStream) {
-      await emitStepProgress(jobId, {
-        stepName: OrchestrationStepEnum.enum.planning_function_signatures,
-        status: 'started',
-        message: 'Orchestration started. Beginning function signature planning...',
-        details: { jobId, tcc, userInput, testingOptions },
-      });
+      await emitStepProgress(jobId, OrchestrationStepEnum.enum.planning_function_signatures, 'started', 'Orchestration started. Beginning function signature planning...', { jobId, tcc, userInput, testingOptions });
       
       logger.info({ jobId }, '🚀 ORCHESTRATION START: Initial progress emitted');
     }

@@ -5,8 +5,8 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+// TCC Store operations removed - using prop-based TCC passing
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
@@ -97,6 +97,13 @@ export async function designJsxLayout(request: {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'in_progress',
+      'Designing JSX component structure...'
+    );
+
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
 
     const updatedTcc: ToolConstructionContext = {
@@ -116,6 +123,13 @@ export async function designJsxLayout(request: {
       updatedAt: new Date().toISOString(),
     };
 
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'completed',
+      'JSX layout designed successfully!'
+    );
+
     logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
     return { success: true, jsxLayout, updatedTcc };
   } catch (error) {
@@ -124,6 +138,14 @@ export async function designJsxLayout(request: {
       { jobId, error: errorMessage },
       '🏗️ JSXLayout: Error designing JSX layout',
     );
+    
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.designing_jsx_layout,
+      'failed',
+      errorMessage
+    );
+    
     return {
       success: false,
       error: errorMessage,

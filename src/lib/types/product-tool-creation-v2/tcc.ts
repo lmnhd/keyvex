@@ -286,10 +286,11 @@ export type ToolConstructionContext = z.infer<typeof ToolConstructionContextSche
 export const TCC_VERSION = '1.0.0';
 
 // Helper function to create a new TCC
-export function createTCC(jobId: string, userInput: any): ToolConstructionContext {
+// Helper function to create a new TCC
+export function createTCC(jobId: string, userInput: any, userId?: string): ToolConstructionContext {
   return {
     jobId,
-    userId: undefined,
+    userId: userId || undefined,
     selectedModel: undefined,
     agentModelMapping: undefined,
     currentOrchestrationStep: 'initialization',
@@ -311,4 +312,4 @@ export function createTCC(jobId: string, userInput: any): ToolConstructionContex
     updatedAt: new Date().toISOString(),
     tccVersion: TCC_VERSION,
   };
-} 
+}

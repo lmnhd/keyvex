@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { saveTCC } from '@/lib/db/tcc-store';
 import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
-import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
 
 const TriggerNextStepRequestSchema = z.object({
