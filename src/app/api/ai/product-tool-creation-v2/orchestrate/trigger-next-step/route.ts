@@ -1,29 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
-import { OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { saveTCC } from '@/lib/db/tcc-store';
+import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import logger from '@/lib/logger';
 
 const TriggerNextStepRequestSchema = z.object({
   jobId: z.string().uuid(),
   nextStep: z.string(),
+  tcc: z.custom<ToolConstructionContext>(),
 });
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { jobId, nextStep } = TriggerNextStepRequestSchema.parse(body);
+    const { jobId, nextStep, tcc } = TriggerNextStepRequestSchema.parse(body);
     
     logger.info({ jobId, nextStep }, '🚀 TRIGGER-NEXT: Triggering next step in orchestration');
 
-    const tcc = await getTCC(jobId);
     if (!tcc) {
+      // This case should ideally not be hit if the schema is enforced
       return NextResponse.json({ 
         success: false, 
-        error: 'TCC not found',
+        error: 'TCC must be provided in the request body.',
         jobId 
-      }, { status: 404 });
+      }, { status: 400 });
     }
 
     // Validate the next step is valid
@@ -107,12 +108,15 @@ export async function POST(request: NextRequest) {
           request.nextUrl.origin
         );
 
-        // Emit progress before triggering
+        // Persist the updated TCC before triggering the next agent
+        await saveTCC(tcc);
+
         await emitStepProgress(
           jobId,
           nextStep as any,
           'started',
-          `Starting ${stepDisplayName}...`
+          `[DEV-FALLBACK] Starting ${stepDisplayName}...`,
+          { tcc } // Pass the full TCC in the progress update
         );
 
         // Trigger the agent asynchronously (fire and forget)

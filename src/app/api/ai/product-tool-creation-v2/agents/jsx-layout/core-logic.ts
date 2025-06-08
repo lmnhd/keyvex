@@ -72,19 +72,23 @@ function createModelInstance(provider: string, modelId: string) {
 }
 
 /**
- * JSX Layout Agent - Generates React component structure from AI
+ * JSX Layout Agent - Generates React component structure from AI.
+ * This function is a pure, testable unit of logic that takes a TCC,
+ * performs JSX layout design, and returns an updated TCC without side effects.
  */
 export async function designJsxLayout(request: {
   jobId: string;
   selectedModel?: string;
-  tcc: ToolConstructionContext; // Always expect the full TCC
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   jsxLayout?: JsxLayoutResult;
   error?: string;
   updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel, tcc } = request;
+  const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
 
   logger.info({ jobId }, '🏗️ JSXLayout: Starting JSX layout design');
 
@@ -93,17 +97,8 @@ export async function designJsxLayout(request: {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'started',
-      'Designing JSX layout...',
-    );
-
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
 
-    logger.info({ jobId }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
-    
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
       jsxLayout,
@@ -118,35 +113,20 @@ export async function designJsxLayout(request: {
           result: jsxLayout,
         },
       },
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
-    await saveTCC(updatedTcc); // Still save for persistence
-
-    logger.info({ jobId },'🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'completed',
-      `Generated JSX layout with ${jsxLayout.elementMap.length} elements`,
-    );
-
-    // This agent no longer triggers the next step directly. The route handler does.
-    
     logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
     return { success: true, jsxLayout, updatedTcc };
-
   } catch (error) {
-    logger.error({ jobId, error }, '🏗️ JSXLayout: Error designing JSX layout');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'failed',
-      error instanceof Error ? error.message : 'Unknown error',
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { jobId, error: errorMessage },
+      '🏗️ JSXLayout: Error designing JSX layout',
     );
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }

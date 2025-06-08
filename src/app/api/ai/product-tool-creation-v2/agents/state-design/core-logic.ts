@@ -74,128 +74,91 @@ function createModelInstance(provider: string, modelId: string) {
 }
 
 /**
- * State Design Agent - Generates React state logic from AI
+ * State Design Agent - Generates React state logic from AI.
+ * This function is a pure, testable unit of logic that takes a TCC,
+ * performs state design, and returns an updated TCC without side effects.
  */
 export async function designStateLogic(request: {
   jobId: string;
   selectedModel?: string;
-  tcc: ToolConstructionContext; // Always expect the full TCC
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   stateLogic?: StateLogicResult;
   error?: string;
   updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel, tcc } = request;
+  const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
 
-  console.log('🎯 StateDesign: ==================== STARTING STATE LOGIC DESIGN ====================');
-  console.log('🎯 StateDesign: Request parameters:', { 
-      jobId, 
-      selectedModel: selectedModel || 'default',
-      timestamp: new Date().toISOString()
-  });
+  logger.info({ jobId }, '🎯 StateDesign: Starting state logic design');
 
   try {
     if (!tcc) {
-      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
+      throw new Error(
+        `A valid TCC object was not provided for jobId: ${jobId}`,
+      );
     }
 
-    console.log('🎯 StateDesign: ✅ TCC received directly');
-    
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'started', 'Designing React state logic...');
-
-    // Generate state logic with AI
-    console.log('🎯 StateDesign: Calling AI to generate state logic...');
+    logger.info({ jobId }, '🎯 StateDesign: Calling AI to generate state logic...');
     const stateLogic = await generateStateLogic(tcc, selectedModel);
-    console.log('🎯 StateDesign: ✅ AI generated state logic successfully');
-
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'llm_data_received', `Generated ${stateLogic.stateVariables.length} state variables and ${stateLogic.functions.length} functions`);
+    logger.info({ jobId }, '🎯 StateDesign: AI generated state logic successfully');
 
     // Convert to TCC-compatible format
     const tccCompatibleStateLogic = {
-      variables: stateLogic.stateVariables.map((v: StateVariable): TccStateVariable => ({
-        name: v.name,
-        type: v.type,
-        initialValue: v.initialValue,
-        description: v.description,
-      })),
-      functions: stateLogic.functions.map((f: StateFunction): TccStateFunction => ({
-        name: f.name,
-        body: f.logic,
-        description: f.description,
-        dependencies: f.parameters,
-      })),
+      variables: stateLogic.stateVariables.map(
+        (v: StateVariable): TccStateVariable => ({
+          name: v.name,
+          type: v.type,
+          initialValue: v.initialValue,
+          description: v.description,
+        }),
+      ),
+      functions: stateLogic.functions.map(
+        (f: StateFunction): TccStateFunction => ({
+          name: f.name,
+          body: f.logic,
+          description: f.description,
+          dependencies: f.parameters,
+        }),
+      ),
       imports: stateLogic.imports,
     };
-    
+
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
       stateLogic: tccCompatibleStateLogic,
       steps: {
         ...tcc.steps,
-        stateDesign: {
+        designingStateLogic: {
           status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tcc.steps?.stateDesign?.startedAt || new Date().toISOString(),
+          startedAt:
+            tcc.steps?.designingStateLogic?.startedAt ||
+            new Date().toISOString(),
           completedAt: new Date().toISOString(),
-          result: stateLogic
-        }
+          result: stateLogic,
+        },
       },
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
 
-    logger.info({ 
-      jobId,
-      updateData: {
-        stateVariableCount: updatedTcc.stateLogic?.variables?.length,
-        functionCount: updatedTcc.stateLogic?.functions?.length
-      }
-    }, '🎯 StateDesign: Update data being applied to TCC');
+    logger.info(
+      {
+        jobId,
+        updateData: {
+          stateVariableCount: updatedTcc.stateLogic?.variables?.length,
+          functionCount: updatedTcc.stateLogic?.functions?.length,
+        },
+      },
+      '🎯 StateDesign: TCC update prepared',
+    );
 
-    // Persist the changes to the central store
-    await saveTCC(updatedTcc);
-
-    // COMPREHENSIVE LOGGING: TCC State AFTER State Design update
-    const finalTccState = await getTCC(jobId, { forceRefresh: true }); // Verify from DB
-    logger.info({
-      jobId,
-      finalTccState: {
-        currentStep: finalTccState?.currentOrchestrationStep,
-        status: finalTccState?.status,
-        hasStateLogic: !!finalTccState?.stateLogic,
-        stateVarCount: finalTccState?.stateLogic?.variables.length,
-        stateFuncCount: finalTccState?.stateLogic?.functions.length
-      }
-    }, '🎯 StateDesign: TCC state AFTER State Design update (verified from DB)');
-    
-    await triggerNextOrchestrationStep(jobId);
-
-    console.log('🎯 StateDesign: Completed successfully');
-    
     return { success: true, stateLogic, updatedTcc };
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ jobId, error: errorMessage }, '🎯 StateDesign: Error');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'failed', `State design failed: ${errorMessage}`);
     return { success: false, error: errorMessage };
-  }
-}
-
-async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
-  try {
-    logger.info({ jobId, baseUrl }, '🎯 StateDesign: Triggering next orchestration step...');
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId }),
-    });
-    if (!response.ok) {
-      throw new Error(`Orchestrator responded with status ${response.status}`);
-    }
-    logger.info({ jobId }, '🎯 StateDesign: Successfully triggered next orchestration step.');
-  } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? { message: error.message } : String(error) }, '🎯 StateDesign: Failed to trigger next orchestration step.');
   }
 }
 

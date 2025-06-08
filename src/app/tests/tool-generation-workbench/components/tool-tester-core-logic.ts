@@ -126,14 +126,12 @@ async function startV2ToolCreation(
  *
  * @param brainstormResult The selected brainstorm data.
  * @param selectedModelId The ID of the single model chosen for generation.
- * @param onJobUpdate Callback to update the UI with the job's initial state.
  * @param agentModelMapping Optional mapping of agent IDs to specific model IDs.
  * @returns The initial state of the creation job.
  */
 export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
   selectedModelId: string,
-  onJobUpdate: (job: ToolCreationJob) => void,
   agentModelMapping?: Record<string, string>
 ): Promise<ToolCreationJob> {
   let job: ToolCreationJob = {
@@ -141,7 +139,6 @@ export async function runToolCreationProcess(
     status: 'loading',
     startTime: Date.now(),
   };
-  onJobUpdate(job);
   
   try {
     const { jobId } = await startV2ToolCreation(brainstormResult, selectedModelId, agentModelMapping);
@@ -160,6 +157,5 @@ export async function runToolCreationProcess(
     };
   }
   
-  onJobUpdate(job);
   return job;
 }

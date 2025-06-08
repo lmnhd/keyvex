@@ -32,20 +32,22 @@ const functionSignaturesSchema = z.object({
 export async function planFunctionSignatures(request: {
   jobId: string;
   selectedModel?: string;
-  tcc: ToolConstructionContext;
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   functionSignatures?: DefinedFunctionSignature[];
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, tcc } = request;
+  const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
 
   try {
     logger.info({ jobId }, '🔧 FunctionPlanner: Starting function signature planning');
     
     if (!tcc || !tcc.agentModelMapping) {
-      throw new Error(`Valid TCC was not provided for jobId: ${jobId}`);
+      throw new Error(`Valid TCC was not provided in tcc or mockTcc for jobId: ${jobId}`);
     }
 
     if (selectedModel) {

@@ -2,82 +2,92 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   OrchestrationStepEnum,
-  OrchestrationStatusEnum,
   ToolConstructionContext,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
+import { getTCC, saveTCC } from '@/lib/db/tcc-store';
 
 const CheckCompletionRequestSchema = z.object({
   jobId: z.string().uuid(),
-  tcc: z.custom<ToolConstructionContext>(),
+  tcc: z.custom<ToolConstructionContext>().optional(),
+  mockTcc: z.custom<ToolConstructionContext>().optional(),
 });
 
 export async function POST(request: NextRequest) {
+  let jobId = 'unknown';
   try {
     const body = await request.json();
-    const { jobId, tcc } = CheckCompletionRequestSchema.parse(body);
+    const parsedBody = CheckCompletionRequestSchema.parse(body);
+    jobId = parsedBody.jobId;
+    const partialTccFromAgent = parsedBody.mockTcc || parsedBody.tcc;
 
-    logger.info(
-      { jobId },
-      '🔍 CHECK-COMPLETION: Checking parallel agent completion status using passed-in TCC',
-    );
-
-    if (!tcc) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'TCC not provided in request body',
-          jobId,
-        },
-        { status: 400 },
-      );
+    if (!partialTccFromAgent) {
+      throw new Error('Partial TCC from calling agent was not provided.');
     }
 
-    if (tcc.status === OrchestrationStatusEnum.enum.error) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Process has failed',
-          jobId,
-          currentStep: tcc.currentOrchestrationStep,
-          status: tcc.status,
-        },
-        { status: 400 },
-      );
-    }
+    logger.info({ jobId, agentOutputKeys: Object.keys(partialTccFromAgent) }, '🔍 CHECK-COMPLETION: Received partial TCC from a completing agent');
 
+    // 1. Load master TCC from the store to get the most complete state
+    const masterTcc = await getTCC(jobId, { forceRefresh: true });
+    if (!masterTcc) {
+      throw new Error(`Master TCC not found in store for jobId: ${jobId}`);
+    }
     logger.info(
       {
         jobId,
-        stateFromRequest: {
-          hasStateLogic: !!tcc.stateLogic,
-          hasJsxLayout: !!tcc.jsxLayout,
-          currentStep: tcc.currentOrchestrationStep
+        masterTccState: {
+          hasStateLogic: !!masterTcc.stateLogic,
+          hasJsxLayout: !!masterTcc.jsxLayout,
         },
       },
-      '🔍 CHECK-COMPLETION: Using TCC state from request body',
+      '🔍 CHECK-COMPLETION: Loaded master TCC from store',
     );
 
-    const parallelCompletionResult = checkParallelStepCompletion(tcc);
+    // 2. Merge the partial TCC from the agent into the master TCC
+    const mergedTcc: ToolConstructionContext = {
+      ...masterTcc,
+      ...partialTccFromAgent,
+      steps: { ...masterTcc.steps, ...partialTccFromAgent.steps },
+      updatedAt: new Date().toISOString(),
+    };
 
     logger.info(
       {
         jobId,
-        currentStep: tcc.currentOrchestrationStep,
+        mergedTccState: {
+          hasStateLogic: !!mergedTcc.stateLogic,
+          hasJsxLayout: !!mergedTcc.jsxLayout,
+        },
+      },
+      '🔍 CHECK-COMPLETION: Merged agent TCC into master TCC',
+    );
+
+    // 3. Save the newly merged TCC back to the store
+    await saveTCC(mergedTcc);
+    logger.info({ jobId }, '🔍 CHECK-COMPLETION: Saved merged TCC back to store');
+
+    // 4. Perform completion check on the fully merged TCC
+    const parallelCompletionResult = checkParallelStepCompletion(mergedTcc);
+
+    logger.info(
+      {
+        jobId,
+        currentStep: mergedTcc.currentOrchestrationStep,
         decisionDetails: parallelCompletionResult,
       },
       '🔍 CHECK-COMPLETION: Parallel completion status determined',
     );
 
-    if (parallelCompletionResult.readyToTriggerNext && parallelCompletionResult.nextStep) {
+    if (
+      parallelCompletionResult.readyToTriggerNext &&
+      parallelCompletionResult.nextStep
+    ) {
       logger.info(
-        {
-          jobId,
-          nextStep: parallelCompletionResult.nextStep,
-        },
+        { jobId, nextStep: parallelCompletionResult.nextStep },
         '🔍 CHECK-COMPLETION: Handing off to official trigger-next-step endpoint',
       );
 
+      // Asynchronously trigger the next step, no need to await
       fetch(
         `${request.nextUrl.origin}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`,
         {
@@ -86,13 +96,13 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             nextStep: parallelCompletionResult.nextStep,
-            tcc,
+            tcc: mergedTcc, // Pass the fully merged TCC
           }),
         },
       ).catch(error => {
         logger.error(
           { jobId, nextStep: parallelCompletionResult.nextStep, error },
-          '🔍 CHECK-COMPLETION: Failed to call official trigger-next-step endpoint',
+          '🔍 CHECK-COMPLETION: Fire-and-forget call to trigger-next-step failed',
         );
       });
     }
@@ -100,31 +110,20 @@ export async function POST(request: NextRequest) {
     const response = {
       success: true,
       jobId,
-      currentStep: tcc.currentOrchestrationStep,
+      currentStep: mergedTcc.currentOrchestrationStep,
       ...parallelCompletionResult,
-      status: tcc.status,
-      progress: {
-        functionsPlanned: !!tcc.definedFunctionSignatures,
-        stateDesigned: !!tcc.stateLogic,
-        jsxLayoutCreated: !!tcc.jsxLayout,
-        stylingApplied: !!(tcc as any).styling,
-        componentAssembled: !!tcc.assembledComponentCode,
-        validated: !!tcc.validationResult?.isValid,
-      },
+      status: mergedTcc.status,
     };
 
     return NextResponse.json(response);
   } catch (error) {
     logger.error(
       {
+        jobId,
         error:
           error instanceof Error
-            ? {
-                name: error.name,
-                message: error.message,
-              }
+            ? { name: error.name, message: error.message }
             : String(error),
-        endpoint: '/orchestrate/check-parallel-completion',
       },
       '🔍 CHECK-COMPLETION: Request failed',
     );
@@ -132,6 +131,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
+        jobId,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 },
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function checkParallelStepCompletion(tcc: any): {
+function checkParallelStepCompletion(tcc: ToolConstructionContext): {
   isComplete: boolean;
   nextStep: string | null;
   readyToTriggerNext: boolean;
@@ -151,6 +151,14 @@ function checkParallelStepCompletion(tcc: any): {
   const stateDesignComplete = !!tcc.stateLogic;
   const jsxLayoutComplete = !!tcc.jsxLayout;
   const bothComplete = stateDesignComplete && jsxLayoutComplete;
+
+  logger.info({
+    jobId: tcc.jobId,
+    stateDesignComplete,
+    jsxLayoutComplete,
+    bothComplete
+  }, '🔍 CHECK-COMPLETION: Final state analysis for parallel step');
+
 
   let nextStep = null;
   if (bothComplete) {

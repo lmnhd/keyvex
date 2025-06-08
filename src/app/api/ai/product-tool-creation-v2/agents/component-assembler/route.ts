@@ -1,82 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assembleComponent } from './core-logic';
 import logger from '@/lib/logger';
+import { triggerNextOrchestrationStep } from '@/lib/orchestration/trigger-next-step';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
-// Helper function to check parallel completion (non-blocking)
-async function checkParallelCompletion(baseUrl: string, jobId: string) {
-  try {
-    await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
-    });
-  } catch (error) {
-    // Non-blocking - if it fails, we don't stop the process
-    console.error(`[ComponentAssembler] Failed to trigger check-parallel-completion for jobId ${jobId}:`, error);
-  }
-}
-
 export async function POST(request: NextRequest) {
-  logger.info('🔧 ComponentAssembler: Route handler started');
+  logger.info('🔧 ComponentAssembler Route: Route handler started');
 
   try {
     const body: { jobId: string; selectedModel?: string; tcc: ToolConstructionContext; } = await request.json();
     const { jobId, selectedModel, tcc } = body;
 
     if (!jobId || !tcc) {
-      throw new Error("jobId and tcc must be provided in the request body.");
+      return NextResponse.json(
+        { success: false, error: "jobId and tcc must be provided." },
+        { status: 400 }
+      );
     }
 
+    // Call the pure core logic function
     const result = await assembleComponent({
       jobId,
       selectedModel,
-      tcc, // Pass the in-memory TCC
+      tcc,
     });
     
-    if (result.success && result.updatedTcc) {
-      // Trigger the next step in the orchestration with the new TCC
-      await triggerNextOrchestrationStep(request.nextUrl.origin, jobId, result.updatedTcc);
-      
-      return NextResponse.json({ 
-        success: true, 
-        assembledComponent: result.assembledComponent 
-      });
-    } else {
-      return NextResponse.json({ 
-        success: false, 
-        error: result.error || 'Component assembly failed to return an updated TCC.'
-      }, { status: 500 });
+    if (!result.success || !result.updatedTcc) {
+      logger.error({ jobId, error: result.error }, '🔧 ComponentAssembler Route: Core logic failed');
+      return NextResponse.json(
+        { success: false, error: result.error || 'Component assembly failed' },
+        { status: 500 },
+      );
     }
+
+    logger.info({ jobId }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step.');
+
+    // Trigger the next step using the centralized helper
+    await triggerNextOrchestrationStep(
+      jobId,
+      result.updatedTcc.currentOrchestrationStep,
+      result.updatedTcc,
+    );
+      
+    logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered next step.');
+
+    return NextResponse.json({ 
+      success: true, 
+      assembledComponent: result.assembledComponent 
+    });
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ error: errorMessage }, '🔧 ComponentAssembler: Route handler error');
+    logger.error({ error: errorMessage }, '🔧 ComponentAssembler Route: Route handler error');
     return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
-
-// Triggers the main orchestrator to proceed to the next step
-async function triggerNextOrchestrationStep(
-  baseUrl: string, 
-  jobId: string,
-  tcc: ToolConstructionContext
-): Promise<void> {
-  try {
-    const nextStep = tcc.currentOrchestrationStep; // The core logic should have set this.
-    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, nextStep, tcc }), // Pass the full TCC
-    });
-
-    if (!response.ok) {
-      throw new Error(`Orchestrator responded with status: ${response.status}`);
-    }
-
-    logger.info({ jobId, nextStep }, '🔧 ComponentAssembler: Successfully triggered next orchestration step.');
-  } catch (error) {
-    logger.error({ jobId, error }, '🔧 ComponentAssembler: Failed to trigger next orchestration step.');
-    throw error;
-  }
-} 

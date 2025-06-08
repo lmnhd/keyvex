@@ -4,8 +4,6 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
 import logger from '@/lib/logger';
 import * as babel from '@babel/standalone';
 import * as ts from 'typescript';
@@ -19,171 +17,71 @@ const ValidatorRequestSchema = z.object({
 export type ValidatorRequest = z.infer<typeof ValidatorRequestSchema>;
 
 /**
- * Validator Agent - Validates assembled component code
+ * Validator Agent - Validates assembled component code.
+ * This is now a pure function that returns an updated TCC.
  */
-export async function validateComponent(request: ValidatorRequest): Promise<{
+export async function validateComponent(
+  request: ValidatorRequest & {
+    tcc?: ToolConstructionContext;
+    mockTcc?: ToolConstructionContext;
+  },
+): Promise<{
   success: boolean;
-  validationResult?: {
-    isValid: boolean;
-    syntaxErrors: string[];
-    typeErrors: string[];
-    warnings: string[];
-    metrics: {
-      linesOfCode: number;
-      componentComplexity: number;
-      dependencies: string[];
-    };
-  };
+  validationResult?: any;
+  updatedTcc?: ToolConstructionContext;
   error?: string;
 }> {
   const { jobId } = ValidatorRequestSchema.parse(request);
+  const tcc = request.mockTcc || request.tcc;
 
   try {
-    const tcc = await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
+    if (!tcc) throw new Error(`TCC not provided for jobId: ${jobId}`);
 
     logger.info({ jobId }, '🔍 Validator: Starting validation');
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.validating_code,
-      'started',
-      'Validating component code...',
-    );
-
-    // Validate we have the assembled component
-    if (!tcc.assembledComponentCode)
+    if (!tcc.assembledComponentCode) {
       throw new Error('Assembled component code not found in TCC');
+    }
 
-    // Update TCC status
-    const tccInProgress = {
-      ...tcc,
-      status: OrchestrationStatusEnum.enum.in_progress,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveTCC(tccInProgress);
-
-    // Validate the component
     const validationResult = await validateCode(tcc.assembledComponentCode);
 
-    // Update TCC with results
-    const updatedTCC = {
-      ...tccInProgress,
+    const updatedTCC: ToolConstructionContext = {
+      ...tcc,
       validationResult,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.finalizing_tool,
       steps: {
-        ...tccInProgress.steps,
+        ...tcc.steps,
         validatingCode: {
           status: OrchestrationStatusEnum.enum.completed,
           startedAt:
-            tccInProgress.steps?.validatingCode?.startedAt ||
-            new Date().toISOString(),
+            tcc.steps?.validatingCode?.startedAt || new Date().toISOString(),
           completedAt: new Date().toISOString(),
           result: validationResult,
         },
       },
       updatedAt: new Date().toISOString(),
     };
-    await saveTCC(updatedTCC);
-
-    const validationStatus = validationResult.isValid ? 'passed' : 'failed';
-    const errorCount =
-      validationResult.syntaxErrors.length + validationResult.typeErrors.length;
-
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.validating_code,
-      'completed',
-      `Validation ${validationStatus}: ${errorCount} errors, ${validationResult.warnings.length} warnings`,
-    );
-
-    // CRITICAL: Trigger the next step in the orchestration
-    await triggerNextOrchestrationStep(
-      jobId,
-      OrchestrationStepEnum.enum.finalizing_tool,
-    );
 
     logger.info(
       {
         jobId,
         isValid: validationResult.isValid,
-        errorCount,
+        errorCount:
+          validationResult.syntaxErrors.length +
+          validationResult.typeErrors.length,
         warningCount: validationResult.warnings.length,
       },
       '🔍 Validator: Completed validation',
     );
 
-    return { success: true, validationResult };
+    return { success: true, validationResult, updatedTcc: updatedTCC };
   } catch (error) {
-    logger.error(
-      { jobId, error: error instanceof Error ? error.message : String(error) },
-      '🔍 Validator: Error',
-    );
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.validating_code,
-      'failed',
-      `Validation failed: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
-    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ jobId, error: errorMessage }, '🔍 Validator: Error');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
-  }
-}
-
-/**
- * Triggers the trigger-next-step endpoint to move the orchestration forward.
- * @param jobId The ID of the current tool creation job.
- * @param nextStep The next step to trigger in the orchestration.
- */
-async function triggerNextOrchestrationStep(
-  jobId: string,
-  nextStep: z.infer<typeof OrchestrationStepEnum>,
-): Promise<void> {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL ||
-    'http://localhost:3000';
-
-  try {
-    logger.info(
-      { jobId, baseUrl, nextStep },
-      '🔍 Validator: Triggering next orchestration step...',
-    );
-
-    const response = await fetch(
-      `${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, nextStep }),
-      },
-    );
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new Error(
-        `Orchestrator responded with status ${response.status}: ${errorBody}`,
-      );
-    }
-
-    logger.info(
-      { jobId },
-      '🔍 Validator: Successfully triggered next orchestration step.',
-    );
-  } catch (error) {
-    logger.error(
-      {
-        jobId,
-        error:
-          error instanceof Error
-            ? { message: error.message, stack: error.stack }
-            : String(error),
-      },
-      '🔍 Validator: Failed to trigger next orchestration step.',
-    );
   }
 }
 

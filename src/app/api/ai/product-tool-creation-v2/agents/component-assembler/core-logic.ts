@@ -52,23 +52,23 @@ function createModelInstance(provider: string, modelId: string) {
 export async function assembleComponent(request: {
   jobId: string;
   selectedModel?: string;
-  tcc: ToolConstructionContext;
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   assembledComponent?: AssembledComponent;
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, tcc } = request;
+  const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
 
   try {
-    logger.info({ jobId }, '🔧 ComponentAssembler: Route handler started');
-    
+    logger.info({ jobId }, '🔧 ComponentAssembler: Starting component assembly');
+
     if (!tcc) {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
-
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'started', 'Assembling final component...');
 
     // Validate we have all required pieces
     if (!tcc.jsxLayout || !tcc.stateLogic || !tcc.styling) {
@@ -81,7 +81,10 @@ export async function assembleComponent(request: {
     }
 
     // Assemble the component with AI
-    const assembledComponent = await generateAssembledComponent(tcc, selectedModel);
+    const assembledComponent = await generateAssembledComponent(
+      tcc,
+      selectedModel,
+    );
 
     // Update TCC with results
     const updatedTCC: ToolConstructionContext = {
@@ -92,30 +95,24 @@ export async function assembleComponent(request: {
         ...tcc.steps,
         assemblingComponent: {
           status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
+          startedAt:
+            tcc.steps?.assemblingComponent?.startedAt ||
+            new Date().toISOString(),
           completedAt: new Date().toISOString(),
-          result: assembledComponent
-        }
+          result: assembledComponent,
+        },
       },
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
-    await saveTCC(updatedTCC);
-
-    // Emit progress with assembled component code for frontend to enable Live Preview
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
-      `Component assembled: ${assembledComponent.metadata.estimatedLines} lines`,
-      { assembledComponent });
 
     logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
     return { success: true, assembledComponent, updatedTcc: updatedTCC };
-
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error({ jobId, error: errorMessage }, '🔧 ComponentAssembler: Error in main execution block');
-    
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'failed', 
-      `Component assembly failed: ${errorMessage}`);
-    
+    logger.error(
+      { jobId, error: errorMessage },
+      '🔧 ComponentAssembler: Error in main execution block',
+    );
     return { success: false, error: errorMessage };
   }
 }

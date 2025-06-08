@@ -67,14 +67,17 @@ function createModelInstance(provider: string, modelId: string) {
 export async function applyStyling(request: {
   jobId: string;
   selectedModel?: string;
-  tcc: ToolConstructionContext;
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   styling?: TccStyling;
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, tcc } = request;
+  const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
+
   logger.info({ jobId }, '🎨 TailwindStyling: Starting styling application');
 
   try {
@@ -82,8 +85,6 @@ export async function applyStyling(request: {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'started', 'Applying comprehensive Tailwind CSS styling...');
-    
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
 
     const updatedTcc: ToolConstructionContext = {
@@ -103,18 +104,19 @@ export async function applyStyling(request: {
       },
       updatedAt: new Date().toISOString(),
     };
-    
-    await saveTCC(updatedTcc);
-
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'completed', `Applied styling to ${Object.keys(styling.styleMap).length} elements`);
 
     logger.info({ jobId }, '🎨 TailwindStyling: Applied styling successfully');
     return { success: true, styling, updatedTcc };
-
   } catch (error) {
-    logger.error({ jobId, error }, '🎨 TailwindStyling: Error applying styling');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.applying_tailwind_styling, 'failed', `Styling failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(
+      { jobId, error: errorMessage },
+      '🎨 TailwindStyling: Error applying styling',
+    );
+    return {
+      success: false,
+      error: errorMessage,
+    };
   }
 }
 

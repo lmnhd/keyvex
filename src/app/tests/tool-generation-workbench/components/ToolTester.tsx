@@ -58,6 +58,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
   const [assembledCode, setAssembledCode] = useState<string | null>(null);
+  const [finalProduct, setFinalProduct] = useState<any>(null);
 
   // New state for advanced controls
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('v2');
@@ -107,75 +108,37 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, []);
 
-  const handleProgress = (progress: StepProgress) => {
-    // Update current step
+  const handleJobUpdate = useCallback((progress: StepProgress) => {
+    addWSLog(progress.message || `Progress for ${progress.stepName}: ${progress.status}`);
     setCurrentStep(progress.stepName);
-    
-    // Add WebSocket log
-    addWSLog(`Progress: ${progress.stepName} - ${progress.status}`);
-    
-    // Update TCC data if available
-    if (progress.data?.tcc) {
-      setTccData(progress.data.tcc);
-      addWSLog(`TCC updated with new data from ${progress.stepName}`);
-    }
-    
-    // Handle assembled code from Component Assembler - fix the condition
-    if (progress.stepName === 'assembling_component' && progress.status === 'completed') {
-      // First check for assembledComponentCode in TCC
-      if (progress.data?.tcc?.assembledComponentCode) {
-        setAssembledCode(progress.data.tcc.assembledComponentCode);
-        addWSLog(`Component code assembled successfully (from TCC)`);
-      }
-      // Also check for direct progress data
-      else if (progress.data?.assembledComponent?.finalComponentCode) {
-        setAssembledCode(progress.data.assembledComponent.finalComponentCode);
-        addWSLog(`Component code assembled successfully (from progress data)`);
-      }
-      // Also check for backwards compatibility
-      else if (progress.data?.assembledComponentCode) {
-        setAssembledCode(progress.data.assembledComponentCode);
-        addWSLog(`Component code assembled successfully (backwards compatibility)`);
+
+    const newTcc = progress.data?.tcc;
+    if (newTcc) {
+      setTccData(newTcc);
+      if (newTcc.assembledComponentCode && !assembledCode) {
+        setAssembledCode(newTcc.assembledComponentCode);
+        addWSLog('✅ Assembled code received from TCC update!');
       }
     }
 
-    // Also handle from orchestration completion
-    if (progress.stepName === 'tool_finalizer' && progress.status === 'completed' && progress.data?.finalTool) {
-      // If we have a final tool but no assembled code yet, extract it from the tool
-      if (!assembledCode && progress.data.finalTool.componentCode) {
-        setAssembledCode(progress.data.finalTool.componentCode);
-        addWSLog(`Component code extracted from final tool`);
+    if (progress.stepName === 'finalizing_tool' && progress.status === 'completed' && progress.data) {
+      const finalProductData = progress.data;
+      setFinalProduct(finalProductData);
+      if (finalProductData.finalCode) {
+        setAssembledCode(finalProductData.finalCode);
       }
-      
-      // Update test job with final result
-      setTestJob(prev => prev ? {
-        ...prev,
+      addWSLog('✅ Final product received!');
+
+      setTestJob(prev => ({
+        ...(prev as ToolCreationJob),
         status: 'success',
-        result: progress.data.finalTool
-      } : {
-        jobId: progress.data.jobId || '',
-        modelId: selectedModelIds[0] || 'unknown',
-        status: 'success',
-        result: progress.data.finalTool,
-        metadata: { models: selectedModelIds },
-        error: null
-      });
-      addWSLog(`Final tool definition received`);
+        result: finalProductData,
+        endTime: Date.now()
+      }));
     }
+  }, [addWSLog, assembledCode]);
 
-    // Handle streaming example (simulate streamObject/streamText response)
-    if (progress.stepName === 'planning_function_signatures' && progress.status === 'llm_call_pending') {
-      setStreamingExample(prev => prev + `Streaming: Planning function ${Math.random().toString(36).substring(7)}...\n`);
-    }
-
-    // Handle general TCC updates that might contain assembled code
-    if (progress.data?.tcc?.assembledComponentCode && !assembledCode) {
-      setAssembledCode(progress.data.tcc.assembledComponentCode);
-      addWSLog(`Component code found in TCC update`);
-    }
-  };
-
-  const { connect, disconnect, connectionStatus, progressUpdates } = useToolGenerationStream({ onProgress: handleProgress });
+  const { connect, disconnect, connectionStatus, progressUpdates } = useToolGenerationStream({ onProgress: handleJobUpdate });
 
   // Get default model for agent from processModels in default-models.json
   const getDefaultModelForAgent = useCallback((agentId: string): string => {
@@ -411,262 +374,61 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     saveToLocalStorage(STORAGE_KEYS.agentMapping, newMapping);
   };
 
-  const handleJobUpdate = (updatedJob: ToolCreationJob) => {
-    setTestJob(updatedJob);
-  };
-
   const handleSubmit = async () => {
-    if (!selectedBrainstormId) {
-      setError('Please select a brainstorm result to test.');
+    if (!selectedBrainstormId || selectedModelIds.length === 0) {
+      setError("Please select a brainstorm and at least one model.");
       return;
     }
-    if (selectedModelIds.length === 0) {
-      setError(`Please select at least one AI model.`);
-      return;
-    }
-
-    const selectedBrainstorm = savedBrainstorms.find(bs => bs.id === selectedBrainstormId);
-    if (!selectedBrainstorm) {
-      setError('Selected brainstorm result not found.');
-      return;
-    }
-
-    const primaryModelId = selectedModelIds[0]; // Use first selected model as primary
-
-    setIsLoading(true);
     setError(null);
     setTestJob(null);
     setAssembledCode(null);
+    setFinalProduct(null);
     setWsLogs([]);
-    setStreamingExample('');
-    disconnect(); // Disconnect from any previous session
+    setTccData(null);
+    setCurrentStep('');
 
-    addWSLog(`Starting ${workflowMode} workflow with ${selectedModelIds.length} models`);
-
-    if (workflowMode === 'v1') {
-      // Call the original V1 create-tool API
-      try {
-        setTestJob({ modelId: primaryModelId, status: 'loading', startTime: Date.now() });
-        addWSLog(`V1: Starting tool creation with model ${primaryModelId}`);
-        
-        const response = await fetch('/api/ai/create-tool', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userIntent: selectedBrainstorm.result?.userInput || {},
-            context: {
-              targetAudience: selectedBrainstorm.targetAudience,
-              industry: selectedBrainstorm.industry,
-              toolType: selectedBrainstorm.toolType
-            },
-            selectedModels: selectedModelIds,
-          }),
-        });
-
-        const result = await response.json();
-        
-        if (result.success && result.tool) {
-          setTestJob({ 
-            modelId: primaryModelId, 
-            status: 'success', 
-            result: result.tool,
-            endTime: Date.now(),
-            startTime: Date.now() - 10000
-          });
-          addWSLog(`V1: Tool creation completed successfully`);
-        } else {
-          setTestJob({ 
-            modelId: primaryModelId, 
-            status: 'error', 
-            error: result.error || 'V1 tool creation failed',
-            endTime: Date.now()
-          });
-          addWSLog(`V1: Tool creation failed - ${result.error}`);
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'V1 creation failed';
-        setTestJob({ 
-          modelId: primaryModelId, 
-          status: 'error', 
-          error: errorMsg,
-          endTime: Date.now()
-        });
-        addWSLog(`V1: Error - ${errorMsg}`);
-      }
-    } else if (workflowMode === 'v2') {
-      // V2 Orchestration Mode with WebSocket streaming
-      addWSLog(`V2: Starting orchestration with models: ${selectedModelIds.join(', ')}`);
-      const resultJob = await runToolCreationProcess(
-        selectedBrainstorm, 
-        primaryModelId, 
-        handleJobUpdate,
-        agentModelMapping // Pass the agent model mapping
-      );
-      setTestJob(resultJob);
-      
-      if (resultJob.status !== 'error' && resultJob.jobId) {
-        console.log(`Tool creation started with Job ID: ${resultJob.jobId}. Now listening for updates...`);
-        addWSLog(`V2: Connected to WebSocket for job ${resultJob.jobId}`);
-        connect(resultJob.jobId);
-
-        // Simulate streamObject example for function planner
-        addWSLog(`V2: Starting streamObject example for Function Planner`);
-        setStreamingExample('Starting streamObject streaming...\n');
-      } else {
-        setError(resultJob.error || 'Failed to start tool creation process.');
-        addWSLog(`V2: Failed to start - ${resultJob.error}`);
-      }
-    } else if (workflowMode === 'debug') {
-      // Debug Mode - Individual Agent Testing
-      if (!selectedAgent) {
-        setError('Please select an agent to test in debug mode.');
-        setIsLoading(false);
-        return;
-      }
-      
-      const agentModel = agentModelMapping[selectedAgent] || primaryModelId;
-      
-      try {
-        setTestJob({ modelId: agentModel, status: 'loading', startTime: Date.now() });
-        addWSLog(`Debug: Testing ${selectedAgent} with model ${agentModel}`);
-        
-        // Call individual agent endpoint with proper mock TCC structure
-        const mockTcc = {
-          jobId: crypto.randomUUID(), // Generate proper UUID
-          userInput: selectedBrainstorm.result?.userInput || {
-            toolType: selectedBrainstorm.toolType || 'Test Tool',
-            targetAudience: selectedBrainstorm.targetAudience || 'General Users',
-            businessContext: selectedBrainstorm.result?.userInput?.businessContext || 'Test tool for agent isolation testing',
-            selectedModel: agentModel
-          },
-          brainstormResult: {
-            description: selectedBrainstorm.result?.userInput?.businessContext || 'Test tool for agent isolation testing',
-            targetAudience: selectedBrainstorm.targetAudience || 'General Users',
-            toolType: selectedBrainstorm.toolType || 'Test Tool',
-            features: ['Basic functionality', 'User interface', 'Data processing'],
-            designConsiderations: ['Clean interface', 'Responsive design', 'Accessibility']
-          },
-          agentModelMapping: agentModelMapping || {},
-          // Add mock function signatures for agents that need them
-          ...(selectedAgent !== 'function-planner' && {
-            functionSignatures: [
-              {
-                name: 'processData',
-                description: 'Process input data',
-                parameters: [
-                  { name: 'input', type: 'any', description: 'Input data to process' }
-                ],
-                returnType: 'ProcessedData'
-              }
-            ]
-          }),
-          // Add mock state logic for agents that need it
-          ...((['jsx-layout', 'tailwind-styling', 'component-assembler'].includes(selectedAgent)) && {
-            stateLogic: {
-              stateVariables: [
-                {
-                  name: 'data',
-                  type: 'any',
-                  initialValue: 'null',
-                  description: 'Main data state'
-                },
-                {
-                  name: 'isLoading',
-                  type: 'boolean',
-                  initialValue: 'false',
-                  description: 'Loading state'
-                }
-              ],
-              functions: [
-                {
-                  name: 'handleDataUpdate',
-                  body: 'setData(newData); setIsLoading(false);',
-                  description: 'Update data state',
-                  dependencies: ['data', 'isLoading']
-                }
-              ]
-            }
-          }),
-          // Add mock JSX layout for styling and assembly agents
-          ...((['tailwind-styling', 'component-assembler'].includes(selectedAgent)) && {
-            jsxLayout: {
-              componentStructure: '<div><h1>Test Component</h1><div>Content</div></div>',
-              elementMap: [
-                { elementId: 'header', purpose: 'Main heading', type: 'h1' },
-                { elementId: 'content', purpose: 'Main content area', type: 'div' }
-              ]
-            }
-          }),
-          // Add mock styling for component assembler
-          ...(selectedAgent === 'component-assembler' && {
-            styling: {
-              styleMap: {
-                'header': 'text-2xl font-bold text-gray-900',
-                'content': 'p-4 bg-gray-50 rounded-lg'
-              },
-              colorScheme: {
-                primary: '#3b82f6',
-                secondary: '#64748b',
-                accent: '#8b5cf6',
-                background: '#ffffff',
-                surface: '#f9fafb',
-                text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
-                border: '#e5e7eb',
-                success: '#10b981',
-                warning: '#f59e0b',
-                error: '#ef4444'
-              }
-            }
-          })
-        };
-
-        const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${selectedAgent}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            mockTcc,
-            selectedModel: agentModel,
-            testingOptions: {
-              enableWebSocketStreaming: true,  // Enable streaming for testing
-              enableTccOperations: false,      // Skip TCC store operations
-              enableOrchestrationTriggers: false // Skip orchestration triggers
-            }
-          }),
-        });
-
-        const result = await response.json();
-        
-        if (result.success) {
-          setTestJob({ 
-            modelId: agentModel, 
-            status: 'success', 
-            result: result,
-            endTime: Date.now(),
-            startTime: Date.now() - 5000
-          });
-          addWSLog(`Debug: ${selectedAgent} completed successfully`);
-        } else {
-          setTestJob({ 
-            modelId: agentModel, 
-            status: 'error', 
-            error: result.error || `${selectedAgent} agent failed`,
-            endTime: Date.now()
-          });
-          addWSLog(`Debug: ${selectedAgent} failed - ${result.error}`);
-        }
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Agent testing failed';
-        setTestJob({ 
-          modelId: agentModel, 
-          status: 'error', 
-          error: errorMsg,
-          endTime: Date.now()
-        });
-        addWSLog(`Debug: Error - ${errorMsg}`);
-      }
+    const brainstorm = savedBrainstorms.find(b => b.id === selectedBrainstormId);
+    if (!brainstorm) {
+      setError("Selected brainstorm data not found.");
+      return;
     }
+    
+    // Set loading state and clear previous results
+    setIsLoading(true);
 
-    setIsLoading(false);
+    try {
+      addWSLog(`Starting V2 orchestration...`);
+      
+      const newJob = await runToolCreationProcess(
+        brainstorm,
+        selectedModelIds[0],
+        agentModelMapping
+      );
+
+      setTestJob(newJob); // FIX: Set the job state immediately to keep the UI persistent
+
+      if (newJob.jobId && newJob.status !== 'error') {
+        addWSLog(`Job created (${newJob.jobId}). Connecting to WebSocket...`);
+        await connect(newJob.jobId);
+      } else {
+        throw new Error(newJob.error || 'Job creation failed without a specific error.');
+      }
+
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'An unknown error occurred';
+      setError(errorMsg);
+      addWSLog(`Error during orchestration start: ${errorMsg}`);
+      // Update the existing job state with the error, rather than replacing it
+      setTestJob(prev => ({
+          ...(prev || { modelId: selectedModelIds[0] || 'unknown' }),
+          status: 'error',
+          error: errorMsg,
+          endTime: Date.now()
+      }));
+      disconnect();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePause = async () => {

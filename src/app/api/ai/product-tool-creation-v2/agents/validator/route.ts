@@ -1,61 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateComponent } from './core-logic';
 import logger from '@/lib/logger';
-
-// Helper function to check parallel completion (non-blocking)
-async function checkParallelCompletion(baseUrl: string, jobId: string) {
-  try {
-    await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId })
-    });
-  } catch (error) {
-    // Non-blocking - if it fails, we don't stop the process
-    console.error(`[Validator] Failed to trigger check-parallel-completion for jobId ${jobId}:`, error);
-  }
-}
+import { triggerNextOrchestrationStep } from '@/lib/orchestration/trigger-next-step';
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    
-    logger.info({ jobId: body.jobId }, '🔍 Validator: Route handler started');
-    
+    const { jobId } = body;
+
+    logger.info({ jobId }, '🔍 Validator Route: Received request');
+
+    // Call the pure core logic function
     const result = await validateComponent(body);
-    
-    if (!result.success) {
-      return NextResponse.json({ 
-        success: false, 
-        error: result.error || 'Validation failed'
-      }, { status: 500 });
+
+    if (!result.success || !result.updatedTcc) {
+      logger.error({ jobId, error: result.error }, '🔍 Validator Route: Core logic failed');
+      return NextResponse.json(
+        { success: false, error: result.error || 'Validation failed in core logic' },
+        { status: 500 },
+      );
     }
+
+    logger.info({ jobId }, '🔍 Validator Route: Core logic successful, triggering next step.');
+
+    // Trigger the next step in the orchestration with the updated TCC
+    await triggerNextOrchestrationStep(
+      jobId,
+      result.updatedTcc.currentOrchestrationStep,
+      result.updatedTcc,
+    );
     
-    // SUCCESS: Trigger check for parallel completion 
-    const baseUrl = request.nextUrl.origin;
-    
-    // Check if parallel step completion allows proceeding to next step
-    checkParallelCompletion(baseUrl, body.jobId).catch(error => {
-      console.error(`[Validator] Failed to check parallel completion for jobId ${body.jobId}:`, error);
-    });
+    logger.info({ jobId }, '🔍 Validator Route: Successfully triggered next step.');
 
     return NextResponse.json({
       success: true,
-      validationResult: result.validationResult
+      validationResult: result.validationResult,
     });
-    
+
   } catch (error) {
-    logger.error({ 
-      error: error instanceof Error ? error.message : String(error),
-      endpoint: '/api/ai/product-tool-creation-v2/agents/validator'
-    }, '🔍 Validator: Route handler error');
-    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    logger.error(
+      { error: errorMessage, endpoint: request.url },
+      '🔍 Validator Route: Unhandled error in route handler',
+    );
+
     return NextResponse.json(
-      { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
-      },
-      { status: 500 }
+      { success: false, error: errorMessage },
+      { status: 500 },
     );
   }
 } 

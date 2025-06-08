@@ -29,18 +29,20 @@ type FinalProduct = z.infer<typeof finalProductSchema>;
 export async function finalizeTool(request: {
   jobId: string;
   selectedModel?: string;
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
 }): Promise<{
   success: boolean;
   finalProduct?: FinalProduct;
   error?: string;
 }> {
   const { jobId, selectedModel } = request;
+  const tcc = request.mockTcc || request.tcc;
 
   try {
     logger.info({ jobId }, '✅ ToolFinalizer: Starting finalization');
-    const tcc = await getTCC(jobId, { forceRefresh: true });
     if (!tcc) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
+      throw new Error(`TCC was not provided for jobId: ${jobId}`);
     }
 
     await emitStepProgress(
@@ -72,7 +74,8 @@ export async function finalizeTool(request: {
       jobId,
       OrchestrationStepEnum.enum.finalizing_tool,
       'completed',
-      'Tool has been finalized successfully!'
+      'Tool has been finalized successfully!',
+      finalProduct
     );
 
     logger.info({ jobId }, '✅ ToolFinalizer: Tool finalized successfully.');
