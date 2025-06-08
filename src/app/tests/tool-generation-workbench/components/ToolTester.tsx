@@ -17,7 +17,7 @@ import {
   ToolCreationJob,
   SavedLogicResult
 } from './tool-tester-core-logic';
-import { saveToolToDBList } from '../../ui/db-utils';
+import { saveToolToDBList, saveV2JobToDB } from '../../ui/db-utils';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
@@ -56,6 +56,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [testJob, setTestJob] = useState<ToolCreationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
+  const [savedV2JobIds, setSavedV2JobIds] = useState<Set<string>>(new Set());
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
   const [assembledCode, setAssembledCode] = useState<string | null>(null);
   const [finalProduct, setFinalProduct] = useState<any>(null);
@@ -122,10 +123,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
 
     if (progress.stepName === 'finalizing_tool' && progress.status === 'completed' && progress.data) {
-      const finalProductData = progress.data;
+      const finalProductData = progress.data as ProductToolDefinition;
       setFinalProduct(finalProductData);
-      if (finalProductData.finalCode) {
-        setAssembledCode(finalProductData.finalCode);
+      if (finalProductData.componentCode) {
+        setAssembledCode(finalProductData.componentCode);
       }
       addWSLog('✅ Final product received!');
 
@@ -520,6 +521,28 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       console.error('❌ Error saving tool to IndexedDB:', error);
       setError('Failed to save tool to IndexedDB. Check console for details.');
       addWSLog(`Failed to save tool: ${error}`);
+    }
+  };
+
+  const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
+    if (!tcc || !tool) {
+      setError('Cannot save result, TCC or Tool definition is missing.');
+      return;
+    }
+    try {
+      const jobPackage = {
+        id: tcc.jobId,
+        timestamp: Date.now(),
+        productToolDefinition: tool,
+        toolConstructionContext: tcc,
+      };
+      await saveV2JobToDB(jobPackage);
+      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
+      addWSLog(`V2 Result for job ${tcc.jobId} saved.`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to save V2 result: ${msg}`);
+      addWSLog(`Failed to save V2 result: ${msg}`);
     }
   };
 
@@ -1113,6 +1136,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       >
                         <Save className="mr-2 h-4 w-4" />
                         {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
+                      </Button>
+                    )}
+                    {workflowMode === 'v2' && testJob.result && tccData && (
+                      <Button
+                        onClick={() => handleSaveV2Result(testJob.result!, tccData)}
+                        disabled={savedV2JobIds.has(tccData.jobId)}
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {savedV2JobIds.has(tccData.jobId)
+                          ? 'V2 Result Saved'
+                          : 'Save V2 Generation Result'}
                       </Button>
                     )}
                   </CardContent>

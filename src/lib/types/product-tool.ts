@@ -9,16 +9,21 @@ export interface ProductToolMetadata {
   slug: string;
   title: string;
   description: string;
-  shortDescription: string;
   type: string;
-  category: string;
-  targetAudience: string;
-  industry: string;
-  tags: string[];
-  estimatedCompletionTime: number; // minutes
-  difficultyLevel: 'beginner' | 'intermediate' | 'advanced';
-  features: string[];
-  icon: {
+  dependencies: string[];
+  userInstructions: string;
+  developerNotes: string;
+  source: string;
+  version: string;
+  shortDescription?: string;
+  category?: string;
+  targetAudience?: string;
+  industry?: string;
+  tags?: string[];
+  estimatedCompletionTime?: number; // minutes
+  difficultyLevel?: 'beginner' | 'intermediate' | 'advanced';
+  features?: string[];
+  icon?: {
     type: 'lucide' | 'emoji';
     value: string;
   };
@@ -46,28 +51,28 @@ export interface ProductToolDefinition {
   // Basic info
   id: string;
   slug: string;
-  version: string;
-  status: 'draft' | 'published' | 'archived' | 'public';
-  createdAt: number;
-  updatedAt: number;
-  createdBy: string;
+  componentCode: string;
   
   // Metadata
   metadata: ProductToolMetadata;
   
-  // Component set used (ShadCN or legacy HTML)
-  componentSet: 'shadcn' | 'legacy';
-  
-  // React component code as a string (pre-compiled to JS)
-  componentCode: string;
-  
   // Style information
-  colorScheme: ToolColorScheme; // Predefined color scheme
-  initialStyleMap?: Record<string, string>; // Generated once by AI, maps data-style-id to Tailwind classes
-  currentStyleMap?: Record<string, string>;  // Active, editable style map, initially a copy of initialStyleMap
+  initialStyleMap: Record<string, string>; 
+  currentStyleMap: Record<string, string>;
+  
+  // Timestamps
+  createdAt: number;
+  updatedAt: number;
+  
+  // Optional legacy fields
+  version?: string;
+  status?: 'draft' | 'published' | 'archived' | 'public';
+  createdBy?: string;
+  componentSet?: 'shadcn' | 'legacy';
+  colorScheme?: ToolColorScheme;
   
   // Analytics
-  analytics: {
+  analytics?: {
     enabled: boolean;
     completions: number;
     averageTime: number;

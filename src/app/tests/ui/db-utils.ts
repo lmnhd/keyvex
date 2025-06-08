@@ -3,14 +3,16 @@ import { SavedLogicResult } from './types';
 
 // IndexedDB Constants
 const DB_NAME = 'KeyvexUIDevDB';
+const DB_VERSION = 4; // Incremented version
 const TOOL_STORE_NAME = 'productTools';
 export const LOGIC_RESULT_STORE_NAME = 'logicArchitectResults';
+const V2_JOBS_STORE_NAME = 'v2ToolCreationJobs';
 const LAST_ACTIVE_TOOL_KEY = 'lastActiveTool_v1';
 
 // IndexedDB Helper Functions
 export async function openToolDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 3); // Increment DB version to 3 for schema change
+    const request = indexedDB.open(DB_NAME, DB_VERSION); // Use new version
 
     request.onerror = (event) => {
       console.error('IndexedDB error:', (event.target as IDBOpenDBRequest).error);
@@ -48,6 +50,13 @@ export async function openToolDB(): Promise<IDBDatabase> {
         const logicStore = db.createObjectStore(LOGIC_RESULT_STORE_NAME, { keyPath: 'id' });
         logicStore.createIndex('timestamp', 'timestamp', { unique: false });
         console.log(`Object store "${LOGIC_RESULT_STORE_NAME}" created.`);
+      }
+
+      // NEW: Object store for V2 tool creation jobs
+      if (!db.objectStoreNames.contains(V2_JOBS_STORE_NAME)) {
+        const jobStore = db.createObjectStore(V2_JOBS_STORE_NAME, { keyPath: 'id' });
+        jobStore.createIndex('timestamp', 'timestamp', { unique: false });
+        console.log(`Object store "${V2_JOBS_STORE_NAME}" created.`);
       }
     };
   });
@@ -199,6 +208,35 @@ export async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
   } catch (error) {
     console.error('❌ Error loading logic results from IndexedDB:', error);
     return [];
+  }
+}
+
+export async function saveV2JobToDB(jobPackage: {
+  id: string;
+  timestamp: number;
+  productToolDefinition: ProductToolDefinition;
+  toolConstructionContext: any;
+}): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction([V2_JOBS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(V2_JOBS_STORE_NAME);
+
+    await new Promise<void>((resolve, reject) => {
+      const request = store.put(jobPackage);
+      request.onsuccess = () => {
+        console.log('✅ V2 Job saved to IndexedDB:', jobPackage.id);
+        resolve();
+      };
+      request.onerror = () => {
+        console.error('❌ Error saving V2 Job to IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+
+    db.close();
+  } catch (error) {
+    console.error('❌ Error saving V2 job to IndexedDB:', error);
   }
 }
 
