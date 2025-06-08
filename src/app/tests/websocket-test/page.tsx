@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || 'wss://your-websocket-api.execute-api.us-east-1.amazonaws.com/dev';
-const TEST_USER_ID = 'test-user-123';
+const TEST_USER_ID = 'debug-user-123'; // Fixed to prevent hydration mismatch
 const TEST_JOB_ID = 'test-job-456';
 
 // Debug info
@@ -306,6 +306,49 @@ export default function WebSocketTestPage() {
     }
   };
 
+  // New function to trigger server-side WebSocket message sending
+  const sendServerTestMessage = async () => {
+    if (!isConnected) {
+      addMessage('system', { action: 'server_test_failed', reason: 'Not connected to WebSocket' });
+      return;
+    }
+
+    try {
+      addMessage('system', { action: 'server_test_triggering', jobId: TEST_JOB_ID });
+      
+      const response = await fetch('/api/debug/test-websocket-messaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId: TEST_JOB_ID,
+          testMessage: '🧪 SERVER TEST: Message sent from backend via progress emitter!'
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        addMessage('system', { 
+          action: 'server_test_triggered', 
+          result,
+          message: 'Backend should now send a WebSocket message via AWS API Gateway'
+        });
+      } else {
+        addMessage('system', { 
+          action: 'server_test_failed', 
+          error: result.error,
+          reason: 'Backend API call failed'
+        });
+      }
+    } catch (error) {
+      addMessage('system', { 
+        action: 'server_test_failed', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reason: 'Network or API error'
+      });
+    }
+  };
+
   const clearMessages = () => {
     setMessages([]);
     setStepProgresses([]);
@@ -505,6 +548,27 @@ export default function WebSocketTestPage() {
                   >
                     Request Progress
                   </Button>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              <div className="space-y-2">
+                <Label>Server-Side Test</Label>
+                <div className="flex flex-col gap-2">
+                  <Button 
+                    size="sm" 
+                    variant="secondary" 
+                    onClick={sendServerTestMessage}
+                    disabled={!isConnected}
+                    className="flex items-center gap-2"
+                  >
+                    <Zap className="h-4 w-4" />
+                    Send Server Test Message
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Tests the complete flow: Backend → AWS API Gateway → WebSocket → Frontend
+                  </p>
                 </div>
               </div>
 

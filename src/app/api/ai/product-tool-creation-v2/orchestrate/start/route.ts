@@ -17,7 +17,7 @@ const StartOrchestrationSchema = z.object({
     features: z.array(z.string()).optional(),
   }),
   selectedModel: z.string().optional(),
-  agentModelMapping: z.record(z.string()).optional(), // Add agent model mapping support
+  agentModelMapping: z.record(z.string()).optional(),
   testingOptions: z.object({
     enableWebSocketStreaming: z.boolean().optional(),
     enableTccOperations: z.boolean().optional(), 
@@ -34,6 +34,7 @@ const StartOrchestrationSchema = z.object({
 
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
+  
   try {
     const body = await request.json();
     const { userInput, selectedModel, agentModelMapping, testingOptions } = StartOrchestrationSchema.parse(body);
@@ -43,12 +44,13 @@ export async function POST(request: NextRequest) {
     
     logger.info({ 
       jobId, 
+      userId,
       userInputDescription: userInput.description,
       selectedModel: selectedModel || 'default',
       testingOptions: testingOptions || 'none'
     }, '🚀 ORCHESTRATION START: Creating new TCC');
 
-    // Create initial TCC
+    // Create initial TCC with userId
     const tcc = createTCC(jobId, userInput, userId);
     
     // Add agent model mapping if provided
@@ -59,12 +61,18 @@ export async function POST(request: NextRequest) {
     // Save to store
     await saveTCC(tcc);
     
-          logger.info({ jobId, tccId: tcc.jobId }, '🚀 ORCHESTRATION START: TCC saved');
+    logger.info({ jobId, tccId: tcc.jobId, userId }, '🚀 ORCHESTRATION START: TCC saved');
 
     // Emit initial progress
     const shouldStream = testingOptions?.enableWebSocketStreaming !== false; // default true
     if (shouldStream) {
-      await emitStepProgress(jobId, OrchestrationStepEnum.enum.planning_function_signatures, 'started', 'Orchestration started. Beginning function signature planning...', { jobId, tcc, userInput, testingOptions });
+      await emitStepProgress(
+        jobId, 
+        OrchestrationStepEnum.enum.planning_function_signatures, 
+        'started', 
+        'Orchestration started. Beginning function signature planning...', 
+        { jobId, tcc, userInput, testingOptions }
+      );
       
       logger.info({ jobId }, '🚀 ORCHESTRATION START: Initial progress emitted');
     }
@@ -96,7 +104,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       jobId,
-              tccId: tcc.jobId,
+      tccId: tcc.jobId,
       currentStep: OrchestrationStepEnum.enum.planning_function_signatures,
       status: OrchestrationStatusEnum.enum.pending,
       message: 'Orchestration started successfully',
@@ -121,4 +129,3 @@ export async function POST(request: NextRequest) {
     }, { status: 500 });
   }
 }
-

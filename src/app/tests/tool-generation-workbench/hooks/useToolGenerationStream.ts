@@ -33,7 +33,7 @@ export interface UseToolGenerationStreamOptions {
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '';
-const TEST_USER_ID = 'test-user-123'; // Can be replaced with actual user ID
+const TEST_USER_ID = 'debug-user-123'; // Fixed to prevent hydration mismatch
 
 // --- Hook ---
 
@@ -144,6 +144,12 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
       const url = new URL(WEBSOCKET_URL);
       url.searchParams.set('userId', TEST_USER_ID);
       url.searchParams.set('jobId', jobId);
+      
+      console.log('[WebSocket Debug] Connection parameters:', { 
+        userId: TEST_USER_ID, 
+        jobId, 
+        finalUrl: url.toString() 
+      });
 
       const ws = new WebSocket(url.toString());
       wsRef.current = ws;
@@ -222,8 +228,16 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
       wsRef.current = null;
     }
     setConnectionStatus('disconnected');
-    addMessage('system', { action: 'manual_disconnect' });
-  }, [addMessage]);
+    
+    // Create message directly instead of using addMessage to avoid dependency loop
+    const disconnectMessage: WebSocketMessage = {
+      id: `${Date.now()}-${messageIdCounter.current++}`,
+      timestamp: new Date().toISOString(),
+      type: 'system',
+      data: { action: 'manual_disconnect' }
+    };
+    setMessages(prev => [...prev, disconnectMessage]);
+  }, []); // Remove addMessage dependency to prevent infinite loop
   
   // Cleanup on unmount
   useEffect(() => {

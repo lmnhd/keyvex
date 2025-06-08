@@ -90,6 +90,37 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
   }, []);
 
+  // Enhanced WebSocket logging with detailed console output like the test page
+  const addDetailedWSLog = useCallback((type: 'connection' | 'message' | 'error' | 'debug', message: string, data?: any) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+    
+    // Add to UI logs
+    setWsLogs(prev => [...prev.slice(-19), logMessage]);
+    
+    // Enhanced console logging like the test page
+    if (type === 'connection') {
+      console.log(`🔗 [WebSocket Connection] ${message}`, data);
+    } else if (type === 'message') {
+      console.log(`📨 [WebSocket Message] ${message}`, data);
+    } else if (type === 'error') {
+      console.error(`❌ [WebSocket Error] ${message}`, data);
+    } else if (type === 'debug') {
+      console.log(`🐛 [WebSocket Debug] ${message}`, data);
+    }
+  }, []);
+
+  // WebSocket debug information state similar to test page
+  const [wsDebugInfo, setWsDebugInfo] = useState({
+    envVar: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
+    hasEnvVar: !!process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
+    finalUrl: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || 'Not Set',
+    isPlaceholder: (process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '').includes('your-websocket-api'),
+    connectionAttempts: 0,
+    lastConnectionTime: null as string | null,
+    lastMessageTime: null as string | null
+  });
+
   // LocalStorage utilities
   const saveToLocalStorage = useCallback((key: string, value: any) => {
     try {
@@ -139,7 +170,44 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [addWSLog, assembledCode]);
 
-  const { connect, disconnect, connectionStatus, progressUpdates } = useToolGenerationStream({ onProgress: handleJobUpdate });
+  // Enhanced progress monitoring with detailed logging
+  const enhancedHandleJobUpdate = useCallback((progress: StepProgress) => {
+    // Log detailed progress information
+    addDetailedWSLog('message', `Step Progress: ${progress.stepName} -> ${progress.status}`, {
+      jobId: progress.jobId,
+      message: progress.message,
+      dataKeys: progress.data ? Object.keys(progress.data) : [],
+      isFallback: progress.isFallback
+    });
+    
+    // Call the original handler
+    handleJobUpdate(progress);
+  }, [handleJobUpdate, addDetailedWSLog]);
+
+  const { connect, disconnect, connectionStatus, progressUpdates, messages } = useToolGenerationStream({ 
+    onProgress: enhancedHandleJobUpdate,
+    onMessage: (message) => {
+      addDetailedWSLog('message', `WebSocket message received: ${message.type}`, message.data);
+    },
+    onError: (error) => {
+      addDetailedWSLog('error', `WebSocket error: ${error}`);
+    }
+  });
+
+
+  // Enhanced connection monitoring
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      addDetailedWSLog('connection', 'WebSocket connection established successfully');
+    } else if (connectionStatus === 'connecting') {
+      addDetailedWSLog('connection', 'Attempting WebSocket connection...');
+    } else if (connectionStatus === 'error') {
+      addDetailedWSLog('error', 'WebSocket connection failed');
+    } else if (connectionStatus === 'fallback') {
+      addDetailedWSLog('debug', 'Using fallback mode - no real WebSocket connection');
+    }
+  }, [connectionStatus, addDetailedWSLog]);
+
 
   // Get default model for agent from processModels in default-models.json
   const getDefaultModelForAgent = useCallback((agentId: string): string => {
@@ -262,35 +330,23 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   }, []);
 
   // Initialize selections from localStorage or defaults when data is available
+  const [hasInitialized, setHasInitialized] = useState(false);
+  
   useEffect(() => {
-    console.log('🔄 useEffect for initialization triggered');
-    console.log('📊 State: availableModels.length =', availableModels.length, 'selectedModelIds.length =', selectedModelIds.length);
+    if (availableModels.length > 0 && !hasInitialized) {
+      console.log('🔄 Initializing model selections...');
     
-    if (availableModels.length > 0 && selectedModelIds.length === 0) {
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
       
-      console.log('💾 Raw localStorage data:', {
-        storedSelectedModels,
-        storedAgentMapping
-      });
-      
       // Validate stored models exist in current available models
-      console.log('🔍 Validating stored models against available models...');
-      console.log('📋 Available model IDs:', availableModels.map(m => m.id));
-      
-      const validStoredModels = storedSelectedModels.filter((modelId: string) => {
-        const exists = availableModels.some(m => m.id === modelId);
-        console.log(`🤖 Model ${modelId}: ${exists ? '✅ exists' : '❌ not found'}`);
-        return exists;
-      });
-      
-      console.log('✅ Valid stored models:', validStoredModels);
+      const validStoredModels = storedSelectedModels.filter((modelId: string) => 
+        availableModels.some(m => m.id === modelId)
+      );
       
       if (validStoredModels.length > 0) {
         // Use stored selections
-        console.log('📝 Setting selectedModelIds to:', validStoredModels);
         setSelectedModelIds(validStoredModels);
         
         // Validate and set stored agent mapping
@@ -298,33 +354,28 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         availableAgents.forEach(agent => {
           const storedModel = storedAgentMapping[agent.id];
           if (storedModel && availableModels.some(m => m.id === storedModel)) {
-            // Use stored model if it's valid
             validAgentMapping[agent.id] = storedModel;
           } else {
-            // Fall back to default model from processModels
             validAgentMapping[agent.id] = getDefaultModelForAgent(agent.id);
           }
         });
         setAgentModelMapping(validAgentMapping);
         
-        console.log('✅ Loaded model selections from localStorage:', {
-          models: validStoredModels,
-          agentMapping: validAgentMapping
-        });
+        console.log('✅ Loaded from localStorage');
       } else if (defaultPrimaryModel) {
         // Fall back to default model logic
         const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
         const defaultModel = availableModels.find(m => m.id === targetDefaultId) || 
                             availableModels.find(m => m.id === 'gpt-4.1-mini') || 
                             availableModels.find(m => m.id === 'gpt-4o') ||
-                            availableModels[0]; // Last resort: use first available model
+                            availableModels[0];
         
         if (defaultModel) {
           const defaultModels = [defaultModel.id];
           setSelectedModelIds(defaultModels);
           saveToLocalStorage(STORAGE_KEYS.selectedModels, defaultModels);
           
-          // Initialize agent model mapping with models from processModels
+          // Initialize agent model mapping
           const initialMapping: AgentModelMapping = {};
           availableAgents.forEach(agent => {
             initialMapping[agent.id] = getDefaultModelForAgent(agent.id);
@@ -332,11 +383,13 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           setAgentModelMapping(initialMapping);
           saveToLocalStorage(STORAGE_KEYS.agentMapping, initialMapping);
           
-          console.log('Initialized with default model:', defaultModel.id);
+          console.log('✅ Initialized with defaults');
         }
       }
+      
+      setHasInitialized(true);
     }
-  }, [availableModels, defaultPrimaryModel, selectedModelIds.length, availableAgents, loadFromLocalStorage, saveToLocalStorage, getDefaultModelForAgent]);
+  }, [availableModels.length, hasInitialized, defaultPrimaryModel]);
 
   // Set first brainstorm as default when available
   useEffect(() => {
@@ -349,7 +402,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     fetchDefaultModel();
     fetchModels();
     fetchBrainstorms();
-  }, [fetchDefaultModel, fetchModels, fetchBrainstorms, newBrainstormFlag]);
+  }, [newBrainstormFlag]); // Only depend on newBrainstormFlag, not the functions
 
   const handleModelToggle = (modelId: string, checked: boolean) => {
     let newSelectedIds: string[];
@@ -978,13 +1031,83 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             <TabsContent value="websocket" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center">
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
                     {getConnectionStatusIcon()}
-                    <span className="ml-2">WebSocket Activity & Streaming Logs</span>
+                      <span className="ml-2">WebSocket Debug Console</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getConnectionStatusBadge()}
+                      {connectionStatus === 'connected' && (
+                        <Badge variant="outline" className="text-green-600">
+                          🟢 Live
+                        </Badge>
+                      )}
+                    </div>
                   </CardTitle>
-                  <CardDescription>Real-time logs from WebSocket connection and streaming responses</CardDescription>
+                  <CardDescription>
+                    Real-time WebSocket connection monitoring with detailed debugging information
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Environment Configuration Debug */}
+                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+                    <div className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Environment Configuration
+                    </div>
+                    <div className="text-xs space-y-1 grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="font-medium">ENV Variable Set:</span> 
+                        <span className={wsDebugInfo.hasEnvVar ? 'text-green-600 ml-1' : 'text-red-600 ml-1'}>
+                          {wsDebugInfo.hasEnvVar ? '✅ Yes' : '❌ No'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Is Placeholder:</span> 
+                        <span className={wsDebugInfo.isPlaceholder ? 'text-amber-600 ml-1' : 'text-green-600 ml-1'}>
+                          {wsDebugInfo.isPlaceholder ? '⚠️ Yes' : '✅ No'}
+                        </span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-medium">WebSocket URL:</span>
+                        <div className="font-mono text-gray-600 break-all mt-1 p-2 bg-white dark:bg-gray-900 rounded">
+                          {wsDebugInfo.finalUrl}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Connection Statistics */}
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
+                    <div className="text-sm font-medium mb-2 flex items-center gap-2">
+                      <Wifi className="h-4 w-4" />
+                      Connection Statistics
+                    </div>
+                    <div className="text-xs space-y-1 grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="font-medium">Status:</span> 
+                        <span className="ml-1 font-mono">{connectionStatus}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Attempts:</span> 
+                        <span className="ml-1 font-mono">{wsDebugInfo.connectionAttempts}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Last Connected:</span>
+                        <div className="font-mono text-gray-600 text-xs mt-1">
+                          {wsDebugInfo.lastConnectionTime || 'Never'}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="font-medium">Last Message:</span>
+                        <div className="font-mono text-gray-600 text-xs mt-1">
+                          {wsDebugInfo.lastMessageTime || 'None'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Fallback Mode Warning */}
                   {connectionStatus === 'fallback' && (
                     <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
@@ -998,26 +1121,34 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     </Alert>
                   )}
                   
+                  {/* Real-time Message Log */}
                   <div>
-                    <Label className="text-sm font-medium">
-                      Connection Status & Logs:
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Database className="h-4 w-4" />
+                      Real-time Activity Log
                       {connectionStatus === 'fallback' && (
-                        <span className="ml-2 text-xs text-orange-600 font-normal">(Development Fallback Mode)</span>
+                        <span className="text-xs text-orange-600 font-normal">(Fallback Mode)</span>
                       )}
                     </Label>
-                    <ScrollArea className="h-32 mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md border">
+                    <ScrollArea className="h-64 mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md border">
                       <div className="space-y-1">
                         {wsLogs.length === 0 ? (
-                          <p className="text-sm text-gray-500">
+                          <p className="text-sm text-gray-500 text-center py-8">
                             {connectionStatus === 'fallback' 
-                              ? 'No fallback activity yet... (simulated WebSocket)' 
-                              : 'No WebSocket activity yet...'
+                              ? '🔄 Fallback mode active - waiting for job progress...' 
+                              : '🔄 Waiting for WebSocket activity...'
                             }
+                            <br />
+                            <span className="text-xs">Start a V2 orchestration to see real-time logs</span>
                           </p>
                         ) : (
                           wsLogs.map((log, index) => (
                             <p key={index} className={`text-xs font-mono ${
-                              log.includes('[FALLBACK') ? 'text-orange-700 dark:text-orange-300' : ''
+                              log.includes('[FALLBACK') ? 'text-orange-700 dark:text-orange-300' : 
+                              log.includes('[ERROR]') ? 'text-red-700 dark:text-red-300' :
+                              log.includes('[CONNECTION]') ? 'text-blue-700 dark:text-blue-300' :
+                              log.includes('[MESSAGE]') ? 'text-green-700 dark:text-green-300' :
+                              ''
                             }`}>
                               {log}
                             </p>
@@ -1027,11 +1158,41 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     </ScrollArea>
                   </div>
                   
-                  {streamingExample && (
+                  {/* Progress Updates Summary */}
+                  {progressUpdates.length > 0 && (
                     <div>
-                      <Label className="text-sm font-medium">StreamObject/StreamText Example:</Label>
-                      <ScrollArea className="h-32 mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200">
-                        <pre className="text-xs font-mono whitespace-pre-wrap">{streamingExample}</pre>
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Zap className="h-4 w-4" />
+                        Step Progress Summary ({progressUpdates.length} steps)
+                      </Label>
+                      <ScrollArea className="h-32 mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200">
+                        <div className="space-y-2">
+                          {progressUpdates.map((progress, index) => (
+                            <div key={index} className="flex items-center gap-3 text-xs">
+                              <div className={`w-2 h-2 rounded-full ${
+                                progress.status === 'completed' ? 'bg-green-500' :
+                                progress.status === 'running' ? 'bg-blue-500' :
+                                progress.status === 'failed' ? 'bg-red-500' :
+                                'bg-yellow-500'
+                              }`} />
+                              <span className="font-mono">{progress.stepName}</span>
+                              <span className="text-gray-500">→</span>
+                              <span className={`font-medium ${
+                                progress.status === 'completed' ? 'text-green-600' :
+                                progress.status === 'running' ? 'text-blue-600' :
+                                progress.status === 'failed' ? 'text-red-600' :
+                                'text-yellow-600'
+                              }`}>
+                                {progress.status}
+                              </span>
+                              {progress.isFallback && (
+                                <Badge variant="outline" className="text-xs text-orange-600">
+                                  Fallback
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </ScrollArea>
                     </div>
                   )}
