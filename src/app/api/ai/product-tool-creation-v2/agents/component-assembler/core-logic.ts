@@ -76,7 +76,20 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
     // Validate we have all required pieces
     if (!tcc.jsxLayout) throw new Error('JSX Layout not found in TCC');
     if (!tcc.stateLogic) throw new Error('State Logic not found in TCC');
-    if (!(tcc as any).styling) throw new Error('Styling not found in TCC');
+    
+    // DEBUG: Log what fields ARE present in TCC
+    logger.info({
+      jobId,
+      tccFieldsPresent: Object.keys(tcc),
+      hasStyling: !!(tcc as any).styling,
+      hasTailwindStyles: !!(tcc as any).tailwindStyles,
+      steps: tcc.steps ? Object.keys(tcc.steps) : [],
+      currentStep: tcc.currentOrchestrationStep
+    }, '🔧 ComponentAssembler: DEBUG - TCC fields analysis');
+    
+    if (!(tcc as any).styling) {
+      throw new Error(`Styling not found in TCC. Available fields: ${Object.keys(tcc).join(', ')}`);
+    }
 
     if (!mockTcc) {
       // Update TCC status (skip in mock mode)

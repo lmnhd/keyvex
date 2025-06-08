@@ -111,6 +111,13 @@ export async function updateTCC(jobId: string, updates: Partial<ToolConstruction
   const updatedTCCData = { ...existingTCC, ...updates, updatedAt: new Date().toISOString() };
   
   try {
+    // DEBUG: Log the updates being applied
+    console.log(`[TCC_STORE] DEBUG: Updates being applied to TCC ${jobId}:`, {
+      updatesKeys: Object.keys(updates),
+      hasStyling: !!(updates as any).styling,
+      stylingKeys: (updates as any).styling ? Object.keys((updates as any).styling) : []
+    });
+
     // Validate the entire updated object before saving
     ToolConstructionContextSchema.parse(updatedTCCData);
     
@@ -121,6 +128,16 @@ export async function updateTCC(jobId: string, updates: Partial<ToolConstruction
     return updatedTCCData;
   } catch (error) {
     console.error(`[TCC_STORE] Error validating or saving updated TCC for jobId: ${jobId}`, error);
+    
+    // DEBUG: If it's a validation error, log more details
+    if (error instanceof Error && error.message.includes('validation')) {
+      console.error(`[TCC_STORE] VALIDATION ERROR DETAILS:`, {
+        updatesKeys: Object.keys(updates),
+        errorMessage: error.message,
+        stylingData: (updates as any).styling ? JSON.stringify((updates as any).styling, null, 2) : 'No styling data'
+      });
+    }
+    
     throw new Error(`Failed to update TCC: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

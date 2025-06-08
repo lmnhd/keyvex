@@ -72,8 +72,7 @@ export async function POST(request: NextRequest) {
         break;
         
       case OrchestrationStepEnum.enum.assembling_component:
-        // This would be a component assembly step (to be implemented)
-        agentPath = null; // No agent yet, just update status
+        agentPath = 'component-assembler';
         stepDisplayName = 'Component Assembly';
         break;
         

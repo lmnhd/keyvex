@@ -119,9 +119,9 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
     const styling = await generateTailwindStyling(tcc, selectedModel);
 
     if (!mockTcc) {
-      // Convert styleMap array to Record<string, string> and colorScheme for TCC compatibility
+      // Convert styleMap array to Record<string, string> and ensure proper schema compatibility
       const stylingForTCC = {
-        ...styling,
+        styledComponentCode: styling.styledComponentCode,
         styleMap: styling.styleMap.reduce((acc, item) => {
           acc[item.elementId] = item.tailwindClasses.join(' ');
           return acc;
@@ -141,8 +141,28 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
           success: styling.colorScheme.success,
           warning: '#f59e0b',
           error: styling.colorScheme.error
+        },
+        designTokens: {
+          spacing: styling.designTokens.spacing || {},
+          typography: styling.designTokens.typography || {},
+          shadows: styling.designTokens.shadows || {},
+          animations: styling.designTokens.animations || {}
         }
       };
+
+      // DEBUG: Log exact data structure being saved
+      logger.info({ 
+        jobId,
+        stylingForTCCStructure: {
+          hasStyling: !!stylingForTCC,
+          hasStyledComponentCode: !!stylingForTCC.styledComponentCode,
+          styledComponentCodeLength: stylingForTCC.styledComponentCode?.length || 0,
+          styleMapKeys: Object.keys(stylingForTCC.styleMap || {}),
+          styleMapValues: Object.values(stylingForTCC.styleMap || {}),
+          colorSchemeStructure: stylingForTCC.colorScheme ? Object.keys(stylingForTCC.colorScheme) : [],
+          designTokensStructure: stylingForTCC.designTokens ? Object.keys(stylingForTCC.designTokens) : []
+        }
+      }, '🎨 TailwindStyling: DEBUGGING - About to save styling data structure');
 
       // Update TCC with styling using updateTCC to avoid race conditions (skip in mock mode)
       await updateTCC(jobId, {
@@ -157,6 +177,17 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
           }
         }
       });
+
+      // DEBUG: Verify data was saved by re-reading the TCC
+      const verificationTCC = await getTCC(jobId);
+      logger.info({ 
+        jobId,
+        verificationResult: {
+          hasStyling: !!(verificationTCC as any)?.styling,
+          stylingKeys: verificationTCC && (verificationTCC as any).styling ? Object.keys((verificationTCC as any).styling) : [],
+          updatedAt: verificationTCC?.updatedAt
+        }
+      }, '🎨 TailwindStyling: DEBUGGING - Verification after save');
 
       // Update progress to completed (skip in mock mode)
       await emitStepProgress(
