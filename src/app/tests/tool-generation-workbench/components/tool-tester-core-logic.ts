@@ -76,15 +76,23 @@ async function startV2ToolCreation(
 ): Promise<{ jobId: string }> {
   console.log(`Requesting V2 tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
 
-  const userInput = brainstormResult.result?.userInput || {};
+  const userInputData = brainstormResult.result?.userInput || {};
   
   const requestBody = {
-    description: userInput.businessContext || 'No description provided.',
-    targetAudience: brainstormResult.targetAudience,
-    industry: brainstormResult.industry,
-    toolType: brainstormResult.toolType,
+    userInput: {
+      description: userInputData.businessContext || userInputData.description || 'No description provided.',
+      targetAudience: brainstormResult.targetAudience,
+      industry: brainstormResult.industry,
+      toolType: brainstormResult.toolType,
+      features: userInputData.features || []
+    },
     selectedModel: modelId,
     agentModelMapping: agentModelMapping || {},
+    testingOptions: {
+      enableWebSocketStreaming: true,
+      enableTccOperations: true,
+      enableOrchestrationTriggers: true
+    }
   };
 
   console.log(`[V2 Start] API Request Body to /api/ai/product-tool-creation-v2/orchestrate/start:`, JSON.stringify(requestBody, null, 2));

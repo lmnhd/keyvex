@@ -1,219 +1,904 @@
 import { z } from 'zod';
-import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getTCC, saveTCC } from '@/lib/db/tcc-store';
+import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { getTCC, saveTCC, updateTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText } from 'ai';
+import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
-import { generateSlug } from '@/lib/utils/slug';
 
-// Input schema
-const ToolFinalizerRequestSchema = z.object({
+// Type definitions for Tailwind styling components
+export type StyleMapItem = {
+  elementId: string;
+  tailwindClasses: string[];
+  responsiveVariants: Record<string, string[]>;
+  stateVariants: Record<string, string[]>;
+};
+
+export type ColorScheme = {
+  primary: string;
+  secondary: string;
+  accent: string;
+  neutral: string;
+  error: string;
+  success: string;
+};
+
+export type DesignTokens = {
+  spacing: Record<string, string>;
+  typography: Record<string, string>;
+  shadows: Record<string, string>;
+  animations: Record<string, string>;
+};
+
+export type TailwindStylingResult = {
+  styledComponentCode: string;
+  styleMap: StyleMapItem[];
+  colorScheme: ColorScheme;
+  designTokens: DesignTokens;
+};
+
+// Input schema for the tailwind styling agent
+const TailwindStylingRequestSchema = z.object({
   jobId: z.string().uuid(),
-  selectedModel: z.string().optional()
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<Partial<ToolConstructionContext>>().optional()
 });
 
-export type ToolFinalizerRequest = z.infer<typeof ToolFinalizerRequestSchema>;
+export type TailwindStylingRequest = z.infer<typeof TailwindStylingRequestSchema>;
+
+// Helper function to create model instance
+function createModelInstance(provider: string, modelId: string) {
+  switch (provider) {
+    case 'openai':
+      return openai(modelId);
+    case 'anthropic':
+      return anthropic(modelId);
+    default:
+      return openai('gpt-4o');
+  }
+}
 
 /**
- * Tool Finalizer Agent - Creates final product tool definition
+ * Core logic for the Tailwind Styling Agent.
+ * Applies comprehensive Tailwind CSS styling to every component and element.
  */
-export async function finalizeTool(request: ToolFinalizerRequest): Promise<{
+export async function applyStyling(request: TailwindStylingRequest): Promise<{
   success: boolean;
-  finalToolDefinition?: {
-    id: string;
-    name: string;
-    slug: string;
-    description: string;
-    category: string;
-    componentCode: string;
-    metadata: {
-      targetAudience: string;
-      industry: string;
-      complexity: number;
-      dependencies: string[];
-      features: string[];
-      validationStatus: {
-        isValid: boolean;
-        errorCount: number;
-        warningCount: number;
-      };
-    };
-    createdAt: string;
-    updatedAt: string;
-  };
+  styling?: TailwindStylingResult;
   error?: string;
 }> {
-  const { jobId } = ToolFinalizerRequestSchema.parse(request);
+  const { jobId, selectedModel, mockTcc } = TailwindStylingRequestSchema.parse(request);
 
   try {
-    const tcc = await getTCC(jobId);
-    if (!tcc) throw new Error(`TCC not found for jobId: ${jobId}`);
-
-    logger.info({ jobId }, '📦 ToolFinalizer: Starting finalization');
-
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.finalizing_tool, 'started', 'Creating final tool definition...');
-
-    // Validate we have all required pieces
-    if (!tcc.assembledComponentCode) throw new Error('Assembled component code not found in TCC');
-    if (!tcc.validationResult) throw new Error('Validation result not found in TCC');
-
-    // Update TCC status
-    const tccInProgress = { ...tcc, status: OrchestrationStatusEnum.enum.in_progress, updatedAt: new Date().toISOString() };
-    await saveTCC(tccInProgress);
-
-    // Create final tool definition
-    const finalToolDefinition = createFinalToolDefinition(tcc);
-
-    // Update TCC with results - create proper FinalProductToolDefinition
-    const finalProductTool = {
-      id: finalToolDefinition.id,
-      slug: finalToolDefinition.slug,
-      version: '1.0.0',
-      status: 'draft' as const,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      createdBy: tcc.userId || 'system',
-      metadata: {
-        id: finalToolDefinition.id,
-        slug: finalToolDefinition.slug,
-        title: finalToolDefinition.name,
-        description: finalToolDefinition.description,
-        shortDescription: finalToolDefinition.description.substring(0, 100),
-        type: finalToolDefinition.category,
-        category: finalToolDefinition.category,
-        targetAudience: finalToolDefinition.metadata.targetAudience,
-        industry: finalToolDefinition.metadata.industry,
-        tags: [],
-        estimatedCompletionTime: 5,
-        difficultyLevel: 'beginner' as const,
-        features: finalToolDefinition.metadata.features,
-        icon: { type: 'emoji' as const, value: '🛠️' }
-      },
-      componentSet: 'shadcn' as const,
-      componentCode: finalToolDefinition.componentCode,
-      colorScheme: {
-        primary: '#3b82f6',
-        secondary: '#6b7280',
-        background: '#ffffff',
-        surface: '#f9fafb',
-        text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
-        border: '#e5e7eb',
-        success: '#10b981',
-        warning: '#f59e0b',
-        error: '#ef4444'
-      },
-      analytics: { enabled: false, completions: 0, averageTime: 0 }
-    };
-
-    const updatedTCC = {
-      ...tccInProgress,
-      finalProductToolDefinition: finalProductTool,
-      status: OrchestrationStatusEnum.enum.completed,
-      updatedAt: new Date().toISOString()
-    };
-    await saveTCC(updatedTCC);
-
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.finalizing_tool, 'completed', 
-      `Tool finalized: ${finalToolDefinition.name} (${finalToolDefinition.id})`);
+    let tcc: ToolConstructionContext;
+    
+    if (mockTcc) {
+      console.log('🎨 TailwindStyling: 🧪 MOCK MODE - Using provided mock TCC');
+      tcc = mockTcc as ToolConstructionContext;
+    } else {
+      // Load current TCC state
+      console.log('🎨 TailwindStyling: Loading TCC state from store...');
+      const loadedTcc = await getTCC(jobId);
+      if (!loadedTcc) {
+        throw new Error(`TCC not found for jobId: ${jobId}`);
+      }
+      tcc = loadedTcc;
+    }
 
     logger.info({ 
       jobId, 
-      toolId: finalToolDefinition.id,
-      toolName: finalToolDefinition.name
-    }, '📦 ToolFinalizer: Tool finalized successfully');
+      selectedModel: selectedModel || 'default',
+      stepName: 'applying_tailwind_styling',
+      hasJsxLayout: !!tcc.jsxLayout,
+      hasStateLogic: !!tcc.stateLogic,
+      hasFunctionSignatures: !!tcc.functionSignatures?.length,
+      isMockMode: !!mockTcc
+    }, '🎨 TailwindStyling: Starting styling application');
 
-    return { success: true, finalToolDefinition };
+    if (!mockTcc) {
+      // Update status to in_progress (skip in mock mode)
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'started',
+        'Applying comprehensive Tailwind CSS styling...'
+      );
+
+      // Update TCC status (skip in mock mode)
+      const tccInProgress = {
+        ...tcc,
+        status: OrchestrationStatusEnum.enum.in_progress,
+        updatedAt: new Date().toISOString()
+      };
+      await saveTCC(tccInProgress);
+    }
+
+    // Generate Tailwind styling using AI with proper model selection
+    const styling = await generateTailwindStyling(tcc, selectedModel);
+
+    if (!mockTcc) {
+      // Convert styleMap array to Record<string, string> and colorScheme for TCC compatibility
+      const stylingForTCC = {
+        ...styling,
+        styleMap: styling.styleMap.reduce((acc, item) => {
+          acc[item.elementId] = item.tailwindClasses.join(' ');
+          return acc;
+        }, {} as Record<string, string>),
+        colorScheme: {
+          primary: styling.colorScheme.primary,
+          secondary: styling.colorScheme.secondary,
+          accent: styling.colorScheme.accent,
+          background: styling.colorScheme.neutral || '#ffffff',
+          surface: '#f9fafb',
+          text: {
+            primary: '#111827',
+            secondary: '#6b7280', 
+            muted: '#9ca3af'
+          },
+          border: '#e5e7eb',
+          success: styling.colorScheme.success,
+          warning: '#f59e0b',
+          error: styling.colorScheme.error
+        }
+      };
+
+      // Update TCC with styling using updateTCC to avoid race conditions (skip in mock mode)
+      await updateTCC(jobId, {
+        styling: stylingForTCC,
+        steps: {
+          ...tcc.steps,
+          applyingTailwindStyling: {
+            status: OrchestrationStatusEnum.enum.completed,
+            startedAt: tcc.steps?.applyingTailwindStyling?.startedAt || new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+            result: stylingForTCC
+          }
+        }
+      });
+
+      // Update progress to completed (skip in mock mode)
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'completed',
+        `Applied styling to ${styling.styleMap.length} elements`
+      );
+
+      // CRITICAL: Trigger the next step in the orchestration
+      await triggerNextOrchestrationStep(jobId, OrchestrationStepEnum.enum.assembling_component);
+    }
+
+    logger.info({ 
+      jobId, 
+      elementsStyled: styling.styleMap.length,
+      colorSchemeKeys: Object.keys(styling.colorScheme).length,
+      styledCodeLength: styling.styledComponentCode.length
+    }, '🎨 TailwindStyling: Applied styling successfully');
+
+    return {
+      success: true,
+      styling
+    };
 
   } catch (error) {
-    logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '📦 ToolFinalizer: Error');
-    await emitStepProgress(jobId, OrchestrationStepEnum.enum.finalizing_tool, 'failed', 
-      `Tool finalization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+    logger.error({ 
+      jobId,
+      error: error instanceof Error ? {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      } : String(error) 
+    }, '🎨 TailwindStyling: Error applying styling');
+    
+    if (!mockTcc) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'failed',
+        `Styling application failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
   }
 }
 
 /**
- * Create final tool definition from TCC
+ * Triggers the check-parallel-completion endpoint to move the orchestration forward.
+ * @param jobId The ID of the current tool creation job.
  */
-function createFinalToolDefinition(tcc: ToolConstructionContext) {
-  const now = new Date().toISOString();
-  const toolName = generateToolName(tcc.userInput.description);
+async function triggerNextOrchestrationStep(jobId: string, nextStep: string): Promise<void> {
+  // Use a dynamic origin for flexibility between local and deployed environments
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
   
-  return {
-    id: `tool_${tcc.jobId}`,
-    name: toolName,
-    slug: generateSlug(toolName),
-    description: tcc.userInput.description,
-    category: determineCategory(tcc),
-    componentCode: tcc.assembledComponentCode!,
-    metadata: {
-      targetAudience: tcc.userInput.targetAudience || 'General users',
-      industry: tcc.userInput.industry || 'General',
-      complexity: calculateComplexity(tcc.assembledComponentCode!),
-      dependencies: extractDependencies(tcc.assembledComponentCode!),
-      features: tcc.userInput.features || [],
-      validationStatus: {
-        isValid: tcc.validationResult!.isValid,
-        errorCount: tcc.validationResult!.error ? 1 : 0,
-        warningCount: 0
+  try {
+    logger.info({ jobId, baseUrl, nextStep }, '🎨 TailwindStyling: Triggering next orchestration step...');
+    
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, nextStep }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Orchestrator responded with status ${response.status}: ${errorBody}`);
+    }
+
+    logger.info({ jobId }, '🎨 TailwindStyling: Successfully triggered next orchestration step.');
+
+  } catch (error) {
+    logger.error({ 
+      jobId, 
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error) 
+    }, '🎨 TailwindStyling: Failed to trigger next orchestration step.');
+    // Do not re-throw, as the primary task of this agent (styling) was successful.
+    // The orchestrator has its own retry/timeout logic.
+  }
+}
+
+/**
+ * Uses AI to generate comprehensive Tailwind CSS styling.
+ */
+async function generateTailwindStyling(
+  tcc: ToolConstructionContext, 
+  selectedModel?: string
+): Promise<TailwindStylingResult> {
+  // Determine model to use following established pattern
+  let modelConfig: { provider: string; modelId: string };
+  let actualModelName: string;
+
+  if (selectedModel && selectedModel !== 'default') {
+    // CASE 1: Explicit model specified
+    logger.info({ selectedModel }, '🎨 TailwindStyling: User selected explicit model');
+    const provider = getModelProvider(selectedModel);
+    if (provider !== 'unknown') {
+      modelConfig = { provider, modelId: selectedModel };
+      actualModelName = selectedModel;
+    } else {
+      logger.warn({ selectedModel }, '🎨 TailwindStyling: Unknown model format, falling back to default');
+      const primaryModel = getPrimaryModel('styleMaster');
+      if (primaryModel && 'modelInfo' in primaryModel) {
+        modelConfig = { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
+        actualModelName = primaryModel.modelInfo.id;
+      } else {
+        modelConfig = { provider: 'openai', modelId: 'gpt-4o' };
+        actualModelName = 'gpt-4o';
       }
+    }
+  } else {
+    // CASE 2: selectedModel is 'default' or no model specified
+    logger.info({ 
+      selectedModel: selectedModel || 'none' 
+    }, '🎨 TailwindStyling: Using default model configuration');
+    
+    try {
+      const primaryModel = getPrimaryModel('styleMaster');
+      if (primaryModel && 'modelInfo' in primaryModel) {
+        modelConfig = { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
+        actualModelName = primaryModel.modelInfo.id;
+        logger.info({ 
+          provider: primaryModel.provider,
+          modelId: primaryModel.modelInfo.id 
+        }, '🎨 TailwindStyling: Using styleMaster primary model');
+      } else {
+        const fallbackModel = getFallbackModel('styleMaster');
+        if (fallbackModel && 'modelInfo' in fallbackModel) {
+          modelConfig = { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id };
+          actualModelName = fallbackModel.modelInfo.id;
+        } else {
+          modelConfig = { provider: 'openai', modelId: 'gpt-4o' };
+          actualModelName = 'gpt-4o';
+        }
+      }
+    } catch (error) {
+      logger.warn({ 
+        error: error instanceof Error ? error.message : String(error),
+        fallbackProvider: 'openai',
+        fallbackModel: 'gpt-4o'
+      }, '🎨 TailwindStyling: Could not resolve default model, using fallback');
+      
+      modelConfig = { provider: 'openai', modelId: 'gpt-4o' };
+      actualModelName = 'gpt-4o';
+    }
+  }
+
+  const selectionMethod = selectedModel && selectedModel !== 'default' 
+    ? `Explicit User Selection (${selectedModel})` 
+    : selectedModel === 'default' 
+      ? 'User Selected "default" → styleMaster Config' 
+      : 'No Model → styleMaster Config';
+      
+  logger.info({ 
+    provider: modelConfig.provider,
+    modelName: actualModelName,
+    selectionMethod,
+    originalSelectedModel: selectedModel || 'none'
+  }, '🎨 TailwindStyling Model Selection:');
+
+  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+
+  const systemPrompt = `You are a Tailwind CSS styling specialist. Apply comprehensive, modern styling to React components.
+
+CRITICAL RULES:
+1. Apply Tailwind classes to EVERY element - comprehensive coverage
+2. Create modern, professional, accessible designs
+3. Use responsive design patterns (mobile-first)
+4. Include hover, focus, and active states
+5. Follow modern UI/UX best practices
+6. Ensure high contrast and accessibility
+7. Use semantic color naming and consistent design tokens
+8. Create smooth animations and transitions
+
+Format your response with complete styled JSX code and detailed style mapping.`;
+
+  const jsxInfo = tcc.jsxLayout ? `
+JSX Layout:
+${tcc.jsxLayout.componentStructure}
+
+Elements:
+${tcc.jsxLayout.elementMap.map(el => `- ${el.elementId}: ${el.purpose}`).join('\n')}
+` : 'No JSX layout available';
+
+  const userPrompt = `Tool Description: ${tcc.userInput}
+Target Audience: ${tcc.targetAudience || 'General users'}
+
+${jsxInfo}
+
+Apply comprehensive Tailwind CSS styling to create a modern, professional design that:
+1. Styles EVERY element with appropriate classes
+2. Uses a cohesive color scheme and design system
+3. Includes responsive design for mobile, tablet, and desktop
+4. Adds appropriate hover, focus, and interaction states
+5. Ensures accessibility and high contrast
+6. Creates smooth transitions and micro-interactions
+
+Provide complete styled JSX code and detailed style mapping.`;
+
+  logger.info({ 
+    provider: modelConfig.provider,
+    modelId: modelConfig.modelId,
+    userInputLength: userPrompt.length 
+  }, '🎨 TailwindStyling: Calling AI model for styling generation');
+
+  const { text: content } = await generateText({
+    model: modelInstance,
+    system: systemPrompt,
+    prompt: userPrompt,
+    temperature: 0.4,
+    maxTokens: 4000
+  });
+
+  if (!content) {
+    throw new Error('No response received from AI model');
+  }
+
+  // Parse the AI response into structured styling
+  try {
+    const styling = parseTailwindStylingResponse(content, tcc.jsxLayout, tcc.stateLogic);
+    
+    logger.info({ 
+      styleMapCount: styling.styleMap.length,
+      colorSchemeKeys: Object.keys(styling.colorScheme).length,
+      styledCodeLength: styling.styledComponentCode.length,
+      modelUsed: actualModelName 
+    }, '🎨 TailwindStyling: Successfully parsed AI response');
+    
+    return styling;
+    
+  } catch (parseError) {
+    logger.error({ 
+      parseError: parseError instanceof Error ? parseError.message : String(parseError),
+      rawResponseLength: content?.length || 0,
+      modelUsed: actualModelName 
+    }, '🎨 TailwindStyling: Failed to parse AI response');
+    logger.debug({ rawResponse: content }, '🎨 TailwindStyling: Raw AI response for debugging');
+    
+    // Fallback to basic styling
+    return generateFallbackStyling(tcc.jsxLayout);
+  }
+}
+
+/**
+ * Parses the AI response and extracts structured Tailwind styling
+ */
+function parseTailwindStylingResponse(
+  content: string, 
+  jsxLayout?: any,
+  stateLogic?: any
+): {
+  styledComponentCode: string;
+  styleMap: Array<{
+    elementId: string;
+    tailwindClasses: string[];
+    responsiveVariants: Record<string, string[]>;
+    stateVariants: Record<string, string[]>;
+  }>;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    neutral: string;
+    error: string;
+    success: string;
+  };
+  designTokens: {
+    spacing: Record<string, string>;
+    typography: Record<string, string>;
+    shadows: Record<string, string>;
+    animations: Record<string, string>;
+  };
+} {
+  logger.info({ 
+    contentLength: content?.length || 0,
+    hasJsxLayout: !!jsxLayout,
+    hasStateLogic: !!stateLogic 
+  }, '🎨 TailwindStyling: Parsing AI response for styling');
+
+  // Try to extract structured data from AI response
+  let aiStyling: any = null;
+  
+  try {
+    // Look for JSON blocks in the AI response
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                     content.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      aiStyling = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+      logger.info({ 
+        hasAiStyling: true,
+        aiKeys: Object.keys(aiStyling || {})
+      }, '🎨 TailwindStyling: Successfully parsed AI JSON response');
+    }
+  } catch (parseError) {
+    logger.warn({ 
+      parseError: parseError instanceof Error ? parseError.message : String(parseError)
+    }, '🎨 TailwindStyling: Could not parse AI JSON, using intelligent extraction');
+  }
+
+  // Extract styled component code from AI response or apply to JSX layout
+  let styledComponentCode: string;
+  
+  if (aiStyling?.styledComponentCode) {
+    styledComponentCode = aiStyling.styledComponentCode;
+  } else if (content.includes('React.createElement') || content.includes('<')) {
+    // Extract JSX/React code from the response
+    const codeMatch = content.match(/```(?:jsx|typescript|tsx)?\s*([\s\S]*?)\s*```/) ||
+                     content.match(/(React\.createElement[\s\S]*)/);
+    styledComponentCode = codeMatch ? codeMatch[1].trim() : 
+                         (jsxLayout?.componentStructure ? 
+                          applyTailwindToJsxIntelligently(jsxLayout.componentStructure, content) :
+                          generateFallbackStyledComponent());
+  } else {
+    styledComponentCode = jsxLayout?.componentStructure ? 
+      applyTailwindToJsxIntelligently(jsxLayout.componentStructure, content) :
+      generateFallbackStyledComponent();
+  }
+
+  // Extract color scheme from AI response or infer from content
+  const colorScheme = extractColorSchemeFromAI(content, aiStyling) || {
+    primary: 'blue-600',
+    secondary: 'gray-600', 
+    accent: 'emerald-500',
+    neutral: 'gray-100',
+    error: 'red-500',
+    success: 'green-500'
+  };
+
+  // Build style map from JSX layout and AI insights
+  const styleMap = buildStyleMapFromAI(jsxLayout, content, aiStyling, stateLogic);
+
+  // Extract design tokens from AI or create intelligent defaults
+  const designTokens = extractDesignTokensFromAI(content, aiStyling) || {
+    spacing: {
+      'xs': '0.5rem',
+      'sm': '1rem', 
+      'md': '1.5rem',
+      'lg': '2rem'
     },
-    createdAt: now,
-    updatedAt: now
+    typography: {
+      'heading-1': 'text-3xl font-bold',
+      'heading-2': 'text-xl font-semibold',
+      'body': 'text-base'
+    },
+    shadows: {
+      'light': 'shadow-sm',
+      'medium': 'shadow-md',
+      'heavy': 'shadow-lg'
+    },
+    animations: {
+      'fade-in': 'transition-opacity duration-300',
+      'slide-in': 'transition-transform duration-300'
+    }
+  };
+
+  logger.info({ 
+    styledCodeLength: styledComponentCode.length,
+    styleMapElements: styleMap.length,
+    colorSchemeKeys: Object.keys(colorScheme).length,
+    hasCustomDesignTokens: !!aiStyling?.designTokens
+  }, '🎨 TailwindStyling: Successfully processed AI response');
+
+  return {
+    styledComponentCode,
+    styleMap,
+    colorScheme,
+    designTokens
   };
 }
 
 /**
- * Generate a clean tool name from description
+ * Intelligently applies Tailwind classes based on AI recommendations
  */
-function generateToolName(description: string): string {
-  return description
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(' ');
+function applyTailwindToJsxIntelligently(jsxStructure: string, aiContent: string): string {
+  // First apply basic styling
+  let styledJsx = applyTailwindToJsx(jsxStructure);
+  
+  // Then enhance with AI insights
+  const colorMatches = aiContent.match(/(?:bg-|text-|border-)[\w-]+/g) || [];
+  const uniqueColors = [...new Set(colorMatches)];
+  
+  // Apply AI-suggested colors to key elements
+  uniqueColors.forEach(colorClass => {
+    if (colorClass.startsWith('bg-') && !colorClass.includes('gray') && !colorClass.includes('white')) {
+      // Replace default blue backgrounds with AI suggestions
+      styledJsx = styledJsx.replace(/bg-blue-600/g, colorClass);
+    }
+    if (colorClass.startsWith('text-') && !colorClass.includes('gray')) {
+      // Enhance text colors based on AI suggestions
+      styledJsx = styledJsx.replace(/text-blue-600/g, colorClass);
+    }
+  });
+  
+  return styledJsx;
 }
 
 /**
- * Determine tool category based on TCC
+ * Extracts color scheme from AI response
  */
-function determineCategory(tcc: ToolConstructionContext): string {
-  const description = tcc.userInput.description.toLowerCase();
-  const toolType = tcc.userInput.toolType?.toLowerCase() || '';
-  
-  if (toolType) return toolType.charAt(0).toUpperCase() + toolType.slice(1);
-  
-  if (description.includes('calculator') || description.includes('compute')) return 'Calculator';
-  if (description.includes('converter') || description.includes('transform')) return 'Converter';
-  if (description.includes('generator') || description.includes('create')) return 'Generator';
-  if (description.includes('analyzer') || description.includes('analysis')) return 'Analyzer';
-  if (description.includes('validator') || description.includes('check')) return 'Validator';
-  if (description.includes('formatter') || description.includes('format')) return 'Formatter';
-  
-  return 'Utility';
-}
-
-/**
- * Extract dependencies from component code
- */
-function extractDependencies(code: string): string[] {
-  const importRegex = /import\s+.*?\s+from\s+['"]([^'"]+)['"]/g;
-  const dependencies = new Set<string>();
-  let match;
-
-  while ((match = importRegex.exec(code)) !== null) {
-    dependencies.add(match[1]);
+function extractColorSchemeFromAI(content: string, aiStyling?: any): any {
+  if (aiStyling?.colorScheme) {
+    return aiStyling.colorScheme;
   }
-
-  return Array.from(dependencies);
+  
+  // Extract colors from AI content
+  const extractedColors: any = {};
+  
+  // Look for industry-specific color mentions
+  if (content.toLowerCase().includes('healthcare') || content.toLowerCase().includes('medical')) {
+    extractedColors.primary = 'blue-600';
+    extractedColors.secondary = 'teal-500';
+    extractedColors.accent = 'blue-500';
+  } else if (content.toLowerCase().includes('financial') || content.toLowerCase().includes('business')) {
+    extractedColors.primary = 'blue-700';
+    extractedColors.secondary = 'gray-600';
+    extractedColors.accent = 'blue-500';
+  } else if (content.toLowerCase().includes('food') || content.toLowerCase().includes('restaurant')) {
+    extractedColors.primary = 'orange-600';
+    extractedColors.secondary = 'amber-600';
+    extractedColors.accent = 'red-500';
+  } else if (content.toLowerCase().includes('fitness') || content.toLowerCase().includes('health')) {
+    extractedColors.primary = 'green-600';
+    extractedColors.secondary = 'lime-500';
+    extractedColors.accent = 'emerald-500';
+  }
+  
+  if (Object.keys(extractedColors).length > 0) {
+    return {
+      ...extractedColors,
+      neutral: 'gray-100',
+      error: 'red-500',
+      success: 'green-500'
+    };
+  }
+  
+  return null;
 }
 
 /**
- * Calculate component complexity
+ * Builds comprehensive style map from AI insights
  */
-function calculateComplexity(code: string): number {
-  let complexity = 0;
-  complexity += (code.match(/useState/g) || []).length * 2;
-  complexity += (code.match(/useEffect/g) || []).length * 3;
-  complexity += (code.match(/useCallback/g) || []).length * 2;
-  complexity += (code.match(/\?\s*[^\s:]+\s*:\s*[^\s]+/g) || []).length;
-  return complexity;
-} 
+function buildStyleMapFromAI(jsxLayout?: any, content?: string, aiStyling?: any, stateLogic?: any): Array<{
+  elementId: string;
+  tailwindClasses: string[];
+  responsiveVariants: Record<string, string[]>;
+  stateVariants: Record<string, string[]>;
+}> {
+  if (aiStyling?.styleMap) {
+    return aiStyling.styleMap;
+  }
+  
+  const styleMap = jsxLayout?.elementMap?.map((el: any) => {
+    const baseClasses = getTailwindClassesForElement(el);
+    
+    // Enhance with AI-suggested classes
+    const aiEnhancedClasses = extractClassesForElement(el, content);
+    const combinedClasses = [...new Set([...baseClasses, ...aiEnhancedClasses])];
+    
+    // Build responsive variants with AI insights
+    const responsiveVariants = buildResponsiveVariants(el, content);
+    
+    // Build state variants considering stateLogic
+    const stateVariants = buildStateVariantsWithLogic(el, stateLogic);
+    
+    return {
+      elementId: el.elementId,
+      tailwindClasses: combinedClasses,
+      responsiveVariants,
+      stateVariants
+    };
+  }) || [];
+  
+  return styleMap;
+}
+
+/**
+ * Extracts design tokens from AI response
+ */
+function extractDesignTokensFromAI(content: string, aiStyling?: any): any {
+  if (aiStyling?.designTokens) {
+    return aiStyling.designTokens;
+  }
+  
+  // Extract spacing patterns from content
+  const spacingMatches = content.match(/(?:p-|m-|space-[xy]-)[\d]+/g) || [];
+  const typographyMatches = content.match(/text-(?:xs|sm|base|lg|xl|2xl|3xl)/g) || [];
+  
+  if (spacingMatches.length > 0 || typographyMatches.length > 0) {
+    return {
+      spacing: buildSpacingTokens(spacingMatches),
+      typography: buildTypographyTokens(typographyMatches),
+      shadows: {
+        'light': 'shadow-sm',
+        'medium': 'shadow-md',
+        'heavy': 'shadow-lg'
+      },
+      animations: {
+        'fade-in': 'transition-opacity duration-300',
+        'slide-in': 'transition-transform duration-300'
+      }
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Helper functions for building tokens and variants
+ */
+function extractClassesForElement(element: any, content?: string): string[] {
+  if (!content) return [];
+  
+  const elementClasses: string[] = [];
+  
+  // Look for classes related to this element type
+  if (element.type === 'input' && content.includes('input')) {
+    const inputClasses = content.match(/(?:text-gray-\d+|border-\w+-\d+|focus:ring-\w+-\d+)/g) || [];
+    elementClasses.push(...inputClasses);
+  }
+  
+  if (element.type === 'button' && content.includes('button')) {
+    const buttonClasses = content.match(/(?:bg-\w+-\d+|hover:bg-\w+-\d+|text-white)/g) || [];
+    elementClasses.push(...buttonClasses);
+  }
+  
+  return [...new Set(elementClasses)];
+}
+
+function buildResponsiveVariants(element: any, content?: string): Record<string, string[]> {
+  return {
+    'sm': ['text-sm'],
+    'md': ['text-base'],
+    'lg': ['text-lg'],
+    'xl': ['text-xl']
+  };
+}
+
+function buildStateVariantsWithLogic(element: any, stateLogic?: any): Record<string, string[]> {
+  const variants = getStateVariantsForElement(element);
+  
+  // Enhance with state logic insights
+  if (stateLogic?.stateVariables) {
+    Object.keys(stateLogic.stateVariables).forEach(stateVar => {
+      if (stateVar.includes('error') || stateVar.includes('Error')) {
+        variants.error = variants.error || [];
+        variants.error.push('border-red-500', 'text-red-600');
+      }
+      if (stateVar.includes('loading') || stateVar.includes('Loading')) {
+        variants.loading = variants.loading || [];
+        variants.loading.push('opacity-50', 'cursor-wait');
+      }
+    });
+  }
+  
+  return variants;
+}
+
+function buildSpacingTokens(spacingMatches: string[]): Record<string, string> {
+  const tokens: Record<string, string> = {};
+  spacingMatches.forEach(match => {
+    const value = match.match(/\d+/)?.[0];
+    if (value) {
+      tokens[`spacing-${value}`] = `${parseInt(value) * 0.25}rem`;
+    }
+  });
+  return Object.keys(tokens).length > 0 ? tokens : {
+    'xs': '0.5rem', 'sm': '1rem', 'md': '1.5rem', 'lg': '2rem'
+  };
+}
+
+function buildTypographyTokens(typographyMatches: string[]): Record<string, string> {
+  const tokens: Record<string, string> = {};
+  typographyMatches.forEach(match => {
+    tokens[match] = match;
+  });
+  return Object.keys(tokens).length > 0 ? tokens : {
+    'heading-1': 'text-3xl font-bold',
+    'heading-2': 'text-xl font-semibold',
+    'body': 'text-base'
+  };
+}
+
+/**
+ * Applies Tailwind classes to JSX structure
+ */
+function applyTailwindToJsx(jsxStructure: string): string {
+  return jsxStructure
+    .replace(/className="tool-container"/, 'className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8"')
+    .replace(/className="tool-header"/, 'className="text-center mb-8 p-6 bg-white rounded-lg shadow-md"')
+    .replace(/className="tool-title"/, 'className="text-3xl md:text-4xl font-bold text-gray-900 mb-2"')
+    .replace(/className="tool-description"/, 'className="text-lg text-gray-600 max-w-2xl mx-auto"')
+    .replace(/className="tool-main"/, 'className="max-w-4xl mx-auto space-y-8"')
+    .replace(/className="input-section"/, 'className="bg-white p-6 rounded-lg shadow-md"')
+    .replace(/className="form-container"/, 'className="space-y-6"')
+    .replace(/className="input-group"/, 'className="space-y-2"')
+    .replace(/className="input-label"/, 'className="block text-sm font-medium text-gray-700"')
+    .replace(/className="main-input"/, 'className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"')
+    .replace(/className="input-help"/, 'className="text-sm text-gray-500"')
+    .replace(/className="button-group"/, 'className="flex flex-col sm:flex-row gap-3"')
+    .replace(/className="submit-button primary-button"/, 'className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50"')
+    .replace(/className="reset-button secondary-button"/, 'className="px-6 py-3 bg-gray-200 text-gray-800 font-medium rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 transition-colors"')
+    .replace(/className="results-section"/, 'className="bg-white p-6 rounded-lg shadow-md"')
+    .replace(/className="results-container"/, 'className="space-y-4"')
+    .replace(/className="results-title"/, 'className="text-xl font-semibold text-gray-900"')
+    .replace(/className="results-content"/, 'className="space-y-4"')
+    .replace(/className="loading-indicator"/, 'className="flex items-center justify-center p-4 text-gray-500"')
+    .replace(/className="results-display"/, 'className="p-4 bg-gray-50 rounded-lg border"')
+    .replace(/className="error-display"/, 'className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800"');
+}
+
+/**
+ * Gets Tailwind classes for an element
+ */
+function getTailwindClassesForElement(element: any): string[] {
+  const baseClasses = [];
+  
+  switch (element.type) {
+    case 'div':
+      if (element.elementId.includes('container')) {
+        baseClasses.push('w-full', 'max-w-4xl', 'mx-auto');
+      }
+      break;
+    case 'header':
+      baseClasses.push('text-center', 'mb-8', 'p-6', 'bg-white', 'rounded-lg', 'shadow-md');
+      break;
+    case 'section':
+      baseClasses.push('bg-white', 'p-6', 'rounded-lg', 'shadow-md', 'space-y-4');
+      break;
+    case 'input':
+      baseClasses.push('w-full', 'px-4', 'py-3', 'border', 'rounded-lg', 'focus:ring-2');
+      break;
+    case 'button':
+      baseClasses.push('px-6', 'py-3', 'font-medium', 'rounded-lg', 'transition-colors');
+      break;
+  }
+  
+  return baseClasses;
+}
+
+/**
+ * Gets state variants for an element
+ */
+function getStateVariantsForElement(element: any): Record<string, string[]> {
+  const variants: Record<string, string[]> = {};
+  
+  if (element.type === 'button') {
+    variants.hover = ['bg-opacity-90', 'transform', 'scale-105'];
+    variants.active = ['bg-opacity-80'];
+    variants.disabled = ['opacity-50', 'cursor-not-allowed'];
+  }
+  
+  if (element.type === 'input') {
+    variants.focus = ['ring-2', 'ring-blue-500'];
+    variants.error = ['border-red-500', 'ring-red-500'];
+    variants.disabled = ['bg-gray-100'];
+  }
+  
+  return variants;
+}
+
+/**
+ * Generates fallback styling when AI parsing fails
+ */
+function generateFallbackStyling(jsxLayout?: any): {
+  styledComponentCode: string;
+  styleMap: Array<{
+    elementId: string;
+    tailwindClasses: string[];
+    responsiveVariants: Record<string, string[]>;
+    stateVariants: Record<string, string[]>;
+  }>;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    neutral: string;
+    error: string;
+    success: string;
+  };
+  designTokens: {
+    spacing: Record<string, string>;
+    typography: Record<string, string>;
+    shadows: Record<string, string>;
+    animations: Record<string, string>;
+  };
+} {
+  logger.info({ 
+    hasJsxLayout: !!jsxLayout 
+  }, '🎨 TailwindStyling: Generating fallback styling');
+
+  return {
+    styledComponentCode: generateFallbackStyledComponent(),
+    styleMap: [
+      {
+        elementId: 'container',
+        tailwindClasses: ['p-4', 'max-w-2xl', 'mx-auto'],
+        responsiveVariants: { 'md': ['p-6'] },
+        stateVariants: {}
+      }
+    ],
+    colorScheme: {
+      primary: 'blue-600',
+      secondary: 'gray-600',
+      accent: 'emerald-500',
+      neutral: 'gray-100',
+      error: 'red-500',
+      success: 'green-500'
+    },
+    designTokens: {
+      spacing: { 'base': '1rem' },
+      typography: { 'base': 'text-base' },
+      shadows: { 'base': 'shadow-md' },
+      animations: { 'base': 'transition-all duration-300' }
+    }
+  };
+}
+
+/**
+ * Generates a fallback styled component
+ */
+function generateFallbackStyledComponent(): string {
+  return `<div className="min-h-screen bg-gray-50 p-4 md:p-6">
+  <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
+    <h1 className="text-2xl font-bold text-gray-900 mb-4">Tool</h1>
+    <div className="space-y-4">
+      <input 
+        type="text" 
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
+        placeholder="Enter input..."
+      />
+      <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        Submit
+      </button>
+      <div className="p-4 bg-gray-50 rounded-lg">
+        Results will appear here
+      </div>
+    </div>
+  </div>
+</div>`;
+}

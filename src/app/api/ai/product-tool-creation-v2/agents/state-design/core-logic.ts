@@ -128,6 +128,7 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
     // Enhanced testing mode logic
     const shouldStreamWebSocket = !mockTcc || testingOptions?.enableWebSocketStreaming;
     const shouldUpdateTcc = !mockTcc || testingOptions?.enableTccOperations;
+    const shouldTriggerOrchestration = !mockTcc || testingOptions?.enableOrchestrationTriggers;
     
     // Progress update 1: TCC data loaded and validated
     if (shouldStreamWebSocket) {
@@ -230,10 +231,26 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
     });
 
     if (shouldUpdateTcc) {
+      // COMPREHENSIVE LOGGING: TCC State BEFORE State Design update
+      logger.info({ 
+        jobId,
+        beforeStateDesignUpdate: {
+          currentOrchestrationStep: tcc.currentOrchestrationStep,
+          status: tcc.status,
+          hasFunctionSignatures: !!tcc.definedFunctionSignatures,
+          functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
+          hasStateLogic: !!tcc.stateLogic,
+          hasJsxLayout: !!tcc.jsxLayout,
+          existingStateVariableCount: tcc.stateLogic?.variables?.length || 0,
+          updatedAt: tcc.updatedAt
+        }
+      }, '🎯 StateDesign: TCC state BEFORE State Design update');
+
       // Update TCC with results using updateTCC to avoid race conditions
       console.log('🎯 StateDesign: About to update TCC with stateLogic using updateTCC...');
-      await updateTCC(jobId, {
+      const updateData = {
         stateLogic: tccCompatibleStateLogic,
+        currentOrchestrationStep: tcc.currentOrchestrationStep, // Preserve orchestration step
         steps: {
           ...tcc.steps,
           designingStateLogic: {
@@ -243,7 +260,38 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
             result: stateLogic
           }
         }
-      });
+      };
+
+      // COMPREHENSIVE LOGGING: What we're about to update
+      logger.info({ 
+        jobId,
+        updateData: {
+          preservedOrchestrationStep: updateData.currentOrchestrationStep,
+          newStateVariableCount: updateData.stateLogic.variables?.length || 0,
+          newFunctionCount: updateData.stateLogic.functions?.length || 0,
+          stateVariableNames: updateData.stateLogic.variables?.map(v => v.name) || [],
+          functionNames: updateData.stateLogic.functions?.map(f => f.name) || [],
+          stepStatus: updateData.steps.designingStateLogic.status
+        }
+      }, '🎯 StateDesign: Update data being applied to TCC');
+
+      await updateTCC(jobId, updateData);
+
+      // COMPREHENSIVE LOGGING: Verify TCC state after update
+      const updatedTCC = await getTCC(jobId);
+      logger.info({ 
+        jobId,
+        afterStateDesignUpdate: {
+          currentOrchestrationStep: updatedTCC?.currentOrchestrationStep,
+          status: updatedTCC?.status,
+          hasStateLogic: !!updatedTCC?.stateLogic,
+          stateVariableCount: updatedTCC?.stateLogic?.variables?.length || 0,
+          hasJsxLayout: !!updatedTCC?.jsxLayout,
+          updatedAt: updatedTCC?.updatedAt,
+          orchestrationStepPreserved: updatedTCC?.currentOrchestrationStep === tcc.currentOrchestrationStep
+        }
+      }, '🎯 StateDesign: TCC state AFTER State Design update (verified from DB)');
+
       console.log('🎯 StateDesign: ✅ TCC updated successfully with stateLogic data');
       
       // CRITICAL: Small delay to ensure filesystem sync before parallel completion check
@@ -260,6 +308,12 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
       console.log('🎯 StateDesign: ✅ WebSocket progress emitted - COMPLETED');
     } else {
       console.log('🎯 StateDesign: 🧪 TESTING MODE - Skipping WebSocket progress completion');
+    }
+
+    // CRITICAL: Trigger the next step in the orchestration
+    if (shouldTriggerOrchestration) {
+        await new Promise(resolve => setTimeout(resolve, 200)); // Filesystem sync
+        await triggerNextOrchestrationStep(jobId);
     }
 
     logger.info({ jobId, stateVariablesGenerated: stateLogic.stateVariables.length, functionsGenerated: stateLogic.functions.length }, '🎯 StateDesign: Completed successfully');
@@ -279,6 +333,24 @@ export async function designStateLogic(request: StateDesignRequest): Promise<{
     logger.error({ jobId, error: error instanceof Error ? error.message : String(error) }, '🎯 StateDesign: Error');
     await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_state_logic, 'failed', `State design failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+  }
+}
+
+async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  try {
+    logger.info({ jobId, baseUrl }, '🎯 StateDesign: Triggering next orchestration step...');
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
+    });
+    if (!response.ok) {
+      throw new Error(`Orchestrator responded with status ${response.status}`);
+    }
+    logger.info({ jobId }, '🎯 StateDesign: Successfully triggered next orchestration step.');
+  } catch (error) {
+    logger.error({ jobId, error: error instanceof Error ? { message: error.message } : String(error) }, '🎯 StateDesign: Failed to trigger next orchestration step.');
   }
 }
 

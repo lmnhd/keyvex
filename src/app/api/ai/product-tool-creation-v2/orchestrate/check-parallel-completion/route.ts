@@ -106,13 +106,49 @@ export async function POST(request: NextRequest) {
       }
     }, '🔍 CHECK-COMPLETION: State after TCC refresh');
 
+    // COMPREHENSIVE LOGGING: Complete TCC analysis before decision
+    logger.info({ 
+      jobId,
+      completeStateAnalysis: {
+        currentOrchestrationStep: tcc.currentOrchestrationStep,
+        status: tcc.status,
+        hasFunctionSignatures: !!tcc.definedFunctionSignatures,
+        functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
+        hasStateLogic: !!tcc.stateLogic,
+        stateLogicDetail: tcc.stateLogic ? {
+          hasVariables: !!tcc.stateLogic.variables,
+          variableCount: tcc.stateLogic.variables?.length || 0,
+          hasStateVariables: !!tcc.stateLogic.stateVariables,
+          stateVariableCount: tcc.stateLogic.stateVariables?.length || 0,
+          hasFunctions: !!tcc.stateLogic.functions,
+          functionCount: tcc.stateLogic.functions?.length || 0
+        } : null,
+        hasJsxLayout: !!tcc.jsxLayout,
+        jsxLayoutDetail: tcc.jsxLayout ? {
+          hasComponentStructure: !!tcc.jsxLayout.componentStructure,
+          componentStructureLength: tcc.jsxLayout.componentStructure?.length || 0,
+          hasElementMap: !!tcc.jsxLayout.elementMap,
+          elementMapCount: tcc.jsxLayout.elementMap?.length || 0
+        } : null,
+        updatedAt: tcc.updatedAt,
+        allTopLevelKeys: Object.keys(tcc)
+      }
+    }, '🔍 CHECK-COMPLETION: Complete TCC state analysis');
+
     // V5 ORCHESTRATION LOGIC: Handle parallel completion properly
     const parallelCompletionResult = checkParallelStepCompletion(tcc);
     
+    // COMPREHENSIVE LOGGING: Decision details
     logger.info({ 
       jobId, 
       currentStep: tcc.currentOrchestrationStep,
-      ...parallelCompletionResult
+      decisionDetails: {
+        ...parallelCompletionResult,
+        reasoningUsed: `Step ${tcc.currentOrchestrationStep} checked against completion logic`,
+        stateDesignComplete: parallelCompletionResult.parallelStatus?.stateDesignComplete,
+        jsxLayoutComplete: parallelCompletionResult.parallelStatus?.jsxLayoutComplete,
+        willTriggerNext: parallelCompletionResult.readyToTriggerNext && !!parallelCompletionResult.nextStep
+      }
     }, '🔍 CHECK-COMPLETION: Parallel completion status determined');
 
     // If we're ready to trigger the next step, do it asynchronously
@@ -121,18 +157,24 @@ export async function POST(request: NextRequest) {
         jobId, 
         nextStep: parallelCompletionResult.nextStep,
         baseUrl: request.nextUrl.origin 
-      }, '🔍 CHECK-COMPLETION: About to trigger next step');
+      }, '🔍 CHECK-COMPLETION: Handing off to official trigger-next-step endpoint');
       
-      triggerNextStep(request.nextUrl.origin, jobId, parallelCompletionResult.nextStep).catch(error => {
-        logger.error({ jobId, nextStep: parallelCompletionResult.nextStep, error }, '🔍 CHECK-COMPLETION: Failed to trigger next step');
+      // A-SYNCHRONOUSLY CALL THE OFFICIAL TRIGGER ENDPOINT
+      fetch(`${request.nextUrl.origin}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, nextStep: parallelCompletionResult.nextStep }),
+      }).catch(error => {
+        logger.error({ jobId, nextStep: parallelCompletionResult.nextStep, error }, '🔍 CHECK-COMPLETION: Failed to call official trigger-next-step endpoint');
       });
+
     } else {
       logger.info({ 
         jobId, 
         readyToTriggerNext: parallelCompletionResult.readyToTriggerNext,
         nextStep: parallelCompletionResult.nextStep,
         currentStep: tcc.currentOrchestrationStep
-      }, '🔍 CHECK-COMPLETION: Not ready to trigger next step yet');
+      }, `🔍 CHECK-COMPLETION: Not ready to trigger next step yet - readyToTriggerNext=${parallelCompletionResult.readyToTriggerNext}, nextStep=${parallelCompletionResult.nextStep}, currentStep=${tcc.currentOrchestrationStep}`);
     }
 
     const response = {
@@ -206,6 +248,38 @@ function checkParallelStepCompletion(tcc: any): {
       const jsxLayoutComplete = !!tcc.jsxLayout && !!tcc.jsxLayout.componentStructure;
       
       const bothParallelAgentsComplete = stateDesignComplete && jsxLayoutComplete;
+
+      // CRITICAL DEBUG: Log the exact values being checked
+      logger.info({}, `🔍 CRITICAL DEBUG: jobId=${tcc.jobId}, stateDesignComplete=${stateDesignComplete} (hasStateLogic=${!!tcc.stateLogic}, hasVariables=${!!tcc.stateLogic?.variables}, varCount=${tcc.stateLogic?.variables?.length || 0}, hasStateVars=${!!tcc.stateLogic?.stateVariables}, stateVarCount=${tcc.stateLogic?.stateVariables?.length || 0}), jsxLayoutComplete=${jsxLayoutComplete} (hasJsxLayout=${!!tcc.jsxLayout}, hasComponentStructure=${!!tcc.jsxLayout?.componentStructure}), bothComplete=${bothParallelAgentsComplete}`);
+
+      // COMPREHENSIVE LOGGING: Detailed parallel completion analysis
+      logger.info({ 
+        jobId: tcc.jobId,
+        parallelCompletionAnalysis: {
+          currentStep,
+          stateDesignComplete,
+          stateDesignReason: {
+            hasStateLogic: !!tcc.stateLogic,
+            hasVariables: !!tcc.stateLogic?.variables,
+            variableCount: tcc.stateLogic?.variables?.length || 0,
+            hasStateVariables: !!tcc.stateLogic?.stateVariables,
+            stateVariableCount: tcc.stateLogic?.stateVariables?.length || 0,
+            variablesMeetsCriteria: !!tcc.stateLogic?.variables && tcc.stateLogic.variables.length > 0,
+            stateVariablesMeetsCriteria: !!tcc.stateLogic?.stateVariables && tcc.stateLogic.stateVariables.length > 0
+          },
+          jsxLayoutComplete,
+          jsxLayoutReason: {
+            hasJsxLayout: !!tcc.jsxLayout,
+            hasComponentStructure: !!tcc.jsxLayout?.componentStructure,
+            componentStructureLength: tcc.jsxLayout?.componentStructure?.length || 0,
+            hasElementMap: !!tcc.jsxLayout?.elementMap,
+            elementMapCount: tcc.jsxLayout?.elementMap?.length || 0
+          },
+          bothParallelAgentsComplete,
+          nextStepWillBe: bothParallelAgentsComplete ? OrchestrationStepEnum.enum.applying_tailwind_styling : null,
+          readyToTrigger: bothParallelAgentsComplete
+        }
+      }, '🔍 CHECK-COMPLETION: Detailed parallel completion analysis');
       
       logger.info({ 
         jobId: tcc.jobId,
@@ -290,7 +364,7 @@ function checkParallelStepCompletion(tcc: any): {
       };
 
     default:
-      logger.warn({ currentStep }, '🔍 CHECK-COMPLETION: Unknown orchestration step');
+      // For any other step, this checker is not applicable
       return {
         isComplete: false,
         nextStep: null,
@@ -299,131 +373,5 @@ function checkParallelStepCompletion(tcc: any): {
   }
 }
 
-/**
- * Trigger the next step in the orchestration asynchronously
- */
-async function triggerNextStep(baseUrl: string, jobId: string, nextStep: string): Promise<void> {
-  try {
-    logger.info({ jobId, nextStep, baseUrl }, '🔍 CHECK-COMPLETION: Starting triggerNextStep');
-    
-    // Get TCC to determine which model the agent should use
-    const tcc = await getTCC(jobId);
-    if (!tcc) {
-      throw new Error(`TCC not found for jobId: ${jobId}`);
-    }
-    
-    let triggerUrl: string;
-    let agentName: string;
-    let selectedModel: string | undefined;
-    
-    if (nextStep === OrchestrationStepEnum.enum.planning_function_signatures) {
-      // Trigger the Function Planner Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/function-planner`;
-      agentName = 'function-planner';
-    } else if (nextStep === OrchestrationStepEnum.enum.designing_state_logic) {
-      // Trigger the State Design Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/state-design`;
-      agentName = 'state-design';
-    } else if (nextStep === OrchestrationStepEnum.enum.designing_jsx_layout) {
-      // Trigger the JSX Layout Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/jsx-layout`;
-      agentName = 'jsx-layout';
-    } else if (nextStep === OrchestrationStepEnum.enum.applying_tailwind_styling) {
-      // Trigger the Tailwind Styling Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/tailwind-styling`;
-      agentName = 'tailwind-styling';
-    } else if (nextStep === OrchestrationStepEnum.enum.assembling_component) {
-      // Trigger the Component Assembler Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/component-assembler`;
-      agentName = 'component-assembler';
-    } else if (nextStep === OrchestrationStepEnum.enum.validating_code) {
-      // Trigger the Validator Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/validator`;
-      agentName = 'validator';
-    } else if (nextStep === OrchestrationStepEnum.enum.finalizing_tool) {
-      // Trigger the Tool Finalizer Agent
-      triggerUrl = `${baseUrl}/api/ai/product-tool-creation-v2/agents/tool-finalizer`;
-      agentName = 'tool-finalizer';
-    } else {
-      throw new Error(`Unknown next step: ${nextStep}`);
-    }
-
-    // Determine which model this agent should use
-    selectedModel = tcc.agentModelMapping?.[agentName] || tcc.selectedModel;
-
-    console.log('🔍 CHECK-COMPLETION: ==================== TRIGGERING NEXT AGENT ====================');
-    console.log('🔍 CHECK-COMPLETION: Agent trigger details:', {
-      jobId,
-      nextStep,
-      agentName,
-      triggerUrl,
-      selectedModel: selectedModel || 'default',
-      agentModelMapping: tcc.agentModelMapping || {},
-      fallbackModel: tcc.selectedModel || 'none',
-      timestamp: new Date().toISOString()
-    });
-
-    logger.info({ 
-      jobId, 
-      nextStep, 
-      triggerUrl, 
-      agentName,
-      selectedModel: selectedModel || 'default'
-    }, '🔍 CHECK-COMPLETION: About to call fetch to trigger next step');
-
-    console.log('🔍 CHECK-COMPLETION: Sending HTTP request to agent...');
-    console.log('🔍 CHECK-COMPLETION: Request payload:', { jobId, selectedModel });
-    
-    const response = await fetch(triggerUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ jobId, selectedModel }),
-    });
-
-    console.log('🔍 CHECK-COMPLETION: ✅ HTTP response received:', {
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok,
-      headers: Object.fromEntries(response.headers.entries())
-    });
-
-    logger.info({ 
-      jobId, 
-      nextStep, 
-      triggerUrl, 
-      responseStatus: response.status,
-      responseOk: response.ok 
-    }, '🔍 CHECK-COMPLETION: Fetch response received');
-
-    if (!response.ok) {
-      console.error('🔍 CHECK-COMPLETION: ❌ Agent responded with error status');
-      const responseText = await response.text();
-      console.error('🔍 CHECK-COMPLETION: Error response body:', responseText);
-      
-      logger.error({ 
-        jobId, 
-        nextStep, 
-        triggerUrl, 
-        status: response.status,
-        responseText 
-      }, '🔍 CHECK-COMPLETION: Next step responded with error status');
-      throw new Error(`Next step ${nextStep} responded with status: ${response.status}, body: ${responseText}`);
-    }
-
-    console.log('🔍 CHECK-COMPLETION: ✅ Agent triggered successfully');
-    logger.info({ jobId, nextStep, triggerUrl }, '🔍 CHECK-COMPLETION: Successfully triggered next step');
-  } catch (error) {
-    logger.error({ 
-      jobId, 
-      nextStep, 
-      error: error instanceof Error ? {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      } : String(error)
-    }, '🔍 CHECK-COMPLETION: Failed to trigger next step');
-    throw error;
-  }
-} 
+// REMOVED INTERNAL triggerNextStep function to prevent logic duplication.
+// All triggering is now handled by the dedicated /api/ai/product-tool-creation-v2/orchestrate/trigger-next-step route. 

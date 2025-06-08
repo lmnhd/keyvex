@@ -294,4 +294,34 @@ export const ToolConstructionContextSchema = z.object({
 export type ToolConstructionContext = z.infer<typeof ToolConstructionContextSchema>;
 
 // Placeholder for TCC schema
-export const TCC_VERSION = '1.0.0'; 
+export const TCC_VERSION = '1.0.0';
+
+// Helper function to create a new TCC
+export function createTCC(jobId: string, userInput: any): ToolConstructionContext {
+  return {
+    jobId,
+    userId: undefined,
+    selectedModel: undefined,
+    agentModelMapping: undefined,
+    currentOrchestrationStep: 'initialization',
+    status: 'pending',
+    userInput,
+    definedFunctionSignatures: undefined,
+    stateLogic: undefined,
+    jsxLayout: undefined,
+    styling: undefined,
+    tailwindStyles: undefined,
+    functionSignatures: undefined,
+    targetAudience: userInput.targetAudience,
+    additionalContext: undefined,
+    steps: undefined,
+    assembledComponentCode: undefined,
+    validationResult: undefined,
+    progressLog: [],
+    finalProductToolDefinition: undefined,
+    errorDetails: undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    tccVersion: TCC_VERSION,
+  };
+} 

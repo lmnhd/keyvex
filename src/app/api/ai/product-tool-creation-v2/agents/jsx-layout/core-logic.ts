@@ -127,10 +127,26 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
     });
 
     if (!mockTcc) {
+      // COMPREHENSIVE LOGGING: TCC State BEFORE JSX Layout update
+      logger.info({ 
+        jobId,
+        beforeJsxLayoutUpdate: {
+          currentOrchestrationStep: tcc.currentOrchestrationStep,
+          status: tcc.status,
+          hasFunctionSignatures: !!tcc.definedFunctionSignatures,
+          functionSignatureCount: tcc.definedFunctionSignatures?.length || 0,
+          hasStateLogic: !!tcc.stateLogic,
+          hasJsxLayout: !!tcc.jsxLayout,
+          existingElementCount: tcc.jsxLayout?.elementMap?.length || 0,
+          updatedAt: tcc.updatedAt
+        }
+      }, '🏗️ JSXLayout: TCC state BEFORE JSX Layout update');
+
       // Update TCC with results using updateTCC to avoid race conditions
       console.log('🏗️ JSXLayout: Updating TCC with jsxLayout using updateTCC...');
-      await updateTCC(jobId, {
+      const updateData = {
         jsxLayout,
+        currentOrchestrationStep: tcc.currentOrchestrationStep, // Preserve orchestration step
         steps: {
           ...tcc.steps,
           designingJsxLayout: {
@@ -140,10 +156,43 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
             result: jsxLayout
           }
         }
-      });
+      };
+
+      // COMPREHENSIVE LOGGING: What we're about to update
+      logger.info({ 
+        jobId,
+        updateData: {
+          preservedOrchestrationStep: updateData.currentOrchestrationStep,
+          newElementCount: updateData.jsxLayout.elementMap?.length || 0,
+          elementIds: updateData.jsxLayout.elementMap?.map(el => el.elementId) || [],
+          componentStructureLength: updateData.jsxLayout.componentStructure?.length || 0,
+          stepStatus: updateData.steps.designingJsxLayout.status
+        }
+      }, '🏗️ JSXLayout: Update data being applied to TCC');
+
+      await updateTCC(jobId, updateData);
+
+      // COMPREHENSIVE LOGGING: Verify TCC state after update
+      const updatedTCC = await getTCC(jobId);
+      logger.info({ 
+        jobId,
+        afterJsxLayoutUpdate: {
+          currentOrchestrationStep: updatedTCC?.currentOrchestrationStep,
+          status: updatedTCC?.status,
+          hasStateLogic: !!updatedTCC?.stateLogic,
+          hasJsxLayout: !!updatedTCC?.jsxLayout,
+          elementCount: updatedTCC?.jsxLayout?.elementMap?.length || 0,
+          updatedAt: updatedTCC?.updatedAt,
+          orchestrationStepPreserved: updatedTCC?.currentOrchestrationStep === tcc.currentOrchestrationStep
+        }
+      }, '🏗️ JSXLayout: TCC state AFTER JSX Layout update (verified from DB)');
+
       console.log('🏗️ JSXLayout: ✅ TCC updated successfully with jsxLayout data');
 
       await emitStepProgress(jobId, OrchestrationStepEnum.enum.designing_jsx_layout, 'completed', `Generated JSX layout with ${jsxLayout.elementMap.length} elements`);
+      
+      // CRITICAL: Trigger the next step in the orchestration
+      await triggerNextOrchestrationStep(jobId);
     } else {
       console.log('🏗️ JSXLayout: 🧪 MOCK MODE - Skipping TCC updates and WebSocket progress');
     }
@@ -195,6 +244,24 @@ export async function designJsxLayout(request: JsxLayoutRequest): Promise<{
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
+  }
+}
+
+async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  try {
+    logger.info({ jobId, baseUrl }, '🏗️ JSXLayout: Triggering next orchestration step...');
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
+    });
+    if (!response.ok) {
+      throw new Error(`Orchestrator responded with status ${response.status}`);
+    }
+    logger.info({ jobId }, '🏗️ JSXLayout: Successfully triggered next orchestration step.');
+  } catch (error) {
+    logger.error({ jobId, error: error instanceof Error ? { message: error.message } : String(error) }, '🏗️ JSXLayout: Failed to trigger next orchestration step.');
   }
 }
 
@@ -279,7 +346,7 @@ Create JSX layout structure for this tool focusing on semantic HTML and accessib
 /**
  * AI FIRST: Parse AI response for JSX
  */
-function parseJsxResponse(content: string, functionSignatures: DefinedFunctionSignature[]) {
+function parseJsxResponse(content: string, functionSignatures: DefinedFunctionSignature[]): JsxLayoutResult {
   // Extract JSX from AI response
   const jsxMatch = content.match(/```(?:jsx|tsx|html)?\s*([\s\S]*?)\s*```/) || 
                    content.match(/(<div[\s\S]*?<\/div>)/);
@@ -308,7 +375,7 @@ function parseJsxResponse(content: string, functionSignatures: DefinedFunctionSi
 /**
  * Extract element map from JSX structure
  */
-function extractElementMap(jsx: string) {
+function extractElementMap(jsx: string): ElementMap[] {
   const elementMap: any[] = [];
   const elementMatches = jsx.match(/id="([^"]+)"/g) || [];
   

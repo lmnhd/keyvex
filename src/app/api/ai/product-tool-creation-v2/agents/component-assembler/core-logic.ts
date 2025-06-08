@@ -105,8 +105,17 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
       };
       await saveTCC(updatedTCC);
 
+      // Emit progress with assembled component code for frontend to enable Live Preview
       await emitStepProgress(jobId, OrchestrationStepEnum.enum.assembling_component, 'completed', 
-        `Component assembled: ${assembledComponent.metadata.estimatedLines} lines, ${assembledComponent.metadata.dependencies.length} dependencies`);
+        `Component assembled: ${assembledComponent.metadata.estimatedLines} lines, ${assembledComponent.metadata.dependencies.length} dependencies`,
+        { 
+          assembledComponent, 
+          assembledComponentCode: assembledComponent.finalComponentCode,
+          tcc: updatedTCC
+        });
+
+      // CRITICAL: Trigger the next step in the orchestration
+      await triggerNextOrchestrationStep(jobId);
     }
 
     logger.info({ 
@@ -126,6 +135,37 @@ export async function assembleComponent(request: ComponentAssemblerRequest): Pro
     }
     
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' };
+  }
+}
+
+/**
+ * Triggers the check-parallel-completion endpoint to move the orchestration forward.
+ * @param jobId The ID of the current tool creation job.
+ */
+async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  
+  try {
+    logger.info({ jobId, baseUrl }, '🔧 ComponentAssembler: Triggering next orchestration step...');
+    
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Orchestrator responded with status ${response.status}: ${errorBody}`);
+    }
+
+    logger.info({ jobId }, '🔧 ComponentAssembler: Successfully triggered next orchestration step.');
+
+  } catch (error) {
+    logger.error({ 
+      jobId, 
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error) 
+    }, '🔧 ComponentAssembler: Failed to trigger next orchestration step.');
   }
 }
 

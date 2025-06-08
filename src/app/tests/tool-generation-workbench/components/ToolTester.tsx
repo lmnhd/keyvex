@@ -120,15 +120,58 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addWSLog(`TCC updated with new data from ${progress.stepName}`);
     }
     
-    // Handle assembled code
-    if (progress.stepName === 'ComponentAssemblerAgent' && progress.status === 'completed' && progress.data?.assembledComponentCode) {
-      setAssembledCode(progress.data.assembledComponentCode);
-      addWSLog(`Component code assembled successfully`);
+    // Handle assembled code from Component Assembler - fix the condition
+    if (progress.stepName === 'assembling_component' && progress.status === 'completed') {
+      // First check for assembledComponentCode in TCC
+      if (progress.data?.tcc?.assembledComponentCode) {
+        setAssembledCode(progress.data.tcc.assembledComponentCode);
+        addWSLog(`Component code assembled successfully (from TCC)`);
+      }
+      // Also check for direct progress data
+      else if (progress.data?.assembledComponent?.finalComponentCode) {
+        setAssembledCode(progress.data.assembledComponent.finalComponentCode);
+        addWSLog(`Component code assembled successfully (from progress data)`);
+      }
+      // Also check for backwards compatibility
+      else if (progress.data?.assembledComponentCode) {
+        setAssembledCode(progress.data.assembledComponentCode);
+        addWSLog(`Component code assembled successfully (backwards compatibility)`);
+      }
+    }
+
+    // Also handle from orchestration completion
+    if (progress.stepName === 'tool_finalizer' && progress.status === 'completed' && progress.data?.finalTool) {
+      // If we have a final tool but no assembled code yet, extract it from the tool
+      if (!assembledCode && progress.data.finalTool.componentCode) {
+        setAssembledCode(progress.data.finalTool.componentCode);
+        addWSLog(`Component code extracted from final tool`);
+      }
+      
+      // Update test job with final result
+      setTestJob(prev => prev ? {
+        ...prev,
+        status: 'success',
+        result: progress.data.finalTool
+      } : {
+        jobId: progress.data.jobId || '',
+        modelId: selectedModelIds[0] || 'unknown',
+        status: 'success',
+        result: progress.data.finalTool,
+        metadata: { models: selectedModelIds },
+        error: null
+      });
+      addWSLog(`Final tool definition received`);
     }
 
     // Handle streaming example (simulate streamObject/streamText response)
-    if (progress.stepName === 'FunctionSignaturePlannerAgent' && progress.status === 'running') {
+    if (progress.stepName === 'planning_function_signatures' && progress.status === 'llm_call_pending') {
       setStreamingExample(prev => prev + `Streaming: Planning function ${Math.random().toString(36).substring(7)}...\n`);
+    }
+
+    // Handle general TCC updates that might contain assembled code
+    if (progress.data?.tcc?.assembledComponentCode && !assembledCode) {
+      setAssembledCode(progress.data.tcc.assembledComponentCode);
+      addWSLog(`Component code found in TCC update`);
     }
   };
 
@@ -722,10 +765,44 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     switch (connectionStatus) {
       case 'connected':
         return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'fallback':
+        return <WifiOff className="h-4 w-4 text-orange-500" />;
       case 'connecting':
         return <Loader2 className="h-4 w-4 text-yellow-500 animate-spin" />;
+      case 'error':
+        return <WifiOff className="h-4 w-4 text-red-500" />;
       default:
         return <WifiOff className="h-4 w-4 text-gray-400" />;
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return 'WebSocket Connected';
+      case 'fallback':
+        return 'FALLBACK MODE (In-Memory)';
+      case 'connecting':
+        return 'Connecting...';
+      case 'error':
+        return 'Connection Error';
+      default:
+        return 'Disconnected';
+    }
+  };
+
+  const getConnectionStatusBadge = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Badge variant="outline" className="text-xs text-green-700 border-green-300">Real WebSocket</Badge>;
+      case 'fallback':
+        return <Badge variant="destructive" className="text-xs">FALLBACK MODE</Badge>;
+      case 'connecting':
+        return <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300">Connecting</Badge>;
+      case 'error':
+        return <Badge variant="destructive" className="text-xs">Error</Badge>;
+      default:
+        return <Badge variant="outline" className="text-xs">Disconnected</Badge>;
     }
   };
 
@@ -737,9 +814,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           Enhanced Tool Generation Workbench
           <div className="ml-auto flex items-center gap-2">
             {getConnectionStatusIcon()}
-            <Badge variant="outline" className="text-xs">
-              {connectionStatus}
-            </Badge>
+            {getConnectionStatusBadge()}
           </div>
         </CardTitle>
         <CardDescription>Advanced tool creation with multi-model selection, real-time streaming, and granular agent control.</CardDescription>
@@ -1125,15 +1200,42 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   <CardDescription>Real-time logs from WebSocket connection and streaming responses</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Fallback Mode Warning */}
+                  {connectionStatus === 'fallback' && (
+                    <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertTitle className="text-orange-800 dark:text-orange-200">⚠️ FALLBACK MODE ACTIVE</AlertTitle>
+                      <AlertDescription className="text-orange-700 dark:text-orange-300 text-sm">
+                        <strong>NOT using real WebSocket!</strong> This is in-memory simulation for development.
+                        <br />• Set <code className="bg-orange-100 dark:bg-orange-800 px-1 rounded">NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT</code> for production WebSocket
+                        <br />• Messages below are simulated, not from a real WebSocket server
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <div>
-                    <Label className="text-sm font-medium">Connection Status & Logs:</Label>
+                    <Label className="text-sm font-medium">
+                      Connection Status & Logs:
+                      {connectionStatus === 'fallback' && (
+                        <span className="ml-2 text-xs text-orange-600 font-normal">(Development Fallback Mode)</span>
+                      )}
+                    </Label>
                     <ScrollArea className="h-32 mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md border">
                       <div className="space-y-1">
                         {wsLogs.length === 0 ? (
-                          <p className="text-sm text-gray-500">No WebSocket activity yet...</p>
+                          <p className="text-sm text-gray-500">
+                            {connectionStatus === 'fallback' 
+                              ? 'No fallback activity yet... (simulated WebSocket)' 
+                              : 'No WebSocket activity yet...'
+                            }
+                          </p>
                         ) : (
                           wsLogs.map((log, index) => (
-                            <p key={index} className="text-xs font-mono">{log}</p>
+                            <p key={index} className={`text-xs font-mono ${
+                              log.includes('[FALLBACK') ? 'text-orange-700 dark:text-orange-300' : ''
+                            }`}>
+                              {log}
+                            </p>
                           ))
                         )}
                       </div>
@@ -1145,6 +1247,50 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       <Label className="text-sm font-medium">StreamObject/StreamText Example:</Label>
                       <ScrollArea className="h-32 mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200">
                         <pre className="text-xs font-mono whitespace-pre-wrap">{streamingExample}</pre>
+                      </ScrollArea>
+                    </div>
+                  )}
+
+                  {/* Debug inspection area when preview/result tabs are disabled */}
+                  {workflowMode === 'v2' && (!assembledCode || testJob?.status !== 'success') && tccData && (
+                    <div>
+                      <Label className="text-sm font-medium">🔍 Debug Inspection (Preview/Result tabs disabled):</Label>
+                      <ScrollArea className="h-48 mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-yellow-200">
+                        <div className="text-xs font-mono space-y-2">
+                          <p><strong>assembledCode:</strong> {assembledCode ? 'Available' : 'Missing'}</p>
+                          <p><strong>testJob.status:</strong> {testJob?.status || 'No job'}</p>
+                          <p><strong>TCC Keys:</strong> {Object.keys(tccData).join(', ')}</p>
+                          
+                          {tccData.assembledComponentCode && (
+                            <div>
+                              <p><strong>TCC.assembledComponentCode:</strong> Available ({tccData.assembledComponentCode.length} chars)</p>
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Code</summary>
+                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs whitespace-pre-wrap">{tccData.assembledComponentCode}</pre>
+                              </details>
+                            </div>
+                          )}
+
+                          {tccData.styling && (
+                            <div>
+                              <p><strong>TCC.styling:</strong> Available</p>
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Styling</summary>
+                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">{JSON.stringify(tccData.styling, null, 2)}</pre>
+                              </details>
+                            </div>
+                          )}
+
+                          {testJob?.result && (
+                            <div>
+                              <p><strong>testJob.result:</strong> Available</p>
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Tool Definition</summary>
+                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">{JSON.stringify(testJob.result, null, 2)}</pre>
+                              </details>
+                            </div>
+                          )}
+                        </div>
                       </ScrollArea>
                     </div>
                   )}

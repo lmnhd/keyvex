@@ -165,6 +165,9 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
         'completed',
         `Applied styling to ${styling.styleMap.length} elements`
       );
+
+      // CRITICAL: Trigger the next step in the orchestration
+      await triggerNextOrchestrationStep(jobId, OrchestrationStepEnum.enum.assembling_component);
     }
 
     logger.info({ 
@@ -202,6 +205,40 @@ export async function applyStyling(request: TailwindStylingRequest): Promise<{
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
+  }
+}
+
+/**
+ * Triggers the check-parallel-completion endpoint to move the orchestration forward.
+ * @param jobId The ID of the current tool creation job.
+ */
+async function triggerNextOrchestrationStep(jobId: string, nextStep: string): Promise<void> {
+  // Use a dynamic origin for flexibility between local and deployed environments
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL || 'http://localhost:3000';
+  
+  try {
+    logger.info({ jobId, baseUrl, nextStep }, '🎨 TailwindStyling: Triggering next orchestration step...');
+    
+    const response = await fetch(`${baseUrl}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, nextStep }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Orchestrator responded with status ${response.status}: ${errorBody}`);
+    }
+
+    logger.info({ jobId }, '🎨 TailwindStyling: Successfully triggered next orchestration step.');
+
+  } catch (error) {
+    logger.error({ 
+      jobId, 
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error) 
+    }, '🎨 TailwindStyling: Failed to trigger next orchestration step.');
+    // Do not re-throw, as the primary task of this agent (styling) was successful.
+    // The orchestrator has its own retry/timeout logic.
   }
 }
 

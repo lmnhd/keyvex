@@ -2,7 +2,9 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
 const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
-  '/api(.*)',
+  '/api/admin(.*)',
+  '/api/analytics(.*)',
+  '/api/debug(.*)',
 ]);
 
 // Exclude static assets and Next.js internals
@@ -10,13 +12,17 @@ const isPublicRoute = createRouteMatcher([
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/tests/ui',
+  '/tests(.*)',  // Make all test pages public
   '/_next(.*)',
   '/favicon.ico',
   '/robots.txt',
   '/sitemap.xml',
   // Make product-tools API routes public
   '/api/product-tools(.*)',
+  // Make AI API routes public for testing and workbench functionality
+  '/api/ai(.*)',
+  // Make tools API public
+  '/api/tools(.*)',
 ]);
 
 export default clerkMiddleware((auth, req) => {

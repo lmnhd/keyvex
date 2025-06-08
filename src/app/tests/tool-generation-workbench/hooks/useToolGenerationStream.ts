@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { subscribeToProgress } from '@/lib/streaming/progress-emitter';
 
 // --- Types ---
 
-export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'fallback';
 
 export interface WebSocketMessage {
   id: string;
@@ -12,15 +13,17 @@ export interface WebSocketMessage {
   type: 'sent' | 'received' | 'system';
   data: any;
   raw?: string;
+  isFallback?: boolean; // Flag to indicate this is from fallback mode
 }
 
 export interface StepProgress {
   jobId: string;
   stepName: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'started' | 'llm_call_pending' | 'llm_data_received' | 'initiated';
   message?: string;
   data?: any;
   timestamp: string;
+  isFallback?: boolean; // Flag to indicate this is from fallback mode
 }
 
 export interface UseToolGenerationStreamOptions {
@@ -42,16 +45,18 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
   const [progressUpdates, setProgressUpdates] = useState<StepProgress[]>([]);
   
   const wsRef = useRef<WebSocket | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messageIdCounter = useRef(0);
 
-  const addMessage = useCallback((type: WebSocketMessage['type'], data: any, raw?: string) => {
+  const addMessage = useCallback((type: WebSocketMessage['type'], data: any, raw?: string, isFallback = false) => {
     const message: WebSocketMessage = {
       id: `${Date.now()}-${messageIdCounter.current++}`,
       timestamp: new Date().toISOString(),
       type,
       data,
-      raw
+      raw,
+      isFallback
     };
     setMessages(prev => [...prev, message]);
     if (onMessage) {
@@ -65,11 +70,65 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
       onError?.('Job ID is required to connect.');
       return;
     }
-    
+
+    // If WebSocket URL is not configured, use in-memory progress emitter
     if (!WEBSOCKET_URL) {
-      console.error('[WebSocket] Connection failed: WebSocket URL is not configured.');
-      onError?.('WebSocket URL not configured. Check NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT.');
-      setConnectionStatus('error');
+      console.log('🔄 [FALLBACK MODE] No WebSocket URL configured, using in-memory progress emitter for job:', jobId);
+      console.warn('⚠️ [FALLBACK MODE] This is NOT a real WebSocket connection - using in-memory simulation for development');
+      
+      setConnectionStatus('fallback');
+      addMessage('system', { 
+        action: 'fallback_mode_activated', 
+        jobId, 
+        method: 'in-memory', 
+        warning: 'NOT REAL WEBSOCKET - Development fallback mode active',
+        reason: 'NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT not configured'
+      }, undefined, true);
+
+      // Subscribe to progress updates using the in-memory emitter
+      unsubscribeRef.current = subscribeToProgress(jobId, (progressEvent) => {
+        console.log('📡 [FALLBACK MODE] Received progress from in-memory emitter:', progressEvent);
+        
+        const progress: StepProgress = {
+          jobId: progressEvent.jobId,
+          stepName: progressEvent.stepName,
+          status: progressEvent.status as StepProgress['status'],
+          message: progressEvent.message ? `[FALLBACK] ${progressEvent.message}` : '[FALLBACK] Progress update',
+          data: progressEvent.details,
+          timestamp: progressEvent.timestamp,
+          isFallback: true
+        };
+        
+        setProgressUpdates(prev => {
+          const existingIndex = prev.findIndex(p => p.stepName === progress.stepName && p.status !== 'completed');
+          if (existingIndex > -1) {
+            const newProgress = [...prev];
+            newProgress[existingIndex] = progress;
+            return newProgress;
+          }
+          return [...prev, progress];
+        });
+        
+        if (onProgress) {
+          onProgress(progress);
+        }
+        
+        // Add fallback indicator to message
+        const fallbackEvent = {
+          ...progressEvent,
+          message: `[FALLBACK MODE] ${progressEvent.message || 'Progress update'}`
+        };
+        
+        addMessage('received', fallbackEvent, JSON.stringify(fallbackEvent), true);
+      });
+
+      addMessage('system', { 
+        action: 'fallback_connected', 
+        jobId, 
+        method: 'in-memory',
+        status: 'Listening for progress via in-memory emitter (NOT WebSocket)',
+        warning: 'This is development fallback mode - not production WebSocket'
+      }, undefined, true);
       return;
     }
     
@@ -153,6 +212,10 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+    }
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
     }
     if (wsRef.current) {
       wsRef.current.close(1000, 'User disconnected');
