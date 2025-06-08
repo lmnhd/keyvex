@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { createTCC, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
 import { saveTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
 import logger from '@/lib/logger';
 
 // Input validation schema
@@ -62,13 +62,12 @@ export async function POST(request: NextRequest) {
     // Emit initial progress
     const shouldStream = testingOptions?.enableWebSocketStreaming !== false; // default true
     if (shouldStream) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.planning_function_signatures,
-        'started',
-        'Orchestration started. Beginning function signature planning...',
-        { jobId, tcc, userInput, testingOptions }
-      );
+      await emitStepProgress(jobId, {
+        stepName: OrchestrationStepEnum.enum.planning_function_signatures,
+        status: 'started',
+        message: 'Orchestration started. Beginning function signature planning...',
+        details: { jobId, tcc, userInput, testingOptions },
+      });
       
       logger.info({ jobId }, '🚀 ORCHESTRATION START: Initial progress emitted');
     }

@@ -1,3 +1,4 @@
+// File Path: keyvex_app/src/app/api/ai/product-tool-creation-v2/agents/tool-finalizer/core-logic.ts
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -6,7 +7,7 @@ import {
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import { getTCC, updateTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
@@ -82,12 +83,11 @@ export async function finalizeTool(request: {
       throw new Error(`TCC was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.finalizing_tool,
-      'in_progress',
-      'Assembling the final tool definition...',
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.finalizing_tool,
+      status: 'in_progress',
+      message: 'Assembling the final tool definition...',
+    });
 
     const { provider, modelId } = getModelForAgent(
       'toolFinalizer',
@@ -115,13 +115,12 @@ export async function finalizeTool(request: {
       currentOrchestrationStep: OrchestrationStepEnum.enum.completed,
     });
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.finalizing_tool,
-      'completed',
-      'Tool has been finalized successfully!',
-      finalProduct,
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.finalizing_tool,
+      status: 'completed',
+      message: 'Tool has been finalized successfully!',
+      details: finalProduct,
+    });
 
     logger.info({ jobId }, '✅ ToolFinalizer: Tool finalized successfully.');
     return { success: true, finalProduct };
@@ -133,12 +132,11 @@ export async function finalizeTool(request: {
       '✅ ToolFinalizer: Error finalizing tool',
     );
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.finalizing_tool,
-      'failed',
-      errorMessage,
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.finalizing_tool,
+      status: 'failed',
+      message: errorMessage,
+    });
     return {
       success: false,
       error: errorMessage,

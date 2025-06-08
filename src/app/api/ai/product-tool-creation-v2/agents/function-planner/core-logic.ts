@@ -1,3 +1,4 @@
+// File Path: keyvex_app/src/app/api/ai/product-tool-creation-v2/agents/function-planner/core-logic.ts
 import { z } from 'zod';
 import {
   ToolConstructionContext,
@@ -6,7 +7,7 @@ import {
   OrchestrationStatusEnum,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import { getTCC, saveTCC } from '@/lib/db/tcc-store';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter';
+import { emitLocalProgress as emitStepProgress } from '@/lib/streaming/progress-emitter';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject } from 'ai';
@@ -55,12 +56,11 @@ export async function planFunctionSignatures(request: {
       tcc.agentModelMapping['function-planner'] = selectedModel;
     }
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'in_progress',
-      'Beginning function signature planning...'
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.planning_function_signatures,
+      status: 'in_progress',
+      message: 'Beginning function signature planning...',
+    });
 
     const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
 
@@ -103,23 +103,21 @@ export async function planFunctionSignatures(request: {
       }
     }, '🔧 FunctionPlanner: TCC successfully saved with new state');
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'completed',
-      `Successfully planned ${functionSignatures.length} function signatures.`
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.planning_function_signatures,
+      status: 'completed',
+      message: `Successfully planned ${functionSignatures.length} function signatures.`,
+    });
 
     logger.info({ jobId, count: functionSignatures.length }, '🔧 FunctionPlanner: Successfully planned function signatures');
     return { success: true, functionSignatures, updatedTcc };
   } catch (error) {
     logger.error({ jobId, error }, '🔧 FunctionPlanner: Error planning function signatures');
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'failed',
-      error instanceof Error ? error.message : 'Unknown error'
-    );
+    await emitStepProgress(jobId, {
+      stepName: OrchestrationStepEnum.enum.planning_function_signatures,
+      status: 'failed',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
