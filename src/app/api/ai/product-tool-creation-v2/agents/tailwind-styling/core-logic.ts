@@ -14,6 +14,7 @@ import {
   getPrimaryModel,
   getModelProvider,
 } from '@/lib/ai/models/model-config';
+import { getTailwindStylingSystemPrompt } from '@/lib/prompts/v2/tailwind-styling-prompt';
 import logger from '@/lib/logger';
 
 // --- START: Authoritative Zod Schema ---
@@ -174,12 +175,9 @@ async function generateTailwindStylingWithAI(
   logger.info({ ...modelConfig }, '🎨 TailwindStyling: Using model');
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
 
-  const systemPrompt = `You are an expert Tailwind CSS designer. Your task is to take unstyled JSX code and apply modern, clean, and responsive styling.
-You MUST return a single JSON object that conforms to the provided schema.
-- 'styledComponentCode': The original JSX with Tailwind classes added directly to the elements.
-- 'styleMap': A key-value object where the key is the element's 'id' and the value is a string of its Tailwind classes.
-- 'colorScheme': A complete, modern, and accessible color palette.
-- 'designTokens': A complete set of reusable tokens for spacing, typography, etc.`;
+  // Get comprehensive styling prompt with industry context if available
+  const industryContext = tcc.userInput?.industry || tcc.targetAudience || 'business';
+  const systemPrompt = getTailwindStylingSystemPrompt(false, industryContext);
 
   const userPrompt = `Please apply full Tailwind CSS styling to the following JSX component.
 User Input/Goal: ${tcc.userInput?.description || 'A business tool'}

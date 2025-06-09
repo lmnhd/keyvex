@@ -15,6 +15,7 @@ import {
   getFallbackModel,
   getModelProvider,
 } from '@/lib/ai/models/model-config';
+import { getJsxLayoutSystemPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
 import logger from '@/lib/logger';
 
 // Zod schema for the element map
@@ -224,13 +225,8 @@ async function generateJsxLayoutWithAI(
     modelConfig.modelId,
   );
 
-  const systemPrompt = `You are a React JSX layout specialist. Create a semantic HTML component structure based on the user's request.
-
-CRITICAL: You must generate a single JSON object that conforms to the provided schema.
-- The 'componentStructure' must be a complete, valid JSX string.
-- The 'elementMap' must identify all key elements with an 'id'.
-- Focus on semantic HTML and accessibility features (ARIA labels, roles, proper form structure).
-- Do NOT include any styling, colors, or Tailwind classes in the JSX. Use placeholder class names if necessary.`;
+  // Use comprehensive JSX layout prompt with dynamic editing support
+  const systemPrompt = getJsxLayoutSystemPrompt(false);
 
   const userPrompt = `Tool: ${
     tcc.userInput?.description || 'No description provided.'
