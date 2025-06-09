@@ -200,13 +200,18 @@ async function getUserConnections(userId: string): Promise<string[]> {
   
     logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
 
-    // Extract userId from details - handle both direct userId and TCC object
+    // Extract userId from details - handle multiple patterns:
+    // 1. Direct userId property: details.userId
+    // 2. Nested TCC object: details.tcc.userId  
+    // 3. TCC object passed as details directly: details.userId (when details is a TCC)
     let userId = details?.userId;
+    let userIdSource = 'details.userId';
     
-    // If not found directly, check if details contains a TCC object
+    // If not found directly, check if details contains a nested TCC object
     if (!userId && details?.tcc?.userId) {
       userId = details.tcc.userId;
-      logger.info({ jobId, source: 'details.tcc.userId' }, '📡 [USER-ID-LOOKUP] Extracted userId from nested TCC');
+      userIdSource = 'details.tcc.userId';
+      logger.info({ jobId, source: userIdSource }, '📡 [USER-ID-LOOKUP] Extracted userId from nested TCC');
     }
 
     if (!userId) {
@@ -216,12 +221,13 @@ async function getUserConnections(userId: string): Promise<string[]> {
         detailsKeys: details ? Object.keys(details) : [],
         hasTcc: !!details?.tcc,
         tccKeys: details?.tcc ? Object.keys(details.tcc) : [],
-        tccUserId: details?.tcc?.userId
+        tccUserId: details?.tcc?.userId,
+        detailsUserId: details?.userId
       }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
       return;
     }
 
-    logger.info({ jobId, userId, source: 'details.userId' }, '📡 [USER-ID-LOOKUP] Extracted userId from TCC');
+    logger.info({ jobId, userId, source: userIdSource }, '📡 [USER-ID-LOOKUP] Extracted userId from TCC');
   
     try {
       // Attempt to send via WebSocket
