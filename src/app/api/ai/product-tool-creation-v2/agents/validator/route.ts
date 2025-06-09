@@ -7,18 +7,22 @@ export async function POST(request: NextRequest) {
   logger.info('🔍 Validator Route: Route handler started');
   
   try {
-    const body: { jobId: string; selectedModel?: string; tcc: ToolConstructionContext; } = await request.json();
-    const { jobId, tcc } = body;
+    const body: { jobId: string; selectedModel?: string; tcc?: ToolConstructionContext; mockTcc?: ToolConstructionContext; } = await request.json();
+    const { jobId, selectedModel, tcc, mockTcc } = body;
 
-    if (!jobId || !tcc) {
+    if (!jobId || (!tcc && !mockTcc)) {
       return NextResponse.json(
-        { success: false, error: "jobId and tcc must be provided." },
+        { success: false, error: "jobId and either tcc or mockTcc must be provided." },
         { status: 400 }
       );
     }
     
     // Call the pure core logic function
-    const result = await validateComponent(body);
+    const result = await validateComponent({
+      jobId,
+      selectedModel,
+      tcc: mockTcc || tcc,
+    });
 
     if (!result.success || !result.updatedTcc) {
       logger.error({ jobId, error: result.error }, '🔍 Validator Route: Core logic failed');
