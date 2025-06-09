@@ -7,12 +7,12 @@ export async function POST(request: NextRequest) {
   logger.info('🎨 TailwindStyling Route: Route handler started');
 
   try {
-    const body: { jobId: string; selectedModel?: string; tcc: ToolConstructionContext; } = await request.json();
-    const { jobId, selectedModel, tcc } = body;
+    const body: { jobId: string; selectedModel?: string; tcc?: ToolConstructionContext; mockTcc?: ToolConstructionContext; } = await request.json();
+    const { jobId, selectedModel, tcc, mockTcc } = body;
 
-    if (!jobId || !tcc) {
+    if (!jobId || (!tcc && !mockTcc)) {
       return NextResponse.json(
-        { success: false, error: "jobId and tcc must be provided." },
+        { success: false, error: "jobId and either tcc or mockTcc must be provided." },
         { status: 400 }
       );
     }
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       jobId,
       selectedModel,
       tcc,
+      mockTcc,
     });
 
     if (!result.success || !result.updatedTcc) {

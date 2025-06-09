@@ -142,7 +142,7 @@ export async function runIsolatedAgentTest(
       body: JSON.stringify({
         jobId: tcc.jobId || `debug-${Date.now()}`,
         selectedModel: modelId,
-        mockTcc: tcc,
+        tcc: tcc,
       }),
     });
 
