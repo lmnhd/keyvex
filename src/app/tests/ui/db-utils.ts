@@ -592,4 +592,68 @@ export async function syncAllToolsFromIndexedDBToDynamoDB(userId: string): Promi
     console.error('❌ Error during bulk sync:', error);
     throw error;
   }
+}
+
+// NEW V2 JOB LOADING FUNCTIONS
+export async function loadV2JobsFromDB(): Promise<Array<{
+  id: string;
+  timestamp: number;
+  productToolDefinition: ProductToolDefinition;
+  toolConstructionContext: any;
+}>> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction([V2_JOBS_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(V2_JOBS_STORE_NAME);
+    const index = store.index('timestamp');
+    
+    const results = await new Promise<Array<{
+      id: string;
+      timestamp: number;
+      productToolDefinition: ProductToolDefinition;
+      toolConstructionContext: any;
+    }>>((resolve, reject) => {
+      const request = index.getAll();
+      request.onsuccess = () => {
+        // Sort by timestamp descending (most recent first)
+        const sortedResults = request.result.sort((a, b) => b.timestamp - a.timestamp);
+        resolve(sortedResults);
+      };
+      request.onerror = () => {
+        console.error('❌ Error loading V2 jobs from IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+    
+    db.close();
+    console.log(`✅ Loaded ${results.length} V2 jobs from IndexedDB`);
+    return results;
+  } catch (error) {
+    console.error('❌ Error loading V2 jobs from IndexedDB:', error);
+    return [];
+  }
+}
+
+export async function deleteV2JobFromDB(jobId: string): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction([V2_JOBS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(V2_JOBS_STORE_NAME);
+    
+    await new Promise<void>((resolve, reject) => {
+      const request = store.delete(jobId);
+      request.onsuccess = () => {
+        console.log('✅ V2 job deleted from IndexedDB:', jobId);
+        resolve();
+      };
+      request.onerror = () => {
+        console.error('❌ Error deleting V2 job from IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+    
+    db.close();
+  } catch (error) {
+    console.error('❌ Error deleting V2 job from IndexedDB:', error);
+  }
 } 

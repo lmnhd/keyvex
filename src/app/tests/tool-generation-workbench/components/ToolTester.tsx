@@ -10,14 +10,21 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff } from 'lucide-react';
+import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff, Trash2 } from 'lucide-react';
 import {
   loadLogicResultsFromDB,
   runToolCreationProcess,
   ToolCreationJob,
   SavedLogicResult
 } from './tool-tester-core-logic';
-import { saveToolToDBList, saveV2JobToDB } from '../../ui/db-utils';
+import { 
+  saveToolToDBList, 
+  saveV2JobToDB, 
+  loadAllToolsFromDB, 
+  loadV2JobsFromDB,
+  deleteToolFromDBList,
+  deleteV2JobFromDB
+} from '../../ui/db-utils';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
@@ -41,6 +48,20 @@ type OrchestrationStatus = 'free' | 'paused' | 'runone';
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
   const [savedBrainstorms, setSavedBrainstorms] = useState<SavedLogicResult[]>([]);
   const [selectedBrainstormId, setSelectedBrainstormId] = useState<string | undefined>(undefined);
+  
+  // NEW: Saved tools and V2 jobs state
+  const [savedTools, setSavedTools] = useState<ProductToolDefinition[]>([]);
+  const [savedV2Jobs, setSavedV2Jobs] = useState<Array<{
+    id: string;
+    timestamp: number;
+    productToolDefinition: ProductToolDefinition;
+    toolConstructionContext: any;
+  }>>([]);
+  const [loadMode, setLoadMode] = useState<'new' | 'load'>('new');
+  const [selectedLoadItem, setSelectedLoadItem] = useState<{
+    type: 'brainstorm' | 'tool' | 'v2job';
+    id: string;
+  } | null>(null);
   
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]); // Multiple model selection (up to 5)
@@ -347,6 +368,32 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, []);
 
+  // NEW: Load saved tools from both IndexedDB and DynamoDB
+  const fetchSavedTools = useCallback(async () => {
+    try {
+      // For now, we'll load without userId to get IndexedDB tools
+      // Later we can enhance this to include a userId parameter
+      const tools = await loadAllToolsFromDB();
+      setSavedTools(tools);
+      console.log(`✅ Loaded ${tools.length} saved tools`);
+    } catch (err) {
+      console.error('Failed to load saved tools:', err);
+      setError('Failed to load saved tools. Check console.');
+    }
+  }, []);
+
+  // NEW: Load saved V2 jobs from IndexedDB
+  const fetchSavedV2Jobs = useCallback(async () => {
+    try {
+      const jobs = await loadV2JobsFromDB();
+      setSavedV2Jobs(jobs);
+      console.log(`✅ Loaded ${jobs.length} saved V2 jobs`);
+    } catch (err) {
+      console.error('Failed to load saved V2 jobs:', err);
+      setError('Failed to load saved V2 jobs. Check console.');
+    }
+  }, []);
+
   // Initialize selections from localStorage or defaults when data is available
   const [hasInitialized, setHasInitialized] = useState(false);
   
@@ -420,6 +467,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     fetchDefaultModel();
     fetchModels();
     fetchBrainstorms();
+    fetchSavedTools();
+    fetchSavedV2Jobs();
   }, [newBrainstormFlag]); // Only depend on newBrainstormFlag, not the functions
 
   const handleModelToggle = (modelId: string, checked: boolean) => {
@@ -447,6 +496,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   };
 
   const handleSubmit = async () => {
+    // For load mode, we don't need to generate - the user should use the Load Selected Item button
+    if (loadMode === 'load') {
+      setError("Please use the 'Load Selected Item' button in the Load Saved Items section to load an existing item.");
+      return;
+    }
+    
     if (!selectedBrainstormId || selectedModelIds.length === 0) {
       setError("Please select a brainstorm and at least one model.");
       return;
@@ -619,10 +674,88 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       await saveV2JobToDB(jobPackage);
       setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
       addWSLog(`V2 Result for job ${tcc.jobId} saved.`);
+      // Refresh the saved V2 jobs list
+      await fetchSavedV2Jobs();
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       setError(`Failed to save V2 result: ${msg}`);
       addWSLog(`Failed to save V2 result: ${msg}`);
+    }
+  };
+
+  // NEW: Handle loading a saved item back into the workbench
+  const handleLoadSavedItem = async () => {
+    if (!selectedLoadItem) return;
+
+    try {
+      switch (selectedLoadItem.type) {
+        case 'brainstorm':
+          const brainstorm = savedBrainstorms.find(b => b.id === selectedLoadItem.id);
+          if (brainstorm) {
+            setSelectedBrainstormId(brainstorm.id);
+            setLoadMode('new');
+            addWSLog(`Loaded brainstorm: ${brainstorm.toolType} for ${brainstorm.targetAudience}`);
+          }
+          break;
+
+        case 'tool':
+          const tool = savedTools.find(t => t.id === selectedLoadItem.id);
+          if (tool) {
+            // Set the tool as the final product for preview
+            setFinalProduct(tool);
+            setAssembledCode(tool.componentCode);
+            setTestJob({
+              modelId: 'loaded',
+              status: 'success',
+              result: tool,
+              startTime: Date.now(),
+              endTime: Date.now()
+            });
+            addWSLog(`Loaded saved tool: ${tool.metadata.title}`);
+          }
+          break;
+
+        case 'v2job':
+          const v2Job = savedV2Jobs.find(j => j.id === selectedLoadItem.id);
+          if (v2Job) {
+            // Load both the tool and TCC data
+            setFinalProduct(v2Job.productToolDefinition);
+            setAssembledCode(v2Job.productToolDefinition.componentCode);
+            setTccData(v2Job.toolConstructionContext);
+            setTestJob({
+              modelId: 'loaded-v2',
+              jobId: v2Job.id,
+              status: 'success',
+              result: v2Job.productToolDefinition,
+              startTime: Date.now(),
+              endTime: Date.now()
+            });
+            addWSLog(`Loaded V2 job: ${v2Job.productToolDefinition.metadata.title} (${v2Job.id})`);
+          }
+          break;
+      }
+      setSelectedLoadItem(null);
+    } catch (error) {
+      console.error('Error loading saved item:', error);
+      setError('Failed to load saved item. Check console.');
+    }
+  };
+
+  // NEW: Handle deleting a saved item
+  const handleDeleteSavedItem = async (type: 'tool' | 'v2job', id: string) => {
+    try {
+      if (type === 'tool') {
+        await deleteToolFromDBList(id);
+        await fetchSavedTools();
+        addWSLog(`Deleted saved tool: ${id}`);
+      } else if (type === 'v2job') {
+        await deleteV2JobFromDB(id);
+        await fetchSavedV2Jobs();
+        addWSLog(`Deleted V2 job: ${id}`);
+      }
+    } catch (error) {
+      console.error('Error deleting saved item:', error);
+      setError('Failed to delete saved item. Check console.');
     }
   };
 
@@ -734,13 +867,215 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             )}
           </div>
 
-
+          <div className="space-y-2">
+            <Label>Mode Selection</Label>
+            <Tabs value={loadMode} onValueChange={(value) => setLoadMode(value as 'new' | 'load')} className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="new" className="flex items-center gap-2">
+                  <Wand2 className="h-4 w-4" />
+                  Create New Tool
+                </TabsTrigger>
+                <TabsTrigger value="load" className="flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Load Saved Item
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
-        <div className="space-y-4">
-          <Label>2. Select Workflow Mode</Label>
-          
-          <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
+        {loadMode === 'load' && (
+          <div className="space-y-4">
+            <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center text-lg">
+                  <Database className="h-5 w-5 text-blue-600 mr-2" />
+                  Load Saved Items
+                </CardTitle>
+                <CardDescription>
+                  Load previously saved brainstorms, tools, or V2 generation results to continue working or testing.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs defaultValue="brainstorms" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="brainstorms">
+                      Brainstorms ({savedBrainstorms.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="tools">
+                      Saved Tools ({savedTools.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="v2jobs">
+                      V2 Results ({savedV2Jobs.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="brainstorms" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Select a Saved Brainstorm</Label>
+                      <ScrollArea className="h-48 border rounded-md p-3">
+                        <div className="space-y-2">
+                          {savedBrainstorms.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No saved brainstorms found</p>
+                          ) : (
+                            savedBrainstorms.map(brainstorm => (
+                              <div 
+                                key={brainstorm.id}
+                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                                  selectedLoadItem?.type === 'brainstorm' && selectedLoadItem?.id === brainstorm.id
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
+                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                                onClick={() => setSelectedLoadItem({ type: 'brainstorm', id: brainstorm.id })}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="font-medium text-sm">{brainstorm.toolType} for {brainstorm.targetAudience}</h4>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      {brainstorm.industry && `${brainstorm.industry} • `}
+                                      {new Date(brainstorm.timestamp).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs">Brainstorm</Badge>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="tools" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Select a Saved Tool</Label>
+                      <ScrollArea className="h-48 border rounded-md p-3">
+                        <div className="space-y-2">
+                          {savedTools.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No saved tools found</p>
+                          ) : (
+                            savedTools.map(tool => (
+                              <div 
+                                key={tool.id}
+                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                                  selectedLoadItem?.type === 'tool' && selectedLoadItem?.id === tool.id
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
+                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                                onClick={() => setSelectedLoadItem({ type: 'tool', id: tool.id })}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-sm">{tool.metadata.title}</h4>
+                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                      {tool.metadata.description || tool.metadata.shortDescription || 'No description'}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      {new Date(tool.updatedAt || tool.createdAt || Date.now()).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">Tool</Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSavedItem('tool', tool.id);
+                                      }}
+                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="v2jobs" className="mt-4">
+                    <div className="space-y-2">
+                      <Label>Select a V2 Generation Result</Label>
+                      <ScrollArea className="h-48 border rounded-md p-3">
+                        <div className="space-y-2">
+                          {savedV2Jobs.length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No V2 generation results found</p>
+                          ) : (
+                            savedV2Jobs.map(job => (
+                              <div 
+                                key={job.id}
+                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                                  selectedLoadItem?.type === 'v2job' && selectedLoadItem?.id === job.id
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
+                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
+                                onClick={() => setSelectedLoadItem({ type: 'v2job', id: job.id })}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-sm">{job.productToolDefinition.metadata.title}</h4>
+                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                      {job.productToolDefinition.metadata.description || 'No description'}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Job ID: {job.id.slice(0, 8)}... • {new Date(job.timestamp).toLocaleDateString()}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">V2 Result</Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSavedItem('v2job', job.id);
+                                      }}
+                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                {selectedLoadItem && (
+                  <div className="flex justify-between items-center pt-3 border-t">
+                    <div className="text-sm text-gray-600">
+                      Selected: {selectedLoadItem.type === 'brainstorm' ? 'Brainstorm' : 
+                                selectedLoadItem.type === 'tool' ? 'Saved Tool' : 
+                                'V2 Generation Result'}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setSelectedLoadItem(null)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleLoadSavedItem}>
+                        Load Selected Item
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {loadMode === 'new' && (
+          <div className="space-y-4">
+            <Label>2. Select Workflow Mode</Label>
+            
+            <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="v1" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -938,11 +1273,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             </TabsContent>
           </Tabs>
         </div>
+        )}
 
         <div className="flex justify-center items-center pt-4 gap-4">
           <Button 
             onClick={handleSubmit} 
-            disabled={isLoading || !selectedBrainstormId || selectedModelIds.length === 0 || (workflowMode === 'debug' && !selectedAgent)} 
+            disabled={isLoading || loadMode === 'load' || !selectedBrainstormId || selectedModelIds.length === 0 || (workflowMode === 'debug' && !selectedAgent)} 
             size="lg" 
             className="flex-1"
           >
