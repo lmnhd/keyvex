@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         OrchestrationStepEnum.enum.planning_function_signatures, 
         'started', 
         'Orchestration started. Beginning function signature planning...', 
-        { tcc, userInput, testingOptions }
+        tcc // Pass TCC directly as details
       );
       
       logger.info({ jobId }, '🚀 ORCHESTRATION START: Initial progress emitted');

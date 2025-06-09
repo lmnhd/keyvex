@@ -89,7 +89,8 @@ export async function applyStyling(request: {
       jobId,
       OrchestrationStepEnum.enum.applying_tailwind_styling,
       'in_progress',
-      'Applying Tailwind CSS styling...'
+      'Applying Tailwind CSS styling...',
+      tcc // Pass TCC with userId
     );
 
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
@@ -116,7 +117,8 @@ export async function applyStyling(request: {
       jobId,
       OrchestrationStepEnum.enum.applying_tailwind_styling,
       'completed',
-      'Tailwind CSS styling applied successfully!'
+      'Tailwind CSS styling applied successfully!',
+      updatedTcc // Pass updated TCC with userId
     );
 
     logger.info({ jobId }, '🎨 TailwindStyling: Applied styling successfully');
@@ -132,7 +134,8 @@ export async function applyStyling(request: {
       jobId,
       OrchestrationStepEnum.enum.applying_tailwind_styling,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     
     return {

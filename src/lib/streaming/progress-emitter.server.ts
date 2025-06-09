@@ -101,8 +101,10 @@ async function getUserConnections(userId: string): Promise<string[]> {
       const { ApiGatewayManagementApiClient, PostToConnectionCommand } = await import('@aws-sdk/client-apigatewaymanagementapi');
       
       // Extract domain and stage from WebSocket URL
-      const domainName = WEBSOCKET_API_URL?.replace('wss://', '').replace('ws://', '');
-      const stage = process.env.AWS_STAGE || 'dev';
+      const wsUrl = WEBSOCKET_API_URL?.replace('wss://', '').replace('ws://', '') || '';
+      const urlParts = wsUrl.split('/');
+      const domainName = urlParts[0]; // e.g., '4pfmheijde.execute-api.us-east-1.amazonaws.com'
+      const stage = urlParts[1] || process.env.AWS_STAGE || 'dev'; // e.g., 'dev'
       const callbackUrl = `https://${domainName}/${stage}`;
       
       const apiGwClient = new ApiGatewayManagementApiClient({
@@ -198,14 +200,23 @@ async function getUserConnections(userId: string): Promise<string[]> {
   
     logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
 
-    // The 'details' object is the ToolConstructionContext (TCC)
-    const userId = details?.userId;
+    // Extract userId from details - handle both direct userId and TCC object
+    let userId = details?.userId;
+    
+    // If not found directly, check if details contains a TCC object
+    if (!userId && details?.tcc?.userId) {
+      userId = details.tcc.userId;
+      logger.info({ jobId, source: 'details.tcc.userId' }, '📡 [USER-ID-LOOKUP] Extracted userId from nested TCC');
+    }
 
     if (!userId) {
       logger.warn({
         jobId,
         hasDetails: !!details,
         detailsKeys: details ? Object.keys(details) : [],
+        hasTcc: !!details?.tcc,
+        tccKeys: details?.tcc ? Object.keys(details.tcc) : [],
+        tccUserId: details?.tcc?.userId
       }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
       return;
     }

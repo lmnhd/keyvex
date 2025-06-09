@@ -44,7 +44,8 @@ export async function validateComponent(
       jobId,
       OrchestrationStepEnum.enum.validating_code,
       'in_progress',
-      'Validating component code...'
+      'Validating component code...',
+      tcc // Pass TCC with userId
     );
 
     if (!tcc.assembledComponentCode) {
@@ -74,7 +75,8 @@ export async function validateComponent(
       jobId,
       OrchestrationStepEnum.enum.validating_code,
       'completed',
-      `Code validation completed. ${validationResult.isValid ? 'No issues found' : `Found ${validationResult.syntaxErrors.length + validationResult.typeErrors.length} errors`}.`
+      `Code validation completed. ${validationResult.isValid ? 'No issues found' : `Found ${validationResult.syntaxErrors.length + validationResult.typeErrors.length} errors`}.`,
+      updatedTCC // Pass updated TCC with userId
     );
 
     logger.info(
@@ -98,7 +100,8 @@ export async function validateComponent(
       jobId,
       OrchestrationStepEnum.enum.validating_code,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     
     return {

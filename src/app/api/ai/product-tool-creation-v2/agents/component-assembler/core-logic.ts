@@ -84,7 +84,8 @@ export async function assembleComponent(request: {
       jobId,
       OrchestrationStepEnum.enum.assembling_component,
       'in_progress',
-      'Assembling final React component...'
+      'Assembling final React component...',
+      tcc // Pass TCC with userId
     );
 
     // Assemble the component with AI
@@ -116,7 +117,8 @@ export async function assembleComponent(request: {
       jobId,
       OrchestrationStepEnum.enum.assembling_component,
       'completed',
-      'Component assembled successfully!'
+      'Component assembled successfully!',
+      updatedTCC // Pass updated TCC with userId
     );
 
     logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
@@ -132,7 +134,8 @@ export async function assembleComponent(request: {
       jobId,
       OrchestrationStepEnum.enum.assembling_component,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     
     return { success: false, error: errorMessage };

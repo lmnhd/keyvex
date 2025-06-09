@@ -87,7 +87,8 @@ export async function finalizeTool(request: {
       jobId,
       OrchestrationStepEnum.enum.finalizing_tool,
       'in_progress',
-      'Assembling the final tool definition...'
+      'Assembling the final tool definition...',
+      tcc // Pass TCC with userId
     );
 
     const { provider, modelId } = getModelForAgent(
@@ -118,7 +119,11 @@ export async function finalizeTool(request: {
       OrchestrationStepEnum.enum.finalizing_tool,
       'completed',
       'Tool has been finalized successfully!',
-      finalProduct
+      { 
+        ...tcc, 
+        finalProduct,
+        assembledComponentCode: tcc.assembledComponentCode // Ensure code is available for preview
+      }
     );
 
     logger.info({ jobId }, '✅ ToolFinalizer: Tool finalized successfully.');
@@ -135,7 +140,8 @@ export async function finalizeTool(request: {
       jobId,
       OrchestrationStepEnum.enum.finalizing_tool,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     return {
       success: false,

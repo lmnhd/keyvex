@@ -105,7 +105,8 @@ export async function designStateLogic(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_state_logic,
       'in_progress',
-      'Designing state logic and functions...'
+      'Designing state logic and functions...',
+      tcc // Pass TCC with userId
     );
 
     logger.info({ jobId }, '🎯 StateDesign: Calling AI to generate state logic...');
@@ -165,7 +166,8 @@ export async function designStateLogic(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_state_logic,
       'completed',
-      `Successfully designed ${updatedTcc.stateLogic?.variables?.length || 0} state variables and ${updatedTcc.stateLogic?.functions?.length || 0} functions.`
+      `Successfully designed ${updatedTcc.stateLogic?.variables?.length || 0} state variables and ${updatedTcc.stateLogic?.functions?.length || 0} functions.`,
+      updatedTcc // Pass updated TCC with userId
     );
 
     return { success: true, stateLogic, updatedTcc };
@@ -177,7 +179,8 @@ export async function designStateLogic(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_state_logic,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     
     return { success: false, error: errorMessage };

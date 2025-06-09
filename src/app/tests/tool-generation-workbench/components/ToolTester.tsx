@@ -144,29 +144,46 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     addWSLog(progress.message || `Progress for ${progress.stepName}: ${progress.status}`);
     setCurrentStep(progress.stepName);
 
-    const newTcc = progress.data?.tcc;
-    if (newTcc) {
-      setTccData(newTcc);
-      if (newTcc.assembledComponentCode && !assembledCode) {
-        setAssembledCode(newTcc.assembledComponentCode);
+    // Handle TCC data - could be nested or direct
+    let actualTcc = progress.data;
+    if (progress.data?.tcc) {
+      // If data has a nested tcc property, use that
+      actualTcc = progress.data.tcc;
+    } else if (progress.data?.userId || progress.data?.jobId) {
+      // If data looks like a TCC itself, use it directly
+      actualTcc = progress.data;
+    }
+
+    if (actualTcc) {
+      setTccData(actualTcc);
+      if (actualTcc.assembledComponentCode && !assembledCode) {
+        setAssembledCode(actualTcc.assembledComponentCode);
         addWSLog('✅ Assembled code received from TCC update!');
       }
     }
 
+    // Handle final tool completion
     if (progress.stepName === 'finalizing_tool' && progress.status === 'completed' && progress.data) {
-      const finalProductData = progress.data as ProductToolDefinition;
-      setFinalProduct(finalProductData);
-      if (finalProductData.componentCode) {
-        setAssembledCode(finalProductData.componentCode);
-      }
-      addWSLog('✅ Final product received!');
+      // Check if finalProduct is nested in the data or if data is the product itself
+      const finalProductData = progress.data.finalProduct || progress.data;
+      
+      if (finalProductData && (finalProductData.id || finalProductData.componentCode)) {
+        setFinalProduct(finalProductData);
+        if (finalProductData.componentCode) {
+          setAssembledCode(finalProductData.componentCode);
+        }
+        addWSLog('✅ Final product received!');
 
-      setTestJob(prev => ({
-        ...(prev as ToolCreationJob),
-        status: 'success',
-        result: finalProductData,
-        endTime: Date.now()
-      }));
+        setTestJob(prev => ({
+          ...(prev as ToolCreationJob),
+          status: 'success',
+          result: finalProductData,
+          endTime: Date.now()
+        }));
+      } else {
+        addWSLog('⚠️ Final tool step completed but no valid product data found');
+        console.warn('Final tool data structure:', progress.data);
+      }
     }
   }, [addWSLog, assembledCode]);
 

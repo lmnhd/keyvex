@@ -60,7 +60,8 @@ export async function planFunctionSignatures(request: {
       jobId, 
       OrchestrationStepEnum.enum.planning_function_signatures,
       'in_progress',
-      'Beginning function signature planning...'
+      'Beginning function signature planning...',
+      tcc // Pass TCC with userId
     );
 
     const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
@@ -108,7 +109,8 @@ export async function planFunctionSignatures(request: {
       jobId,
       OrchestrationStepEnum.enum.planning_function_signatures,
       'completed',
-      `Successfully planned ${functionSignatures.length} function signatures.`
+      `Successfully planned ${functionSignatures.length} function signatures.`,
+      updatedTcc // Pass updated TCC with userId
     );
 
     logger.info({ jobId, count: functionSignatures.length }, '🔧 FunctionPlanner: Successfully planned function signatures');
@@ -119,7 +121,8 @@ export async function planFunctionSignatures(request: {
       jobId,
       OrchestrationStepEnum.enum.planning_function_signatures,
       'failed',
-      error instanceof Error ? error.message : 'Unknown error'
+      error instanceof Error ? error.message : 'Unknown error',
+      tcc // Pass TCC with userId even on failure
     );
     return {
       success: false,

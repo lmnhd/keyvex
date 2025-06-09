@@ -101,7 +101,8 @@ export async function designJsxLayout(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_jsx_layout,
       'in_progress',
-      'Designing JSX component structure...'
+      'Designing JSX component structure...',
+      tcc // Pass TCC with userId
     );
 
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
@@ -127,7 +128,8 @@ export async function designJsxLayout(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_jsx_layout,
       'completed',
-      'JSX layout designed successfully!'
+      'JSX layout designed successfully!',
+      updatedTcc // Pass updated TCC with userId
     );
 
     logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
@@ -143,7 +145,8 @@ export async function designJsxLayout(request: {
       jobId,
       OrchestrationStepEnum.enum.designing_jsx_layout,
       'failed',
-      errorMessage
+      errorMessage,
+      tcc // Pass TCC with userId even on failure
     );
     
     return {
