@@ -1,32 +1,32 @@
 import {
-  ProgressEvent,
-  OrchestrationStep,
+    ProgressEvent,
+    OrchestrationStep,
   ToolConstructionContext,
-} from '@/lib/types/product-tool-creation-v2/tcc';
-import logger from '../logger';
-
-const WEBSOCKET_API_URL = process.env.WEBSOCKET_API_URL;
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-
-/**
- * Check if AWS WebSocket is available
- */
-function isWebSocketAvailable(): boolean {
-  const urlAvailable = !!WEBSOCKET_API_URL;
-  const accessKeyAvailable = !!process.env.AWS_ACCESS_KEY_ID;
-  const secretKeyAvailable = !!process.env.AWS_SECRET_ACCESS_KEY;
-  logger.info({
-    urlAvailable,
-    accessKeyAvailable,
-    secretKeyAvailable,
-    WEBSOCKET_API_URL: process.env.WEBSOCKET_API_URL || 'Not Set',
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not Set',
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not Set',
-  }, '📡 [AWS-WEBSOCKET-CHECK]');
-  return urlAvailable && accessKeyAvailable && secretKeyAvailable;
-}
-
-/**
+  } from '@/lib/types/product-tool-creation-v2/tcc';
+  import logger from '../logger';
+  
+  const WEBSOCKET_API_URL = process.env.WEBSOCKET_API_URL;
+  const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+  
+  /**
+   * Check if AWS WebSocket is available
+   */
+  function isWebSocketAvailable(): boolean {
+    const urlAvailable = !!WEBSOCKET_API_URL;
+    const accessKeyAvailable = !!process.env.AWS_ACCESS_KEY_ID;
+    const secretKeyAvailable = !!process.env.AWS_SECRET_ACCESS_KEY;
+    logger.info({
+      urlAvailable,
+      accessKeyAvailable,
+      secretKeyAvailable,
+      WEBSOCKET_API_URL: process.env.WEBSOCKET_API_URL || 'Not Set',
+      AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not Set',
+      AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not Set',
+    }, '📡 [AWS-WEBSOCKET-CHECK]');
+    return urlAvailable && accessKeyAvailable && secretKeyAvailable;
+  }
+  
+  /**
  * Get WebSocket connection IDs for a user from DynamoDB
  */
 async function getUserConnections(userId: string): Promise<string[]> {
@@ -78,18 +78,18 @@ async function getUserConnections(userId: string): Promise<string[]> {
 
 /**
  * Send progress via AWS WebSocket API Gateway Management API
- */
-async function sendViaWebSocket(
-  userId: string,
-  jobId: string,
-  event: ProgressEvent
-): Promise<boolean> {
-  if (!isWebSocketAvailable()) {
-    logger.warn({ jobId }, '📡 [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send message.');
-    return false;
-  }
-
-  try {
+   */
+  async function sendViaWebSocket(
+    userId: string,
+    jobId: string,
+    event: ProgressEvent
+  ): Promise<boolean> {
+    if (!isWebSocketAvailable()) {
+      logger.warn({ jobId }, '📡 [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send message.');
+      return false;
+    }
+  
+    try {
       // Get user's WebSocket connection IDs
       const connectionIds = await getUserConnections(userId);
       
@@ -107,20 +107,20 @@ async function sendViaWebSocket(
       
       const apiGwClient = new ApiGatewayManagementApiClient({
         endpoint: callbackUrl,
-        region: AWS_REGION,
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-        },
-      });
-
+          region: AWS_REGION,
+          credentials: {
+            accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+            secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+          },
+        });
+  
       const progressMessage = {
         type: 'step_progress',
-        jobId,
-        stepName: event.stepName,
-        status: event.status,
-        message: event.message,
-        data: event.details,
+          jobId,
+          stepName: event.stepName,
+          status: event.status,
+          message: event.message,
+          data: event.details,
         timestamp: event.timestamp,
       };
 
@@ -159,19 +159,19 @@ async function sendViaWebSocket(
       }, `📡 [AWS-WEBSOCKET] Message sending completed`);
       
       return successCount > 0;
-      
-  } catch (error) {
-    logger.error({ 
-        jobId, 
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : 'No stack'
+        
+    } catch (error) {
+      logger.error({ 
+          jobId, 
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : 'No stack'
     }, `📡 [WEBSOCKET-ERROR] WebSocket message sending failed`);
-    return false;
+      return false;
+    }
   }
-}
-
-/**
- * Emit a progress event for a specific job.
+  
+  /**
+   * Emit a progress event for a specific job.
  * This is the main entry point for sending progress updates.
  * 
  * @param jobId - The job ID
@@ -179,25 +179,25 @@ async function sendViaWebSocket(
  * @param status - The step status 
  * @param message - Optional message
  * @param details - Optional details object which should contain either userId directly or TCC object
- */
-export async function emitStepProgress(
-  jobId: string,
-  stepName: OrchestrationStep,
-  status: 'initiated' | 'started' | 'in_progress' | 'llm_call_pending' | 'llm_data_received' | 'completed' | 'failed' | 'skipped',
-  message?: string,
-  details?: any
-): Promise<void> {
-
-  const event: ProgressEvent = {
-    stepName,
-    status,
-    message: message || 'Progress update',
-    details,
-    timestamp: new Date().toISOString()
-  };
-
+   */
+  export async function emitStepProgress(
+    jobId: string,
+    stepName: OrchestrationStep,
+    status: 'initiated' | 'started' | 'in_progress' | 'llm_call_pending' | 'llm_data_received' | 'completed' | 'failed' | 'skipped',
+    message?: string,
+    details?: any
+  ): Promise<void> {
+  
+    const event: ProgressEvent = {
+      stepName,
+      status,
+      message: message || 'Progress update',
+      details,
+      timestamp: new Date().toISOString()
+    };
+  
   // Extract userId from various sources
-  let userId: string | undefined;
+    let userId: string | undefined;
 
   logger.info({ jobId, stepName, status, message, details }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
   if (!details || !details.userId) {
@@ -213,13 +213,13 @@ export async function emitStepProgress(
     }
     // Priority 2: TCC object in details
     else if (details?.tcc?.userId) {
-      userId = details.tcc.userId;
+        userId = details.tcc.userId;
       logger.info({ jobId, userId, source: 'details.tcc.userId' }, '📡 [USER-ID-LOOKUP] Found userId in TCC from details');
     }
     // Priority 3: Direct TCC object as details
     else if (details?.jobId && details?.userId) {
       // This looks like a TCC object itself
-      userId = details.userId;
+        userId = details.userId;
       logger.info({ jobId, userId, source: 'details as TCC' }, '📡 [USER-ID-LOOKUP] Found userId in details as TCC object');
     }
     else {
@@ -244,9 +244,9 @@ export async function emitStepProgress(
 
   } catch (error) {
     logger.error({ 
-      jobId, 
+        jobId,
       error: error instanceof Error ? error.message : String(error),
-      stepName,
+        stepName,
       status
     }, '📡 [WEBSOCKET-EMIT-ERROR] Error occurred while emitting progress');
   }

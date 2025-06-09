@@ -1,122 +1,141 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { kv } from '@vercel/kv';
 import {
   OrchestrationStepEnum,
   ToolConstructionContext,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
-import { merge } from 'lodash';
 
 const CheckCompletionRequestSchema = z.object({
   jobId: z.string().uuid(),
   tcc: z.custom<ToolConstructionContext>(),
 });
 
-const CACHE_EXPIRATION_SECONDS = 300; // 5 minutes
-
 export async function POST(request: NextRequest) {
   let jobId = 'unknown';
   try {
     const body = await request.json();
-    const { jobId: parsedJobId, tcc: partialTcc } =
-      CheckCompletionRequestSchema.parse(body);
-    jobId = parsedJobId;
-    const cacheKey = `tcc-merge:${jobId}`;
+    const parsedBody = CheckCompletionRequestSchema.parse(body);
+    jobId = parsedBody.jobId;
+    const tcc = parsedBody.tcc;
+
+    if (!tcc) {
+      throw new Error('TCC object is required - the TCC store has been deprecated, TCC must be passed as props');
+    }
+
+    logger.info({ jobId, agentOutputKeys: Object.keys(tcc) }, '🔍 CHECK-COMPLETION: Received TCC from completing agent');
+
+    // Check parallel step completion status
+    const parallelCompletionResult = checkParallelStepCompletion(tcc);
 
     logger.info(
-      { jobId, keysInPartialTcc: Object.keys(partialTcc) },
-      '🔍 KV-MERGE: Received partial TCC from a completing agent',
+      {
+        jobId,
+        currentStep: tcc.currentOrchestrationStep,
+        decisionDetails: parallelCompletionResult,
+      },
+      '🔍 CHECK-COMPLETION: Parallel completion status determined',
     );
 
-    // 1. Check cache for the other agent's result
-    const cachedTcc = await kv.get<ToolConstructionContext>(cacheKey);
+    if (
+      parallelCompletionResult.readyToTriggerNext &&
+      parallelCompletionResult.nextStep
+    ) {
+      logger.info(
+        { jobId, nextStep: parallelCompletionResult.nextStep },
+        '🔍 CHECK-COMPLETION: Triggering next step with TCC props pattern',
+      );
 
-    if (!cachedTcc) {
-      // This is the first agent to finish.
-      logger.info({ jobId, cacheKey }, '🔍 KV-MERGE: First agent finished. Caching partial TCC.');
-      await kv.set(cacheKey, partialTcc, { ex: CACHE_EXPIRATION_SECONDS });
+      // Asynchronously trigger the next step with updated TCC
+      const updatedTcc = {
+        ...tcc,
+        currentOrchestrationStep: parallelCompletionResult.nextStep as any,
+        updatedAt: new Date().toISOString()
+      };
 
-      return NextResponse.json({
-        success: true,
-        jobId,
-        status: 'pending_merge',
-        message: 'Partial TCC cached. Waiting for parallel agent to complete.',
+      fetch(
+        `${request.nextUrl.origin}/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId,
+            nextStep: parallelCompletionResult.nextStep,
+            tcc: updatedTcc,
+          }),
+        },
+      ).catch(error => {
+        logger.error(
+          { jobId, nextStep: parallelCompletionResult.nextStep, error },
+          '🔍 CHECK-COMPLETION: Fire-and-forget call to trigger-next-step failed',
+        );
       });
     }
 
-    // This is the second agent to finish.
-    logger.info({ jobId, cacheKey }, '🔍 KV-MERGE: Second agent finished. Merging TCCs.');
-
-    // 2. Perform a deep merge of the cached TCC and the current agent's TCC
-    const mergedTcc = merge({}, cachedTcc, partialTcc);
-    mergedTcc.updatedAt = new Date().toISOString();
-
-    logger.info(
-      {
-        jobId,
-        mergedKeys: Object.keys(mergedTcc),
-        stateLogic: !!mergedTcc.stateLogic,
-        jsxLayout: !!mergedTcc.jsxLayout,
-      },
-      '🔍 KV-MERGE: TCCs merged successfully.',
-    );
-
-    // 3. Clean up the cache
-    await kv.del(cacheKey);
-    logger.info({ jobId, cacheKey }, '🔍 KV-MERGE: Cache key deleted.');
-
-    // 4. Determine the next step after the merge
-    const nextStep = OrchestrationStepEnum.enum.applying_tailwind_styling;
-    mergedTcc.currentOrchestrationStep = nextStep;
-
-    // 5. Asynchronously trigger the next step in the orchestration
-    fetch(
-      new URL(
-        '/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step',
-        request.url,
-      ),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId,
-          nextStep: nextStep,
-          tcc: mergedTcc, // Pass the fully merged TCC
-        }),
-      },
-    ).catch(error => {
-      logger.error(
-        { jobId, nextStep, error },
-        '🔍 KV-MERGE: Fire-and-forget call to trigger-next-step failed',
-      );
-    });
-
-    logger.info(
-      { jobId, nextStep },
-      '🔍 KV-MERGE: Handed off to trigger-next-step endpoint.',
-    );
-
-    return NextResponse.json({
+    const response = {
       success: true,
       jobId,
-      status: 'merge_complete',
-      nextStep,
-      message: 'TCCs merged and next step triggered.',
-      mergedTcc,
-    });
+      currentStep: tcc.currentOrchestrationStep,
+      ...parallelCompletionResult,
+      status: tcc.status,
+      updatedTcc: tcc,
+    };
+
+    return NextResponse.json(response);
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error occurred';
-    logger.error({ jobId, error: errorMessage }, '🔍 KV-MERGE: Request failed');
+    logger.error(
+      {
+        jobId,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message }
+            : String(error),
+      },
+      '🔍 CHECK-COMPLETION: Request failed',
+    );
 
     return NextResponse.json(
       {
         success: false,
         jobId,
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
       },
       { status: 500 },
     );
   }
+}
+function checkParallelStepCompletion(tcc: ToolConstructionContext): {
+  isComplete: boolean;
+  nextStep: string | null;
+  readyToTriggerNext: boolean;
+  parallelStatus?: {
+    stateDesignComplete: boolean;
+    jsxLayoutComplete: boolean;
+  };
+} {
+  const stateDesignComplete = !!tcc.stateLogic;
+  const jsxLayoutComplete = !!tcc.jsxLayout;
+  const bothComplete = stateDesignComplete && jsxLayoutComplete;
+
+  logger.info({
+    jobId: tcc.jobId,
+    stateDesignComplete,
+    jsxLayoutComplete,
+    bothComplete
+  }, '🔍 CHECK-COMPLETION: Final state analysis for parallel step');
+
+  let nextStep = null;
+  if (bothComplete) {
+    nextStep = OrchestrationStepEnum.enum.applying_tailwind_styling;
+  }
+
+  return {
+    isComplete: bothComplete,
+    nextStep: nextStep,
+    readyToTriggerNext: bothComplete,
+    parallelStatus: {
+      stateDesignComplete,
+      jsxLayoutComplete,
+    },
+  };
 }
