@@ -5,11 +5,7 @@ import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tc
 import { z } from 'zod';
 
 // Define the request schema locally
-const jsxLayoutRequestSchema = z.object({
-  jobId: z.string().uuid(),
-  selectedModel: z.string().optional(),
-  mockTcc: z.custom<ToolConstructionContext>().optional(),
-});
+const jsxLayoutRequestSchema = z.object({ jobId: z.string().uuid(), selectedModel: z.string().optional(), tcc: z.custom<ToolConstructionContext>().optional(), mockTcc: z.custom<ToolConstructionContext>().optional(), });
 
 export async function POST(request: NextRequest) {
   logger.info('🏗️ JSXLayout Route: Route handler started');
@@ -31,7 +27,7 @@ export async function POST(request: NextRequest) {
     const result = await designJsxLayout({
       jobId: parsedRequest.jobId,
       selectedModel: parsedRequest.selectedModel,
-      mockTcc: parsedRequest.mockTcc,
+      tcc: parsedRequest.tcc, mockTcc: parsedRequest.mockTcc,
       isIsolatedTest
     });
 
