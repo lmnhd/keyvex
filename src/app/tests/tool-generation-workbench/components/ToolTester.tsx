@@ -347,7 +347,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         }
       }
       
-      console.log(`🎯 Final result: Loaded ${parsedModels.length} models:`, parsedModels);
+      console.log(`🎯 Tool Definition: Loaded ${parsedModels.length} models:`, parsedModels);
       
       if (parsedModels.length === 0) {
         console.error('❌ No models were loaded! This is a problem.');
@@ -1442,7 +1442,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
               <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
               <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
-              <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Final Result</TabsTrigger>
+              <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
             </TabsList>
             
             <TabsContent value="progress" className="mt-4">
@@ -2012,7 +2012,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     </CardTitle>
                     <CardDescription>
                       {workflowMode === 'debug' 
-                        ? 'Final result object showing the complete tool state after applying the isolated agent\'s changes. This matches the ProductToolDefinition format used in full generation.'
+                        ? 'Tool Definition object showing the complete tool state after applying the isolated agent\'s changes. This matches the ProductToolDefinition format used in full generation.'
                         : 'The final tool definition has been created and is ready to be saved.'
                       }
                     </CardDescription>

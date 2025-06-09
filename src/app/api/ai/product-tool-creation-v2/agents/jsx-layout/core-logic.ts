@@ -92,15 +92,36 @@ export async function designJsxLayout(request: {
   const { jobId, selectedModel, isIsolatedTest = false } = request;
   const tcc = request.mockTcc || request.tcc;
 
-  logger.info({ jobId, isIsolatedTest }, '🏗️ JSXLayout: Starting JSX layout design');
+  logger.info({ 
+    jobId, 
+    isIsolatedTest,
+    hasTcc: !!tcc,
+    tccKeys: tcc ? Object.keys(tcc) : [],
+    tccUserId: tcc?.userId,
+    tccStatus: tcc?.status
+  }, '🏗️ JSXLayout: Starting JSX layout design');
 
   try {
     if (!tcc) {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
+    // Additional TCC validation
+    if (!tcc.jobId) {
+      throw new Error(`TCC missing jobId for jobId: ${jobId}`);
+    }
+
+    if (!tcc.userId) {
+      logger.warn({ 
+        jobId, 
+        tccKeys: Object.keys(tcc),
+        tccJobId: tcc.jobId 
+      }, '🏗️ JSXLayout: WARNING - TCC missing userId, this will cause WebSocket emission to fail');
+    }
+
     // Skip progress emission during isolated testing to prevent orchestration
     if (!isIsolatedTest) {
+      logger.info({ jobId }, '🏗️ JSXLayout: About to emit progress...');
       await emitStepProgress(
         jobId,
         OrchestrationStepEnum.enum.designing_jsx_layout,
@@ -108,9 +129,12 @@ export async function designJsxLayout(request: {
         'Designing JSX component structure...',
         tcc // Pass TCC with userId
       );
+      logger.info({ jobId }, '🏗️ JSXLayout: Progress emitted successfully');
     }
 
+    logger.info({ jobId }, '🏗️ JSXLayout: About to call generateJsxLayoutWithAI...');
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel, isIsolatedTest);
+    logger.info({ jobId }, '🏗️ JSXLayout: generateJsxLayoutWithAI completed successfully');
 
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
@@ -131,6 +155,7 @@ export async function designJsxLayout(request: {
 
     // Skip progress emission during isolated testing to prevent orchestration
     if (!isIsolatedTest) {
+      logger.info({ jobId }, '🏗️ JSXLayout: About to emit completion progress...');
       await emitStepProgress(
         jobId,
         OrchestrationStepEnum.enum.designing_jsx_layout,
@@ -138,6 +163,7 @@ export async function designJsxLayout(request: {
         'JSX layout designed successfully!',
         updatedTcc // Pass updated TCC with userId
       );
+      logger.info({ jobId }, '🏗️ JSXLayout: Completion progress emitted successfully');
     } else {
       logger.info({ jobId }, '🏗️ JSXLayout: Isolated test mode - skipping progress emission');
     }
@@ -146,20 +172,37 @@ export async function designJsxLayout(request: {
     return { success: true, jsxLayout, updatedTcc };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack available';
+    
     logger.error(
-      { jobId, error: errorMessage },
+      { 
+        jobId, 
+        error: errorMessage,
+        errorStack,
+        errorType: error?.constructor?.name,
+        tccPresent: !!tcc,
+        tccUserId: tcc?.userId
+      },
       '🏗️ JSXLayout: Error designing JSX layout',
     );
     
     // Skip progress emission during isolated testing
     if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.designing_jsx_layout,
-        'failed',
-        errorMessage,
-        tcc // Pass TCC with userId even on failure
-      );
+      try {
+        await emitStepProgress(
+          jobId,
+          OrchestrationStepEnum.enum.designing_jsx_layout,
+          'failed',
+          errorMessage,
+          tcc // Pass TCC with userId even on failure
+        );
+        logger.info({ jobId }, '🏗️ JSXLayout: Failure progress emitted successfully');
+      } catch (emitError) {
+        logger.error({ 
+          jobId, 
+          emitError: emitError instanceof Error ? emitError.message : String(emitError) 
+        }, '🏗️ JSXLayout: Failed to emit failure progress');
+      }
     }
     
     return {
