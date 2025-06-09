@@ -240,8 +240,10 @@ export async function saveV2JobToDB(jobPackage: {
   }
 }
 
-export async function saveToolToDBList(tool: ProductToolDefinition): Promise<void> {
+// ENHANCED FUNCTIONS - Save to both IndexedDB and DynamoDB
+export async function saveToolToDBList(tool: ProductToolDefinition, userId?: string): Promise<void> {
   try {
+    // Save to IndexedDB first (existing functionality)
     const db = await openToolDB();
     const transaction = db.transaction([TOOL_STORE_NAME], 'readwrite');
     const store = transaction.objectStore(TOOL_STORE_NAME);
@@ -267,19 +269,52 @@ export async function saveToolToDBList(tool: ProductToolDefinition): Promise<voi
     });
     
     db.close();
+
+    // Also save to DynamoDB via API call (NEW functionality)
+    if (userId) {
+      try {
+        const response = await fetch('/api/product-tools/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tool: {
+              ...tool,
+              createdBy: userId,
+              updatedAt: Date.now()
+            }
+          }),
+        });
+
+        if (response.ok) {
+          console.log('✅ Tool also saved to DynamoDB:', tool.metadata.title);
+        } else {
+          const error = await response.text();
+          console.error('❌ DynamoDB save failed:', error);
+        }
+      } catch (dynamoError) {
+        console.error('❌ Error saving tool to DynamoDB (IndexedDB save still succeeded):', dynamoError);
+        // Don't throw - IndexedDB save succeeded
+      }
+    } else {
+      console.warn('⚠️ No userId provided, skipping DynamoDB save');
+    }
   } catch (error) {
     console.error('❌ Error saving tool to IndexedDB list:', error);
+    throw error; // Re-throw if IndexedDB fails
   }
 }
 
-export async function loadAllToolsFromDB(): Promise<ProductToolDefinition[]> {
+export async function loadAllToolsFromDB(userId?: string): Promise<ProductToolDefinition[]> {
   try {
+    // Load from IndexedDB first (existing functionality)
     const db = await openToolDB();
     const transaction = db.transaction([TOOL_STORE_NAME], 'readonly');
     const store = transaction.objectStore(TOOL_STORE_NAME);
     const index = store.index('timestamp');
     
-    const tools = await new Promise<ProductToolDefinition[]>((resolve, reject) => {
+    const indexedDbTools = await new Promise<ProductToolDefinition[]>((resolve, reject) => {
       const request = index.getAll();
       request.onsuccess = () => {
         // Filter out the last active tool entry and extract the tool objects
@@ -299,16 +334,56 @@ export async function loadAllToolsFromDB(): Promise<ProductToolDefinition[]> {
     });
     
     db.close();
-    console.log(`✅ Loaded ${tools.length} tools from IndexedDB`);
-    return tools;
+    console.log(`✅ Loaded ${indexedDbTools.length} tools from IndexedDB`);
+
+    // Also try to load from DynamoDB via API call and merge (NEW functionality)
+    if (userId) {
+      try {
+        const response = await fetch(`/api/product-tools/list?userId=${encodeURIComponent(userId)}`);
+        
+        if (response.ok) {
+          const dynamoDbTools = await response.json();
+          console.log(`✅ Loaded ${dynamoDbTools.length} tools from DynamoDB`);
+          
+          // Merge tools, preferring DynamoDB versions (more up-to-date)
+          const toolMap = new Map<string, ProductToolDefinition>();
+          
+          // Add IndexedDB tools first
+          indexedDbTools.forEach(tool => {
+            toolMap.set(tool.id, tool);
+          });
+          
+          // Override with DynamoDB tools (they take precedence)
+          dynamoDbTools.forEach((tool: ProductToolDefinition) => {
+            toolMap.set(tool.id, tool);
+          });
+          
+          const mergedTools = Array.from(toolMap.values())
+            .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          
+          console.log(`✅ Merged ${mergedTools.length} unique tools from both sources`);
+          return mergedTools;
+        } else {
+          console.error('❌ Failed to load tools from DynamoDB, using IndexedDB only');
+          return indexedDbTools;
+        }
+      } catch (dynamoError) {
+        console.error('❌ Error loading tools from DynamoDB (returning IndexedDB tools):', dynamoError);
+        return indexedDbTools;
+      }
+    } else {
+      console.warn('⚠️ No userId provided, returning only IndexedDB tools');
+      return indexedDbTools;
+    }
   } catch (error) {
     console.error('❌ Error loading tools from IndexedDB:', error);
     return [];
   }
 }
 
-export async function deleteToolFromDBList(toolId: string): Promise<void> {
+export async function deleteToolFromDBList(toolId: string, userId?: string): Promise<void> {
   try {
+    // Delete from IndexedDB first (existing functionality)
     const db = await openToolDB();
     const transaction = db.transaction([TOOL_STORE_NAME], 'readwrite');
     const store = transaction.objectStore(TOOL_STORE_NAME);
@@ -326,7 +401,195 @@ export async function deleteToolFromDBList(toolId: string): Promise<void> {
     });
     
     db.close();
+
+    // Also delete from DynamoDB via API call (NEW functionality)
+    if (userId) {
+      try {
+        const response = await fetch(`/api/product-tools/${toolId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userId }),
+        });
+
+        if (response.ok) {
+          console.log('✅ Tool also deleted from DynamoDB:', toolId);
+        } else {
+          const error = await response.text();
+          console.error('❌ DynamoDB delete failed:', error);
+        }
+      } catch (dynamoError) {
+        console.error('❌ Error deleting tool from DynamoDB (IndexedDB delete still succeeded):', dynamoError);
+        // Don't throw - IndexedDB delete succeeded
+      }
+    } else {
+      console.warn('⚠️ No userId provided, skipping DynamoDB delete');
+    }
   } catch (error) {
     console.error('❌ Error deleting tool from IndexedDB list:', error);
+    throw error; // Re-throw if IndexedDB fails
+  }
+}
+
+// NEW API-BASED DYNAMODB FUNCTIONS
+export async function saveToolToDynamoDBOnly(tool: ProductToolDefinition, userId: string): Promise<void> {
+  try {
+    const response = await fetch('/api/product-tools/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        tool: {
+          ...tool,
+          createdBy: userId,
+          updatedAt: Date.now()
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`DynamoDB save failed: ${error}`);
+    }
+
+    console.log('✅ Tool saved to DynamoDB only:', tool.metadata.title);
+  } catch (error) {
+    console.error('❌ Error saving tool to DynamoDB:', error);
+    throw error;
+  }
+}
+
+export async function loadAllToolsFromDynamoDBOnly(userId: string): Promise<ProductToolDefinition[]> {
+  try {
+    const response = await fetch(`/api/product-tools/list?userId=${encodeURIComponent(userId)}`);
+    
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`DynamoDB load failed: ${error}`);
+    }
+
+    const tools = await response.json();
+    console.log(`✅ Loaded ${tools.length} tools from DynamoDB only`);
+    return tools;
+  } catch (error) {
+    console.error('❌ Error loading tools from DynamoDB:', error);
+    return [];
+  }
+}
+
+export async function getToolFromDynamoDBOnly(toolId: string, userId: string): Promise<ProductToolDefinition | null> {
+  try {
+    const response = await fetch(`/api/product-tools/${toolId}?userId=${encodeURIComponent(userId)}`);
+    
+    if (response.status === 404) {
+      console.log('ℹ️ Tool not found in DynamoDB:', toolId);
+      return null;
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`DynamoDB get failed: ${error}`);
+    }
+
+    const tool = await response.json();
+    console.log('✅ Tool loaded from DynamoDB:', tool.metadata.title);
+    return tool;
+  } catch (error) {
+    console.error('❌ Error loading tool from DynamoDB:', error);
+    return null;
+  }
+}
+
+export async function deleteToolFromDynamoDBOnly(toolId: string, userId: string): Promise<void> {
+  try {
+    const response = await fetch(`/api/product-tools/${toolId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`DynamoDB delete failed: ${error}`);
+    }
+
+    console.log('✅ Tool deleted from DynamoDB only:', toolId);
+  } catch (error) {
+    console.error('❌ Error deleting tool from DynamoDB:', error);
+    throw error;
+  }
+}
+
+// UTILITY FUNCTIONS
+export async function syncToolFromIndexedDBToDynamoDB(toolId: string, userId: string): Promise<void> {
+  try {
+    // Load from IndexedDB
+    const db = await openToolDB();
+    const transaction = db.transaction([TOOL_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    
+    const toolData = await new Promise<any>((resolve, reject) => {
+      const request = store.get(toolId);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    
+    db.close();
+
+    if (!toolData || !toolData.tool) {
+      throw new Error(`Tool ${toolId} not found in IndexedDB`);
+    }
+
+    // Save to DynamoDB
+    await saveToolToDynamoDBOnly(toolData.tool, userId);
+    console.log('✅ Tool synced from IndexedDB to DynamoDB:', toolId);
+  } catch (error) {
+    console.error('❌ Error syncing tool from IndexedDB to DynamoDB:', error);
+    throw error;
+  }
+}
+
+export async function syncAllToolsFromIndexedDBToDynamoDB(userId: string): Promise<void> {
+  try {
+    // Load only from IndexedDB for this sync operation
+    const db = await openToolDB();
+    const transaction = db.transaction([TOOL_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(TOOL_STORE_NAME);
+    const index = store.index('timestamp');
+    
+    const indexedDbTools = await new Promise<ProductToolDefinition[]>((resolve, reject) => {
+      const request = index.getAll();
+      request.onsuccess = () => {
+        const allData = request.result;
+        const toolData = allData
+          .filter(item => item.id !== LAST_ACTIVE_TOOL_KEY)
+          .map(item => item.tool)
+          .filter(tool => tool && tool.id);
+        resolve(toolData);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    
+    db.close();
+
+    console.log(`🔄 Syncing ${indexedDbTools.length} tools from IndexedDB to DynamoDB...`);
+    
+    for (const tool of indexedDbTools) {
+      try {
+        await saveToolToDynamoDBOnly(tool, userId);
+        console.log(`✅ Synced tool: ${tool.metadata.title}`);
+      } catch (error) {
+        console.error(`❌ Error syncing tool ${tool.id}:`, error);
+      }
+    }
+    
+    console.log('✅ Bulk sync completed');
+  } catch (error) {
+    console.error('❌ Error during bulk sync:', error);
+    throw error;
   }
 } 

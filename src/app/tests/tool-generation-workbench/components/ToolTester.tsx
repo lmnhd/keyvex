@@ -21,7 +21,7 @@ import { saveToolToDBList, saveV2JobToDB } from '../../ui/db-utils';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { useToolGenerationStream, StepProgress } from '../hooks/useToolGenerationStream';
+import { useToolGenerationStream, StepProgress, ConnectionStatus } from '../hooks/useToolGenerationStream';
 import ProgressLog from './ProgressLog';
 import TCCVisualizer from './TCCVisualizer';
 
@@ -201,7 +201,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     handleJobUpdate(progress);
   }, [handleJobUpdate, addDetailedWSLog]);
 
-  const { connect, disconnect, connectionStatus, progressUpdates, messages } = useToolGenerationStream({ 
+  const { connect, disconnect, connectionStatus, progressUpdates, messages }:{ connect: (jobId: string) => Promise<void>,
+    disconnect: () => void, connectionStatus: ConnectionStatus, progressUpdates: StepProgress[], messages: any } = useToolGenerationStream({ 
     onProgress: enhancedHandleJobUpdate,
     onMessage: (message) => {
       addDetailedWSLog('message', `WebSocket message received: ${message.type}`, message.data);
@@ -209,7 +210,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     onError: (error) => {
       addDetailedWSLog('error', `WebSocket error: ${error}`);
     }
-  });
+  }) as any; // Add type assertion since connect is now async
 
 
   // Enhanced connection monitoring
@@ -468,7 +469,16 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setIsLoading(true);
 
     try {
-      addWSLog(`Starting V2 orchestration...`);
+      addWSLog(`Connecting to WebSocket first...`);
+      
+      // Connect to WebSocket BEFORE starting orchestration to ensure DynamoDB storage
+      const tempJobId = `temp-${Date.now()}`;
+      await connect(tempJobId);
+      
+      // Wait a moment for WebSocket connection to be stored in DynamoDB
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      addWSLog(`WebSocket connected. Starting V2 orchestration...`);
       
       const newJob = await runToolCreationProcess(
         brainstorm,
@@ -476,11 +486,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         agentModelMapping
       );
 
-      setTestJob(newJob); // FIX: Set the job state immediately to keep the UI persistent
+      setTestJob(newJob); // Set the job state immediately to keep the UI persistent
 
       if (newJob.jobId && newJob.status !== 'error') {
-        addWSLog(`Job created (${newJob.jobId}). Connecting to WebSocket...`);
-        await connect(newJob.jobId);
+        addWSLog(`Job created (${newJob.jobId}). WebSocket already connected and ready!`);
+        // WebSocket is already connected, no need to reconnect
       } else {
         throw new Error(newJob.error || 'Job creation failed without a specific error.');
       }

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { ProductToolService } from '@/lib/db/dynamodb/product-tools';
 import { requireAuth } from '@/lib/auth/debug';
 import logger from '@/lib/logger';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   // Environment variable diagnostic check
   const clerkKeyLoaded = !!process.env.CLERK_SECRET_KEY;
   const awsAccessKeyLoaded = !!process.env.DYNAMODB_AWS_ACCESS_KEY_ID;
@@ -20,15 +20,25 @@ export async function GET() {
 
   logger.info('[API /product-tools/list] - Request received.');
   try {
-    // Try to get authenticated user, but allow fallback for testing
+    // Check if userId is provided in query parameters (for client calls)
+    const { searchParams } = new URL(request.url);
+    const queryUserId = searchParams.get('userId');
+    
     let userId: string;
-    try {
-      userId = await requireAuth();
-      logger.info(`[API /product-tools/list] - Auth successful for userId: ${userId}`);
-    } catch (authError) {
-      // Use fallback user ID for testing purposes
-      userId = 'lem1'; // Use a consistent test user ID that matches your saved tools
-      logger.warn('[API /product-tools/list] - Auth failed, using fallback user ID for testing');
+    if (queryUserId) {
+      // Use provided userId from client
+      userId = queryUserId;
+      logger.info(`[API /product-tools/list] - Using provided userId: ${userId}`);
+    } else {
+      // Try to get authenticated user, but allow fallback for testing
+      try {
+        userId = await requireAuth();
+        logger.info(`[API /product-tools/list] - Auth successful for userId: ${userId}`);
+      } catch (authError) {
+        // Use fallback user ID for testing purposes
+        userId = 'lem1'; // Use a consistent test user ID that matches your saved tools
+        logger.warn('[API /product-tools/list] - Auth failed, using fallback user ID for testing');
+      }
     }
 
     // Get all tools for the user from DynamoDB
@@ -37,11 +47,8 @@ export async function GET() {
     const tools = await toolService.listUserTools(userId);
     logger.info(`[API /product-tools/list] - listUserTools returned ${tools.length} tools.`);
     
-    return NextResponse.json({
-      success: true,
-      tools,
-      count: tools.length
-    });
+    // Return just the tools array for client compatibility
+    return NextResponse.json(tools);
     
   } catch (error) {
     logger.error({ 

@@ -28,9 +28,30 @@ export async function POST(request: NextRequest) {
     const incomingTcc = parsedBody.tcc;
     
     const cacheKey = `tcc-merge:${jobId}`;
+    const lockKey = `tcc-lock:${jobId}`;
     logger.info({ jobId, cacheKey, agentOutputKeys: Object.keys(incomingTcc) }, '🔍 CHECK-COMPLETION: Received valid TCC, checking cache.');
 
-    // Check for existing partial TCC in cache
+    // Try to acquire a lock to prevent race conditions
+    const lockAcquired = await kv.set(lockKey, 'locked', { ex: 30, nx: true }); // 30 seconds, only if not exists
+    
+    if (!lockAcquired) {
+      // Another agent is currently processing, wait briefly and check again
+      logger.info({ jobId, lockKey }, '🔍 CHECK-COMPLETION: Lock already acquired, waiting briefly...');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const cachedTcc = await kv.get<ToolConstructionContext>(cacheKey);
+      if (cachedTcc) {
+        // The other agent finished and merged the results
+        logger.info({ jobId }, '🔍 CHECK-COMPLETION: Results already merged by other agent');
+        return NextResponse.json({
+          success: true,
+          jobId,
+          status: 'already_merged',
+          message: 'Results already merged by parallel agent.',
+        });
+      }
+    }
+
+    // Check for existing partial TCC in cache (now with lock protection)
     const cachedTcc = await kv.get<ToolConstructionContext>(cacheKey);
 
     if (cachedTcc) {
@@ -40,9 +61,10 @@ export async function POST(request: NextRequest) {
       // Perform a deep merge using the specific 'merge' import
       const mergedTcc = merge({}, cachedTcc, incomingTcc);
 
-      // Clean up the cache
+      // Clean up the cache and lock
       await kv.del(cacheKey);
-      logger.info({ jobId, cacheKey }, '🔍 CHECK-COMPLETION: Cache cleaned up.');
+      await kv.del(lockKey);
+      logger.info({ jobId, cacheKey, lockKey }, '🔍 CHECK-COMPLETION: Cache and lock cleaned up.');
 
       // Update TCC for the next step
       const finalTcc: ToolConstructionContext = {
@@ -92,6 +114,10 @@ export async function POST(request: NextRequest) {
 
       // Save the partial TCC to the cache with a 5-minute expiration
       await kv.set(cacheKey, incomingTcc, { ex: CACHE_EXPIRATION_SECONDS });
+      
+      // Release the lock so the second agent can proceed with merging
+      await kv.del(lockKey);
+      logger.info({ jobId, lockKey }, '🔍 CHECK-COMPLETION: Lock released for second agent to proceed.');
 
       await emitStepProgress(
         jobId,
@@ -120,6 +146,13 @@ export async function POST(request: NextRequest) {
       },
       '🔍 CHECK-COMPLETION: Request failed, likely due to validation.',
     );
+
+    // Clean up lock in case of error
+    try {
+      await kv.del(`tcc-lock:${jobId}`);
+    } catch (cleanupError) {
+      logger.warn({ jobId, cleanupError }, '🔍 CHECK-COMPLETION: Failed to clean up lock on error');
+    }
 
     return NextResponse.json(
       {

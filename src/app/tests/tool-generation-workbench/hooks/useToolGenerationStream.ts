@@ -33,7 +33,7 @@ export interface UseToolGenerationStreamOptions {
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '';
-const TEST_USER_ID = 'debug-user-123'; // Fixed to prevent hydration mismatch
+const TEST_USER_ID = process.env.NEXT_PUBLIC_DEBUG_USER_ID || 'debug-user-123'; // Use same environment variable as backend
 
 // --- Hook ---
 
@@ -64,11 +64,24 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
     }
   }, [onMessage]);
 
-  const connect = useCallback((jobId: string) => {
+  const connect = useCallback(async (jobId: string) => {
     if (!jobId) {
       console.error('[WebSocket] Connection failed: Job ID is required.');
       onError?.('Job ID is required to connect.');
       return;
+    }
+
+    // Get the actual userId from the backend to ensure consistency
+    let actualUserId = TEST_USER_ID;
+    try {
+      const response = await fetch('/api/debug/get-user-id');
+      if (response.ok) {
+        const data = await response.json();
+        actualUserId = data.userId || TEST_USER_ID;
+        console.log('[WebSocket] Got actual userId from backend:', actualUserId);
+      }
+    } catch (error) {
+      console.warn('[WebSocket] Failed to get userId from backend, using default:', TEST_USER_ID);
     }
 
     // If WebSocket URL is not configured, use in-memory progress emitter
@@ -142,11 +155,11 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
 
     try {
       const url = new URL(WEBSOCKET_URL);
-      url.searchParams.set('userId', TEST_USER_ID);
+      url.searchParams.set('userId', actualUserId);
       url.searchParams.set('jobId', jobId);
       
       console.log('[WebSocket Debug] Connection parameters:', { 
-        userId: TEST_USER_ID, 
+        userId: actualUserId, 
         jobId, 
         finalUrl: url.toString() 
       });
