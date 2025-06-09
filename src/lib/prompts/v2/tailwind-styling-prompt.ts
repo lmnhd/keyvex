@@ -129,10 +129,10 @@ const GORGEOUS_STYLING_LIBRARY = `
         - Gradient backgrounds: Match text color to the dominant background tone
         
         🎯 GRADIENT BACKGROUND TEXT RULES:
-        - from-blue-50 to-indigo-50: Use text-blue-900 or text-slate-900 (DARK TEXT)
-        - from-blue-600 to-indigo-700: Use text-white or text-blue-100 (LIGHT TEXT)
-        - from-slate-50 to-gray-100: Use text-gray-900 or text-slate-900 (DARK TEXT)
-        - from-gray-600 to-slate-800: Use text-white or text-gray-100 (LIGHT TEXT)
+        - from-blue-50 to-blue-100: Use text-blue-900 or text-slate-900 (DARK TEXT)
+        - from-indigo-600 to-indigo-700: Use text-white or text-indigo-100 (LIGHT TEXT)
+        - from-slate-50 to-slate-100: Use text-gray-900 or text-slate-900 (DARK TEXT)
+        - from-gray-600 to-gray-800: Use text-white or text-gray-100 (LIGHT TEXT)
         
         📝 HEADER CONTRAST EXAMPLES:
         ✅ CORRECT: bg-gradient-to-r from-blue-600 to-indigo-700 + text-white
