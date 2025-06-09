@@ -8,7 +8,8 @@ import { z } from 'zod';
 const tailwindStylingRequestSchema = z.object({
   jobId: z.string().uuid(),
   selectedModel: z.string().optional(),
-  mockTcc: z.custom<ToolConstructionContext>().optional(),
+  tcc: z.custom<ToolConstructionContext>().optional(), // For orchestration calls
+  mockTcc: z.custom<ToolConstructionContext>().optional(), // For isolated testing
 });
 
 export async function POST(request: NextRequest) {
@@ -27,11 +28,12 @@ export async function POST(request: NextRequest) {
       isIsolatedTest 
     }, '🎨 TailwindStyling API: Request received');
 
-    // Call the core logic with isolated test flag
+    // Call the core logic with both tcc and mockTcc
     const result = await applyStyling({
       jobId: parsedRequest.jobId,
       selectedModel: parsedRequest.selectedModel,
-      mockTcc: parsedRequest.mockTcc,
+      tcc: parsedRequest.tcc, // Pass tcc from orchestration
+      mockTcc: parsedRequest.mockTcc, // Pass mockTcc for isolated testing
       isIsolatedTest
     });
 
