@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
       'planning_function_signatures',
       'in_progress',
       testMessage,
-      { testData: 'Debug WebSocket test', timestamp: new Date().toISOString() }
+      { userId, testData: 'Debug WebSocket test', timestamp: new Date().toISOString() }
     );
     
     console.log(`🧪 [DEBUG-WEBSOCKET-TEST] Message sent successfully`);

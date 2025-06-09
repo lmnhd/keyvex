@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { saveTCC } from '@/lib/db/tcc-store';
 import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
@@ -41,8 +40,8 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString()
     };
     
-    await saveTCC(updatedTCC);
-    logger.info({ jobId, nextStep }, '🚀 TRIGGER-NEXT: TCC updated to next step');
+    // TCC store deprecated - TCC is now managed via props
+    logger.info({ jobId, nextStep }, '🚀 TRIGGER-NEXT: TCC updated to next step (props-based)');
 
     let agentPath: string | null = null;
     let stepDisplayName = '';
@@ -95,7 +94,7 @@ export async function POST(request: NextRequest) {
           request.nextUrl.origin
         );
 
-        await saveTCC(tcc);
+        // TCC store deprecated - TCC is managed via props
 
         await emitStepProgress(
           jobId,
@@ -140,7 +139,7 @@ export async function POST(request: NextRequest) {
           status: OrchestrationStatusEnum.enum.error,
           updatedAt: new Date().toISOString()
         };
-        await saveTCC(failedTCC);
+        // TCC store deprecated - TCC is managed via props
 
         await emitStepProgress(
           jobId,
@@ -163,7 +162,7 @@ export async function POST(request: NextRequest) {
           status: OrchestrationStatusEnum.enum.completed,
           updatedAt: new Date().toISOString()
         };
-        await saveTCC(completedTCC);
+        // TCC store deprecated - TCC is managed via props
 
         await emitStepProgress(
           jobId,

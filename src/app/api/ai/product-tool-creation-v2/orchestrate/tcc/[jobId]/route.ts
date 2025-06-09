@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTCC } from '@/lib/db/tcc-store';
+import logger from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -15,26 +15,21 @@ export async function GET(
       );
     }
 
-    // Retrieve TCC from store
-    const tcc = await getTCC(jobId);
+    logger.warn({ jobId }, '🚫 TCC-GET: TCC store has been deprecated - TCC is now managed via props');
 
-    if (!tcc) {
-      return NextResponse.json(
-        { success: false, error: 'TCC not found for the given job ID' },
-        { status: 404 }
-      );
-    }
-
+    // TCC store has been deprecated - TCC is now passed as props between agents
+    // This endpoint is no longer functional and should not be used
     return NextResponse.json({
-      success: true,
-      tcc,
+      success: false,
+      error: 'TCC store has been deprecated. TCC is now managed via props between agents and orchestrator.',
+      deprecationNotice: 'This endpoint is no longer functional. Use the TCC props pattern instead.',
       jobId
-    });
+    }, { status: 410 }); // 410 Gone - resource no longer available
 
   } catch (error) {
-    console.error('Error retrieving TCC:', error);
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, '🚫 TCC-GET: Error in deprecated endpoint');
     return NextResponse.json(
-      { success: false, error: 'Failed to retrieve TCC' },
+      { success: false, error: 'Failed to retrieve TCC - endpoint deprecated' },
       { status: 500 }
     );
   }

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { createTCC, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
-import { saveTCC } from '@/lib/db/tcc-store';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/auth/debug';
@@ -58,10 +57,7 @@ export async function POST(request: NextRequest) {
       tcc.agentModelMapping = agentModelMapping;
     }
     
-    // Save to store
-    await saveTCC(tcc);
-    
-    logger.info({ jobId, tccId: tcc.jobId, userId }, '🚀 ORCHESTRATION START: TCC saved');
+    logger.info({ jobId, tccId: tcc.jobId, userId }, '🚀 ORCHESTRATION START: TCC created (will be passed as props)');
 
     // Emit initial progress
     const shouldStream = testingOptions?.enableWebSocketStreaming !== false; // default true
@@ -71,7 +67,7 @@ export async function POST(request: NextRequest) {
         OrchestrationStepEnum.enum.planning_function_signatures, 
         'started', 
         'Orchestration started. Beginning function signature planning...', 
-        { jobId, tcc, userInput, testingOptions }
+        { tcc, userInput, testingOptions }
       );
       
       logger.info({ jobId }, '🚀 ORCHESTRATION START: Initial progress emitted');
