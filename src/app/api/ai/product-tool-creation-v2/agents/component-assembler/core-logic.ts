@@ -267,28 +267,84 @@ Generate the complete JSON object containing the final component code WITHOUT im
       temperature: 0.1,
       maxTokens: 8192,
     });
+    logger.info({ 
+      tccJobId: tcc.jobId, 
+      provider, 
+      modelId 
+    }, '🔧 ComponentAssembler: ✅ AI generation successful');
     return object;
   } catch (error) {
-    logger.error({ error, provider, modelId }, '🔧 ComponentAssembler: AI call failed. Returning fallback component.');
+    logger.error({ 
+      error: error instanceof Error ? error.message : String(error), 
+      provider, 
+      modelId,
+      tccJobId: tcc.jobId,
+      userDescription: tcc.userInput.description 
+    }, '🔧 ComponentAssembler: 🚨 AI GENERATION FAILED - Returning ERROR FALLBACK component');
+    
+    // Emit a warning about fallback usage
+    await emitStepProgress(
+      tcc.jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
+      '⚠️ AI generation failed, using error fallback component...',
+      tcc
+    );
+    
     return generateFallbackComponent(tcc);
   }
 }
 
 function getModelForAgent(agentName: string, selectedModel?: string): { provider: string; modelId: string } {
+    // PRIORITY 1: User-selected model from UI (highest priority)
     if (selectedModel && selectedModel !== 'default') {
         const provider = getModelProvider(selectedModel);
         if (provider !== 'unknown') {
+            logger.info({ 
+                agentName, 
+                selectedModel, 
+                provider, 
+                source: 'USER_SELECTED' 
+            }, '🔧 ComponentAssembler: Using USER-SELECTED model from UI');
             return { provider, modelId: selectedModel };
+        } else {
+            logger.warn({ 
+                agentName, 
+                selectedModel 
+            }, '🔧 ComponentAssembler: User-selected model has unknown provider, falling back to config');
         }
     }
+
+    // PRIORITY 2: Primary model from configuration
     const primaryModel = getPrimaryModel(agentName as any);
     if (primaryModel && 'modelInfo' in primaryModel) {
+        logger.info({ 
+            agentName, 
+            provider: primaryModel.provider, 
+            modelId: primaryModel.modelInfo.id,
+            source: 'PRIMARY_CONFIG' 
+        }, '🔧 ComponentAssembler: Using PRIMARY model from configuration');
         return { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
     }
+
+    // PRIORITY 3: Fallback model from configuration
     const fallbackModel = getFallbackModel(agentName as any);
     if (fallbackModel && 'modelInfo' in fallbackModel) {
+        logger.warn({ 
+            agentName, 
+            provider: fallbackModel.provider, 
+            modelId: fallbackModel.modelInfo.id,
+            source: 'FALLBACK_CONFIG' 
+        }, '🔧 ComponentAssembler: ⚠️ Using FALLBACK model from configuration');
         return { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id };
     }
+
+    // PRIORITY 4: Final hardcoded fallback (indicates configuration problem)
+    logger.error({ 
+        agentName, 
+        selectedModel,
+        source: 'HARDCODED_FALLBACK' 
+    }, '🔧 ComponentAssembler: 🚨 CRITICAL: No model configuration found! Using hardcoded fallback - check model configuration!');
     return { provider: 'openai', modelId: 'gpt-4o' }; // Final fallback
 }
 
@@ -330,43 +386,52 @@ function extractFunctions(code: string): string[] {
  */
 function generateFallbackComponent(tcc: ToolConstructionContext): AssembledComponent {
   const componentName = generateComponentName(tcc.userInput.description);
+  const timestamp = new Date().toISOString();
   
   return {
     finalComponentCode: `interface ${componentName}Props {}
 
 const ${componentName}: React.FC<${componentName}Props> = () => {
-  const [input, setInput] = useState('');
-  const [result, setResult] = useState('');
-
-  const handleSubmit = () => {
-    setResult('Processing: ' + input);
-  };
-
   return (
-    <div className="p-4 max-w-md mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle>${componentName}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="input-field">Enter Input</Label>
-            <Input
-              id="input-field"
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Enter input..."
-            />
+    <div className="p-8 max-w-2xl mx-auto">
+      <Card className="border-red-500 bg-red-50">
+        <CardHeader className="bg-red-100 border-b border-red-200">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+            <CardTitle className="text-red-800">🚨 COMPONENT GENERATION FAILED</CardTitle>
           </div>
-          <Button onClick={handleSubmit} className="w-full">
-            Submit
-          </Button>
-          {result && (
-            <div className="p-2 bg-gray-100 rounded">
-              {result}
-            </div>
-          )}
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+            <h3 className="font-semibold text-red-800 mb-2">ERROR: AI Component Assembly Failed</h3>
+            <p className="text-red-700 text-sm mb-2">
+              The AI model failed to generate the component code. This is a fallback error component.
+            </p>
+            <p className="text-red-600 text-xs">
+              Timestamp: ${timestamp}
+            </p>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="font-medium text-red-800">Requested Tool:</h4>
+            <p className="text-sm text-red-700">${tcc.userInput.description}</p>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="font-medium text-red-800">What to do:</h4>
+            <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
+              <li>Try regenerating the tool</li>
+              <li>Check if the AI service is available</li>
+              <li>Simplify your tool description</li>
+              <li>Contact support if the issue persists</li>
+            </ul>
+          </div>
+          
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-yellow-800 text-xs font-medium">
+              ⚠️ This is a system-generated fallback component indicating an error in the AI generation process.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -375,12 +440,12 @@ const ${componentName}: React.FC<${componentName}Props> = () => {
 
 export default ${componentName};`,
     imports: [], // No imports - all components are available in execution context
-    hooks: ['useState'],
-    functions: ['handleSubmit'],
+    hooks: [],
+    functions: [],
     metadata: {
-      componentName,
+      componentName: `${componentName}_ERROR_FALLBACK`,
       dependencies: [], // No external dependencies needed
-      estimatedLines: 35
+      estimatedLines: 45
     }
   };
 } 
