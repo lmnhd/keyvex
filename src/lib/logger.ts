@@ -5,11 +5,15 @@ const isDebug = process.env.AI_DEBUG === 'true' || process.env.NODE_ENV !== 'pro
 
 let logger: pino.Logger;
 
-// This formatter will be used to create the simple `{ "message": "..." }` object.
+// This formatter preserves structured log data while removing system fields
 const fileLogFormatter = {
   log: (obj: any) => {
-    // We only want the 'msg' property, renamed to 'message'.
-    return { message: obj.msg };
+    // Remove system fields but keep all structured log data
+    const { msg, pid, hostname, level, time, ...logData } = obj;
+    return { 
+      message: msg,
+      ...logData // Keep all the actual log data (jobId, tccPresent, etc.)
+    };
   },
 };
 

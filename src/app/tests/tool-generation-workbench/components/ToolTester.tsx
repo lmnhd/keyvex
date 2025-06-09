@@ -573,7 +573,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setIsLoading(false);
       return;
     }
-
+    
     if (!selectedBrainstormId || selectedModelIds.length === 0) {
       setError("Please select a brainstorm and at least one model.");
       return;
@@ -2103,30 +2103,30 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                         // For full generation or V1 mode, display the result as-is
                         return (
                           <div className="space-y-4">
-                            <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
-                              {JSON.stringify(testJob.result, null, 2)}
-                            </pre>
+                    <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
+                      {JSON.stringify(testJob.result, null, 2)}
+                    </pre>
                             
-                            {workflowMode === 'v1' && testJob.result && (
-                              <Button 
-                                onClick={() => handleSaveTool(testJob.result!)} 
-                                disabled={savedToolIds.has(testJob.result!.id)}
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
-                              </Button>
-                            )}
-                            {workflowMode === 'v2' && testJob.result && tccData && (
-                              <Button
-                                onClick={() => handleSaveV2Result(testJob.result!, tccData)}
-                                disabled={savedV2JobIds.has(tccData.jobId)}
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {savedV2JobIds.has(tccData.jobId)
-                                  ? 'V2 Result Saved'
-                                  : 'Save V2 Generation Result'}
-                              </Button>
-                            )}
+                    {workflowMode === 'v1' && testJob.result && (
+                      <Button 
+                        onClick={() => handleSaveTool(testJob.result!)} 
+                        disabled={savedToolIds.has(testJob.result!.id)}
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
+                      </Button>
+                    )}
+                    {workflowMode === 'v2' && testJob.result && tccData && (
+                      <Button
+                        onClick={() => handleSaveV2Result(testJob.result!, tccData)}
+                        disabled={savedV2JobIds.has(tccData.jobId)}
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        {savedV2JobIds.has(tccData.jobId)
+                          ? 'V2 Result Saved'
+                          : 'Save V2 Generation Result'}
+                      </Button>
+                    )}
                           </div>
                         );
                       }

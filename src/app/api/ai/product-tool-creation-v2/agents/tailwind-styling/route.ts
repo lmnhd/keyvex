@@ -40,20 +40,20 @@ export async function POST(request: NextRequest) {
     // Skip orchestration triggering during isolated testing
     if (!isIsolatedTest && result.success && result.updatedTcc) {
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Core logic successful, triggering next step.');
-      // Trigger the next step by calling the centralized orchestrator endpoint
-      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
-      fetch(triggerUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    // Trigger the next step by calling the centralized orchestrator endpoint
+    const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
+    fetch(triggerUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
           jobId: parsedRequest.jobId,
-          nextStep: result.updatedTcc.currentOrchestrationStep,
-          tcc: result.updatedTcc,
-        }),
-      }).catch(error => {
+        nextStep: result.updatedTcc.currentOrchestrationStep,
+        tcc: result.updatedTcc,
+      }),
+    }).catch(error => {
         logger.error({ jobId: parsedRequest.jobId, error: error.message }, '🎨 TailwindStyling Route: Failed to trigger next step orchestration endpoint');
-      });
-        
+    });
+      
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Successfully triggered next step.');
     } else if (isIsolatedTest) {
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Isolated test mode - skipping orchestration trigger');

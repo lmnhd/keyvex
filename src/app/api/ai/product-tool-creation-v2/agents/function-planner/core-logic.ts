@@ -58,13 +58,13 @@ export async function planFunctionSignatures(request: {
     }
 
     if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId, 
-        OrchestrationStepEnum.enum.planning_function_signatures,
-        'in_progress',
-        'Beginning function signature planning...',
-        tcc // Pass TCC with userId
-      );
+    await emitStepProgress(
+      jobId, 
+      OrchestrationStepEnum.enum.planning_function_signatures,
+      'in_progress',
+      'Beginning function signature planning...',
+      tcc // Pass TCC with userId
+    );
     } else {
       logger.info({ jobId }, '🔧 FunctionPlanner: Isolated test mode - skipping progress emission');
     }
@@ -111,13 +111,13 @@ export async function planFunctionSignatures(request: {
     }, '🔧 FunctionPlanner: TCC updated state prepared for return');
 
     if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.planning_function_signatures,
-        'completed',
-        `Successfully planned ${functionSignatures.length} function signatures.`,
-        updatedTcc // Pass updated TCC with userId
-      );
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.planning_function_signatures,
+      'completed',
+      `Successfully planned ${functionSignatures.length} function signatures.`,
+      updatedTcc // Pass updated TCC with userId
+    );
     } else {
       logger.info({ jobId }, '🔧 FunctionPlanner: Isolated test mode - skipping final progress emission');
     }
