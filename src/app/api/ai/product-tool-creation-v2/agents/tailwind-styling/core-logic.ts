@@ -82,12 +82,28 @@ export async function applyStyling(request: {
 
   logger.info({ jobId, isIsolatedTest }, '🎨 TailwindStyling: Starting styling application');
 
+  // Debug: Log TCC structure right at the start
+  logger.info({
+    jobId,
+    tccPresent: !!tcc,
+    tccUserId: tcc?.userId,
+    tccJobId: tcc?.jobId,
+    tccKeys: tcc ? Object.keys(tcc).slice(0, 10) : [], // First 10 keys to avoid too much log spam
+    requestKeys: Object.keys(request)
+  }, '🎨 TailwindStyling: [DEBUG] TCC structure at entry');
+
   try {
     if (!tcc) {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
     if (!isIsolatedTest) {
+      logger.info({
+        jobId,
+        aboutToEmitProgress: true,
+        tccUserId: tcc?.userId
+      }, '🎨 TailwindStyling: [DEBUG] About to emit in_progress');
+
       await emitStepProgress(
         jobId,
         OrchestrationStepEnum.enum.applying_tailwind_styling,
@@ -95,6 +111,8 @@ export async function applyStyling(request: {
         'Applying Tailwind CSS styling...',
         tcc // Pass TCC with userId
       );
+
+      logger.info({ jobId }, '🎨 TailwindStyling: [DEBUG] in_progress emitted successfully');
     }
 
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel, isIsolatedTest);
