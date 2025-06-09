@@ -134,7 +134,14 @@ export async function applyStyling(request: {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error(
-      { jobId, error: errorMessage },
+      { 
+        jobId, 
+        error: errorMessage,
+        tccPresent: !!tcc,
+        tccUserId: tcc?.userId,
+        tccJobId: tcc?.jobId,
+        tccKeys: tcc ? Object.keys(tcc) : []
+      },
       '🎨 TailwindStyling: Error applying styling',
     );
     
