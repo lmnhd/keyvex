@@ -14,6 +14,7 @@ import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wa
 import {
   loadLogicResultsFromDB,
   runToolCreationProcess,
+  runIsolatedAgentTest,
   ToolCreationJob,
   SavedLogicResult
 } from './tool-tester-core-logic';
@@ -31,6 +32,8 @@ import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { useToolGenerationStream, StepProgress, ConnectionStatus } from '../hooks/useToolGenerationStream';
 import ProgressLog from './ProgressLog';
 import TCCVisualizer from './TCCVisualizer';
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { mockTccScenarios, getScenariosForAgent } from '@/lib/testing/mock-tcc-scenarios';
 
 interface ModelOption {
   id: string;
@@ -44,6 +47,7 @@ interface AgentModelMapping {
 
 type WorkflowMode = 'v1' | 'v2' | 'debug';
 type OrchestrationStatus = 'free' | 'paused' | 'runone';
+type TccSource = 'brainstorm' | 'savedV2Job' | 'mockScenario';
 
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
   const [savedBrainstorms, setSavedBrainstorms] = useState<SavedLogicResult[]>([]);
@@ -86,6 +90,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('v2');
   const [orchestrationStatus, setOrchestrationStatus] = useState<OrchestrationStatus>('free');
   const [selectedAgent, setSelectedAgent] = useState<string>('');
+  const [tccSource, setTccSource] = useState<TccSource>('brainstorm');
+  const [selectedDebugTccJobId, setSelectedDebugTccJobId] = useState<string | null>(null);
+  const [selectedMockScenarioId, setSelectedMockScenarioId] = useState<string>('');
   
   // TCC monitoring state
   const [tccData, setTccData] = useState<any>(null);
@@ -502,6 +509,71 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       return;
     }
     
+    if (workflowMode === 'debug') {
+      let sourceTcc: any = null;
+
+      if (tccSource === 'brainstorm') {
+        const selectedBrainstorm = savedBrainstorms.find(b => b.id === selectedBrainstormId);
+        if (!selectedBrainstorm) {
+          setError("Selected brainstorm not found.");
+          setIsLoading(false);
+          return;
+        }
+        // Create a minimal mock TCC from the brainstorm
+        sourceTcc = {
+          jobId: `debug-brainstorm-${Date.now()}`,
+          userInput: selectedBrainstorm.result.userInput,
+          // Add other essential fields if needed by early agents
+        };
+      } else if (tccSource === 'mockScenario') {
+        if (!selectedMockScenarioId) {
+          setError("Please select a mock scenario.");
+          setIsLoading(false);
+          return;
+        }
+        const selectedScenario = mockTccScenarios.find(s => s.id === selectedMockScenarioId);
+        if (!selectedScenario) {
+          setError("Selected mock scenario not found.");
+          setIsLoading(false);
+          return;
+        }
+        sourceTcc = selectedScenario.tcc;
+      } else { // tccSource === 'savedV2Job'
+        const selectedJob = savedV2Jobs.find(j => j.id === selectedDebugTccJobId);
+        if (!selectedJob) {
+          setError("Selected V2 job for TCC not found.");
+          setIsLoading(false);
+          return;
+        }
+        sourceTcc = selectedJob.toolConstructionContext;
+      }
+
+      const agentToRun = selectedAgent;
+      const modelForAgent = agentModelMapping[agentToRun];
+
+      if (!agentToRun || !modelForAgent || !sourceTcc) {
+        setError("Missing agent, model, or TCC source for debug run.");
+        setIsLoading(false);
+        return;
+      }
+      
+      setIsLoading(true);
+      // Call the new isolated test runner
+      const result = await runIsolatedAgentTest(agentToRun, sourceTcc, modelForAgent);
+      
+      setTestJob({
+          modelId: modelForAgent,
+          status: result.success ? 'success' : 'error',
+          result: result.data,
+          error: result.error,
+          startTime: Date.now(),
+          endTime: Date.now(),
+      });
+
+      setIsLoading(false);
+      return;
+    }
+
     if (!selectedBrainstormId || selectedModelIds.length === 0) {
       setError("Please select a brainstorm and at least one model.");
       return;
@@ -1191,12 +1263,74 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                     <Bug className="h-5 w-5 text-red-600" />
                     <div>
                       <h4 className="font-medium text-red-900 dark:text-red-100">Debug & Inspect Mode</h4>
-                      <p className="text-sm text-red-700 dark:text-red-300">Test individual agents in isolation with model assignment per agent.</p>
+                      <p className="text-sm text-red-700 dark:text-red-300">Test individual agents in isolation with a specific TCC source and model.</p>
                     </div>
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="agent-select">Select Agent to Test</Label>
+                    <Label>1. Select TCC Data Source</Label>
+                    <RadioGroup value={tccSource} onValueChange={(value) => setTccSource(value as TccSource)} className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="brainstorm" id="source-brainstorm" />
+                        <Label htmlFor="source-brainstorm">From Selected Brainstorm</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="mockScenario" id="source-mock" />
+                        <Label htmlFor="source-mock">From Mock Scenario</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="savedV2Job" id="source-v2job" />
+                        <Label htmlFor="source-v2job">From Saved V2 Result</Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  {tccSource === 'mockScenario' && (
+                    <div className="space-y-2 pl-6 border-l-2 border-red-200">
+                      <Label htmlFor="mock-scenario-select">Select Mock Scenario</Label>
+                      <Select 
+                        value={selectedMockScenarioId} 
+                        onValueChange={setSelectedMockScenarioId}
+                        disabled={!selectedAgent}
+                      >
+                        <SelectTrigger id="mock-scenario-select">
+                          <SelectValue placeholder={!selectedAgent ? "Select an agent first" : "Choose a mock scenario..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {selectedAgent && getScenariosForAgent(selectedAgent).map(scenario => (
+                            <SelectItem key={scenario.id} value={scenario.id}>
+                              {scenario.name} ({scenario.complexity})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {tccSource === 'savedV2Job' && (
+                    <div className="space-y-2 pl-6 border-l-2 border-red-200">
+                      <Label htmlFor="tcc-source-select">Select V2 Result</Label>
+                      <Select 
+                        value={selectedDebugTccJobId || ''} 
+                        onValueChange={setSelectedDebugTccJobId}
+                        disabled={savedV2Jobs.length === 0}
+                      >
+                        <SelectTrigger id="tcc-source-select">
+                          <SelectValue placeholder={savedV2Jobs.length === 0 ? "No V2 results saved" : "Choose a saved V2 Job..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {savedV2Jobs.map(job => (
+                            <SelectItem key={job.id} value={job.id}>
+                              {job.productToolDefinition.metadata.title} ({job.id.slice(0, 8)}...)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="agent-select">2. Select Agent to Test</Label>
                     <Select value={selectedAgent} onValueChange={setSelectedAgent}>
                       <SelectTrigger id="agent-select">
                         <SelectValue placeholder="Choose an agent to test..." />
@@ -1216,7 +1350,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
                   {selectedAgent && (
                     <div className="space-y-2">
-                      <Label>Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
+                      <Label>3. Select Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
                       <Select 
                         value={agentModelMapping[selectedAgent] || ''} 
                         onValueChange={(value) => handleAgentModelChange(selectedAgent, value)}
@@ -1234,40 +1368,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       </Select>
                     </div>
                   )}
-
-                  <div className="space-y-3 pt-2">
-                    <Label>Available Models (for context)</Label>
-                    <div className="rounded-md border bg-red-50/50 dark:bg-red-900/10 p-4">
-                      {availableModels.length > 0 ? (
-                        <ScrollArea className="h-32">
-                          <div className="space-y-2">
-                            {availableModels.map(model => (
-                              <div key={model.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`debug-model-${model.id}`}
-                                  checked={selectedModelIds.includes(model.id)}
-                                  onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
-                                  disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
-                                />
-                                <Label htmlFor={`debug-model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
-                                  {model.name}
-                                  {model.id === defaultPrimaryModel && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
-                                      Default
-                                    </span>
-                                  )}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      ) : (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-gray-500">Loading models...</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1278,7 +1378,18 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         <div className="flex justify-center items-center pt-4 gap-4">
           <Button 
             onClick={handleSubmit} 
-            disabled={isLoading || loadMode === 'load' || !selectedBrainstormId || selectedModelIds.length === 0 || (workflowMode === 'debug' && !selectedAgent)} 
+            disabled={
+              isLoading || 
+              loadMode === 'load' || 
+              !selectedBrainstormId ||
+              (workflowMode === 'v1' && selectedModelIds.length === 0) ||
+              (workflowMode === 'debug' && (
+                !selectedAgent || 
+                !agentModelMapping[selectedAgent] ||
+                (tccSource === 'savedV2Job' && !selectedDebugTccJobId) ||
+                (tccSource === 'mockScenario' && !selectedMockScenarioId)
+              ))
+            } 
             size="lg" 
             className="flex-1"
           >

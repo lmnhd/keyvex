@@ -1,13 +1,13 @@
-import { loadLogicResultsFromDB } from '../../ui/db-utils'; // Adjusted path
-import type { SavedLogicResult } from '../../ui/types'; // Adjusted path, use import type
+import { loadLogicResultsFromDB } from '../../ui/db-utils';
+import type { SavedLogicResult } from '../../ui/types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 
-export { loadLogicResultsFromDB }; // Export function normally
-export type { SavedLogicResult }; // Re-export type using 'export type'
+export { loadLogicResultsFromDB };
+export type { SavedLogicResult };
 
 export interface ToolCreationJob {
   modelId: string;
-  jobId?: string; // Add the V2 orchestrator's jobId
+  jobId?: string;
   status: 'pending' | 'loading' | 'success' | 'error';
   result?: ProductToolDefinition | null;
   error?: string | null;
@@ -15,19 +15,14 @@ export interface ToolCreationJob {
   endTime?: number;
 }
 
-// 🔧 CRITICAL FIX: Clean brainstorm data to prevent AI confusion
 function cleanBrainstormData(brainstormData: any): any {
   if (!brainstormData) return null;
   
-  // Create a clean copy without potentially problematic fields
   const cleaned = { ...brainstormData };
   
-  // Remove prompt options that might conflict with tool creation
   delete cleaned.promptOptions;
   
-  // Remove overly complex metadata that might confuse the AI
   if (cleaned.suggestedInputs && Array.isArray(cleaned.suggestedInputs)) {
-    // Keep only essential input fields
     cleaned.suggestedInputs = cleaned.suggestedInputs.map((input: any) => ({
       id: input.id,
       label: input.label,
@@ -36,7 +31,6 @@ function cleanBrainstormData(brainstormData: any): any {
     }));
   }
   
-  // Simplify calculation logic to prevent AI confusion
   if (cleaned.calculationLogic && Array.isArray(cleaned.calculationLogic)) {
     cleaned.calculationLogic = cleaned.calculationLogic.map((calc: any) => ({
       id: calc.id,
@@ -46,7 +40,6 @@ function cleanBrainstormData(brainstormData: any): any {
     }));
   }
   
-  // Keep core concepts simple
   const simplifiedData = {
     coreConcept: cleaned.coreConcept || cleaned.coreWConcept,
     valueProposition: cleaned.valueProposition,
@@ -61,14 +54,6 @@ function cleanBrainstormData(brainstormData: any): any {
   return simplifiedData;
 }
 
-/**
- * Starts the V2 tool creation process by calling the orchestration/start endpoint.
- *
- * @param brainstormResult The selected brainstorm data.
- * @param modelId The ID of the AI model to use for generation.
- * @param agentModelMapping Optional mapping of agent IDs to specific model IDs.
- * @returns A promise that resolves to the initial job state including the orchestrator's jobId.
- */
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
   modelId: string,
@@ -95,8 +80,6 @@ async function startV2ToolCreation(
     }
   };
 
-  console.log(`[V2 Start] API Request Body to /api/ai/product-tool-creation-v2/orchestrate/start:`, JSON.stringify(requestBody, null, 2));
-
   const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
     method: 'POST',
     headers: {
@@ -113,22 +96,9 @@ async function startV2ToolCreation(
     throw new Error(errorMessage);
   }
 
-  console.log(`[V2 Start] API success response:`, responseData);
   return { jobId: responseData.jobId };
 }
 
-/**
- * Main function to run the tool creation process. This is the new entry point from the UI.
- * It now starts the V2 orchestration and returns the initial job status.
- *
- * NOTE: This function no longer waits for the tool to be fully generated. The UI will
- * need to use the returned jobId to track progress via WebSockets.
- *
- * @param brainstormResult The selected brainstorm data.
- * @param selectedModelId The ID of the single model chosen for generation.
- * @param agentModelMapping Optional mapping of agent IDs to specific model IDs.
- * @returns The initial state of the creation job.
- */
 export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
   selectedModelId: string,
@@ -145,7 +115,7 @@ export async function runToolCreationProcess(
     job = {
       ...job,
       jobId: jobId,
-      status: 'loading', // Status remains 'loading' as the async process has just started
+      status: 'loading',
     };
   } catch (error) {
     console.error(`Error starting tool creation with model ${selectedModelId}:`, error);
@@ -158,4 +128,32 @@ export async function runToolCreationProcess(
   }
   
   return job;
+}
+
+export async function runIsolatedAgentTest(
+  agentId: string,
+  tcc: any,
+  modelId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${agentId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobId: tcc.jobId || `debug-${Date.now()}`,
+        selectedModel: modelId,
+        mockTcc: tcc,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Agent ${agentId} failed with status ${response.status}`);
+    }
+
+    const result = await response.json();
+    return { success: true, data: result };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
