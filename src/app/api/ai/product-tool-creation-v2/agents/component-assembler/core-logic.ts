@@ -9,13 +9,13 @@ import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/mo
 import logger from '@/lib/logger';
 
 const assembledComponentSchema = z.object({
-  finalComponentCode: z.string().describe('The complete, single string of final React component code.'),
-  imports: z.array(z.string()).describe('An array of required import statements.'),
-  hooks: z.array(z.string()).describe('An array of React hooks used in the component.'),
+  finalComponentCode: z.string().describe('The complete, single string of final React component code WITHOUT any import statements.'),
+  imports: z.array(z.string()).describe('An empty array - no imports are used since all components are available in execution context.'),
+  hooks: z.array(z.string()).describe('An array of React hooks used in the component (e.g., ["useState", "useEffect"]).'),
   functions: z.array(z.string()).describe('An array of functions defined within the component.'),
   metadata: z.object({
     componentName: z.string().describe('The name of the generated component.'),
-    dependencies: z.array(z.string()).describe('An array of npm package dependencies.'),
+    dependencies: z.array(z.string()).describe('An empty array - no external dependencies needed since components are injected.'),
     estimatedLines: z.number().describe('An estimate of the total lines of code.'),
   }),
 });
@@ -184,33 +184,58 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
 
   const systemPrompt = `You are an expert React component assembler. Combine the provided JSX layout, state logic, and styling into a single, complete, and functional React component.
 
-CRITICAL REQUIREMENTS:
-1. Create a COMPLETE, FUNCTIONAL React component file content as a single string.
-2. Apply ALL styling from the styleMap to the correct elements using the 'className' prop.
-3. Integrate ALL state variables and functions from the state logic.
-4. Ensure ALL function signatures from the state logic are implemented correctly.
-5. Use TypeScript with proper types for props, state, and event handlers.
-6. DO NOT include any import statements - all dependencies are provided in the execution context.
-7. Return a single JSON object that strictly conforms to the provided schema.
+❌ ABSOLUTELY FORBIDDEN - DO NOT DO THESE THINGS:
+- DO NOT include any import statements (import React, import { Button }, etc.)
+- DO NOT import from 'some-ui-library' or any other library
+- DO NOT import react-icons or any external packages
+- DO NOT write: import React, { useState } from 'react';
+- DO NOT write: import { Card, Button } from 'any-library';
 
-EXECUTION CONTEXT - AVAILABLE COMPONENTS:
-All these components and hooks are available in scope (NO IMPORTS NEEDED):
+✅ WHAT YOU MUST DO INSTEAD:
+- Start the component code directly with interface definitions
+- Use components directly as if they are globally available
+- All React hooks and ShadCN components are already in scope
 
-React Hooks: React, useState, useEffect, useCallback, useMemo
+EXECUTION CONTEXT - THESE ARE AVAILABLE WITHOUT IMPORTS:
+React: React (the React object itself)
+Hooks: useState, useEffect, useCallback, useMemo
 UI Components: Card, CardHeader, CardContent, CardTitle, CardDescription, Button, Input, Label, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Textarea, Progress, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, Accordion, AccordionContent, AccordionItem, AccordionTrigger
 Icons: Info, AlertCircle, Loader2
 
-COMPONENT STRUCTURE:
-- Start directly with TypeScript interfaces (NO imports)
-- Define proper TypeScript interfaces for props and state
-- Create the React component function using function declaration
-- Use the provided React hooks and components directly
-- Export the component as default
+CORRECT COMPONENT STRUCTURE EXAMPLE:
+\`\`\`typescript
+interface CalculatorProps {}
 
-CRITICAL: 
-- DO NOT add any import statements
-- The component must be export default and properly typed
-- All components and hooks are injected into the execution context`;
+const Calculator: React.FC<CalculatorProps> = () => {
+  const [value, setValue] = useState(0);
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Calculator</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={() => setValue(v => v + 1)}>
+          Increment
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+export default Calculator;
+\`\`\`
+
+CRITICAL REQUIREMENTS:
+1. Create COMPLETE, FUNCTIONAL React component code as a single string
+2. Apply ALL styling from the styleMap to correct elements using 'className' prop
+3. Integrate ALL state variables and functions from the state logic
+4. Ensure ALL function signatures from state logic are implemented correctly
+5. Use TypeScript with proper types for props, state, and event handlers
+6. Return a single JSON object that strictly conforms to the provided schema
+7. The finalComponentCode field must contain executable React component code
+
+REMEMBER: No imports allowed - everything is available in execution context!`;
 
   const userPrompt = `Please assemble the React component using the following parts.
 
@@ -349,13 +374,13 @@ const ${componentName}: React.FC<${componentName}Props> = () => {
 };
 
 export default ${componentName};`,
-    imports: [...new Set(['react', '@types/react'])],
-    hooks: [],
-    functions: [],
+    imports: [], // No imports - all components are available in execution context
+    hooks: ['useState'],
+    functions: ['handleSubmit'],
     metadata: {
       componentName,
-      dependencies: ['react', '@types/react'],
-      estimatedLines: 10
+      dependencies: [], // No external dependencies needed
+      estimatedLines: 35
     }
   };
 } 

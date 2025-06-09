@@ -468,6 +468,22 @@
       "streaming": false,
       "temperature": 0.1,
       "maxTokens": 8192
+    },
+    "componentAssembler": {
+      "description": "Assembles final React components from JSX layout, state logic, and styling without import statements",
+      "primary": {
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Excellent at following complex instructions and understanding execution context requirements"
+      },
+      "fallback": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "reason": "Strong alternative for structured component generation"
+      },
+      "streaming": false,
+      "temperature": 0.1,
+      "maxTokens": 8192
     }
   },
 
