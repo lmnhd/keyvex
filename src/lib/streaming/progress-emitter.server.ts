@@ -196,61 +196,41 @@ async function getUserConnections(userId: string): Promise<string[]> {
       timestamp: new Date().toISOString()
     };
   
-  // Extract userId from various sources
-    let userId: string | undefined;
+    logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
 
-  logger.info({ jobId, stepName, status, message, details }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
-  if (!details || !details.userId) {
-    // Return early if no userId is found
-    return;
-  }
-  
-  try {
-    // Priority 1: Direct userId in details
-    if (details?.userId) {
-      userId = details.userId;
-      logger.info({ jobId, userId, source: 'details.userId' }, '📡 [USER-ID-LOOKUP] Found userId in details');
-    }
-    // Priority 2: TCC object in details
-    else if (details?.tcc?.userId) {
-        userId = details.tcc.userId;
-      logger.info({ jobId, userId, source: 'details.tcc.userId' }, '📡 [USER-ID-LOOKUP] Found userId in TCC from details');
-    }
-    // Priority 3: Direct TCC object as details
-    else if (details?.jobId && details?.userId) {
-      // This looks like a TCC object itself
-        userId = details.userId;
-      logger.info({ jobId, userId, source: 'details as TCC' }, '📡 [USER-ID-LOOKUP] Found userId in details as TCC object');
-    }
-    else {
-      logger.warn({ 
-        jobId, 
+    // The 'details' object is the ToolConstructionContext (TCC)
+    const userId = details?.userId;
+
+    if (!userId) {
+      logger.warn({
+        jobId,
         hasDetails: !!details,
         detailsKeys: details ? Object.keys(details) : [],
-        debugMode: process.env.DISABLE_AUTH_FOR_DEBUG
-      }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found, cannot send WebSocket message');
+      }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
       return;
     }
 
-
-    // Attempt to send via WebSocket
-    const success = await sendViaWebSocket(userId!, jobId, event);
-    
-    if (success) {
-      logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-SUCCESS] Successfully sent WebSocket message');
-    } else {
-      logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-FAIL] Failed to send via AWS WebSocket');
+    logger.info({ jobId, userId, source: 'details.userId' }, '📡 [USER-ID-LOOKUP] Extracted userId from TCC');
+  
+    try {
+      // Attempt to send via WebSocket
+      const success = await sendViaWebSocket(userId, jobId, event);
+      
+      if (success) {
+        logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-SUCCESS] Successfully sent WebSocket message');
+      } else {
+        logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-FAIL] Failed to send via AWS WebSocket');
+      }
+  
+    } catch (error) {
+      logger.error({ 
+          jobId,
+        error: error instanceof Error ? error.message : String(error),
+          stepName,
+        status
+      }, '📡 [WEBSOCKET-EMIT-ERROR] Error occurred while emitting progress');
     }
-
-  } catch (error) {
-    logger.error({ 
-        jobId,
-      error: error instanceof Error ? error.message : String(error),
-        stepName,
-      status
-    }, '📡 [WEBSOCKET-EMIT-ERROR] Error occurred while emitting progress');
   }
-}
 
 /**
  * In-memory progress subscriptions for fallback/testing

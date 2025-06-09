@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { designJsxLayout } from './core-logic';
 import logger from '@/lib/logger';
-import { checkParallelCompletion } from '@/lib/orchestration/check-parallel-completion';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
 export async function POST(request: NextRequest) {
@@ -35,10 +34,17 @@ export async function POST(request: NextRequest) {
     
     logger.info({ jobId }, '🏗️ JSXLayout Route: Core logic successful, checking parallel completion.');
 
-    // Non-blocking call to the centralized parallel completion checker
-    checkParallelCompletion(jobId, result.updatedTcc).catch(error => {
-      // Log the error but don't block the response
-      logger.error({ jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger parallel completion check');
+    // Non-blocking call to the centralized parallel completion checker endpoint
+    const checkCompletionUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
+    fetch(checkCompletionUrl.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            jobId,
+            tcc: result.updatedTcc,
+        }),
+    }).catch(error => {
+        logger.error({ jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger parallel completion check endpoint');
     });
 
     logger.info({ jobId }, '🏗️ JSXLayout Route: Returning success response.');

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { applyStyling } from './core-logic';
 import logger from '@/lib/logger';
-import { triggerNextOrchestrationStep } from '@/lib/orchestration/trigger-next-step';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
 export async function POST(request: NextRequest) {
@@ -35,12 +34,19 @@ export async function POST(request: NextRequest) {
 
     logger.info({ jobId }, '🎨 TailwindStyling Route: Core logic successful, triggering next step.');
 
-    // Trigger the next step using the centralized helper
-    await triggerNextOrchestrationStep(
-      jobId,
-      result.updatedTcc.currentOrchestrationStep,
-      result.updatedTcc,
-    );
+    // Trigger the next step by calling the centralized orchestrator endpoint
+    const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
+    fetch(triggerUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobId,
+        nextStep: result.updatedTcc.currentOrchestrationStep,
+        tcc: result.updatedTcc,
+      }),
+    }).catch(error => {
+      logger.error({ jobId, error: error.message }, '🎨 TailwindStyling Route: Failed to trigger next step orchestration endpoint');
+    });
       
     logger.info({ jobId }, '🎨 TailwindStyling Route: Successfully triggered next step.');
 
