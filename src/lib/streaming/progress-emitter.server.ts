@@ -198,6 +198,12 @@ export async function emitStepProgress(
 
   // Extract userId from various sources
   let userId: string | undefined;
+
+  logger.info({ jobId, stepName, status, message, details }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
+  if (!details || !details.userId) {
+    // Return early if no userId is found
+    return;
+  }
   
   try {
     // Priority 1: Direct userId in details
@@ -226,8 +232,9 @@ export async function emitStepProgress(
       return;
     }
 
+
     // Attempt to send via WebSocket
-    const success = await sendViaWebSocket(userId, jobId, event);
+    const success = await sendViaWebSocket(userId!, jobId, event);
     
     if (success) {
       logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-SUCCESS] Successfully sent WebSocket message');
