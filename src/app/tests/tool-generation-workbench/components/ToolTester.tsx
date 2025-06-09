@@ -1436,11 +1436,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       { (testJob || progressUpdates.length > 0) && (
         <CardFooter className="flex-col items-start space-y-6 pt-6 border-t">
           <Tabs defaultValue="progress" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="tcc" disabled={workflowMode !== 'v2' || !testJob?.jobId}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
               <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
+              <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
               <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
               <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
             </TabsList>
@@ -1792,6 +1793,119 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                       <p className="text-gray-500">Waiting for component code...</p>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="component-code" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Code className="mr-2 h-5 w-5 text-purple-500"/>
+                    Raw Component Code
+                  </CardTitle>
+                  <CardDescription>
+                    The actual component code being passed to the renderer. This shows exactly what was generated, including any problematic import statements.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    // Get the component code from various sources
+                    let componentCode = '';
+                    let codeSource = '';
+                    
+                    // Try to get from assembled code first (V2 orchestration result)
+                    if (assembledCode) {
+                      componentCode = assembledCode;
+                      codeSource = 'Assembled Code (V2 Orchestration)';
+                    }
+                    // Try to get from test job result (completed tool)
+                    else if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
+                      componentCode = (testJob.result as any).componentCode;
+                      codeSource = 'Tool Definition componentCode';
+                    }
+                    // Try to get from TCC data (debug/agent results)
+                    else if (testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
+                      const tccData = (testJob.result as any).updatedTcc;
+                      if (tccData.assembledComponentCode) {
+                        componentCode = tccData.assembledComponentCode;
+                        codeSource = 'TCC assembledComponentCode';
+                      } else if (tccData.styling?.styledComponentCode) {
+                        componentCode = tccData.styling.styledComponentCode;
+                        codeSource = 'TCC styled component code';
+                      } else if (tccData.jsxLayout?.componentStructure) {
+                        componentCode = tccData.jsxLayout.componentStructure;
+                        codeSource = 'TCC JSX layout structure';
+                      }
+                    }
+
+                    if (componentCode) {
+                      const hasImports = componentCode.includes('import ');
+                      const lines = componentCode.split('\n');
+                      const importLines = lines.filter(line => line.trim().startsWith('import '));
+                      
+                      return (
+                        <div className="space-y-4">
+                          {/* Code source and analysis */}
+                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{codeSource}</Badge>
+                              <span className="text-sm text-gray-600">
+                                {lines.length} lines, {componentCode.length} characters
+                              </span>
+                            </div>
+                            {hasImports && (
+                              <Badge variant="destructive" className="text-xs">
+                                ⚠️ Contains {importLines.length} import statement{importLines.length !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Import statements analysis */}
+                          {hasImports && (
+                            <Alert variant="destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>Import Statements Detected</AlertTitle>
+                              <AlertDescription className="text-sm">
+                                <p className="mb-2">This component contains import statements which will cause execution errors:</p>
+                                <ul className="list-disc list-inside text-xs space-y-1">
+                                  {importLines.map((line, index) => (
+                                    <li key={index} className="font-mono bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                                      {line.trim()}
+                                    </li>
+                                  ))}
+                                </ul>
+                                <p className="mt-2 text-xs">
+                                  The DynamicComponentRenderer expects import-free code since dependencies are injected.
+                                </p>
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {/* Component code display */}
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Component Code:</Label>
+                            <ScrollArea className="h-96 w-full border rounded-md">
+                              <pre className="p-4 text-xs font-mono whitespace-pre-wrap">
+                                <code>{componentCode}</code>
+                              </pre>
+                              <ScrollBar orientation="horizontal" />
+                            </ScrollArea>
+                          </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
+                          <div className="text-center">
+                            <Code className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500 font-medium">No Component Code Available</p>
+                            <p className="text-gray-400 text-sm">Run a tool generation or agent test to see code</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>
