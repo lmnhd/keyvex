@@ -190,36 +190,27 @@ CRITICAL REQUIREMENTS:
 3. Integrate ALL state variables and functions from the state logic.
 4. Ensure ALL function signatures from the state logic are implemented correctly.
 5. Use TypeScript with proper types for props, state, and event handlers.
-6. Include all necessary imports (React, hooks, etc.).
+6. DO NOT include any import statements - all dependencies are provided in the execution context.
 7. Return a single JSON object that strictly conforms to the provided schema.
 
-COMPONENT IMPORTS - AUTOMATICALLY INCLUDE THESE:
-Always include these imports at the top of the component file:
+EXECUTION CONTEXT - AVAILABLE COMPONENTS:
+All these components and hooks are available in scope (NO IMPORTS NEEDED):
 
-\`\`\`typescript
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Info, AlertCircle, Loader2 } from 'lucide-react';
-\`\`\`
+React Hooks: React, useState, useEffect, useCallback, useMemo
+UI Components: Card, CardHeader, CardContent, CardTitle, CardDescription, Button, Input, Label, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Textarea, Progress, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, Accordion, AccordionContent, AccordionItem, AccordionTrigger
+Icons: Info, AlertCircle, Loader2
 
-COMPONENT USAGE RULES:
-- Any reference to "Card" should use the imported Card component
-- Any reference to "Button" should use the imported Button component  
-- Any reference to "Input" should use the imported Input component
-- Any reference to "Label" should use the imported Label component
-- Any reference to "Tooltip", "TooltipProvider", etc. should use the imported components
-- Icons like "Info", "AlertCircle" should use the imported Lucide React icons
+COMPONENT STRUCTURE:
+- Start directly with TypeScript interfaces (NO imports)
+- Define proper TypeScript interfaces for props and state
+- Create the React component function using function declaration
+- Use the provided React hooks and components directly
+- Export the component as default
 
-CRITICAL: The final component must be export default and properly typed.`;
+CRITICAL: 
+- DO NOT add any import statements
+- The component must be export default and properly typed
+- All components and hooks are injected into the execution context`;
 
   const userPrompt = `Please assemble the React component using the following parts.
 
@@ -240,7 +231,7 @@ STYLING (the visual appearance - apply to matching element IDs):
 ${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
 \`\`\`
 
-Generate the complete JSON object containing the final component code with all necessary imports and proper component usage.`;
+Generate the complete JSON object containing the final component code WITHOUT imports and using the available components from the execution context.`;
 
   try {
     const { object } = await generateObject({
@@ -316,15 +307,9 @@ function generateFallbackComponent(tcc: ToolConstructionContext): AssembledCompo
   const componentName = generateComponentName(tcc.userInput.description);
   
   return {
-    finalComponentCode: `import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+    finalComponentCode: `interface ${componentName}Props {}
 
-interface ${componentName}Props {}
-
-export const ${componentName}: React.FC<${componentName}Props> = () => {
+const ${componentName}: React.FC<${componentName}Props> = () => {
   const [input, setInput] = useState('');
   const [result, setResult] = useState('');
 
