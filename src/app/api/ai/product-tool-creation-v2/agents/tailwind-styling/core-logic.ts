@@ -97,7 +97,7 @@ export async function applyStyling(request: {
       );
     }
 
-    const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
+    const styling = await generateTailwindStylingWithAI(tcc, selectedModel, isIsolatedTest);
 
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
@@ -171,6 +171,7 @@ async function triggerNextOrchestrationStep(jobId: string, nextStep: string): Pr
 async function generateTailwindStylingWithAI(
   tcc: ToolConstructionContext,
   selectedModel?: string,
+  isIsolatedTest?: boolean,
 ): Promise<TccStyling> {
   let modelConfig: { provider: string; modelId: string };
   if (selectedModel && selectedModel !== 'default') {
@@ -201,6 +202,26 @@ ${JSON.stringify(tcc.jsxLayout?.elementMap, null, 2)}
 Generate the complete JSON object with the styled code and all associated styling information, ensuring it strictly matches the provided schema.`;
 
   logger.info({ modelId: modelConfig.modelId }, '🎨 TailwindStyling: Calling AI');
+
+  // Log prompts when in isolated test mode for debugging
+  if (isIsolatedTest) {
+    logger.info({ 
+      jobId: tcc.jobId,
+      modelId: modelConfig.modelId,
+      systemPrompt: systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''),
+      userPrompt: userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : '')
+    }, '🎨 TailwindStyling: [ISOLATED TEST] Prompt Preview');
+    
+    logger.info({ 
+      jobId: tcc.jobId,
+      fullSystemPrompt: systemPrompt 
+    }, '🎨 TailwindStyling: [ISOLATED TEST] Full System Prompt');
+    
+    logger.info({ 
+      jobId: tcc.jobId,
+      fullUserPrompt: userPrompt 
+    }, '🎨 TailwindStyling: [ISOLATED TEST] Full User Prompt');
+  }
 
   try {
     const { object: styling } = await generateObject({

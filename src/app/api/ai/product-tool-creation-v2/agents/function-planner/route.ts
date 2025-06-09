@@ -7,20 +7,24 @@ export async function POST(request: NextRequest) {
   console.log('📋 FunctionPlanner Route: Request received at:', new Date().toISOString());
 
   try {
-    const body: { jobId: string; selectedModel?: string, tcc: ToolConstructionContext } = await request.json();
+    const body: { jobId: string; selectedModel?: string, tcc: ToolConstructionContext, mockTcc?: ToolConstructionContext } = await request.json();
     
-    const { jobId, selectedModel, tcc } = body;
+    const { jobId, selectedModel, tcc, mockTcc } = body;
+    const parsedRequest = { jobId, selectedModel, tcc, mockTcc };
+    const isIsolatedTest = !!parsedRequest.mockTcc;
 
     console.log('📋 FunctionPlanner Route: ✅ Request body parsed:', {
       jobId: jobId,
       selectedModel: selectedModel || 'default',
       hasTcc: !!tcc,
+      hasMockTcc: !!mockTcc,
+      isIsolatedTest,
       tccStatus: tcc?.status,
       bodyKeys: Object.keys(body)
     });
 
-    if (!jobId || !tcc) {
-      throw new Error('jobId and tcc must be provided in the request body.');
+    if (!jobId || (!tcc && !mockTcc)) {
+      throw new Error('jobId and either tcc or mockTcc must be provided in the request body.');
     }
 
     // Pass the received TCC directly to the core logic
@@ -28,27 +32,35 @@ export async function POST(request: NextRequest) {
       jobId,
       selectedModel,
       tcc, // Pass the in-memory TCC
+      mockTcc,
+      isIsolatedTest
     });
 
     if (result.success && result.updatedTcc) {
-      // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
-      const baseUrl = request.nextUrl.origin;
-      
-      const stateDesignModel = result.updatedTcc.agentModelMapping?.['state-design'] || result.updatedTcc.selectedModel;
-      const jsxLayoutModel = result.updatedTcc.agentModelMapping?.['jsx-layout'] || result.updatedTcc.selectedModel;
-      
-      // Trigger both agents in parallel, passing the updated TCC
-      Promise.all([
-        triggerStateDesignAgent(baseUrl, jobId, stateDesignModel, result.updatedTcc),
-        triggerJsxLayoutAgent(baseUrl, jobId, jsxLayoutModel, result.updatedTcc)
-      ]).catch(error => {
-        console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${jobId}:`, error);
-      });
+      // Only trigger orchestration if not in isolated test mode
+      if (!isIsolatedTest) {
+        // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
+        const baseUrl = request.nextUrl.origin;
+        
+        const stateDesignModel = result.updatedTcc.agentModelMapping?.['state-design'] || result.updatedTcc.selectedModel;
+        const jsxLayoutModel = result.updatedTcc.agentModelMapping?.['jsx-layout'] || result.updatedTcc.selectedModel;
+        
+        // Trigger both agents in parallel, passing the updated TCC
+        Promise.all([
+          triggerStateDesignAgent(baseUrl, jobId, stateDesignModel, result.updatedTcc),
+          triggerJsxLayoutAgent(baseUrl, jobId, jsxLayoutModel, result.updatedTcc)
+        ]).catch(error => {
+          console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${jobId}:`, error);
+        });
+      } else {
+        console.log('📋 FunctionPlanner Route: Isolated test mode - skipping orchestration triggering');
+      }
 
       // Return the function signatures, but not the whole TCC
       return NextResponse.json({
         success: true,
-        functionSignatures: result.functionSignatures
+        functionSignatures: result.functionSignatures,
+        ...(isIsolatedTest && { updatedTcc: result.updatedTcc }) // Include TCC in isolated test mode
       }, { status: 200 });
 
     } else {

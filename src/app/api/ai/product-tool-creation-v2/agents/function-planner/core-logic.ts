@@ -35,13 +35,14 @@ export async function planFunctionSignatures(request: {
   selectedModel?: string;
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
+  isIsolatedTest?: boolean;
 }): Promise<{
   success: boolean;
   functionSignatures?: DefinedFunctionSignature[];
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel } = request;
+  const { jobId, selectedModel, isIsolatedTest = false } = request;
   const tcc = request.mockTcc || request.tcc;
 
   try {
@@ -56,15 +57,19 @@ export async function planFunctionSignatures(request: {
       tcc.agentModelMapping['function-planner'] = selectedModel;
     }
 
-    await emitStepProgress(
-      jobId, 
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'in_progress',
-      'Beginning function signature planning...',
-      tcc // Pass TCC with userId
-    );
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId, 
+        OrchestrationStepEnum.enum.planning_function_signatures,
+        'in_progress',
+        'Beginning function signature planning...',
+        tcc // Pass TCC with userId
+      );
+    } else {
+      logger.info({ jobId }, '🔧 FunctionPlanner: Isolated test mode - skipping progress emission');
+    }
 
-    const functionSignatures = await generateFunctionSignatures(tcc, selectedModel);
+    const functionSignatures = await generateFunctionSignatures(tcc, selectedModel, isIsolatedTest);
 
     const updatedTcc = { ...tcc };
 
@@ -105,13 +110,17 @@ export async function planFunctionSignatures(request: {
       }
     }, '🔧 FunctionPlanner: TCC updated state prepared for return');
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'completed',
-      `Successfully planned ${functionSignatures.length} function signatures.`,
-      updatedTcc // Pass updated TCC with userId
-    );
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.planning_function_signatures,
+        'completed',
+        `Successfully planned ${functionSignatures.length} function signatures.`,
+        updatedTcc // Pass updated TCC with userId
+      );
+    } else {
+      logger.info({ jobId }, '🔧 FunctionPlanner: Isolated test mode - skipping final progress emission');
+    }
 
     logger.info({ jobId, count: functionSignatures.length }, '🔧 FunctionPlanner: Successfully planned function signatures');
     return { success: true, functionSignatures, updatedTcc };
@@ -137,12 +146,36 @@ export async function planFunctionSignatures(request: {
  */
 async function generateFunctionSignatures(
   tcc: ToolConstructionContext,
-  selectedModel?: string
+  selectedModel?: string,
+  isIsolatedTest?: boolean
 ): Promise<DefinedFunctionSignature[]> {
   const primaryModelInfo = getPrimaryModel('functionPlanner');
   if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
   const primaryModel = createModelInstance(primaryModelInfo.provider, primaryModelInfo.modelInfo.id);
   logger.info({ provider: primaryModelInfo.provider, modelName: primaryModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Attempting primary model');
+
+  const systemPrompt = getFunctionPlannerSystemPrompt(false);
+  const userPrompt = createUserPrompt(tcc);
+
+  // Log prompts when in isolated test mode for debugging
+  if (isIsolatedTest) {
+    logger.info({ 
+      jobId: tcc.jobId,
+      modelId: primaryModelInfo.modelInfo.id,
+      systemPrompt: systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''),
+      userPrompt: userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : '')
+    }, '🔧 FunctionPlanner: [ISOLATED TEST] Prompt Preview');
+    
+    logger.info({ 
+      jobId: tcc.jobId,
+      fullSystemPrompt: systemPrompt 
+    }, '🔧 FunctionPlanner: [ISOLATED TEST] Full System Prompt');
+    
+    logger.info({ 
+      jobId: tcc.jobId,
+      fullUserPrompt: userPrompt 
+    }, '🔧 FunctionPlanner: [ISOLATED TEST] Full User Prompt');
+  }
 
   try {
     const {
@@ -150,8 +183,8 @@ async function generateFunctionSignatures(
     } = await generateObject({
       model: primaryModel,
       schema: functionSignaturesSchema,
-      system: getFunctionPlannerSystemPrompt(false),
-      prompt: createUserPrompt(tcc),
+      system: systemPrompt,
+      prompt: userPrompt,
       temperature: 0.2,
       maxTokens: 2000,
     });
@@ -170,8 +203,8 @@ async function generateFunctionSignatures(
     } = await generateObject({
       model: fallbackModel,
       schema: functionSignaturesSchema,
-      system: getFunctionPlannerSystemPrompt(false),
-      prompt: createUserPrompt(tcc),
+      system: systemPrompt,
+      prompt: userPrompt,
       temperature: 0.2,
       maxTokens: 2000,
     });
