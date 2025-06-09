@@ -191,7 +191,35 @@ CRITICAL REQUIREMENTS:
 4. Ensure ALL function signatures from the state logic are implemented correctly.
 5. Use TypeScript with proper types for props, state, and event handlers.
 6. Include all necessary imports (React, hooks, etc.).
-7. Return a single JSON object that strictly conforms to the provided schema.`;
+7. Return a single JSON object that strictly conforms to the provided schema.
+
+COMPONENT IMPORTS - AUTOMATICALLY INCLUDE THESE:
+Always include these imports at the top of the component file:
+
+\`\`\`typescript
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Info, AlertCircle, Loader2 } from 'lucide-react';
+\`\`\`
+
+COMPONENT USAGE RULES:
+- Any reference to "Card" should use the imported Card component
+- Any reference to "Button" should use the imported Button component  
+- Any reference to "Input" should use the imported Input component
+- Any reference to "Label" should use the imported Label component
+- Any reference to "Tooltip", "TooltipProvider", etc. should use the imported components
+- Icons like "Info", "AlertCircle" should use the imported Lucide React icons
+
+CRITICAL: The final component must be export default and properly typed.`;
 
   const userPrompt = `Please assemble the React component using the following parts.
 
@@ -212,7 +240,7 @@ STYLING (the visual appearance - apply to matching element IDs):
 ${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
 \`\`\`
 
-Generate the complete JSON object containing the final component code and all associated metadata.`;
+Generate the complete JSON object containing the final component code with all necessary imports and proper component usage.`;
 
   try {
     const { object } = await generateObject({
@@ -289,6 +317,10 @@ function generateFallbackComponent(tcc: ToolConstructionContext): AssembledCompo
   
   return {
     finalComponentCode: `import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface ${componentName}Props {}
 
@@ -302,27 +334,31 @@ export const ${componentName}: React.FC<${componentName}Props> = () => {
 
   return (
     <div className="p-4 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4">${componentName}</h1>
-      <div className="space-y-4">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="w-full p-2 border rounded"
-          placeholder="Enter input..."
-        />
-        <button
-          onClick={handleSubmit}
-          className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          Submit
-        </button>
-        {result && (
-          <div className="p-2 bg-gray-100 rounded">
-            {result}
+      <Card>
+        <CardHeader>
+          <CardTitle>${componentName}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="input-field">Enter Input</Label>
+            <Input
+              id="input-field"
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Enter input..."
+            />
           </div>
-        )}
-      </div>
+          <Button onClick={handleSubmit} className="w-full">
+            Submit
+          </Button>
+          {result && (
+            <div className="p-2 bg-gray-100 rounded">
+              {result}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
