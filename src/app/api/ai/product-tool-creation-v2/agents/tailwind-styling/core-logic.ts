@@ -70,29 +70,32 @@ export async function applyStyling(request: {
   selectedModel?: string;
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
+  isIsolatedTest?: boolean;
 }): Promise<{
   success: boolean;
   styling?: TccStyling;
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel } = request;
+  const { jobId, selectedModel, isIsolatedTest = false } = request;
   const tcc = request.mockTcc || request.tcc;
 
-  logger.info({ jobId }, '🎨 TailwindStyling: Starting styling application');
+  logger.info({ jobId, isIsolatedTest }, '🎨 TailwindStyling: Starting styling application');
 
   try {
     if (!tcc) {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'in_progress',
-      'Applying Tailwind CSS styling...',
-      tcc // Pass TCC with userId
-    );
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'in_progress',
+        'Applying Tailwind CSS styling...',
+        tcc // Pass TCC with userId
+      );
+    }
 
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel);
 
@@ -114,13 +117,17 @@ export async function applyStyling(request: {
       updatedAt: new Date().toISOString(),
     };
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'completed',
-      'Tailwind CSS styling applied successfully!',
-      updatedTcc // Pass updated TCC with userId
-    );
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'completed',
+        'Tailwind CSS styling applied successfully!',
+        updatedTcc // Pass updated TCC with userId
+      );
+    } else {
+      logger.info({ jobId }, '🎨 TailwindStyling: Isolated test mode - skipping progress emission');
+    }
 
     logger.info({ jobId }, '🎨 TailwindStyling: Applied styling successfully');
     return { success: true, styling, updatedTcc };
@@ -131,13 +138,15 @@ export async function applyStyling(request: {
       '🎨 TailwindStyling: Error applying styling',
     );
     
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.applying_tailwind_styling,
-      'failed',
-      errorMessage,
-      tcc // Pass TCC with userId even on failure
-    );
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.applying_tailwind_styling,
+        'failed',
+        errorMessage,
+        tcc // Pass TCC with userId even on failure
+      );
+    }
     
     return {
       success: false,

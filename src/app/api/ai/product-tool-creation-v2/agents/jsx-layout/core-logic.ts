@@ -82,29 +82,33 @@ export async function designJsxLayout(request: {
   selectedModel?: string;
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
+  isIsolatedTest?: boolean;
 }): Promise<{
   success: boolean;
   jsxLayout?: JsxLayoutResult;
   error?: string;
   updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel } = request;
+  const { jobId, selectedModel, isIsolatedTest = false } = request;
   const tcc = request.mockTcc || request.tcc;
 
-  logger.info({ jobId }, '🏗️ JSXLayout: Starting JSX layout design');
+  logger.info({ jobId, isIsolatedTest }, '🏗️ JSXLayout: Starting JSX layout design');
 
   try {
     if (!tcc) {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'in_progress',
-      'Designing JSX component structure...',
-      tcc // Pass TCC with userId
-    );
+    // Skip progress emission during isolated testing to prevent orchestration
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.designing_jsx_layout,
+        'in_progress',
+        'Designing JSX component structure...',
+        tcc // Pass TCC with userId
+      );
+    }
 
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel);
 
@@ -125,13 +129,18 @@ export async function designJsxLayout(request: {
       updatedAt: new Date().toISOString(),
     };
 
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'completed',
-      'JSX layout designed successfully!',
-      updatedTcc // Pass updated TCC with userId
-    );
+    // Skip progress emission during isolated testing to prevent orchestration
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.designing_jsx_layout,
+        'completed',
+        'JSX layout designed successfully!',
+        updatedTcc // Pass updated TCC with userId
+      );
+    } else {
+      logger.info({ jobId }, '🏗️ JSXLayout: Isolated test mode - skipping progress emission');
+    }
 
     logger.info({ jobId }, '🏗️ JSXLayout: JSX layout designed successfully');
     return { success: true, jsxLayout, updatedTcc };
@@ -142,13 +151,16 @@ export async function designJsxLayout(request: {
       '🏗️ JSXLayout: Error designing JSX layout',
     );
     
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.designing_jsx_layout,
-      'failed',
-      errorMessage,
-      tcc // Pass TCC with userId even on failure
-    );
+    // Skip progress emission during isolated testing
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.designing_jsx_layout,
+        'failed',
+        errorMessage,
+        tcc // Pass TCC with userId even on failure
+      );
+    }
     
     return {
       success: false,

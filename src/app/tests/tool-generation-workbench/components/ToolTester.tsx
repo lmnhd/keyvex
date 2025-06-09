@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
-import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff, Trash2 } from 'lucide-react';
+import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff, Trash2, Copy, Download } from 'lucide-react';
 import {
   loadLogicResultsFromDB,
   runToolCreationProcess,
@@ -1440,8 +1440,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="tcc" disabled={workflowMode !== 'v2' || !testJob?.jobId}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
-              <TabsTrigger value="preview" disabled={!assembledCode}>Live Preview</TabsTrigger>
-              <TabsTrigger value="result" disabled={testJob?.status !== 'success'}>Final Result</TabsTrigger>
+              <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
+              <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Final Result</TabsTrigger>
             </TabsList>
             
             <TabsContent value="progress" className="mt-4">
@@ -1722,7 +1722,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5"/>Component Preview</CardTitle>
-                  <CardDescription>Live preview of the generated component. Interact with it to test functionality.</CardDescription>
+                  <CardDescription>
+                    {workflowMode === 'debug' ? 'Preview of isolated agent output' : 'Live preview of the generated component. Interact with it to test functionality.'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {assembledCode && testJob?.result ? (
@@ -1735,6 +1737,108 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                         <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
                         <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
                       </div>
+                    </div>
+                  ) : workflowMode === 'debug' && testJob?.result ? (
+                    <div className="space-y-4">
+                      <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+                        <AlertCircle className="h-4 w-4 text-blue-600" />
+                        <AlertTitle className="text-blue-800 dark:text-blue-200">🔍 Isolated Agent Output</AlertTitle>
+                        <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                          This shows the raw output from the isolated agent test. The agent completed successfully without triggering orchestration.
+                        </AlertDescription>
+                      </Alert>
+                      
+                      {/* Show agent-specific results */}
+                      {testJob.result.styling && (
+                        <div>
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            🎨 Styling Output
+                          </h4>
+                          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            {testJob.result.styling.styledComponentCode && (
+                              <div className="mb-4">
+                                <Label className="text-sm font-medium">Styled Component Code:</Label>
+                                <pre className="mt-2 p-3 bg-white dark:bg-gray-900 rounded text-xs overflow-x-auto">
+                                  {testJob.result.styling.styledComponentCode}
+                                </pre>
+                              </div>
+                            )}
+                            {testJob.result.styling.colorScheme && (
+                              <div className="mb-4">
+                                <Label className="text-sm font-medium">Color Scheme:</Label>
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                                  {Object.entries(testJob.result.styling.colorScheme).map(([key, value]) => (
+                                    <div key={key} className="flex items-center gap-2">
+                                      <span className="font-mono">{key}:</span>
+                                      <span className="font-mono text-gray-600">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {testJob.result.jsxLayout && (
+                        <div>
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            🏗️ JSX Layout Output
+                          </h4>
+                          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            {testJob.result.jsxLayout.componentStructure && (
+                              <div className="mb-4">
+                                <Label className="text-sm font-medium">Component Structure:</Label>
+                                <pre className="mt-2 p-3 bg-white dark:bg-gray-900 rounded text-xs overflow-x-auto">
+                                  {testJob.result.jsxLayout.componentStructure}
+                                </pre>
+                              </div>
+                            )}
+                            {testJob.result.jsxLayout.elementMap && (
+                              <div className="mb-4">
+                                <Label className="text-sm font-medium">Element Map ({testJob.result.jsxLayout.elementMap.length} elements):</Label>
+                                <div className="mt-2 space-y-1 text-xs">
+                                  {testJob.result.jsxLayout.elementMap.map((element: any, index: number) => (
+                                    <div key={index} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900 rounded">
+                                      <span className="font-mono text-blue-600">#{element.elementId}</span>
+                                      <span className="text-gray-500">→</span>
+                                      <span className="font-mono">{element.type}</span>
+                                      <span className="text-gray-500">→</span>
+                                      <span className="text-gray-600">{element.purpose}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {testJob.result.updatedTcc && (
+                        <div>
+                          <h4 className="font-semibold mb-2 flex items-center gap-2">
+                            📋 Updated TCC
+                          </h4>
+                          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <Label className="text-sm font-medium">Current Step:</Label>
+                            <p className="text-sm font-mono mt-1 mb-3">{testJob.result.updatedTcc.currentOrchestrationStep}</p>
+                            
+                            <Label className="text-sm font-medium">Completed Steps:</Label>
+                            <div className="mt-2 space-y-1 text-xs">
+                              {Object.entries(testJob.result.updatedTcc.steps || {}).map(([stepName, stepData]: [string, any]) => (
+                                <div key={stepName} className="flex items-center gap-2 p-2 bg-white dark:bg-gray-900 rounded">
+                                  <div className={`w-2 h-2 rounded-full ${stepData.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                  <span className="font-mono">{stepName}</span>
+                                  <span className="text-gray-500">→</span>
+                                  <span className={`font-medium ${stepData.status === 'completed' ? 'text-green-600' : 'text-gray-600'}`}>
+                                    {stepData.status}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
@@ -1749,8 +1853,16 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                {testJob?.status === 'success' && testJob.result ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center"><CheckCircle className="mr-2 h-5 w-5 text-green-500"/>Generation Complete</CardTitle>
-                    <CardDescription>The final tool definition has been created and is ready to be saved.</CardDescription>
+                    <CardTitle className="flex items-center">
+                      <CheckCircle className="mr-2 h-5 w-5 text-green-500"/>
+                      {workflowMode === 'debug' ? 'Isolated Agent Result' : 'Generation Complete'}
+                    </CardTitle>
+                    <CardDescription>
+                      {workflowMode === 'debug' 
+                        ? 'Raw output from the isolated agent test. This shows exactly what the agent produced.'
+                        : 'The final tool definition has been created and is ready to be saved.'
+                      }
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex items-center gap-2 mb-2">
@@ -1761,6 +1873,18 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                         </Badge>
                       ))}
                     </div>
+                    
+                    {workflowMode === 'debug' && (
+                      <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <AlertTitle className="text-green-800 dark:text-green-200">✅ Agent Test Successful</AlertTitle>
+                        <AlertDescription className="text-green-700 dark:text-green-300 text-sm">
+                          The isolated agent completed successfully without triggering the next orchestration step. 
+                          This is the raw agent output that would normally be passed to the next agent in the pipeline.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
                     <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
                       {JSON.stringify(testJob.result, null, 2)}
                     </pre>
@@ -1784,11 +1908,42 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                           : 'Save V2 Generation Result'}
                       </Button>
                     )}
+                    {workflowMode === 'debug' && testJob.result && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm">
+                          <Copy className="mr-2 h-4 w-4" />
+                          Copy Result JSON
+                        </Button>
+                        <Button variant="outline" size="sm">
+                          <Download className="mr-2 h-4 w-4" />
+                          Export Agent Output
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : workflowMode === 'debug' && testJob?.status === 'error' ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <AlertCircle className="mr-2 h-5 w-5 text-red-500"/>
+                      Agent Test Failed
+                    </CardTitle>
+                    <CardDescription>The isolated agent test encountered an error.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Agent Error</AlertTitle>
+                      <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
+                    </Alert>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                  <p className="text-gray-500">Tool generation is not yet complete.</p>
+                  <p className="text-gray-500">
+                    {workflowMode === 'debug' ? 'Run an isolated agent test to see results.' : 'Tool generation is not yet complete.'}
+                  </p>
                 </div>
               )}
             </TabsContent>

@@ -2,57 +2,63 @@ import { NextRequest, NextResponse } from 'next/server';
 import { designJsxLayout } from './core-logic';
 import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
+
+// Define the request schema locally
+const jsxLayoutRequestSchema = z.object({
+  jobId: z.string().uuid(),
+  selectedModel: z.string().optional(),
+  mockTcc: z.custom<ToolConstructionContext>().optional(),
+});
 
 export async function POST(request: NextRequest) {
   logger.info('🏗️ JSXLayout Route: Route handler started');
-  
+
   try {
-    const body: { jobId: string; selectedModel?: string; tcc?: ToolConstructionContext; mockTcc?: ToolConstructionContext; } = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc } = body;
+    const body = await request.json();
+    const parsedRequest = jsxLayoutRequestSchema.parse(body);
+    
+    // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
+    const isIsolatedTest = !!parsedRequest.mockTcc;
+    
+    logger.info({ 
+      jobId: parsedRequest.jobId, 
+      selectedModel: parsedRequest.selectedModel,
+      isIsolatedTest 
+    }, '🏗️ JSXLayout API: Request received');
 
-    if (!jobId || (!tcc && !mockTcc)) {
-      return NextResponse.json(
-        { success: false, error: "jobId and either tcc or mockTcc must be provided." },
-        { status: 400 }
-      );
-    }
-
-    // Call the pure core logic function
+    // Call the core logic with isolated test flag
     const result = await designJsxLayout({
-      jobId,
-      selectedModel,
-      tcc: mockTcc || tcc,
+      jobId: parsedRequest.jobId,
+      selectedModel: parsedRequest.selectedModel,
+      mockTcc: parsedRequest.mockTcc,
+      isIsolatedTest
     });
 
-    if (!result.success || !result.updatedTcc) {
-      logger.error({ jobId, error: result.error }, '🏗️ JSXLayout Route: Core logic failed');
-      return NextResponse.json(
-        { success: false, error: result.error || 'JSX layout design failed' },
-        { status: 500 }
-      );
-    }
-    
-    logger.info({ jobId }, '🏗️ JSXLayout Route: Core logic successful, checking parallel completion.');
+    // Skip orchestration triggering during isolated testing
+    if (!isIsolatedTest && result.success && result.updatedTcc) {
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Core logic successful, triggering next step.');
 
-    // Non-blocking call to the centralized parallel completion checker endpoint
-    const checkCompletionUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
-    fetch(checkCompletionUrl.toString(), {
+      // Trigger the next step by calling the centralized orchestrator endpoint
+      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
+      fetch(triggerUrl.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            jobId,
-            tcc: result.updatedTcc,
+          jobId: parsedRequest.jobId,
+          tcc: result.updatedTcc,
         }),
-    }).catch(error => {
-        logger.error({ jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger parallel completion check endpoint');
-    });
+      }).catch(error => {
+        logger.error({ jobId: parsedRequest.jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger next step orchestration endpoint');
+      });
+        
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Successfully triggered next step.');
+    } else if (isIsolatedTest) {
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Isolated test mode - skipping orchestration trigger');
+    }
 
-    logger.info({ jobId }, '🏗️ JSXLayout Route: Returning success response.');
-    return NextResponse.json({
-      success: true,
-      jsxLayout: result.jsxLayout,
-    });
-
+    return NextResponse.json(result);
+    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error({ error: errorMessage }, '🏗️ JSXLayout Route: Route handler error');
