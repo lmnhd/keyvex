@@ -571,7 +571,12 @@ export async function processToolCreation(
       estimatedCompletionTime: parsedToolDefinition.metadata?.estimatedCompletionTime || 5,
       difficultyLevel: parsedToolDefinition.metadata?.difficultyLevel || 'beginner',
       features: parsedToolDefinition.metadata?.features || [],
-      icon: parsedToolDefinition.metadata?.icon || { type: 'lucide', value: 'Package' }
+      icon: parsedToolDefinition.metadata?.icon || { type: 'lucide', value: 'Package' },
+      dependencies: parsedToolDefinition.metadata?.dependencies || [],
+      userInstructions: parsedToolDefinition.metadata?.userInstructions || '',
+      developerNotes: parsedToolDefinition.metadata?.developerNotes || '',
+      source: parsedToolDefinition.metadata?.source || 'ai',
+      version: parsedToolDefinition.metadata?.version || '1.0'
     },
     componentSet: parsedToolDefinition.componentSet || currentComponentSet,
     componentCode: rawComponentCode,

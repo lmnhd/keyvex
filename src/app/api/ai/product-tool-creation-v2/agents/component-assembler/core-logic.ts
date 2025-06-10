@@ -113,6 +113,13 @@ export async function assembleComponent(request: {
       updatedAt: new Date().toISOString(),
     };
 
+    // Debug: Log what we're storing in TCC
+    logger.info({
+      jobId,
+      assembledCodeLength: assembledComponent.finalComponentCode.length,
+      hasImportsInFinalCode: assembledComponent.finalComponentCode.includes('import ')
+    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
+
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.assembling_component,
@@ -182,7 +189,7 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
-  const systemPrompt = `You are an expert React component assembler. Combine the provided JSX layout, state logic, and styling into a single, complete, and functional React component.
+  const systemPrompt = `You are an expert React component assembler. Combine the provided layout structure, state logic, and styling into a single, complete, and functional React component.
 
 ❌ ABSOLUTELY FORBIDDEN - DO NOT DO THESE THINGS:
 - DO NOT include any import statements (import React, import { Button }, etc.)
@@ -190,8 +197,11 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
 - DO NOT import react-icons or any external packages
 - DO NOT write: import React, { useState } from 'react';
 - DO NOT write: import { Card, Button } from 'any-library';
+- DO NOT use JSX syntax with < > brackets (e.g., <div>, <Card>, <Button>)
+- DO NOT write JSX like: <Card><CardHeader><CardTitle>Title</CardTitle></CardHeader></Card>
 
 ✅ WHAT YOU MUST DO INSTEAD:
+- Use ONLY React.createElement() syntax - NO JSX allowed
 - Start the component code directly with interface definitions
 - Use components directly as if they are globally available
 - All React hooks and ShadCN components are already in scope
@@ -202,48 +212,53 @@ Hooks: useState, useEffect, useCallback, useMemo
 UI Components: Card, CardHeader, CardContent, CardTitle, CardDescription, Button, Input, Label, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Textarea, Progress, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, Accordion, AccordionContent, AccordionItem, AccordionTrigger
 Icons: Info, AlertCircle, Loader2
 
-CORRECT COMPONENT STRUCTURE EXAMPLE:
+CORRECT COMPONENT STRUCTURE EXAMPLE (React.createElement ONLY):
 \`\`\`typescript
 interface CalculatorProps {}
 
 const Calculator: React.FC<CalculatorProps> = () => {
   const [value, setValue] = useState(0);
-  
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Calculator</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Button onClick={() => setValue(v => v + 1)}>
-          Increment
-        </Button>
-      </CardContent>
-    </Card>
-  );
+
+  return React.createElement(Card, { 'data-style-id': 'calculator-card' }, [
+    React.createElement(CardHeader, { 'data-style-id': 'calculator-header', key: 'header' }, [
+      React.createElement(CardTitle, { 'data-style-id': 'calculator-title', key: 'title' }, 'Calculator')
+    ]),
+    React.createElement(CardContent, { 'data-style-id': 'calculator-content', key: 'content' }, [
+      React.createElement(Button, {
+        onClick: () => setValue(v => v + 1),
+        'data-style-id': 'increment-button',
+        key: 'increment-btn'
+      }, 'Increment')
+    ])
+  ]);
 };
 
 export default Calculator;
 \`\`\`
 
 CRITICAL REQUIREMENTS:
-1. Create COMPLETE, FUNCTIONAL React component code as a single string
+1. Create COMPLETE, FUNCTIONAL React component code using ONLY React.createElement() calls
 2. Apply ALL styling from the styleMap to correct elements using 'className' prop
 3. Integrate ALL state variables and functions from the state logic
 4. Ensure ALL function signatures from state logic are implemented correctly
 5. Use TypeScript with proper types for props, state, and event handlers
-6. Return a single JSON object that strictly conforms to the provided schema
-7. The finalComponentCode field must contain executable React component code
+6. Add 'data-style-id' attributes to ALL React.createElement calls for styling
+7. Add 'key' props to ALL array elements to prevent React warnings
+8. Return a single JSON object that strictly conforms to the provided schema
+9. The finalComponentCode field must contain executable React component code
 
-REMEMBER: No imports allowed - everything is available in execution context!`;
+REMEMBER: 
+- No imports allowed - everything is available in execution context!
+- NO JSX SYNTAX - Use React.createElement() only!
+- Every element needs data-style-id for dynamic styling!`;
 
   const userPrompt = `Please assemble the React component using the following parts.
 
 Component Name Suggestion: ${generateComponentName(tcc.userInput.description)}
 
-JSX LAYOUT (the structural blueprint):
+STYLED JSX CODE (complete JSX with Tailwind classes already applied):
 \`\`\`jsx
-${tcc.jsxLayout?.componentStructure}
+${(tcc as any).styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || 'No styled code available'}
 \`\`\`
 
 STATE LOGIC (the brains and functionality):
@@ -251,12 +266,32 @@ STATE LOGIC (the brains and functionality):
 ${JSON.stringify(tcc.stateLogic, null, 2)}
 \`\`\`
 
-STYLING (the visual appearance - apply to matching element IDs):
+STYLE MAP (for reference - element IDs to classes):
 \`\`\`json
 ${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
 \`\`\`
 
-Generate the complete JSON object containing the final component code WITHOUT imports and using the available components from the execution context.`;
+Convert the styled JSX above to React.createElement() syntax and integrate with the state logic. Generate the complete JSON object containing the final component code WITHOUT imports and using the available components from the execution context.`;
+
+  // Log prompts with proper formatting for debugging
+  logger.info({
+    tccJobId: tcc.jobId,
+    provider,
+    modelId,
+    systemPromptLength: systemPrompt.length,
+    userPromptLength: userPrompt.length
+  }, '🔧 ComponentAssembler: 📝 Sending prompts to AI (see formatted output below)');
+  
+  // Output formatted prompts to console for easy reading
+  console.log('\n' + '='.repeat(80));
+  console.log('🔧 ComponentAssembler SYSTEM PROMPT:');
+  console.log('='.repeat(80));
+  console.log(systemPrompt);
+  console.log('='.repeat(80));
+  console.log('🔧 ComponentAssembler USER PROMPT:'); 
+  console.log('='.repeat(80));
+  console.log(userPrompt);
+  console.log('='.repeat(80) + '\n');
 
   try {
     const { object } = await generateObject({
@@ -272,6 +307,45 @@ Generate the complete JSON object containing the final component code WITHOUT im
       provider, 
       modelId 
     }, '🔧 ComponentAssembler: ✅ AI generation successful');
+
+    // Log the AI response for debugging
+    console.log('\n' + '='.repeat(80));
+    console.log('🔧 ComponentAssembler AI RESPONSE:');
+    console.log('='.repeat(80));
+    console.log('Component Code:');
+    console.log(object.finalComponentCode);
+    console.log('\nImports (should be empty):');
+    console.log(JSON.stringify(object.imports, null, 2));
+    console.log('='.repeat(80) + '\n');
+
+    // Post-process to automatically remove import statements if AI ignored instructions
+    let finalCode = object.finalComponentCode;
+    const hasImports = finalCode.includes('import ');
+    
+    if (hasImports) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        provider,
+        modelId
+      }, '🔧 ComponentAssembler: ⚠️ AI generated imports despite instructions! Auto-removing...');
+      
+      // Remove import lines
+      const lines = finalCode.split('\n');
+      const filteredLines = lines.filter(line => !line.trim().startsWith('import '));
+      finalCode = filteredLines.join('\n');
+      
+      console.log('\n' + '⚠️'.repeat(40));
+      console.log('🔧 ComponentAssembler: FIXED - Removed import statements:');
+      console.log('⚠️'.repeat(40));
+      console.log('CLEANED CODE:');
+      console.log(finalCode);
+      console.log('⚠️'.repeat(40) + '\n');
+      
+      // Update the object
+      object.finalComponentCode = finalCode;
+      object.imports = []; // Clear imports array
+    }
+
     return object;
   } catch (error) {
     logger.error({ 

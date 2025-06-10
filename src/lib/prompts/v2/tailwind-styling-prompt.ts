@@ -273,7 +273,7 @@ const COMMON_OUTPUT_FORMAT = `
 <output-format>
     You MUST return a clean JSON object in this exact format, with no extra commentary:
     {
-      "styledComponentCode": "string - the complete React.createElement code with all className props applied",
+      "styledComponentCode": "string - the complete styled JSX code with all className props applied",
       "styleMap": {
         "data-style-id-one": "string of Tailwind classes with industry-appropriate colors",
         "data-style-id-two": "string of Tailwind classes with proper contrast"
