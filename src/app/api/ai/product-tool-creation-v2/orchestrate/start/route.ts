@@ -52,6 +52,86 @@ export async function POST(request: NextRequest) {
       testingOptions: testingOptions || 'none'
     }, '🚀 ORCHESTRATION START: Creating new TCC');
 
+    // 🔍 DEBUG: Log comprehensive brainstorm data structure for debugging
+    if (brainstormData) {
+      logger.info({ 
+        jobId,
+        brainstormDataKeys: Object.keys(brainstormData),
+        brainstormDataSize: JSON.stringify(brainstormData).length,
+        coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified',
+        valueProposition: brainstormData.valueProposition || 'Not specified',
+        suggestedInputsCount: brainstormData.suggestedInputs?.length || 0,
+        keyCalculationsCount: brainstormData.keyCalculations?.length || 0,
+        interactionFlowCount: brainstormData.interactionFlow?.length || 0,
+        hasLeadCaptureStrategy: !!brainstormData.leadCaptureStrategy,
+        hasCalculationLogic: !!brainstormData.calculationLogic && brainstormData.calculationLogic.length > 0,
+        hasCreativeEnhancements: !!brainstormData.creativeEnhancements && brainstormData.creativeEnhancements.length > 0
+      }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Rich brainstorm data available for agents');
+
+      // Log specific brainstorm fields for debugging
+      if (brainstormData.suggestedInputs && brainstormData.suggestedInputs.length > 0) {
+        logger.info({ 
+          jobId,
+          suggestedInputs: brainstormData.suggestedInputs.map(input => ({
+            label: input.label,
+            type: input.type,
+            description: input.description?.substring(0, 100) + (input.description?.length > 100 ? '...' : '')
+          }))
+        }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Suggested inputs that agents will use');
+      }
+
+      if (brainstormData.keyCalculations && brainstormData.keyCalculations.length > 0) {
+        logger.info({ 
+          jobId,
+          keyCalculations: brainstormData.keyCalculations.map(calc => ({
+            name: calc.name,
+            formula: calc.formula?.substring(0, 100) + (calc.formula?.length > 100 ? '...' : ''),
+            description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
+          }))
+        }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Key calculations that agents will implement');
+      }
+
+      if (brainstormData.interactionFlow && brainstormData.interactionFlow.length > 0) {
+        logger.info({ 
+          jobId,
+          interactionFlow: brainstormData.interactionFlow.map(step => ({
+            step: step.step,
+            title: step.title,
+            description: step.description?.substring(0, 100) + (step.description?.length > 100 ? '...' : ''),
+            userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
+          }))
+        }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Interaction flow that agents will design for');
+      }
+
+      if (brainstormData.leadCaptureStrategy) {
+        logger.info({ 
+          jobId,
+          leadCaptureStrategy: {
+            timing: brainstormData.leadCaptureStrategy.timing,
+            method: brainstormData.leadCaptureStrategy.method,
+            incentive: brainstormData.leadCaptureStrategy.incentive?.substring(0, 100) + (brainstormData.leadCaptureStrategy.incentive?.length > 100 ? '...' : '')
+          }
+        }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Lead capture strategy for agents');
+      }
+
+      if (brainstormData.calculationLogic && brainstormData.calculationLogic.length > 0) {
+        logger.info({ 
+          jobId,
+          calculationLogic: brainstormData.calculationLogic.map(logic => ({
+            name: logic.name,
+            formula: logic.formula?.substring(0, 100) + (logic.formula?.length > 100 ? '...' : '')
+          }))
+        }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Calculation logic for agents to implement');
+      }
+    } else {
+      logger.warn({ 
+        jobId,
+        userInputDescription: userInput.description,
+        toolType: userInput.toolType || 'Not specified',
+        targetAudience: userInput.targetAudience || 'Not specified'
+      }, '🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agents will work with minimal context only');
+    }
+
     // Create initial TCC with userId and brainstorm data (Phase 1)
     const tcc = createTCC(jobId, userInput, userId, brainstormData);
     

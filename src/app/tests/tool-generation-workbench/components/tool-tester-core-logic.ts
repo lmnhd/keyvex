@@ -33,19 +33,44 @@ export interface ToolCreationJob {
 // For now, keeping transformation to support legacy data and move V2 forward.
 
 // Phase 3.1: Transform saved brainstorm data to match new comprehensive BrainstormDataSchema
-export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult): any {
+export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult | any): any {
+  console.log('🚨 TRANSFORMATION FUNCTION CALLED! 🚨');
   console.log('🔄 [TRANSFORM] Converting brainstorm data to new schema format');
+  console.log('🔍 [TRANSFORM] Full brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
   
+  // Check if this is a SavedLogicResult (nested structure) or direct brainstorm data
+  const isDirectBrainstormData = brainstormResult.coreConcept || brainstormResult.keyCalculations || brainstormResult.suggestedInputs;
+  
+  if (isDirectBrainstormData) {
+    console.log('🎯 [TRANSFORM] Detected DIRECT brainstorm data - using as-is');
+    console.log('🔍 [TRANSFORM] Direct data keys:', Object.keys(brainstormResult));
+    console.log('🔍 [TRANSFORM] Direct coreConcept:', brainstormResult.coreConcept);
+    console.log('🔍 [TRANSFORM] Direct keyCalculations count:', brainstormResult.keyCalculations?.length || 0);
+    console.log('🔍 [TRANSFORM] Direct suggestedInputs count:', brainstormResult.suggestedInputs?.length || 0);
+    
+    // This is direct brainstorm data - return it as-is
+    return brainstormResult;
+  }
+  
+  // Original nested logic for SavedLogicResult
   const brainstormOutput = brainstormResult.result?.brainstormOutput;
   const rawResult = brainstormResult.result;
   
-  // If we already have data matching the new schema, use it directly
+  console.log('🔍 [TRANSFORM] brainstormOutput found:', !!brainstormOutput);
+  console.log('🔍 [TRANSFORM] brainstormOutput structure:', brainstormOutput ? Object.keys(brainstormOutput) : 'N/A');
+  console.log('🔍 [TRANSFORM] brainstormOutput DETAILED:', brainstormOutput);
+  
+  // 🚨 CRITICAL DEBUG: Check if we have rich brainstormOutput data
   if (brainstormOutput && typeof brainstormOutput === 'object') {
-    console.log('🔄 [TRANSFORM] Found brainstormOutput - checking if it matches new schema');
+    console.log('🔍 [TRANSFORM] brainstormOutput coreConcept:', brainstormOutput.coreConcept);
+    console.log('🔍 [TRANSFORM] brainstormOutput keyCalculations count:', brainstormOutput.keyCalculations?.length);
+    console.log('🔍 [TRANSFORM] brainstormOutput suggestedInputs count:', brainstormOutput.suggestedInputs?.length);
     
     // Check if it has the expected new schema fields
     if (brainstormOutput.valueProposition || brainstormOutput.keyCalculations || brainstormOutput.interactionFlow) {
       console.log('✅ [TRANSFORM] BrainstormOutput already matches new schema - using directly');
+      console.log('🔍 [TRANSFORM] Returning rich brainstorm data with keys:', Object.keys(brainstormOutput));
+      console.log('🔍 [TRANSFORM] FINAL CORE CONCEPT BEING RETURNED:', brainstormOutput.coreConcept);
       return brainstormOutput;
     }
   }
@@ -53,14 +78,20 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
   console.log('🔄 [TRANSFORM] Converting legacy brainstorm format to new schema');
   console.log('🔍 [TRANSFORM] Raw result structure:', Object.keys(rawResult || {}));
   
+  // 🚨 BUG FIX: If we have brainstormOutput but it doesn't match the schema check above,
+  // it might still contain rich data that we should use instead of generic fallbacks
+  const sourceData = brainstormOutput && typeof brainstormOutput === 'object' ? brainstormOutput : rawResult;
+  console.log('🔍 [TRANSFORM] Using sourceData from:', brainstormOutput ? 'brainstormOutput' : 'rawResult');
+  console.log('🔍 [TRANSFORM] SourceData keys:', Object.keys(sourceData || {}));
+  
   // Transform legacy format to new comprehensive schema
   const transformedData = {
-    // Core concept (handle both spellings)
-    coreConcept: rawResult?.coreConcept || rawResult?.coreWConcept || 'Business tool',
-    valueProposition: rawResult?.valueProposition || 'Provides value to users',
+    // Core concept (handle both spellings) - USE ACTUAL DATA
+    coreConcept: sourceData?.coreConcept || sourceData?.coreWConcept || 'Business tool',
+    valueProposition: sourceData?.valueProposition || 'Provides value to users',
     
-    // Key calculations - extract from various legacy fields
-    keyCalculations: rawResult?.keyCalculations || rawResult?.calculations || [
+    // Key calculations - extract from various legacy fields - USE ACTUAL DATA
+    keyCalculations: sourceData?.keyCalculations || sourceData?.calculations || [
       {
         name: 'Main Calculation',
         formula: 'Basic calculation logic',
@@ -69,8 +100,8 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
       }
     ],
     
-    // Interaction flow - build from legacy data or create default
-    interactionFlow: rawResult?.interactionFlow || [
+    // Interaction flow - build from legacy data or create default - USE ACTUAL DATA
+    interactionFlow: sourceData?.interactionFlow || [
       {
         step: 1,
         title: 'Input Collection',
@@ -87,22 +118,22 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
       }
     ],
     
-    // Lead capture strategy
-    leadCaptureStrategy: rawResult?.leadCaptureStrategy || {
+    // Lead capture strategy - USE ACTUAL DATA
+    leadCaptureStrategy: sourceData?.leadCaptureStrategy || {
       timing: 'after_completion',
       method: 'email_signup',
       incentive: 'Save and share results'
     },
     
-    // Creative enhancements
-    creativeEnhancements: rawResult?.creativeEnhancements || [
+    // Creative enhancements - USE ACTUAL DATA
+    creativeEnhancements: sourceData?.creativeEnhancements || [
       'Professional styling and branding',
       'Mobile-responsive design',
       'Clear result presentation'
     ],
     
-    // Suggested inputs - extract from legacy or create defaults
-    suggestedInputs: rawResult?.suggestedInputs || [
+    // Suggested inputs - extract from legacy or create defaults - USE ACTUAL DATA
+    suggestedInputs: sourceData?.suggestedInputs || [
       {
         id: 'primary_input',
         label: 'Primary Input',
@@ -112,8 +143,8 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
       }
     ],
     
-    // Calculation logic - more detailed than keyCalculations
-    calculationLogic: rawResult?.calculationLogic || [
+    // Calculation logic - more detailed than keyCalculations - USE ACTUAL DATA
+    calculationLogic: sourceData?.calculationLogic || [
       {
         id: 'main_calc',
         name: 'Main Calculation',
@@ -124,8 +155,8 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
       }
     ],
     
-    // Prompt options that guided generation
-    promptOptions: rawResult?.promptOptions || {
+    // Prompt options that guided generation - USE ACTUAL DATA
+    promptOptions: sourceData?.promptOptions || {
       includeComprehensiveColors: true,
       includeGorgeousStyling: true,
       includeAdvancedLayouts: false,
@@ -136,6 +167,11 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
   };
   
   console.log('✅ [TRANSFORM] Successfully transformed to new schema with keys:', Object.keys(transformedData));
+  console.log('🔍 [TRANSFORM] Final coreConcept:', transformedData.coreConcept);
+  console.log('🔍 [TRANSFORM] Final valueProposition:', transformedData.valueProposition);
+  console.log('🔍 [TRANSFORM] Final keyCalculations count:', transformedData.keyCalculations?.length);
+  console.log('🔍 [TRANSFORM] Final suggestedInputs count:', transformedData.suggestedInputs?.length);
+  
   return transformedData;
 }
 
@@ -228,6 +264,118 @@ export async function runToolCreationProcess(
   }
   
   return job;
+}
+
+/**
+ * Helper function to run the final 3 TCC stages: component-assembler, validator, tool-finalizer
+ * Takes a modified TCC and runs it through the final assembly, validation, and finalization steps
+ */
+export async function runTccFinalizationSteps(
+  tcc: any,
+  agentModelMapping?: Record<string, string>
+): Promise<{
+  success: boolean;
+  finalProduct?: any;
+  error?: string;
+  intermediateResults?: {
+    assembledComponent?: any;
+    validationResult?: any;
+  };
+}> {
+  try {
+    const intermediateResults: any = {};
+    
+    // Step 1: Component Assembly
+    console.log('🔧 Starting Component Assembly...');
+    const assemblerResponse = await fetch('/api/ai/product-tool-creation-v2/agents/component-assembler', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        jobId: tcc.jobId,
+        selectedModel: agentModelMapping?.['component-assembler'],
+        tcc: tcc,
+        isIsolatedTest: true // Prevent triggering next step automatically
+      })
+    });
+    
+    if (!assemblerResponse.ok) {
+      throw new Error(`Component Assembler failed: ${assemblerResponse.statusText}`);
+    }
+    
+    const assemblerResult = await assemblerResponse.json();
+    if (!assemblerResult.success) {
+      throw new Error(`Component Assembler error: ${assemblerResult.error}`);
+    }
+    
+    intermediateResults.assembledComponent = assemblerResult.assembledComponent;
+    const updatedTccAfterAssembly = assemblerResult.updatedTcc;
+    
+    console.log('✅ Component Assembly completed');
+    
+    // Step 2: Validation
+    console.log('🔍 Starting Validation...');
+    const validatorResponse = await fetch('/api/ai/product-tool-creation-v2/agents/validator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        jobId: tcc.jobId,
+        selectedModel: agentModelMapping?.['validator'],
+        tcc: updatedTccAfterAssembly,
+        isIsolatedTest: true // Prevent triggering next step automatically
+      })
+    });
+    
+    if (!validatorResponse.ok) {
+      throw new Error(`Validator failed: ${validatorResponse.statusText}`);
+    }
+    
+    const validatorResult = await validatorResponse.json();
+    if (!validatorResult.success) {
+      throw new Error(`Validator error: ${validatorResult.error}`);
+    }
+    
+    intermediateResults.validationResult = validatorResult.validationResult;
+    const updatedTccAfterValidation = validatorResult.updatedTcc;
+    
+    console.log('✅ Validation completed');
+    
+    // Step 3: Tool Finalization
+    console.log('🎯 Starting Tool Finalization...');
+    const finalizerResponse = await fetch('/api/ai/product-tool-creation-v2/agents/tool-finalizer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        jobId: tcc.jobId,
+        selectedModel: agentModelMapping?.['tool-finalizer'],
+        tcc: updatedTccAfterValidation,
+        isIsolatedTest: true // Prevent triggering next step automatically
+      })
+    });
+    
+    if (!finalizerResponse.ok) {
+      throw new Error(`Tool Finalizer failed: ${finalizerResponse.statusText}`);
+    }
+    
+    const finalizerResult = await finalizerResponse.json();
+    if (!finalizerResult.success) {
+      throw new Error(`Tool Finalizer error: ${finalizerResult.error}`);
+    }
+    
+    console.log('✅ Tool Finalization completed');
+    
+    return {
+      success: true,
+      finalProduct: finalizerResult.finalProduct,
+      intermediateResults
+    };
+    
+  } catch (error) {
+    console.error('❌ TCC Finalization Steps Failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 export async function runIsolatedAgentTest(

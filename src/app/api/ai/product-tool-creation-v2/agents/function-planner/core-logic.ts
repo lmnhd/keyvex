@@ -237,6 +237,70 @@ async function generateFunctionSignatures(
  * Phase 2: Enhanced with edit mode support for iterative refinement
  */
 function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
+  // 🔍 DEBUG: Log brainstorm data structure for debugging
+  logger.info({ 
+    jobId: tcc.jobId,
+    hasBrainstormData: !!tcc.brainstormData,
+    brainstormDataKeys: tcc.brainstormData ? Object.keys(tcc.brainstormData) : [],
+    brainstormDataSize: tcc.brainstormData ? JSON.stringify(tcc.brainstormData).length : 0
+  }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Available brainstorm data structure');
+
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    logger.info({ 
+      jobId: tcc.jobId,
+      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
+      valueProposition: brainstorm.valueProposition || 'Not specified',
+      suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
+      keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
+      interactionFlowCount: brainstorm.interactionFlow?.length || 0,
+      creativeEnhancementsCount: brainstorm.creativeEnhancements?.length || 0,
+      hasLeadCaptureStrategy: !!brainstorm.leadCaptureStrategy,
+      hasCalculationLogic: !!brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0
+    }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Detailed brainstorm data analysis');
+
+    // Log specific brainstorm fields for debugging
+    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        suggestedInputs: brainstorm.suggestedInputs.map(input => ({
+          label: input.label,
+          type: input.type,
+          description: input.description?.substring(0, 100) + (input.description?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Suggested inputs detail');
+    }
+
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        keyCalculations: brainstorm.keyCalculations.map(calc => ({
+          name: calc.name,
+          formula: calc.formula?.substring(0, 100) + (calc.formula?.length > 100 ? '...' : ''),
+          description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Key calculations detail');
+    }
+
+    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        interactionFlow: brainstorm.interactionFlow.map(step => ({
+          step: step.step,
+          title: step.title,
+          userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Interaction flow detail');
+    }
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...',
+      toolType: tcc.userInput?.toolType || 'Not specified',
+      targetAudience: tcc.userInput?.targetAudience || 'Not specified'
+    }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
+  }
+
   let prompt = `Please analyze this tool description and provide the function signatures needed:
 
 TOOL DESCRIPTION: ${tcc.userInput.description}
@@ -296,6 +360,18 @@ CREATIVE ENHANCEMENTS TO CONSIDER:`;
         prompt += `\n- ${enhancement}`;
       });
     }
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: true
+    }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] Brainstorm context successfully added to prompt');
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: false
+    }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] ⚠️ Prompt created WITHOUT brainstorm context - tool may be too generic');
   }
 
   // Phase 2: Add edit mode context if in edit mode

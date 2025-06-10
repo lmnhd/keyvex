@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Wand2, AlertCircle, Play, CheckCircle, Eye, Save, Copy, Download, Trash2, Settings, Database, ChevronRight, Pause, SkipForward, RefreshCw, Clock, Target, User, MessageSquare, Briefcase, Brain, Info, Zap, Activity, Wifi, WifiOff, Loader2, Code, Bug, TestTube2, StepForward } from 'lucide-react';
+import { Wand2, AlertCircle, Play, CheckCircle, Eye, Save, Copy, Download, Trash2, Settings, Database, ChevronRight, Pause, SkipForward, RefreshCw, Clock, Target, User, MessageSquare, Briefcase, Brain, Info, Zap, Activity, Wifi, WifiOff, Loader2, Code, Bug, TestTube2, StepForward, RotateCcw, AlertTriangle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -19,6 +19,7 @@ import ProgressLog from '../ProgressLog';
 import TCCVisualizer from '../TCCVisualizer';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import { ScrollBar } from '@/components/ui/scroll-area';
+
 
 export default function ToolTesterView({
     testJob,
@@ -49,6 +50,7 @@ export default function ToolTesterView({
     availableModels,
     handleLoadSavedItem,
     handleDeleteSavedItem,
+    handleDeleteBrainstorm,
     handleRefreshTCC,
     getSelectedBrainstormDetails,
     isLoading,
@@ -81,6 +83,7 @@ export default function ToolTesterView({
     handleSaveTool,
     agentMode,
     setAgentMode,
+    handleTccFinalization,
 }: {
     testJob: ToolCreationJob | null;
     getConnectionStatusIcon: () => React.ReactNode;
@@ -110,6 +113,7 @@ export default function ToolTesterView({
     availableModels: ModelOption[];
     handleLoadSavedItem: () => void;
     handleDeleteSavedItem: (type: 'tool' | 'v2job', id: string) => void;
+    handleDeleteBrainstorm: (brainstormId: string) => void;
     handleRefreshTCC: () => void;
     getSelectedBrainstormDetails: () => BrainstormData | null | undefined;
     isLoading: boolean;
@@ -146,6 +150,7 @@ export default function ToolTesterView({
     handleSaveTool: (tool: ProductToolDefinition) => void;
     agentMode: AgentMode;
     setAgentMode: (mode: AgentMode) => void;
+    handleTccFinalization: () => Promise<void>;
 }) {
   return (
     <Card className="w-full">
@@ -272,14 +277,30 @@ export default function ToolTesterView({
                                 onClick={() => setSelectedLoadItem({ type: 'brainstorm', id: brainstorm.id })}
                               >
                                 <div className="flex items-center justify-between">
-                                  <div>
+                                  <div className="flex-1">
                                     <h4 className="font-medium text-sm">{brainstorm.toolType} for {brainstorm.targetAudience}</h4>
                                     <p className="text-xs text-gray-500 mt-1">
                                       {brainstorm.industry && `${brainstorm.industry} • `}
                                       {new Date(brainstorm.timestamp).toLocaleDateString()}
                                     </p>
                                   </div>
-                                  <Badge variant="outline" className="text-xs">Brainstorm</Badge>
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">Brainstorm</Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (confirm('Are you sure you want to delete this brainstorm? This action cannot be undone.')) {
+                                          handleDeleteBrainstorm(brainstorm.id);
+                                        }
+                                      }}
+                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                      title="Delete this brainstorm"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  </div>
                                 </div>
                               </div>
                             ))
@@ -1253,6 +1274,52 @@ export default function ToolTesterView({
                           The isolated agent completed successfully without triggering the next orchestration step.
                         </AlertDescription>
                       </Alert>
+
+                      {/* Finalize Button - Only show if we have TCC data from layout/state/style agents */}
+                      {(() => {
+                        const tccData = (testJob.result as any).updatedTcc;
+                        const canFinalize = tccData && (
+                          (tccData.jsxLayout && tccData.stateLogic) || // Layout + State completed
+                          (tccData.styling) || // Styling completed
+                          (tccData.jsxLayout && tccData.styling) || // Layout + Styling
+                          (tccData.stateLogic && tccData.styling) // State + Styling
+                        );
+
+                        if (canFinalize) {
+                          return (
+                            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+                              <Zap className="h-4 w-4 text-blue-600" />
+                              <AlertTitle className="text-blue-800 dark:text-blue-200">🎯 Ready for Finalization</AlertTitle>
+                              <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                                The tool has progressed through layout, state, and/or styling steps. You can now run the final assembly, validation, and finalization stages.
+                              </AlertDescription>
+                              <div className="mt-3">
+                                <Button 
+                                  onClick={handleTccFinalization}
+                                  disabled={isLoading}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  {isLoading ? (
+                                    <>
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                      Finalizing...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Zap className="mr-2 h-4 w-4" />
+                                      Finalize Tool
+                                    </>
+                                  )}
+                                </Button>
+                                <p className="text-xs text-blue-600 mt-2">
+                                  This will run Component Assembler → Validator → Tool Finalizer in sequence.
+                                </p>
+                              </div>
+                            </Alert>
+                          );
+                        }
+                        return null;
+                      })()}
                       
                       {(() => {
                         const tccData = (testJob.result as any).updatedTcc;

@@ -181,10 +181,72 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 }
 
 /**
- * Generate assembled component using AI
+ * Use AI to generate the assembled component based on existing TCC parts
  */
 async function generateAssembledComponent(tcc: ToolConstructionContext, selectedModel?: string): Promise<AssembledComponent> {
-  // Model selection logic
+  // 🔍 DEBUG: Log brainstorm data structure for debugging
+  logger.info({ 
+    jobId: tcc.jobId,
+    hasBrainstormData: !!tcc.brainstormData,
+    brainstormDataKeys: tcc.brainstormData ? Object.keys(tcc.brainstormData) : [],
+    brainstormDataSize: tcc.brainstormData ? JSON.stringify(tcc.brainstormData).length : 0
+  }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Available brainstorm data structure');
+
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    logger.info({ 
+      jobId: tcc.jobId,
+      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
+      valueProposition: brainstorm.valueProposition || 'Not specified',
+      suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
+      keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
+      interactionFlowCount: brainstorm.interactionFlow?.length || 0,
+      hasLeadCaptureStrategy: !!brainstorm.leadCaptureStrategy,
+      hasCalculationLogic: !!brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0
+    }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Detailed brainstorm data analysis');
+
+    // Log specific brainstorm fields that could influence component assembly
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        keyCalculations: brainstorm.keyCalculations.map(calc => ({
+          name: calc.name,
+          formula: calc.formula?.substring(0, 100) + (calc.formula?.length > 100 ? '...' : ''),
+          description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Key calculations that should be implemented');
+    }
+
+    if (brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        calculationLogic: brainstorm.calculationLogic.map(logic => ({
+          name: logic.name,
+          formula: logic.formula?.substring(0, 100) + (logic.formula?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Calculation logic for function implementation');
+    }
+
+    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        interactionFlow: brainstorm.interactionFlow.map(step => ({
+          step: step.step,
+          title: step.title,
+          userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
+        }))
+      }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Interaction flow for user experience');
+    }
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...',
+      toolType: tcc.userInput?.toolType || 'Not specified',
+      targetAudience: tcc.userInput?.targetAudience || 'Not specified'
+    }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Component assembly working with minimal context only');
+  }
+
+  // Get model configuration
   const { provider, modelId } = getModelForAgent('componentAssembler', selectedModel);
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);

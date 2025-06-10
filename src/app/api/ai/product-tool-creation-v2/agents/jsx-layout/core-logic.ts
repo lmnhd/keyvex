@@ -332,6 +332,70 @@ ${
   if (tcc.brainstormData) {
     const brainstorm = tcc.brainstormData;
     
+    // 🔍 DEBUG: Log brainstorm data structure for debugging
+    logger.info({ 
+      jobId: tcc.jobId,
+      hasBrainstormData: !!tcc.brainstormData,
+      brainstormDataKeys: tcc.brainstormData ? Object.keys(tcc.brainstormData) : [],
+      brainstormDataSize: tcc.brainstormData ? JSON.stringify(tcc.brainstormData).length : 0
+    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Available brainstorm data structure');
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
+      valueProposition: brainstorm.valueProposition || 'Not specified',
+      suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
+      keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
+      interactionFlowCount: brainstorm.interactionFlow?.length || 0,
+      hasLeadCaptureStrategy: !!brainstorm.leadCaptureStrategy,
+      hasCreativeEnhancements: !!brainstorm.creativeEnhancements && brainstorm.creativeEnhancements.length > 0
+    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Detailed brainstorm data analysis');
+
+    // Log specific brainstorm fields for debugging
+    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        suggestedInputs: brainstorm.suggestedInputs.map(input => ({
+          label: input.label,
+          type: input.type,
+          description: input.description?.substring(0, 100) + (input.description?.length > 100 ? '...' : '')
+        }))
+      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Suggested inputs detail');
+    }
+
+    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        interactionFlow: brainstorm.interactionFlow.map(step => ({
+          step: step.step,
+          title: step.title,
+          description: step.description?.substring(0, 100) + (step.description?.length > 100 ? '...' : ''),
+          userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
+        }))
+      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Interaction flow detail');
+    }
+
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        keyCalculations: brainstorm.keyCalculations.map(calc => ({
+          name: calc.name,
+          description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
+        }))
+      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Key calculations detail');
+    }
+
+    if (brainstorm.leadCaptureStrategy) {
+      logger.info({ 
+        jobId: tcc.jobId,
+        leadCaptureStrategy: {
+          timing: brainstorm.leadCaptureStrategy.timing,
+          method: brainstorm.leadCaptureStrategy.method,
+          incentive: brainstorm.leadCaptureStrategy.incentive?.substring(0, 100) + (brainstorm.leadCaptureStrategy.incentive?.length > 100 ? '...' : '')
+        }
+      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Lead capture strategy detail');
+    }
+    
     userPrompt += `
 
 DETAILED BRAINSTORM CONTEXT (Use this to design a more specific and engaging layout):
@@ -379,6 +443,19 @@ LEAD CAPTURE STRATEGY (Incorporate this into the layout design):
 - Method: ${brainstorm.leadCaptureStrategy.method}
 - Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
     }
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      promptLength: userPrompt.length,
+      brainstormContextAdded: true
+    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Brainstorm context successfully added to prompt');
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...',
+      toolType: tcc.userInput?.toolType || 'Not specified',
+      targetAudience: tcc.targetAudience || 'Not specified'
+    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
   }
 
   // Phase 2: Add edit mode context if in edit mode

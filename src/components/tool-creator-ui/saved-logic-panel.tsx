@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
-import { X, History } from 'lucide-react';
+import { X, History, Trash2 } from 'lucide-react';
 
 interface SavedLogicResult {
   id: string;
@@ -19,6 +19,7 @@ interface SavedLogicPanelProps {
   onClose: () => void;
   savedLogicResults: SavedLogicResult[];
   onLoadResult: (result: SavedLogicResult) => void;
+  onDeleteResult?: (resultId: string) => void;
   isDarkMode?: boolean;
 }
 
@@ -27,9 +28,17 @@ export function SavedLogicPanel({
   onClose,
   savedLogicResults,
   onLoadResult,
+  onDeleteResult,
   isDarkMode = false
 }: SavedLogicPanelProps) {
   if (!isOpen) return null;
+
+  const handleDelete = (e: React.MouseEvent, resultId: string) => {
+    e.stopPropagation(); // Prevent triggering the load action
+    if (onDeleteResult && confirm('Are you sure you want to delete this brainstorm? This action cannot be undone.')) {
+      onDeleteResult(resultId);
+    }
+  };
 
   return (
     <div className={`fixed top-4 right-4 w-80 max-h-96 rounded-xl shadow-2xl border z-50 ${
@@ -56,7 +65,7 @@ export function SavedLogicPanel({
         </button>
       </div>
       
-      <div className="p-4 overflow-y-auto max-h-80">
+      <div className="p-4 max-h-80 overflow-y-auto">
         {savedLogicResults.length === 0 ? (
           <div className={`text-center ${
             isDarkMode ? 'text-gray-400' : 'text-gray-500'
@@ -97,9 +106,25 @@ export function SavedLogicPanel({
                       {result.date}
                     </p>
                   </div>
-                  <Badge variant="outline" className="text-xs">
-                    Load
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      Load
+                    </Badge>
+                    {onDeleteResult && (
+                      <button
+                        onClick={(e) => handleDelete(e, result.id)}
+                        className={`p-1 rounded-md transition-colors ${
+                          isDarkMode 
+                            ? 'hover:bg-red-600/20 text-red-400 hover:text-red-300' 
+                            : 'hover:bg-red-50 text-red-500 hover:text-red-600'
+                        }`}
+                        title="Delete this brainstorm"
+                        aria-label="Delete brainstorm"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

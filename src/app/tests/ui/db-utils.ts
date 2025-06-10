@@ -211,6 +211,31 @@ export async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
   }
 }
 
+export async function deleteLogicResultFromDB(logicResultId: string): Promise<void> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction([LOGIC_RESULT_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(LOGIC_RESULT_STORE_NAME);
+    
+    await new Promise<void>((resolve, reject) => {
+      const request = store.delete(logicResultId);
+      request.onsuccess = () => {
+        console.log('✅ Logic result deleted from IndexedDB:', logicResultId);
+        resolve();
+      };
+      request.onerror = () => {
+        console.error('❌ Error deleting logic result from IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+    
+    db.close();
+  } catch (error) {
+    console.error('❌ Error deleting logic result from IndexedDB:', error);
+    throw error; // Re-throw so caller can handle error display
+  }
+}
+
 export async function saveV2JobToDB(jobPackage: {
   id: string;
   timestamp: number;

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useToolGenerationStream, type StepProgress, type ConnectionStatus } from '../hooks/useToolGenerationStream';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
-import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema } from './tool-tester-core-logic';
+import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema, runTccFinalizationSteps } from './tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB } from '../../ui/db-utils';
 import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode, AgentMode } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
@@ -405,10 +405,24 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [availableModels, hasInitialized, defaultPrimaryModel, availableAgents, getDefaultModelForAgent, loadFromLocalStorage, saveToLocalStorage]);
 
-  // Set first brainstorm as default when available
+  // Set most recent brainstorm as default when available (not first one which might be old/bad)
   useEffect(() => {
     if (savedBrainstorms.length > 0 && !selectedBrainstormId) {
-      setSelectedBrainstormId(savedBrainstorms[0].id);
+      // Sort by timestamp descending and select the most recent one
+      const sortedBrainstorms = [...savedBrainstorms].sort((a, b) => b.timestamp - a.timestamp);
+      const mostRecentBrainstorm = sortedBrainstorms[0];
+      
+      console.log('🎯 Auto-selecting most recent brainstorm:', {
+        total: savedBrainstorms.length,
+        selected: mostRecentBrainstorm.id,
+        selectedData: {
+          toolType: mostRecentBrainstorm.toolType,
+          targetAudience: mostRecentBrainstorm.targetAudience,
+          timestamp: new Date(mostRecentBrainstorm.timestamp).toLocaleString()
+        }
+      });
+      
+      setSelectedBrainstormId(mostRecentBrainstorm.id);
     }
   }, [savedBrainstorms, selectedBrainstormId]);
 
@@ -849,6 +863,71 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
+  // Handle deleting saved brainstorms
+  const handleDeleteBrainstorm = async (brainstormId: string) => {
+    try {
+      const { deleteLogicResultFromDB } = await import('../../ui/db-utils');
+      await deleteLogicResultFromDB(brainstormId);
+      
+      // Refresh the brainstorms list using the hook's fetch method
+      // The hook should automatically refresh when the data changes
+      setSavedBrainstorms(prev => prev.filter(b => b.id !== brainstormId));
+      addWSLog(`Brainstorm deleted: ${brainstormId}`);
+      
+      // If the deleted brainstorm was selected, clear the selection
+      if (selectedBrainstormId === brainstormId) {
+        setSelectedBrainstormId('');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting brainstorm:', error);
+      setError('Failed to delete brainstorm. Check console for details.');
+      addWSLog(`Failed to delete brainstorm: ${error}`);
+    }
+  };
+
+  // NEW: Handle TCC Finalization - run final 3 steps (assembler, validator, finalizer)
+  const handleTccFinalization = async () => {
+    if (!testJob?.result || !('updatedTcc' in testJob.result)) {
+      setError('No TCC data available for finalization. Run an agent test first.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      addWSLog('🎯 Starting TCC Finalization - running final 3 steps...');
+
+      const tccData = (testJob.result as any).updatedTcc;
+      const result = await runTccFinalizationSteps(tccData, agentModelMapping);
+
+      if (result.success && result.finalProduct) {
+        // Update the test job with the final product
+        setTestJob(prev => ({
+          ...(prev as ToolCreationJob),
+          status: 'success',
+          result: result.finalProduct,
+          endTime: Date.now()
+        }));
+
+        setFinalProduct(result.finalProduct);
+        if (result.finalProduct.componentCode) {
+          setAssembledCode(result.finalProduct.componentCode);
+        }
+        
+        addWSLog('✅ TCC Finalization completed successfully!');
+        addWSLog(`📦 Final tool: ${result.finalProduct.metadata?.title || 'Generated Tool'}`);
+      } else {
+        throw new Error(result.error || 'Finalization failed');
+      }
+    } catch (error) {
+      console.error('❌ TCC Finalization error:', error);
+      setError(error instanceof Error ? error.message : String(error));
+      addWSLog(`❌ Finalization failed: ${error}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getConnectionStatusIcon = () => {
     switch (connectionStatus) {
       case 'connected':
@@ -924,6 +1003,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       availableModels={availableModels}
       handleLoadSavedItem={handleLoadSavedItem}
       handleDeleteSavedItem={handleDeleteSavedItem}
+      handleDeleteBrainstorm={handleDeleteBrainstorm}
+      handleRefreshTCC={handleRefreshTCC}
       getSelectedBrainstormDetails={getSelectedBrainstormDetails}
       isLoading={isLoading}
       selectedAgent={selectedAgent}
@@ -953,9 +1034,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       connectionStatus={connectionStatus}
       wsDebugInfo={wsDebugInfo}
       handleSaveTool={handleSaveTool}
-      handleRefreshTCC={handleRefreshTCC}
       agentMode={agentMode}
       setAgentMode={setAgentMode}
+      handleTccFinalization={handleTccFinalization}
     />
   );
 };

@@ -63,7 +63,12 @@ import {
   saveToolToDBList,
   loadAllToolsFromDB,
   deleteToolFromDBList,
-  clearLastActiveToolFromDB
+  clearLastActiveToolFromDB,
+  deleteLogicResultFromDB,
+  saveV2JobToDB,
+  loadV2JobsFromDB,
+  deleteV2JobFromDB,
+  LOGIC_RESULT_STORE_NAME
 } from './db-utils';
 import {
   handleStreamingAIRequest,
@@ -1126,6 +1131,18 @@ export default function TestUIPage() {
     }
   };
 
+  // Handler for deleting saved brainstorms
+  const handleDeleteSavedLogicResult = async (resultId: string) => {
+    try {
+      await deleteLogicResultFromDB(resultId);
+      await loadAndSetSavedLogicResults(); // Refresh the list
+      console.log('✅ Brainstorm deleted successfully:', resultId);
+    } catch (error) {
+      console.error('❌ Error deleting brainstorm:', error);
+      setLastAIMessage(`❌ Error deleting brainstorm: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Mock tool creation function for testing
   const mockToolCreation = async () => {
     setIsGeneratingTool(true);
@@ -1166,7 +1183,12 @@ export default function TestUIPage() {
           estimatedCompletionTime: 5,
           difficultyLevel: 'beginner',
           features: calculatorType.features,
-          icon: { type: 'lucide', value: 'Calculator' }
+          icon: { type: 'lucide', value: 'Calculator' },
+          dependencies: [],
+          userInstructions: '',
+          developerNotes: '',
+          source: '',
+          version: '1.0.0'
         },
         
         componentSet: 'shadcn',
@@ -1671,6 +1693,7 @@ function MockBusinessCalculator() {
           setLatestBrainstormingResult(result.result);
           setShowLogicSelect(false);
         }}
+        onDeleteResult={handleDeleteSavedLogicResult}
         isDarkMode={isDarkMode}
       />
 
