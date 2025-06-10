@@ -1729,38 +1729,37 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {assembledCode && testJob?.result ? (
-                    <CanvasTool productToolDefinition={testJob.result} isDarkMode={isDarkMode} />
-                  ) : assembledCode ? (
-                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-red-500 bg-red-50">
-                      <div className="text-center">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <p className="text-red-600 font-medium">NO TOOL DATA AVAILABLE</p>
-                        <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
-                        <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
-                      </div>
-                    </div>
-                  ) : workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result && (testJob.result as any).updatedTcc ? (
+                  {workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result && (testJob.result as any).updatedTcc ? (
                     // For debug mode, try to create a preview from TCC data
                     (() => {
                       const tccData = (testJob.result as any).updatedTcc;
+                      const originalTool = (testJob.result as any).originalTool;
+                      const hasAssembledCode = tccData.assembledComponentCode;
                       const hasStyledCode = tccData.styling?.styledComponentCode;
                       const hasJsxLayout = tccData.jsxLayout?.componentStructure;
                       
-                      if (hasStyledCode || hasJsxLayout) {
-                        // Create a mock ProductToolDefinition for preview
-                        const mockTool = {
-                          id: `debug-preview-${Date.now()}`,
-                          componentCode: hasStyledCode || hasJsxLayout || '<div>No component code available</div>',
+                      if (hasAssembledCode || hasStyledCode || hasJsxLayout) {
+                        // Create a complete ProductToolDefinition for preview
+                        const previewTool = {
+                          id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                          slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                          componentCode: hasAssembledCode || hasStyledCode || hasJsxLayout || '<div>No component code available</div>',
                           metadata: {
-                            title: `Debug Preview: ${selectedAgent}`,
-                            description: 'Preview of isolated agent work',
-                            slug: 'debug-preview',
-                            category: 'debug'
+                            id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                            slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                            title: originalTool?.metadata?.title || tccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
+                            type: originalTool?.metadata?.type || tccData.userInput?.toolType || 'Debug Tool',
+                            description: originalTool?.metadata?.description || tccData.userInput?.description || 'Tool created from isolated agent testing',
+                            userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
+                            developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
+                            dependencies: originalTool?.metadata?.dependencies || ['react'],
+                            source: 'debug-isolated-agent',
+                            version: originalTool?.metadata?.version || '1.0.0-debug'
                           },
-                          currentStyleMap: tccData.styling || null,
-                          createdAt: new Date().toISOString(),
-                          updatedAt: new Date().toISOString()
+                          initialStyleMap: originalTool?.initialStyleMap || tccData.styling?.styleMap || {},
+                          currentStyleMap: tccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
+                          createdAt: originalTool?.createdAt || Date.now(),
+                          updatedAt: Date.now()
                         };
                         
                         return (
@@ -1772,7 +1771,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                                 This preview is generated from the TCC data updated by the isolated agent. It shows how the tool would look with the current agent's output.
                               </AlertDescription>
                             </Alert>
-                            <CanvasTool productToolDefinition={mockTool as any} isDarkMode={isDarkMode} />
+                            <CanvasTool productToolDefinition={previewTool as any} isDarkMode={isDarkMode} />
                           </div>
                         );
                       } else {
@@ -1788,6 +1787,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                         );
                       }
                     })()
+                  ) : assembledCode && testJob?.result ? (
+                    <CanvasTool productToolDefinition={testJob.result} isDarkMode={isDarkMode} />
+                  ) : assembledCode ? (
+                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-red-500 bg-red-50">
+                      <div className="text-center">
+                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                        <p className="text-red-600 font-medium">NO TOOL DATA AVAILABLE</p>
+                        <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
+                        <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
                       <p className="text-gray-500">Waiting for component code...</p>
@@ -2194,6 +2204,14 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                             </pre>
                             
                             <div className="flex gap-2">
+                              <Button 
+                                onClick={() => handleSaveTool(transformedResult as ProductToolDefinition)}
+                                disabled={savedToolIds.has(transformedResult.id)}
+                                variant="default"
+                              >
+                                <Save className="mr-2 h-4 w-4" />
+                                {savedToolIds.has(transformedResult.id) ? 'Saved' : 'Save Tool to Browser DB'}
+                              </Button>
                               <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(transformedResult, null, 2))}>
                                 <Copy className="mr-2 h-4 w-4" />
                                 Copy Result JSON
