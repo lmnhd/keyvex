@@ -109,6 +109,41 @@ export async function finalizeTool(request: {
       temperature: 0.1,
     });
 
+    // Post-process to automatically remove import statements if AI ignored instructions
+    let finalCleanedCode = aiResult.cleanedCode;
+    const hasImports = finalCleanedCode.includes('import ');
+    
+    if (hasImports) {
+      logger.warn({
+        jobId,
+        provider,
+        modelId
+      }, '📦 ToolFinalizer: ⚠️ AI generated imports despite instructions! Auto-removing...');
+      
+      // Remove import lines
+      const lines = finalCleanedCode.split('\n');
+      const filteredLines = lines.filter(line => !line.trim().startsWith('import '));
+      finalCleanedCode = filteredLines.join('\n');
+      
+      console.log('\n' + '⚠️'.repeat(40));
+      console.log('📦 ToolFinalizer: FIXED - Removed import statements:');
+      console.log('⚠️'.repeat(40));
+      console.log('CLEANED CODE:');
+      console.log(finalCleanedCode);
+      console.log('⚠️'.repeat(40) + '\n');
+      
+      // Update the aiResult
+      aiResult.cleanedCode = finalCleanedCode;
+    }
+
+    logger.info({ 
+      jobId, 
+      hasImports: hasImports,
+      finalCodeLength: finalCleanedCode.length,
+      provider, 
+      modelId 
+    }, '📦 ToolFinalizer: ✅ AI generation completed');
+
     const finalProduct = createProductToolDefinition(aiResult, tcc);
 
     // TCC Store operation removed - the route handler will manage TCC persistence
@@ -221,7 +256,10 @@ function getSystemPrompt(): string {
   return `You are an expert React developer tasked with assembling the final, production-ready code for a web-based tool.
 You will be given the complete context, including the assembled component code, validation results, and user requirements.
 Your job is to review all inputs, clean up the provided component code, and then generate the metadata needed to create a final, production-ready tool definition.
-Ensure all imports are correct, all functions are defined, and the code is well-formatted.
+
+CRITICAL: The component code should NOT include any import statements. All dependencies are injected at runtime. 
+Only clean up syntax, formatting, and logic issues - DO NOT add import statements.
+
 Provide the final object exactly as specified in the schema. Do not add any extra fields. Focus on providing high-quality, concise, and accurate content for each field.`;
 }
 
@@ -243,10 +281,10 @@ ${tcc.assembledComponentCode}
 ${JSON.stringify(tcc.validationResult, null, 2)}
 
 **Your Task:**
-1.  **Review and Clean:** Review the assembled code and validation results. Make any minor corrections needed for syntax, imports, or logic to ensure it is production-ready.
+1.  **Review and Clean:** Review the assembled code and validation results. Make any minor corrections needed for syntax, formatting, and logic issues to ensure it is production-ready. DO NOT add import statements - all dependencies are injected at runtime.
 2.  **Create Final Metadata:** Based on all the information, create the final metadata object with the following fields:
     - \`title\`: A great title for the tool.
-    - \`cleanedCode\`: The final, corrected, and production-ready component code.
+    - \`cleanedCode\`: The final, corrected, and production-ready component code WITHOUT import statements.
     - \`dependencies\`: A list of any NPM package dependencies required.
     - \`userInstructions\`: Brief instructions for the end-user.
     - \`developerNotes\`: Technical notes for a developer.
