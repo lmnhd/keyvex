@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useToolGenerationStream, type StepProgress, type ConnectionStatus } from '../hooks/useToolGenerationStream';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
-import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess } from './tool-tester-core-logic';
+import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema } from './tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB } from '../../ui/db-utils';
 import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
@@ -460,12 +460,34 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           setIsLoading(false);
           return;
         }
-        // Create a minimal mock TCC from the brainstorm
+        
+        // Phase 3.1: Use the same transformation function as V2 workflow for consistency
+        // This ensures agents get the comprehensive brainstorm data they need
+        const transformedBrainstormData = transformBrainstormDataToNewSchema(selectedBrainstorm);
+        
+        // Create a comprehensive mock TCC from the brainstorm with proper schema
         sourceTcc = {
           jobId: `debug-brainstorm-${Date.now()}`,
-          userInput: selectedBrainstorm.result.userInput,
-          // Add other essential fields if needed by early agents
+          userId: 'debug-user',
+          userInput: selectedBrainstorm.result?.userInput || {
+            description: selectedBrainstorm.result?.businessContext || 'Debug tool from brainstorm',
+            targetAudience: selectedBrainstorm.targetAudience || 'general users',
+            toolType: selectedBrainstorm.toolType || 'general',
+            industry: selectedBrainstorm.industry || 'general'
+          },
+          // Phase 3.1: Include comprehensive brainstorm data for agents
+          brainstormData: transformedBrainstormData,
+          selectedModel: agentModelMapping[selectedAgent] || Object.values(agentModelMapping)[0] || 'gpt-4o-mini',
+          agentModelMapping: agentModelMapping,
+          status: 'in_progress',
+          currentOrchestrationStep: 'planning_function_signatures',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          steps: {}
         };
+        
+        addWSLog(`🔄 Created comprehensive TCC from brainstorm: ${selectedBrainstorm.id}`);
+        addWSLog(`📊 Brainstorm data includes: ${Object.keys(transformedBrainstormData).join(', ')}`);
       } else if (tccSource === 'mockScenario') {
         if (!selectedMockScenarioId) {
           setError("Please select a mock scenario.");

@@ -18,8 +18,22 @@ export interface ToolCreationJob {
 // Phase 1: cleanBrainstormData function removed to ensure full brainstorm data integration
 // All brainstorm data will now be passed intact to agents for enhanced context
 
+// TODO: ARCHITECTURAL FIX NEEDED AFTER V2 COMPLETION
+// The need for this transformation function indicates a design issue:
+// - BrainstormDataSchema should match what BrainstormGenerator actually outputs
+// - Data should be stored in correct format from the start
+// - This transformation is a band-aid fix for schema vs reality mismatch
+// 
+// PROPER FIX:
+// 1. Update BrainstormGenerator to output BrainstormDataSchema format directly
+// 2. Fix storage/retrieval to save in correct format  
+// 3. Migrate existing saved data to new format once
+// 4. Remove this transformation function entirely
+//
+// For now, keeping transformation to support legacy data and move V2 forward.
+
 // Phase 3.1: Transform saved brainstorm data to match new comprehensive BrainstormDataSchema
-function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult): any {
+export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult): any {
   console.log('🔄 [TRANSFORM] Converting brainstorm data to new schema format');
   
   const brainstormOutput = brainstormResult.result?.brainstormOutput;
