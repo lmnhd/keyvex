@@ -214,7 +214,8 @@ async function generateTailwindStylingWithAI(
   const industryContext = tcc.userInput?.industry || tcc.targetAudience || 'business';
   const systemPrompt = getTailwindStylingSystemPrompt(false, industryContext);
 
-  const userPrompt = `Please apply full Tailwind CSS styling to the following JSX component.
+  // Phase 1: Enhanced user prompt with style-specific brainstorm data integration
+  let userPrompt = `Please apply full Tailwind CSS styling to the following JSX component.
 User Input/Goal: ${tcc.userInput?.description || 'A business tool'}
 Target Audience: ${tcc.targetAudience || 'Professionals'}
 Unstyled JSX:
@@ -222,7 +223,58 @@ Unstyled JSX:
 ${tcc.jsxLayout?.componentStructure || ''}
 \`\`\`
 Element Map (for context):
-${JSON.stringify(tcc.jsxLayout?.elementMap, null, 2)}
+${JSON.stringify(tcc.jsxLayout?.elementMap, null, 2)}`;
+
+  // Phase 1: Inject style-specific brainstorm context for enhanced styling decisions
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    
+    userPrompt += `
+
+STYLE-SPECIFIC BRAINSTORM CONTEXT (Use this to make informed styling decisions):
+
+CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
+VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
+
+    // Add prompt options for specific styling preferences
+    if (brainstorm.promptOptions) {
+      userPrompt += `
+
+STYLING PREFERENCES:
+- Include Comprehensive Colors: ${brainstorm.promptOptions.includeComprehensiveColors ? 'YES' : 'NO'}
+- Include Gorgeous Styling: ${brainstorm.promptOptions.includeGorgeousStyling ? 'YES' : 'NO'}
+- Include Advanced Layouts: ${brainstorm.promptOptions.includeAdvancedLayouts ? 'YES' : 'NO'}
+- Style Complexity: ${brainstorm.promptOptions.styleComplexity || 'Standard'}
+- Tool Complexity: ${brainstorm.promptOptions.toolComplexity || 'Standard'}`;
+
+      if (brainstorm.promptOptions.industryFocus) {
+        userPrompt += `
+- Industry Focus: ${brainstorm.promptOptions.industryFocus}`;
+      }
+    }
+
+    // Add lead capture strategy for strategic styling decisions
+    if (brainstorm.leadCaptureStrategy) {
+      userPrompt += `
+
+LEAD CAPTURE STRATEGY (Apply styling that supports this strategy):
+- Timing: ${brainstorm.leadCaptureStrategy.timing}
+- Method: ${brainstorm.leadCaptureStrategy.method}
+- Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
+    }
+
+    // Add creative enhancements for styling inspiration
+    if (brainstorm.creativeEnhancements && brainstorm.creativeEnhancements.length > 0) {
+      userPrompt += `
+
+CREATIVE ENHANCEMENTS (Consider these for styling inspiration):`;
+      brainstorm.creativeEnhancements.forEach(enhancement => {
+        userPrompt += `\n- ${enhancement}`;
+      });
+    }
+  }
+
+  userPrompt += `
 
 Generate the complete JSON object with the styled code and all associated styling information, ensuring it strictly matches the provided schema.`;
 
