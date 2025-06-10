@@ -405,6 +405,37 @@ export default function DynamicComponentRenderer({
 
       // Create the component function with proper error boundaries
       console.log('🔍 TRACE: Creating component function...');
+      
+      // Instead of trying to extract the component function with eval,
+      // modify the component code to directly return the component
+      let modifiedComponentCode = componentCode;
+      
+      // Find the component function declaration and convert it to a return statement
+      const componentMatch = componentCode.match(/(?:const|function)\s+(\w+)\s*[=\(]/);
+      if (componentMatch && componentMatch[1]) {
+        const componentName = componentMatch[1];
+        console.log('🔍 TRACE: Detected component name:', componentName);
+        
+        // Replace the component declaration with a return statement
+        if (componentCode.includes(`const ${componentName} = `)) {
+          // Handle const ComponentName = () => { ... }
+          modifiedComponentCode = componentCode.replace(
+            `const ${componentName} = `,
+            'return '
+          );
+        } else if (componentCode.includes(`function ${componentName}`)) {
+          // Handle function ComponentName() { ... }
+          modifiedComponentCode = componentCode.replace(
+            `function ${componentName}`,
+            'return function'
+          );
+        }
+      } else {
+        throw new Error('Unable to detect component function in code');
+      }
+      
+      console.log('🔍 TRACE: Modified component code for direct return');
+      
       const componentFunction = new Function(
         'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
         'Button', 'Input', 'Label', 
@@ -414,7 +445,7 @@ export default function DynamicComponentRenderer({
         'RadioGroup', 'RadioGroupItem',
         'Checkbox', 
         'Slider',
-        'Switch', // Using 'Switch'
+        'Switch',
         'Accordion', 'AccordionContent', 'AccordionItem', 'AccordionTrigger',
         'Dialog', 'DialogPortal', 'DialogOverlay', 'DialogClose', 'DialogTrigger', 'DialogContent', 'DialogHeader', 'DialogFooter', 'DialogTitle', 'DialogDescription',
         'Tooltip', 'TooltipContent', 'TooltipProvider', 'TooltipTrigger',
@@ -423,24 +454,7 @@ export default function DynamicComponentRenderer({
         `
         "use strict";
         try {
-          // Simply wrap the entire component code in a return statement
-          // This preserves the original scope and structure
-          ${componentCode}
-          
-          // Find the component function name from the code
-          const codeLines = \`${componentCode.replace(/`/g, '\\`')}\`.trim();
-          const componentMatch = codeLines.match(/(?:const|function)\\s+(\\w+)\\s*[=\\(]/);
-          
-          if (!componentMatch || !componentMatch[1]) {
-            throw new Error('Unable to detect component function name');
-          }
-          
-          const componentName = componentMatch[1];
-          console.log('🔍 TRACE: Detected component name:', componentName);
-          
-          // Return the component function
-          return eval(componentName);
-          
+          ${modifiedComponentCode}
         } catch (error) {
           console.error('🔍 TRACE: Component execution error:', error);
           return () => React.createElement('div', {
@@ -461,7 +475,7 @@ export default function DynamicComponentRenderer({
         RadioGroup, RadioGroupItem,
         Checkbox,
         Slider,
-        Switch, // Using 'Switch'
+        Switch,
         Accordion, AccordionContent, AccordionItem, AccordionTrigger,
         Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
         Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
