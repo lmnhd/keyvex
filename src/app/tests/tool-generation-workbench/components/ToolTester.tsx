@@ -184,7 +184,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
     if (actualTcc) {
       setTccData(actualTcc);
-      if (actualTcc.assembledComponentCode && !assembledCode) {
+      if (actualTcc.assembledComponentCode) {
         setAssembledCode(actualTcc.assembledComponentCode);
         addWSLog('✅ Assembled code received from TCC update!');
       }
@@ -569,6 +569,20 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           startTime: Date.now(),
           endTime: Date.now(),
       });
+
+      // Extract and update state from isolated agent result
+      if (result.success && result.data && result.data.updatedTcc) {
+        const updatedTcc = result.data.updatedTcc;
+        setTccData(updatedTcc);
+        
+        // Update assembled code if available
+        if (updatedTcc.assembledComponentCode) {
+          setAssembledCode(updatedTcc.assembledComponentCode);
+          addWSLog('✅ Assembled code updated from isolated agent result!');
+        }
+        
+        addWSLog(`✅ Isolated agent ${agentToRun} completed successfully!`);
+      }
 
       setIsLoading(false);
       return;
