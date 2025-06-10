@@ -15,44 +15,8 @@ export interface ToolCreationJob {
   endTime?: number;
 }
 
-function cleanBrainstormData(brainstormData: any): any {
-  if (!brainstormData) return null;
-  
-  const cleaned = { ...brainstormData };
-  
-  delete cleaned.promptOptions;
-  
-  if (cleaned.suggestedInputs && Array.isArray(cleaned.suggestedInputs)) {
-    cleaned.suggestedInputs = cleaned.suggestedInputs.map((input: any) => ({
-      id: input.id,
-      label: input.label,
-      type: input.type,
-      required: input.required
-    }));
-  }
-  
-  if (cleaned.calculationLogic && Array.isArray(cleaned.calculationLogic)) {
-    cleaned.calculationLogic = cleaned.calculationLogic.map((calc: any) => ({
-      id: calc.id,
-      name: calc.name,
-      formula: calc.formula,
-      outputFormat: calc.outputFormat
-    }));
-  }
-  
-  const simplifiedData = {
-    coreConcept: cleaned.coreConcept || cleaned.coreWConcept,
-    valueProposition: cleaned.valueProposition,
-    keyCalculations: cleaned.keyCalculations || [],
-    suggestedInputs: cleaned.suggestedInputs || [],
-    calculationLogic: cleaned.calculationLogic || [],
-    interactionFlow: cleaned.interactionFlow || [],
-    creativeEnhancements: cleaned.creativeEnhancements || []
-  };
-  
-  console.log('🧹 BRAINSTORM CLEANER: Simplified brainstorm data to prevent AI confusion');
-  return simplifiedData;
-}
+// Phase 1: cleanBrainstormData function removed to ensure full brainstorm data integration
+// All brainstorm data will now be passed intact to agents for enhanced context
 
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
@@ -72,6 +36,10 @@ async function startV2ToolCreation(
   const finalDescription = userInputData.businessContext || userInputData.description || 'No description provided.';
   console.log('🔍 [V2-START-DEBUG] Final description used:', finalDescription);
   
+  // Phase 1: Extract complete brainstorm output for enhanced agent context
+  const brainstormOutput = brainstormResult.result?.brainstormOutput;
+  console.log('🔍 [V2-START-DEBUG] Complete brainstorm output:', JSON.stringify(brainstormOutput, null, 2));
+  
   const requestBody = {
     userInput: {
       description: finalDescription,
@@ -82,6 +50,8 @@ async function startV2ToolCreation(
     },
     selectedModel: modelId,
     agentModelMapping: agentModelMapping || {},
+    // Phase 1: Include complete brainstorm data for enhanced agent context
+    brainstormData: brainstormOutput,
     testingOptions: {
       enableWebSocketStreaming: true,
       enableTccOperations: true,
