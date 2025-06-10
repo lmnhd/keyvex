@@ -265,6 +265,25 @@ CRITICAL: Generate ONLY state logic - NO JSX or HTML.
 Design TypeScript interfaces, useState hooks, and function implementations.
 Use modern React patterns and proper error handling.
 
+🚨 CRITICAL TYPE CONSISTENCY RULES:
+1. INPUT STATE: Always keep input fields as strings for form control
+2. CALCULATIONS: Convert strings to numbers ONLY when doing calculations
+3. VALIDATION: Check for NaN and invalid values BEFORE calculations
+4. RESULTS: Never store NaN values - use null or proper defaults instead
+5. MIXED TYPES: Avoid states that mix string/number types
+
+EXAMPLE CORRECT PATTERN:
+const [input, setInput] = useState(''); // Always string for input
+const handleCalculate = () => {
+  const numericValue = Number(input);
+  if (isNaN(numericValue) || numericValue < 0) {
+    setError('Invalid input');
+    return;
+  }
+  const result = numericValue * factor; // Safe calculation
+  setResult(result); // Never stores NaN
+};
+
 Return structured JSON with:
 {
   "stateVariables": [{"name": "...", "type": "...", "initialValue": "...", "description": "..."}],
@@ -353,7 +372,33 @@ Please apply these edit instructions to improve the state logic. Maintain existi
 
 userPrompt += `
 
-Design React state variables and function implementations for this tool.`;
+Design React state variables and function implementations for this tool.
+
+🔧 TYPE SAFETY REQUIREMENTS:
+- Keep all input states as strings (for form controls)
+- Convert to numbers only during calculations/validation
+- Never store NaN, undefined, or mixed types in state
+- Use proper default values ('', null, 0, false)
+- Validate inputs before any calculations
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => {
+  const safeName = sig.name.toLowerCase();
+  let guidance = '';
+  
+  // Add specific guidance based on function type
+  if (safeName.includes('calculate') || safeName.includes('compute')) {
+    guidance = ' [CALCULATION: Validate inputs, handle NaN, store safe results]';
+  } else if (safeName.includes('input') || safeName.includes('change')) {
+    guidance = ' [INPUT: Keep as string, validate format]';
+  } else if (safeName.includes('reset') || safeName.includes('clear')) {
+    guidance = ' [RESET: Return to safe initial values]';
+  } else if (safeName.includes('format') || safeName.includes('display')) {
+    guidance = ' [FORMAT: Handle null/undefined gracefully]';
+  }
+  
+  return `- ${sig.name}: ${sig.description}${guidance}`;
+}).join('\n') || 'None'}`;
 
   logger.info({ modelId: modelConfig.modelId, promptLength: userPrompt.length }, '🎯 StateDesign: Calling AI');
 
@@ -407,34 +452,86 @@ function parseStateResponse(content: string, functionSignatures: DefinedFunction
 
 /**
  * Generate default state variables when AI parsing fails
+ * Updated to follow safe typing patterns that prevent NaN and mixed-type issues
  */
 function generateDefaultStateVariables(functionSignatures: DefinedFunctionSignature[]) {
   return [
-    { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state' },
-    { name: 'result', type: 'any', initialValue: 'null', description: 'Processing result' },
-    { name: 'errors', type: 'Record<string, string>', initialValue: '{}', description: 'Validation errors' },
-    { name: 'formData', type: 'Record<string, any>', initialValue: '{}', description: 'Form input data' }
+    { name: 'input', type: 'string', initialValue: "''", description: 'Primary input field (always string for form control)' },
+    { name: 'result', type: 'number | null', initialValue: 'null', description: 'Calculation result (null when no calculation)' },
+    { name: 'error', type: 'string | null', initialValue: 'null', description: 'Current error message' },
+    { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state indicator' }
   ];
 }
 
 /**
  * Generate default functions when AI parsing fails
+ * Updated to follow safe type handling patterns
  */
 function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]) {
-  return functionSignatures.map(sig => ({
-    name: sig.name,
-    parameters: ['...args: any[]'],
-    logic: `
+  return functionSignatures.map(sig => {
+    const safeName = sig.name.toLowerCase();
+    let logic = '';
+    
+    if (safeName.includes('calculate') || safeName.includes('compute')) {
+      logic = `
+  // Safe calculation pattern
+  const numericValue = Number(input);
+  if (input === '' || isNaN(numericValue) || numericValue < 0) {
+    setError('Please enter a valid positive number');
+    setResult(null);
+    return;
+  }
+  
+  setError(null);
+  setIsLoading(true);
+  try {
+    // TODO: Implement ${sig.description || sig.name}
+    const calculationResult = numericValue * 2; // Example calculation
+    setResult(calculationResult); // Safe - never NaN
+  } catch (error) {
+    setError(error instanceof Error ? error.message : 'Calculation failed');
+    setResult(null);
+  } finally {
+    setIsLoading(false);
+  }`;
+    } else if (safeName.includes('input') || safeName.includes('change')) {
+      logic = `
+  // Safe input handling - always store as string
+  const value = event.target.value;
+  setInput(value); // Keep as string for form control
+  setError(null); // Clear previous errors`;
+    } else if (safeName.includes('reset') || safeName.includes('clear')) {
+      logic = `
+  // Safe reset - return to initial safe values
+  setInput('');
+  setResult(null);
+  setError(null);
+  setIsLoading(false);`;
+    } else if (safeName.includes('format') || safeName.includes('display')) {
+      logic = `
+  // Safe formatting - handle null/undefined gracefully
+  if (result === null || result === undefined) return '';
+  if (typeof result !== 'number' || isNaN(result)) return '';
+  return result.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });`;
+    } else {
+      logic = `
   setIsLoading(true);
   try {
     // TODO: Implement ${sig.description || sig.name}
     console.log('${sig.name} called');
-    setResult('success');
+    // Add safe implementation here
   } catch (error) {
-    setErrors({ general: error instanceof Error ? error.message : 'Error occurred' });
+    setError(error instanceof Error ? error.message : 'Error occurred');
   } finally {
     setIsLoading(false);
-  }`,
-    description: sig.description || `Handler for ${sig.name}`
-  }));
+  }`;
+    }
+
+    return {
+      name: sig.name,
+      parameters: safeName.includes('input') || safeName.includes('change') ? ['event: React.ChangeEvent<HTMLInputElement>'] : ['...args: any[]'],
+      logic,
+      description: sig.description || `Handler for ${sig.name}`
+    };
+  });
 } 
