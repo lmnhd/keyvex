@@ -69,6 +69,42 @@ export const BrainstormDataSchema = z.object({
 
 export type BrainstormData = z.infer<typeof BrainstormDataSchema>;
 
+// --- Phase 2: Edit Mode Infrastructure ---
+// Schema for tracking edit history of agent outputs
+export const AgentEditHistorySchema = z.object({
+  agentName: z.string(), // e.g., 'function-planner', 'jsx-layout', 'tailwind-styling'
+  versions: z.array(z.object({
+    versionNumber: z.number(),
+    output: z.any(), // The actual agent output (function signatures, jsx layout, etc.)
+    createdAt: z.string().datetime(),
+    isCurrentVersion: z.boolean(),
+    editInstructions: z.string().optional(), // User feedback that triggered this edit
+    editReason: z.string().optional(), // Reason for the edit (e.g., 'user_feedback', 'validation_error')
+  })),
+});
+export type AgentEditHistory = z.infer<typeof AgentEditHistorySchema>;
+
+// Schema for edit mode instructions
+export const EditModeInstructionsSchema = z.object({
+  targetAgent: z.string(), // Which agent to edit (e.g., 'jsx-layout', 'tailwind-styling')
+  editType: z.enum(['refine', 'replace', 'enhance']), // Type of edit requested
+  instructions: z.string(), // Specific instructions from user
+  previousVersion: z.number().optional(), // Which version to edit from
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+  createdAt: z.string().datetime(),
+});
+export type EditModeInstructions = z.infer<typeof EditModeInstructionsSchema>;
+
+// Schema for edit mode context
+export const EditModeContextSchema = z.object({
+  isEditMode: z.boolean().default(false),
+  activeEditInstructions: z.array(EditModeInstructionsSchema).optional(),
+  editHistory: z.array(AgentEditHistorySchema).optional(),
+  totalEdits: z.number().default(0),
+  lastEditedAt: z.string().datetime().optional(),
+});
+export type EditModeContext = z.infer<typeof EditModeContextSchema>;
+
 // --- Start: Schemas based on product-tool.ts interfaces ---
 // Duplicating/Adapting Zod schema definitions here to avoid circular dependencies
 // or for cases where product-tool.ts only exports types and not Zod schemas.
@@ -294,6 +330,9 @@ export const ToolConstructionContextSchema = z.object({
   // Phase 1: Rich brainstorm data integration
   brainstormData: BrainstormDataSchema.optional(), // Complete brainstorm output for enhanced agent context
   
+  // Phase 2: Edit mode infrastructure
+  editModeContext: EditModeContextSchema.optional(), // Edit mode tracking and instructions
+  
   // Main properties
   definedFunctionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
   stateLogic: StateLogicSchema.optional(),
@@ -374,6 +413,13 @@ export function createTCC(
     status: 'pending',
     userInput,
     brainstormData: brainstormData || undefined, // Phase 1: Include brainstorm data
+    editModeContext: { // Phase 2: Initialize edit mode context
+      isEditMode: false,
+      activeEditInstructions: undefined,
+      editHistory: undefined,
+      totalEdits: 0,
+      lastEditedAt: undefined,
+    },
     definedFunctionSignatures: undefined,
     stateLogic: undefined,
     jsxLayout: undefined,
