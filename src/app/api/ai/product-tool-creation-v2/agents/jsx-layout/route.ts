@@ -4,8 +4,28 @@ import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { z } from 'zod';
 
-// Define the request schema locally
-const jsxLayoutRequestSchema = z.object({ jobId: z.string().uuid(), selectedModel: z.string().optional(), tcc: z.custom<ToolConstructionContext>().optional(), mockTcc: z.custom<ToolConstructionContext>().optional(), });
+// Phase 2: Edit mode schema for agents
+const EditModeContextSchema = z.object({
+  isEditMode: z.boolean(),
+  instructions: z.array(z.object({
+    targetAgent: z.string(),
+    editType: z.enum(['refine', 'replace', 'enhance']),
+    instructions: z.string(),
+    priority: z.enum(['low', 'medium', 'high']),
+    createdAt: z.string(),
+  })),
+  context: z.string(),
+});
+
+// Define the request schema locally - Phase 2: Added edit mode support
+const jsxLayoutRequestSchema = z.object({ 
+  jobId: z.string().uuid(), 
+  selectedModel: z.string().optional(), 
+  tcc: z.custom<ToolConstructionContext>().optional(), 
+  mockTcc: z.custom<ToolConstructionContext>().optional(),
+  // Phase 2: Edit mode context from orchestration
+  editMode: EditModeContextSchema.optional(),
+});
 
 export async function POST(request: NextRequest) {
   logger.info('🏗️ JSXLayout Route: Route handler started');
@@ -17,18 +37,27 @@ export async function POST(request: NextRequest) {
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
     
+    // Phase 2: Detect edit mode context
+    const isEditMode = parsedRequest.editMode?.isEditMode || false;
+    const editInstructions = parsedRequest.editMode?.instructions || [];
+    
     logger.info({ 
       jobId: parsedRequest.jobId, 
       selectedModel: parsedRequest.selectedModel,
-      isIsolatedTest 
+      isIsolatedTest,
+      isEditMode,
+      editInstructionsCount: editInstructions.length
     }, '🏗️ JSXLayout API: Request received');
 
-    // Call the core logic with isolated test flag
+    // Call the core logic with isolated test flag and edit mode context
     const result = await designJsxLayout({
       jobId: parsedRequest.jobId,
       selectedModel: parsedRequest.selectedModel,
-      tcc: parsedRequest.tcc, mockTcc: parsedRequest.mockTcc,
-      isIsolatedTest
+      tcc: parsedRequest.tcc, 
+      mockTcc: parsedRequest.mockTcc,
+      isIsolatedTest,
+      // Phase 2: Pass edit mode context to core logic
+      editMode: parsedRequest.editMode
     });
 
     // Skip orchestration triggering during isolated testing

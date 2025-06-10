@@ -77,20 +77,39 @@ function createModelInstance(provider: string, modelId: string) {
  * This function is a pure, testable unit of logic that takes a TCC,
  * performs JSX layout design, and returns an updated TCC without side effects.
  */
+// Phase 2: Edit mode context type
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
 export async function designJsxLayout(request: {
   jobId: string;
   selectedModel?: string;
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
   isIsolatedTest?: boolean;
+  // Phase 2: Edit mode context
+  editMode?: EditModeContext;
 }): Promise<{
   success: boolean;
   jsxLayout?: JsxLayoutResult;
   error?: string;
   updatedTcc?: ToolConstructionContext; // Return the updated TCC
 }> {
-  const { jobId, selectedModel, isIsolatedTest = false } = request;
+  const { jobId, selectedModel, isIsolatedTest = false, editMode } = request;
   const tcc = request.mockTcc || request.tcc;
+  
+  // Phase 2: Edit mode detection
+  const isEditMode = editMode?.isEditMode || false;
+  const editInstructions = editMode?.instructions || [];
 
   logger.info({ 
     jobId, 
@@ -132,8 +151,13 @@ export async function designJsxLayout(request: {
       logger.info({ jobId }, '🏗️ JSXLayout: Progress emitted successfully');
     }
 
-    logger.info({ jobId }, '🏗️ JSXLayout: About to call generateJsxLayoutWithAI...');
-    const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel, isIsolatedTest);
+    logger.info({ 
+      jobId, 
+      isEditMode, 
+      editInstructionsCount: editInstructions.length 
+    }, '🏗️ JSXLayout: About to call generateJsxLayoutWithAI...');
+    
+    const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel, isIsolatedTest, editMode);
     logger.info({ jobId }, '🏗️ JSXLayout: generateJsxLayoutWithAI completed successfully');
 
     const updatedTcc: ToolConstructionContext = {
@@ -252,6 +276,7 @@ async function generateJsxLayoutWithAI(
   tcc: ToolConstructionContext,
   selectedModel?: string,
   isIsolatedTest?: boolean,
+  editMode?: EditModeContext,
 ): Promise<JsxLayoutResult> {
   let modelConfig: { provider: string; modelId: string };
 
@@ -354,6 +379,34 @@ LEAD CAPTURE STRATEGY (Incorporate this into the layout design):
 - Method: ${brainstorm.leadCaptureStrategy.method}
 - Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
     }
+  }
+
+  // Phase 2: Add edit mode context if in edit mode
+  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+    userPrompt += `
+
+🔄 EDIT MODE INSTRUCTIONS:
+You are EDITING an existing JSX layout. Here is the current layout:
+
+CURRENT LAYOUT:
+\`\`\`jsx
+${tcc.jsxLayout?.componentStructure || 'No existing layout found'}
+\`\`\`
+
+EDIT INSTRUCTIONS TO FOLLOW:`;
+
+    editMode.instructions.forEach((instruction, index) => {
+      userPrompt += `
+
+${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
+${instruction.instructions}
+
+Created: ${instruction.createdAt}`;
+    });
+
+    userPrompt += `
+
+Please apply these edit instructions to create an improved version of the JSX layout. Maintain the structure where appropriate but implement the requested changes.`;
   }
 
   userPrompt += `
