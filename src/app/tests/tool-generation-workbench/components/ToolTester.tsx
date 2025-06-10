@@ -1452,7 +1452,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           <Tabs defaultValue="progress" className="w-full">
             <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="progress">Progress</TabsTrigger>
-              <TabsTrigger value="tcc" disabled={workflowMode !== 'v2' || !testJob?.jobId}>TCC Monitor</TabsTrigger>
+              <TabsTrigger value="tcc" disabled={(workflowMode === 'v1') || (!testJob?.jobId && !tccData)}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
               <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
               <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
@@ -1498,12 +1498,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             </TabsContent>
 
             <TabsContent value="tcc" className="mt-4">
-              {workflowMode === 'v2' && testJob?.jobId ? (
+              {(workflowMode === 'v2' && testJob?.jobId) || (workflowMode === 'debug' && tccData) ? (
                 <TCCVisualizer 
                   tccData={tccData}
                   currentStep={currentStep}
-                  jobId={testJob.jobId}
-                  onRefreshTCC={handleRefreshTCC}
+                  jobId={testJob?.jobId || 'debug-mode'}
+                  onRefreshTCC={workflowMode === 'v2' ? () => { handleRefreshTCC(); } : () => {}}
                   isLoading={isRefreshingTCC}
                 />
               ) : (
@@ -1511,7 +1511,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                   <CardContent className="flex items-center justify-center h-48 pt-6">
                     <div className="text-center">
                       <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">TCC Monitor is only available in V2 Orchestration mode</p>
+                      <p className="text-gray-500">
+                        {workflowMode === 'v1' 
+                          ? 'TCC Monitor is not available in V1 mode' 
+                          : 'TCC Monitor will be available once TCC data is loaded'
+                        }
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
