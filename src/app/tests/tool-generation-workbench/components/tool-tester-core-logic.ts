@@ -18,6 +18,113 @@ export interface ToolCreationJob {
 // Phase 1: cleanBrainstormData function removed to ensure full brainstorm data integration
 // All brainstorm data will now be passed intact to agents for enhanced context
 
+// Phase 3.1: Transform saved brainstorm data to match new comprehensive BrainstormDataSchema
+function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult): any {
+  console.log('🔄 [TRANSFORM] Converting brainstorm data to new schema format');
+  
+  const brainstormOutput = brainstormResult.result?.brainstormOutput;
+  const rawResult = brainstormResult.result;
+  
+  // If we already have data matching the new schema, use it directly
+  if (brainstormOutput && typeof brainstormOutput === 'object') {
+    console.log('🔄 [TRANSFORM] Found brainstormOutput - checking if it matches new schema');
+    
+    // Check if it has the expected new schema fields
+    if (brainstormOutput.valueProposition || brainstormOutput.keyCalculations || brainstormOutput.interactionFlow) {
+      console.log('✅ [TRANSFORM] BrainstormOutput already matches new schema - using directly');
+      return brainstormOutput;
+    }
+  }
+  
+  console.log('🔄 [TRANSFORM] Converting legacy brainstorm format to new schema');
+  console.log('🔍 [TRANSFORM] Raw result structure:', Object.keys(rawResult || {}));
+  
+  // Transform legacy format to new comprehensive schema
+  const transformedData = {
+    // Core concept (handle both spellings)
+    coreConcept: rawResult?.coreConcept || rawResult?.coreWConcept || 'Business tool',
+    valueProposition: rawResult?.valueProposition || 'Provides value to users',
+    
+    // Key calculations - extract from various legacy fields
+    keyCalculations: rawResult?.keyCalculations || rawResult?.calculations || [
+      {
+        name: 'Main Calculation',
+        formula: 'Basic calculation logic',
+        description: 'Primary tool calculation',
+        variables: ['input']
+      }
+    ],
+    
+    // Interaction flow - build from legacy data or create default
+    interactionFlow: rawResult?.interactionFlow || [
+      {
+        step: 1,
+        title: 'Input Collection',
+        description: 'User provides required information',
+        userAction: 'Enter data in form fields',
+        engagementHook: 'Clear, intuitive interface'
+      },
+      {
+        step: 2,
+        title: 'Processing',
+        description: 'System processes user input',
+        userAction: 'Click calculate/submit button',
+        engagementHook: 'Immediate feedback and results'
+      }
+    ],
+    
+    // Lead capture strategy
+    leadCaptureStrategy: rawResult?.leadCaptureStrategy || {
+      timing: 'after_completion',
+      method: 'email_signup',
+      incentive: 'Save and share results'
+    },
+    
+    // Creative enhancements
+    creativeEnhancements: rawResult?.creativeEnhancements || [
+      'Professional styling and branding',
+      'Mobile-responsive design',
+      'Clear result presentation'
+    ],
+    
+    // Suggested inputs - extract from legacy or create defaults
+    suggestedInputs: rawResult?.suggestedInputs || [
+      {
+        id: 'primary_input',
+        label: 'Primary Input',
+        type: 'number',
+        required: true,
+        description: 'Main input for calculation'
+      }
+    ],
+    
+    // Calculation logic - more detailed than keyCalculations
+    calculationLogic: rawResult?.calculationLogic || [
+      {
+        id: 'main_calc',
+        name: 'Main Calculation',
+        formula: 'result = input * factor',
+        dependencies: ['input'],
+        outputFormat: 'number',
+        engagementMoment: 'Real-time calculation display'
+      }
+    ],
+    
+    // Prompt options that guided generation
+    promptOptions: rawResult?.promptOptions || {
+      includeComprehensiveColors: true,
+      includeGorgeousStyling: true,
+      includeAdvancedLayouts: false,
+      styleComplexity: 'standard',
+      industryFocus: brainstormResult.industry || undefined,
+      toolComplexity: 'standard'
+    }
+  };
+  
+  console.log('✅ [TRANSFORM] Successfully transformed to new schema with keys:', Object.keys(transformedData));
+  return transformedData;
+}
+
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
   modelId: string,
@@ -36,9 +143,9 @@ async function startV2ToolCreation(
   const finalDescription = userInputData.businessContext || userInputData.description || 'No description provided.';
   console.log('🔍 [V2-START-DEBUG] Final description used:', finalDescription);
   
-  // Phase 1: Extract complete brainstorm output for enhanced agent context
-  const brainstormOutput = brainstormResult.result?.brainstormOutput;
-  console.log('🔍 [V2-START-DEBUG] Complete brainstorm output:', JSON.stringify(brainstormOutput, null, 2));
+  // Phase 3.1: Transform brainstorm data to match new comprehensive schema
+  const transformedBrainstormData = transformBrainstormDataToNewSchema(brainstormResult);
+  console.log('🔍 [V2-START-DEBUG] Transformed brainstorm data keys:', Object.keys(transformedBrainstormData));
   
   const requestBody = {
     userInput: {
@@ -50,8 +157,8 @@ async function startV2ToolCreation(
     },
     selectedModel: modelId,
     agentModelMapping: agentModelMapping || {},
-    // Phase 1: Include complete brainstorm data for enhanced agent context
-    brainstormData: brainstormOutput,
+    // Phase 3.1: Use transformed brainstorm data that matches BrainstormDataSchema
+    brainstormData: transformedBrainstormData,
     testingOptions: {
       enableWebSocketStreaming: true,
       enableTccOperations: true,
