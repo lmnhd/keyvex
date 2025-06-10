@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import { createTCC, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { createTCC, OrchestrationStepEnum, OrchestrationStatusEnum, BrainstormDataSchema } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
 import { requireAuth } from '@/lib/auth/debug';
@@ -17,6 +17,8 @@ const StartOrchestrationSchema = z.object({
   }),
   selectedModel: z.string().optional(),
   agentModelMapping: z.record(z.string()).optional(),
+  // Phase 1: Accept brainstorm data for enhanced agent context
+  brainstormData: BrainstormDataSchema.optional(),
   testingOptions: z.object({
     enableWebSocketStreaming: z.boolean().optional(),
     enableTccOperations: z.boolean().optional(), 
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { userInput, selectedModel, agentModelMapping, testingOptions } = StartOrchestrationSchema.parse(body);
+    const { userInput, selectedModel, agentModelMapping, brainstormData, testingOptions } = StartOrchestrationSchema.parse(body);
 
     // Generate a new job ID
     const jobId = uuidv4();
@@ -46,11 +48,12 @@ export async function POST(request: NextRequest) {
       userId,
       userInputDescription: userInput.description,
       selectedModel: selectedModel || 'default',
+      hasBrainstormData: !!brainstormData, // Log whether brainstorm data is present
       testingOptions: testingOptions || 'none'
     }, '🚀 ORCHESTRATION START: Creating new TCC');
 
-    // Create initial TCC with userId
-    const tcc = createTCC(jobId, userInput, userId);
+    // Create initial TCC with userId and brainstorm data (Phase 1)
+    const tcc = createTCC(jobId, userInput, userId, brainstormData);
     
     // Add agent model mapping if provided
     if (agentModelMapping) {
