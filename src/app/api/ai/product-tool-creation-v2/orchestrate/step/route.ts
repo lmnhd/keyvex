@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ToolConstructionContext, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, OrchestrationStatusEnum, isAgentInEditMode, getActiveEditInstructions } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
 
 const StepRequestSchema = z.object({
@@ -53,11 +53,44 @@ export async function POST(request: NextRequest) {
 }
 
 function determineNextStep(tcc: ToolConstructionContext): string {
-  // Simple logic to determine next step
-  if (!tcc.definedFunctionSignatures) return 'function-planner';
-  if (!tcc.stateLogic) return 'state-design';
-  if (!tcc.jsxLayout) return 'jsx-layout';
-  if (!tcc.styling) return 'tailwind-styling';
-  if (!tcc.assembledComponentCode) return 'component-assembler';
+  // Phase 2: Check for edit mode first - prioritize pending edits
+  if (tcc.editModeContext?.isEditMode && tcc.editModeContext.activeEditInstructions) {
+    // Find the highest priority edit instruction
+    const sortedInstructions = tcc.editModeContext.activeEditInstructions.sort((a, b) => {
+      const priorityOrder = { high: 3, medium: 2, low: 1 };
+      return priorityOrder[b.priority] - priorityOrder[a.priority];
+    });
+    
+    const highestPriorityInstruction = sortedInstructions[0];
+    
+    // Map agent names to orchestration steps
+    const agentToStepMap: Record<string, string> = {
+      'function-planner': 'planning_function_signatures',
+      'state-design': 'designing_state_logic', 
+      'jsx-layout': 'designing_jsx_layout',
+      'tailwind-styling': 'applying_tailwind_styling',
+      'component-assembler': 'assembling_component',
+      'validator': 'validating_code',
+      'tool-finalizer': 'finalizing_tool'
+    };
+    
+    const editStep = agentToStepMap[highestPriorityInstruction.targetAgent];
+    if (editStep) {
+      logger.info({ 
+        jobId: tcc.jobId, 
+        editAgent: highestPriorityInstruction.targetAgent,
+        editType: highestPriorityInstruction.editType,
+        priority: highestPriorityInstruction.priority 
+      }, '🔄 EDIT MODE: Routing to agent for editing');
+      return editStep;
+    }
+  }
+  
+  // Standard creation mode logic - determine next step based on current progress
+  if (!tcc.definedFunctionSignatures) return 'planning_function_signatures';
+  if (!tcc.stateLogic) return 'designing_state_logic';
+  if (!tcc.jsxLayout) return 'designing_jsx_layout';
+  if (!tcc.styling) return 'applying_tailwind_styling';
+  if (!tcc.assembledComponentCode) return 'assembling_component';
   return 'completed';
 } 

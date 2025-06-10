@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext, isAgentInEditMode, getActiveEditInstructions } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
 
@@ -104,12 +104,35 @@ export async function POST(request: NextRequest) {
           { tcc }
         );
 
+        // Phase 2: Determine if agent is in edit mode and prepare edit context
+        const agentNameFromPath = agentPath; // e.g., 'jsx-layout', 'tailwind-styling'
+        const inEditMode = isAgentInEditMode(updatedTCC, agentNameFromPath);
+        const editInstructions = inEditMode ? getActiveEditInstructions(updatedTCC, agentNameFromPath) : [];
+        
+        const agentRequestBody = {
+          jobId,
+          tcc: updatedTCC,
+          // Phase 2: Edit mode context for agents
+          editMode: {
+            isEditMode: inEditMode,
+            instructions: editInstructions,
+            context: inEditMode ? `EDIT MODE: Processing ${editInstructions.length} edit instruction(s)` : 'CREATE MODE: Initial generation'
+          }
+        };
+
+        logger.info({ 
+          jobId, 
+          agentPath, 
+          isEditMode: inEditMode, 
+          editInstructionsCount: editInstructions.length 
+        }, '🔄 TRIGGER-NEXT: Sending agent request with edit context');
+
         fetch(agentUrl.toString(), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ jobId, tcc: updatedTCC }),
+          body: JSON.stringify(agentRequestBody),
         }).catch(fetchError => {
           logger.error({ jobId, agentPath, fetchError }, '🚀 TRIGGER-NEXT: Failed to trigger agent');
           emitStepProgress(
