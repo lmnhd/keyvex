@@ -97,10 +97,10 @@ export type EditModeInstructions = z.infer<typeof EditModeInstructionsSchema>;
 
 // Schema for edit mode context
 export const EditModeContextSchema = z.object({
-  isEditMode: z.boolean().default(false),
+  isEditMode: z.boolean(),
   activeEditInstructions: z.array(EditModeInstructionsSchema).optional(),
   editHistory: z.array(AgentEditHistorySchema).optional(),
-  totalEdits: z.number().default(0),
+  totalEdits: z.number(),
   lastEditedAt: z.string().datetime().optional(),
 });
 export type EditModeContext = z.infer<typeof EditModeContextSchema>;
@@ -396,7 +396,182 @@ export type ToolConstructionContext = z.infer<typeof ToolConstructionContextSche
 // Placeholder for TCC schema
 export const TCC_VERSION = '1.0.0';
 
-// Helper function to create a new TCC
+// --- Phase 2: Edit Mode Helper Functions ---
+
+/**
+ * Adds edit instructions to a TCC and switches it to edit mode
+ */
+export function addEditInstructions(
+  tcc: ToolConstructionContext,
+  targetAgent: string,
+  instructions: string,
+  editType: 'refine' | 'replace' | 'enhance' = 'refine',
+  priority: 'low' | 'medium' | 'high' = 'medium'
+): ToolConstructionContext {
+  const editInstruction: EditModeInstructions = {
+    targetAgent,
+    editType,
+    instructions,
+    priority,
+    createdAt: new Date().toISOString(),
+  };
+
+  const updatedTcc: ToolConstructionContext = {
+    ...tcc,
+    editModeContext: {
+      isEditMode: true,
+      activeEditInstructions: [
+        ...(tcc.editModeContext?.activeEditInstructions || []),
+        editInstruction
+      ],
+      editHistory: tcc.editModeContext?.editHistory,
+      totalEdits: tcc.editModeContext?.totalEdits || 0,
+      lastEditedAt: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
+  };
+
+  return updatedTcc;
+}
+
+/**
+ * Records a new version of an agent's output in the edit history
+ */
+export function recordAgentOutputVersion(
+  tcc: ToolConstructionContext,
+  agentName: string,
+  output: any,
+  editInstructions?: string,
+  editReason?: string
+): ToolConstructionContext {
+  const existingHistory = tcc.editModeContext?.editHistory?.find(h => h.agentName === agentName);
+  const newVersionNumber = existingHistory ? Math.max(...existingHistory.versions.map(v => v.versionNumber)) + 1 : 1;
+
+  const newVersion = {
+    versionNumber: newVersionNumber,
+    output,
+    createdAt: new Date().toISOString(),
+    isCurrentVersion: true,
+    editInstructions,
+    editReason,
+  };
+
+  let updatedEditHistory: AgentEditHistory[];
+
+  if (existingHistory) {
+    // Mark previous versions as not current
+    const updatedVersions = existingHistory.versions.map(v => ({ ...v, isCurrentVersion: false }));
+    updatedVersions.push(newVersion);
+    
+    updatedEditHistory = (tcc.editModeContext?.editHistory || []).map(h => 
+      h.agentName === agentName 
+        ? { ...h, versions: updatedVersions }
+        : h
+    );
+  } else {
+    // Create new agent history entry
+    const newAgentHistory: AgentEditHistory = {
+      agentName,
+      versions: [newVersion],
+    };
+    
+    updatedEditHistory = [
+      ...(tcc.editModeContext?.editHistory || []),
+      newAgentHistory
+    ];
+  }
+
+  const updatedTcc: ToolConstructionContext = {
+    ...tcc,
+    editModeContext: {
+      isEditMode: tcc.editModeContext?.isEditMode || false,
+      activeEditInstructions: tcc.editModeContext?.activeEditInstructions,
+      editHistory: updatedEditHistory,
+      totalEdits: (tcc.editModeContext?.totalEdits || 0) + 1,
+      lastEditedAt: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
+  };
+
+  return updatedTcc;
+}
+
+/**
+ * Gets the current version of an agent's output from edit history
+ */
+export function getCurrentAgentOutput(tcc: ToolConstructionContext, agentName: string): any | null {
+  const agentHistory = tcc.editModeContext?.editHistory?.find(h => h.agentName === agentName);
+  if (!agentHistory) return null;
+  
+  const currentVersion = agentHistory.versions.find(v => v.isCurrentVersion);
+  return currentVersion?.output || null;
+}
+
+/**
+ * Gets a specific version of an agent's output from edit history
+ */
+export function getAgentOutputVersion(tcc: ToolConstructionContext, agentName: string, versionNumber: number): any | null {
+  const agentHistory = tcc.editModeContext?.editHistory?.find(h => h.agentName === agentName);
+  if (!agentHistory) return null;
+  
+  const version = agentHistory.versions.find(v => v.versionNumber === versionNumber);
+  return version?.output || null;
+}
+
+/**
+ * Clears active edit instructions after they've been processed
+ */
+export function clearActiveEditInstructions(tcc: ToolConstructionContext, targetAgent?: string): ToolConstructionContext {
+  let filteredInstructions = tcc.editModeContext?.activeEditInstructions || [];
+  
+  if (targetAgent) {
+    // Clear only instructions for specific agent
+    filteredInstructions = filteredInstructions.filter(inst => inst.targetAgent !== targetAgent);
+  } else {
+    // Clear all instructions
+    filteredInstructions = [];
+  }
+
+  const updatedTcc: ToolConstructionContext = {
+    ...tcc,
+    editModeContext: {
+      isEditMode: filteredInstructions.length > 0, // Exit edit mode if no active instructions
+      activeEditInstructions: filteredInstructions.length > 0 ? filteredInstructions : undefined,
+      editHistory: tcc.editModeContext?.editHistory,
+      totalEdits: tcc.editModeContext?.totalEdits || 0,
+      lastEditedAt: tcc.editModeContext?.lastEditedAt,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+
+  return updatedTcc;
+}
+
+/**
+ * Checks if TCC is in edit mode for a specific agent
+ */
+export function isAgentInEditMode(tcc: ToolConstructionContext, agentName: string): boolean {
+  if (!tcc.editModeContext?.isEditMode) return false;
+  
+  return tcc.editModeContext.activeEditInstructions?.some(inst => inst.targetAgent === agentName) || false;
+}
+
+/**
+ * Gets active edit instructions for a specific agent
+ */
+export function getActiveEditInstructions(tcc: ToolConstructionContext, agentName: string): EditModeInstructions[] {
+  if (!tcc.editModeContext?.activeEditInstructions) return [];
+  
+  return tcc.editModeContext.activeEditInstructions.filter(inst => inst.targetAgent === agentName);
+}
+
+/**
+ * Gets the full edit history for an agent
+ */
+export function getAgentEditHistory(tcc: ToolConstructionContext, agentName: string): AgentEditHistory | null {
+  return tcc.editModeContext?.editHistory?.find(h => h.agentName === agentName) || null;
+}
+
 // Helper function to create a new TCC
 export function createTCC(
   jobId: string, 
