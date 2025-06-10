@@ -1,92 +1,97 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from '@/components/ui/badge';
-import { Loader2, TestTube2, AlertCircle, CheckCircle, Code, Eye, Info, Save, Wand2, Pause, Play, StepForward, Bug, Zap, Settings, Database, Wifi, WifiOff, Trash2, Copy, Download, Brain, MessageSquare } from 'lucide-react';
-import {
-  loadLogicResultsFromDB,
-  runToolCreationProcess,
-  runIsolatedAgentTest,
-  ToolCreationJob,
-  SavedLogicResult
-} from './tool-tester-core-logic';
-import { 
-  saveToolToDBList, 
-  saveV2JobToDB, 
-  loadAllToolsFromDB, 
-  loadV2JobsFromDB,
-  deleteToolFromDBList,
-  deleteV2JobFromDB
-} from '../../ui/db-utils';
-import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
-import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useToolGenerationStream, type StepProgress, type ConnectionStatus } from '../hooks/useToolGenerationStream';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { useToolGenerationStream, StepProgress, ConnectionStatus } from '../hooks/useToolGenerationStream';
-import ProgressLog from './ProgressLog';
-import TCCVisualizer from './TCCVisualizer';
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { mockTccScenarios, getScenariosForAgent } from '@/lib/testing/mock-tcc-scenarios';
+import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
+import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess } from './tool-tester-core-logic';
+import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB } from '../../ui/db-utils';
+import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode } from './tool-tester-parts/tool-tester-types';
+import { useToolTesterData } from '../hooks/useToolTesterData';
+import ToolTesterView from './tool-tester-parts/tool-tester-view';
+import { Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
-interface ModelOption {
-  id: string;
-  name: string;
-  provider?: string;
-}
+// interface BrainstormData {
+//   id: string;
+//   toolType: string;
+//   targetAudience: string;
+//   businessContext?: string;
+//   industry?: string;
+//   timestamp: number;
+//   result?: any;
+// }
 
-interface AgentModelMapping {
-  [agentName: string]: string;
-}
+// interface ModelOption {
+//   id: string;
+//   name: string;
+//   provider?: string;
+// }
 
-type WorkflowMode = 'v1' | 'v2' | 'debug';
-type OrchestrationStatus = 'free' | 'paused' | 'runone';
-type TccSource = 'brainstorm' | 'savedV2Job' | 'mockScenario';
+// interface AgentModelMapping {
+//   [agentName: string]: string;
+// }
+
+// type WorkflowMode = 'v1' | 'v2' | 'debug';
+// type OrchestrationStatus = 'free' | 'paused' | 'runone';
+// type TccSource = 'brainstorm' | 'savedV2Job' | 'mockScenario';
+
+// const STORAGE_KEYS = {
+//   selectedModels: 'tool-generation-workbench-selected-models',
+//   agentMapping: 'tool-generation-workbench-agent-mapping'
+// };
+
+// // Mock TCC scenarios for testing
+// const mockTccScenarios = [
+//   {
+//     id: 'simple-calculator',
+//     name: 'Simple Calculator',
+//     tcc: {
+//       jobId: 'mock-calculator-1',
+//       userInput: {
+//         description: 'A simple calculator tool',
+//         targetAudience: 'general users',
+//         toolType: 'calculator'
+//       }
+//     }
+//   }
+// ];
 
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
-  const [savedBrainstorms, setSavedBrainstorms] = useState<SavedLogicResult[]>([]);
-  const [selectedBrainstormId, setSelectedBrainstormId] = useState<string | undefined>(undefined);
-  
-  // NEW: Saved tools and V2 jobs state
-  const [savedTools, setSavedTools] = useState<ProductToolDefinition[]>([]);
-  const [savedV2Jobs, setSavedV2Jobs] = useState<Array<{
-    id: string;
-    timestamp: number;
-    productToolDefinition: ProductToolDefinition;
-    toolConstructionContext: any;
-  }>>([]);
-  const [loadMode, setLoadMode] = useState<'new' | 'load'>('new');
-  const [selectedLoadItem, setSelectedLoadItem] = useState<{
-    type: 'brainstorm' | 'tool' | 'v2job';
-    id: string;
-  } | null>(null);
-  
-  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
-  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]); // Multiple model selection (up to 5)
-  const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
+  // Use the custom hook for data fetching
+  const {
+    availableModels,
+    defaultPrimaryModel,
+    savedBrainstorms,
+    setSavedBrainstorms,
+    savedTools,
+    setSavedTools,
+    savedV2Jobs,
+    setSavedV2Jobs,
+    isLoading: isDataLoading,
+    error: dataError,
+    setError: setDataError,
+    fetchSavedTools,
+    fetchSavedV2Jobs,
+  } = useToolTesterData(newBrainstormFlag);
 
-  // LocalStorage keys
-  const STORAGE_KEYS = {
-    selectedModels: 'keyvex-tool-tester-selected-models',
-    agentMapping: 'keyvex-tool-tester-agent-mapping'
-  };
-
+  const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadMode, setLoadMode] = useState<'new' | 'load'>('new');
+  const [selectedLoadItem, setSelectedLoadItem] = useState<{ type: 'brainstorm' | 'tool' | 'v2job', id: string } | null>(null);
   const [testJob, setTestJob] = useState<ToolCreationJob | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [assembledCode, setAssembledCode] = useState<string | null>(null);
+  const [finalProduct, setFinalProduct] = useState<ProductToolDefinition | null>(null);
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
   const [savedV2JobIds, setSavedV2JobIds] = useState<Set<string>>(new Set());
-  const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
-  const [assembledCode, setAssembledCode] = useState<string | null>(null);
-  const [finalProduct, setFinalProduct] = useState<any>(null);
-
-  // New state for advanced controls
+  const [hasInitialized, setHasInitialized] = useState(false);
+  
+  // Agent model mapping for individual agent testing
+  const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
+  
+  // NEW: workflowMode to distinguish between V1, V2 orchestration, and debug mode
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('v2');
   const [orchestrationStatus, setOrchestrationStatus] = useState<OrchestrationStatus>('free');
   const [selectedAgent, setSelectedAgent] = useState<string>('');
@@ -102,6 +107,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   // WebSocket logging state
   const [wsLogs, setWsLogs] = useState<string[]>([]);
   const [streamingExample, setStreamingExample] = useState<string>('');
+  
+  // Add refs for auto-scrolling
+  const wsLogsEndRef = useRef<HTMLDivElement>(null);
+  const progressSummaryEndRef = useRef<HTMLDivElement>(null);
 
   // Available agents for individual testing (memoized to prevent re-creation)
   const availableAgents = React.useMemo(() => [
@@ -137,6 +146,15 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       console.log(`🐛 [WebSocket Debug] ${message}`, data);
     }
   }, []);
+
+  // Clear logs function
+  const clearLogsAndProgress = useCallback(() => {
+    setWsLogs([]);
+    setProgressUpdates && setProgressUpdates([]);
+    setCurrentStep('');
+    setError(null);
+    addWSLog('🧹 Logs cleared - starting fresh test');
+  }, [addWSLog]);
 
   // WebSocket debug information state similar to test page
   const [wsDebugInfo, setWsDebugInfo] = useState({
@@ -229,8 +247,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     handleJobUpdate(progress);
   }, [handleJobUpdate, addDetailedWSLog]);
 
-  const { connect, disconnect, connectionStatus, progressUpdates, messages }:{ connect: (jobId: string) => Promise<void>,
-    disconnect: () => void, connectionStatus: ConnectionStatus, progressUpdates: StepProgress[], messages: any } = useToolGenerationStream({ 
+  const { connect, disconnect, connectionStatus, progressUpdates, messages, setProgressUpdates }:{ connect: (jobId: string) => Promise<void>,
+    disconnect: () => void, connectionStatus: ConnectionStatus, progressUpdates: StepProgress[], messages: any, setProgressUpdates?: React.Dispatch<React.SetStateAction<StepProgress[]>> } = useToolGenerationStream({ 
     onProgress: enhancedHandleJobUpdate,
     onMessage: (message) => {
       addDetailedWSLog('message', `WebSocket message received: ${message.type}`, message.data);
@@ -254,6 +272,19 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [connectionStatus, addDetailedWSLog]);
 
+  // Auto-scroll effect for WebSocket logs
+  useEffect(() => {
+    if (wsLogsEndRef.current) {
+      wsLogsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [wsLogs]);
+
+  // Auto-scroll effect for progress summary
+  useEffect(() => {
+    if (progressSummaryEndRef.current) {
+      progressSummaryEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [progressUpdates]);
 
   // Get default model for agent from processModels in default-models.json
   const getDefaultModelForAgent = useCallback((agentId: string): string => {
@@ -280,137 +311,38 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     return fallback;
   }, []);
 
-  // Fetch the configured default model from the toolCreator API
-  const fetchDefaultModel = useCallback(async () => {
-    try {
-      const response = await fetch('/api/ai/create-tool'); 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.defaultModel?.primary?.id) {
-          setDefaultPrimaryModel(data.defaultModel.primary.id);
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to fetch default model, using fallback:', error);
+  // Function to get the actual models used in the workflow
+  const getModelsUsed = useCallback(() => {
+    if (workflowMode === 'debug' && selectedAgent) {
+      // For debug mode, return the model assigned to the specific agent
+      const agentModel = agentModelMapping[selectedAgent];
+      return agentModel ? [agentModel] : [];
+    } else if (workflowMode === 'v2') {
+      // For V2 orchestration, return all models in agent mapping
+      return Object.values(agentModelMapping).filter((model, index, arr) => arr.indexOf(model) === index);
+    } else {
+      // For V1 mode, return selected model IDs
+      return selectedModelIds;
     }
-  }, []);
-
-  const fetchModels = useCallback(() => {
-    console.log('🔄 Starting fetchModels...');
-    console.log('DEFAULT_MODELS structure:', DEFAULT_MODELS);
-    
-    try {
-      const parsedModels: ModelOption[] = [];
-      
-      if (!DEFAULT_MODELS || !DEFAULT_MODELS.providers) {
-        console.error('❌ DEFAULT_MODELS or providers is undefined!');
-        setError('DEFAULT_MODELS data is not properly loaded.');
-        return;
-      }
-      
-      console.log('📁 Found providers:', Object.keys(DEFAULT_MODELS.providers));
-      
-      for (const providerKey in DEFAULT_MODELS.providers) {
-        const provider = (DEFAULT_MODELS.providers as any)[providerKey];
-        console.log(`🏢 Processing provider: ${providerKey}`, provider);
-        
-        if (!provider || !provider.models) {
-          console.warn(`⚠️ Provider ${providerKey} has no models`);
-          continue;
-        }
-        
-        console.log(`📋 Found ${Object.keys(provider.models).length} models in ${providerKey}`);
-        
-        for (const modelKey in provider.models) {
-          const model = (provider.models as any)[modelKey];
-          console.log(`🤖 Processing model: ${modelKey}`, model);
-          
-          // Skip deprecated models (but only if explicitly marked as deprecated)
-          if (model.deprecated === true) {
-            console.log(`⚠️ Skipping deprecated model: ${modelKey}`);
-            continue;
-          }
-          
-          if (!model.id || !model.name) {
-            console.warn(`⚠️ Model ${modelKey} missing id or name:`, model);
-            continue;
-          }
-          
-          // Include all non-deprecated models
-          const modelOption = { 
-            id: model.id, 
-            name: `${model.name} (${provider.name})`,
-            provider: provider.name
-          };
-          console.log(`✅ Adding model:`, modelOption);
-          parsedModels.push(modelOption);
-        }
-      }
-      
-      console.log(`🎯 Tool Definition: Loaded ${parsedModels.length} models:`, parsedModels);
-      
-      if (parsedModels.length === 0) {
-        console.error('❌ No models were loaded! This is a problem.');
-        setError('No AI models were found in the configuration.');
-      } else {
-        setAvailableModels(parsedModels);
-      }
-    } catch (err) {
-      console.error('❌ Failed to parse models:', err);
-      setError('Failed to load AI models from default-models.json. Check console.');
-    }
-  }, []);
-
-  const fetchBrainstorms = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const results = await loadLogicResultsFromDB();
-      setSavedBrainstorms(results);
-      setError(null);
-    } catch (err) {
-      console.error('Failed to load saved brainstorms:', err);
-      setError('Failed to load saved brainstorms. Check console.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // NEW: Load saved tools from both IndexedDB and DynamoDB
-  const fetchSavedTools = useCallback(async () => {
-    try {
-      // For now, we'll load without userId to get IndexedDB tools
-      // Later we can enhance this to include a userId parameter
-      const tools = await loadAllToolsFromDB();
-      setSavedTools(tools);
-      console.log(`✅ Loaded ${tools.length} saved tools`);
-    } catch (err) {
-      console.error('Failed to load saved tools:', err);
-      setError('Failed to load saved tools. Check console.');
-    }
-  }, []);
-
-  // NEW: Load saved V2 jobs from IndexedDB
-  const fetchSavedV2Jobs = useCallback(async () => {
-    try {
-      const jobs = await loadV2JobsFromDB();
-      setSavedV2Jobs(jobs);
-      console.log(`✅ Loaded ${jobs.length} saved V2 jobs`);
-    } catch (err) {
-      console.error('Failed to load saved V2 jobs:', err);
-      setError('Failed to load saved V2 jobs. Check console.');
-    }
-  }, []);
+  }, [workflowMode, selectedAgent, agentModelMapping, selectedModelIds]);
 
   // Initialize selections from localStorage or defaults when data is available
-  const [hasInitialized, setHasInitialized] = useState(false);
-  
   useEffect(() => {
     if (availableModels.length > 0 && !hasInitialized) {
-      console.log('🔄 Initializing model selections...');
+      console.log('🔄 Initializing model selections...', {
+        availableModelsCount: availableModels.length,
+        defaultPrimaryModel,
+        hasInitialized
+      });
     
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
+      
+      console.log('📦 Loaded from localStorage:', {
+        storedSelectedModels,
+        storedAgentMapping
+      });
       
       // Validate stored models exist in current available models
       const validStoredModels = storedSelectedModels.filter((modelId: string) => 
@@ -433,9 +365,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         });
         setAgentModelMapping(validAgentMapping);
         
-        console.log('✅ Loaded from localStorage');
-      } else if (defaultPrimaryModel) {
-        // Fall back to default model logic
+        console.log('✅ Loaded from localStorage', {
+          validStoredModels,
+          validAgentMapping
+        });
+      } else {
+        // Fall back to default model logic regardless of defaultPrimaryModel availability
         const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
         const defaultModel = availableModels.find(m => m.id === targetDefaultId) || 
                             availableModels.find(m => m.id === 'gpt-4.1-mini') || 
@@ -455,13 +390,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           setAgentModelMapping(initialMapping);
           saveToLocalStorage(STORAGE_KEYS.agentMapping, initialMapping);
           
-          console.log('✅ Initialized with defaults');
+          console.log('✅ Initialized with defaults', {
+            defaultModel: defaultModel.id,
+            defaultModels,
+            initialMapping
+          });
         }
       }
       
       setHasInitialized(true);
     }
-  }, [availableModels.length, hasInitialized, defaultPrimaryModel]);
+  }, [availableModels, hasInitialized, defaultPrimaryModel, availableAgents, getDefaultModelForAgent, loadFromLocalStorage, saveToLocalStorage]);
 
   // Set first brainstorm as default when available
   useEffect(() => {
@@ -470,39 +409,41 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [savedBrainstorms, selectedBrainstormId]);
 
-  useEffect(() => {
-    fetchDefaultModel();
-    fetchModels();
-    fetchBrainstorms();
-    fetchSavedTools();
-    fetchSavedV2Jobs();
-  }, [newBrainstormFlag]); // Only depend on newBrainstormFlag, not the functions
+  // Data fetching is now handled by the useToolTesterData hook
 
   const handleModelToggle = (modelId: string, checked: boolean) => {
+    console.log('🎛️ handleModelToggle:', { modelId, checked, currentCount: selectedModelIds.length });
     let newSelectedIds: string[];
     if (checked && selectedModelIds.length < 5) {
       newSelectedIds = [...selectedModelIds, modelId];
     } else if (!checked) {
       newSelectedIds = selectedModelIds.filter(id => id !== modelId);
     } else {
+      console.log('⚠️ Model toggle ignored - limit reached or no change needed');
       return; // No change needed
     }
     
+    console.log('💾 Saving new selected models:', newSelectedIds);
     setSelectedModelIds(newSelectedIds);
     saveToLocalStorage(STORAGE_KEYS.selectedModels, newSelectedIds);
   };
 
   const handleAgentModelChange = (agentId: string, modelId: string) => {
+    console.log('🔄 handleAgentModelChange:', { agentId, modelId });
     const newMapping = {
       ...agentModelMapping,
       [agentId]: modelId
     };
     
+    console.log('💾 Saving new agent mapping:', newMapping);
     setAgentModelMapping(newMapping);
     saveToLocalStorage(STORAGE_KEYS.agentMapping, newMapping);
   };
 
   const handleSubmit = async () => {
+    // Clear logs and progress indicators when starting new test
+    clearLogsAndProgress();
+    
     // For load mode, we don't need to generate - the user should use the Load Selected Item button
     if (loadMode === 'load') {
       setError("Please use the 'Load Selected Item' button in the Load Saved Items section to load an existing item.");
@@ -622,7 +563,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addWSLog(`WebSocket connected. Starting V2 orchestration...`);
       
       const newJob = await runToolCreationProcess(
-        brainstorm,
+        brainstorm.result,
         selectedModelIds[0],
         agentModelMapping
       );
@@ -891,1442 +832,66 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Wand2 className="mr-2 h-6 w-6 text-purple-500" /> 
-          Enhanced Tool Generation Workbench
-          <div className="ml-auto flex items-center gap-2">
-            {getConnectionStatusIcon()}
-            {getConnectionStatusBadge()}
-          </div>
-        </CardTitle>
-        <CardDescription>Advanced tool creation with multi-model selection, real-time streaming, and granular agent control.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="selectedBrainstorm">1. Select Saved Brainstorm</Label>
-              <Select 
-                value={selectedBrainstormId}
-                onValueChange={setSelectedBrainstormId} 
-                disabled={isLoading || savedBrainstorms.length === 0}
-              >
-                <SelectTrigger id="selectedBrainstorm">
-                  <SelectValue placeholder={savedBrainstorms.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {savedBrainstorms.map(bs => (
-                    <SelectItem key={bs.id} value={bs.id}>
-                      {bs.toolType} for {bs.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedBrainstormId && getSelectedBrainstormDetails() && (
-              <Card className="bg-gray-50 dark:bg-gray-800/50">
-                <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-sm flex items-center"><Info className="mr-2 h-4 w-4 text-blue-500"/>Selected Brainstorm Details</CardTitle>
-                </CardHeader>
-                <CardContent className="text-xs space-y-1">
-                    <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.toolType}</p>
-                    <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.targetAudience}</p>
-                    <details className="mt-1">
-                        <summary className="cursor-pointer font-medium">View Full Input Data</summary>
-                        <pre className="mt-1 p-1.5 bg-white dark:bg-gray-700/50 rounded-md overflow-x-auto max-h-32 text-[10px]">
-                        {JSON.stringify(getSelectedBrainstormDetails()?.result?.userInput || getSelectedBrainstormDetails()?.result, null, 2)}
-                        </pre>
-                    </details>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Mode Selection</Label>
-            <Tabs value={loadMode} onValueChange={(value) => setLoadMode(value as 'new' | 'load')} className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="new" className="flex items-center gap-2">
-                  <Wand2 className="h-4 w-4" />
-                  Create New Tool
-                </TabsTrigger>
-                <TabsTrigger value="load" className="flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  Load Saved Item
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </div>
-
-        {loadMode === 'load' && (
-          <div className="space-y-4">
-            <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
-              <CardHeader className="pb-4">
-                <CardTitle className="flex items-center text-lg">
-                  <Database className="h-5 w-5 text-blue-600 mr-2" />
-                  Load Saved Items
-                </CardTitle>
-                <CardDescription>
-                  Load previously saved brainstorms, tools, or V2 generation results to continue working or testing.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Tabs defaultValue="brainstorms" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="brainstorms">
-                      Brainstorms ({savedBrainstorms.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="tools">
-                      Saved Tools ({savedTools.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="v2jobs">
-                      V2 Results ({savedV2Jobs.length})
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="brainstorms" className="mt-4">
-                    <div className="space-y-2">
-                      <Label>Select a Saved Brainstorm</Label>
-                      <ScrollArea className="h-48 border rounded-md p-3">
-                        <div className="space-y-2">
-                          {savedBrainstorms.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-8">No saved brainstorms found</p>
-                          ) : (
-                            savedBrainstorms.map(brainstorm => (
-                              <div 
-                                key={brainstorm.id}
-                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                                  selectedLoadItem?.type === 'brainstorm' && selectedLoadItem?.id === brainstorm.id
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
-                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                                onClick={() => setSelectedLoadItem({ type: 'brainstorm', id: brainstorm.id })}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <h4 className="font-medium text-sm">{brainstorm.toolType} for {brainstorm.targetAudience}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {brainstorm.industry && `${brainstorm.industry} • `}
-                                      {new Date(brainstorm.timestamp).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <Badge variant="outline" className="text-xs">Brainstorm</Badge>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="tools" className="mt-4">
-                    <div className="space-y-2">
-                      <Label>Select a Saved Tool</Label>
-                      <ScrollArea className="h-48 border rounded-md p-3">
-                        <div className="space-y-2">
-                          {savedTools.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-8">No saved tools found</p>
-                          ) : (
-                            savedTools.map(tool => (
-                              <div 
-                                key={tool.id}
-                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                                  selectedLoadItem?.type === 'tool' && selectedLoadItem?.id === tool.id
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
-                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                                onClick={() => setSelectedLoadItem({ type: 'tool', id: tool.id })}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{tool.metadata.title}</h4>
-                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                      {tool.metadata.description || tool.metadata.shortDescription || 'No description'}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      {new Date(tool.updatedAt || tool.createdAt || Date.now()).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">Tool</Badge>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteSavedItem('tool', tool.id);
-                                      }}
-                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="v2jobs" className="mt-4">
-                    <div className="space-y-2">
-                      <Label>Select a V2 Generation Result</Label>
-                      <ScrollArea className="h-48 border rounded-md p-3">
-                        <div className="space-y-2">
-                          {savedV2Jobs.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-8">No V2 generation results found</p>
-                          ) : (
-                            savedV2Jobs.map(job => (
-                              <div 
-                                key={job.id}
-                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                                  selectedLoadItem?.type === 'v2job' && selectedLoadItem?.id === job.id
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
-                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                                onClick={() => setSelectedLoadItem({ type: 'v2job', id: job.id })}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{job.productToolDefinition.metadata.title}</h4>
-                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                      {job.productToolDefinition.metadata.description || 'No description'}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Job ID: {job.id.slice(0, 8)}... • {new Date(job.timestamp).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">V2 Result</Badge>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteSavedItem('v2job', job.id);
-                                      }}
-                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </TabsContent>
-                </Tabs>
-
-                {selectedLoadItem && (
-                  <div className="flex justify-between items-center pt-3 border-t">
-                    <div className="text-sm text-gray-600">
-                      Selected: {selectedLoadItem.type === 'brainstorm' ? 'Brainstorm' : 
-                                selectedLoadItem.type === 'tool' ? 'Saved Tool' : 
-                                'V2 Generation Result'}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={() => setSelectedLoadItem(null)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleLoadSavedItem}>
-                        Load Selected Item
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {loadMode === 'new' && (
-          <div className="space-y-4">
-            <Label>2. Select Workflow Mode</Label>
-            
-            <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="v1" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                V1 Legacy
-              </TabsTrigger>
-              <TabsTrigger value="v2" className="flex items-center gap-2">
-                <Zap className="h-4 w-4" />
-                V2 Orchestration
-              </TabsTrigger>
-              <TabsTrigger value="debug" className="flex items-center gap-2">
-                <Bug className="h-4 w-4" />
-                Debug & Inspect
-              </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="v1" className="mt-4">
-              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100">V1 Legacy Mode</h4>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">Uses the original monolithic tool creation approach. Single API call, no streaming.</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <Label>Model Selection (Max 5)</Label>
-                    <div className="rounded-md border bg-blue-50/50 dark:bg-blue-900/10 p-4">
-                      {availableModels.length > 0 ? (
-                        <ScrollArea className="h-48">
-                          <div className="space-y-2">
-                            {availableModels.map(model => (
-                              <div key={model.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`v1-model-${model.id}`}
-                                  checked={selectedModelIds.includes(model.id)}
-                                  onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
-                                  disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
-                                />
-                                <Label htmlFor={`v1-model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
-                                  {model.name}
-                                  {model.id === defaultPrimaryModel && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
-                                      Default
-                                    </span>
-                                  )}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      ) : (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-gray-500">Loading models...</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="v2" className="mt-4">
-              <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Zap className="h-5 w-5 text-green-600" />
-                    <div>
-                      <h4 className="font-medium text-green-900 dark:text-green-100">V2 Multi-Agent Orchestration</h4>
-                      <p className="text-sm text-green-700 dark:text-green-300">Advanced multi-agent workflow with real-time progress streaming via WebSocket.</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <Label>Agent-Specific Model Configuration</Label>
-                    <div className="rounded-md border bg-green-50/50 dark:bg-green-900/10 p-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {availableAgents.map(agent => (
-                          <div key={agent.id} className="space-y-2">
-                            <Label htmlFor={`agent-model-${agent.id}`} className="text-sm font-medium" title={agent.description}>
-                              {agent.name}
-                            </Label>
-                            <Select
-                              value={agentModelMapping[agent.id] || ''}
-                              onValueChange={(value) => handleAgentModelChange(agent.id, value)}
-                              disabled={selectedModelIds.length === 0 || isLoading}
-                            >
-                              <SelectTrigger id={`agent-model-${agent.id}`} className="h-9">
-                                <SelectValue placeholder="Select model..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {availableModels.map(model => (
-                                  <SelectItem key={model.id} value={model.id}>
-                                    {model.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="debug" className="mt-4">
-              <Card className="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Bug className="h-5 w-5 text-red-600" />
-                    <div>
-                      <h4 className="font-medium text-red-900 dark:text-red-100">Debug & Inspect Mode</h4>
-                      <p className="text-sm text-red-700 dark:text-red-300">Test individual agents in isolation with a specific TCC source and model.</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>1. Select TCC Data Source</Label>
-                    <RadioGroup value={tccSource} onValueChange={(value) => setTccSource(value as TccSource)} className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="brainstorm" id="source-brainstorm" />
-                        <Label htmlFor="source-brainstorm">From Selected Brainstorm</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="mockScenario" id="source-mock" />
-                        <Label htmlFor="source-mock">From Mock Scenario</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="savedV2Job" id="source-v2job" />
-                        <Label htmlFor="source-v2job">From Saved V2 Result</Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {tccSource === 'mockScenario' && (
-                    <div className="space-y-2 pl-6 border-l-2 border-red-200">
-                      <Label htmlFor="mock-scenario-select">Select Mock Scenario</Label>
-                      <Select 
-                        value={selectedMockScenarioId} 
-                        onValueChange={setSelectedMockScenarioId}
-                        disabled={!selectedAgent}
-                      >
-                        <SelectTrigger id="mock-scenario-select">
-                          <SelectValue placeholder={!selectedAgent ? "Select an agent first" : "Choose a mock scenario..."} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedAgent && getScenariosForAgent(selectedAgent).map(scenario => (
-                            <SelectItem key={scenario.id} value={scenario.id}>
-                              {scenario.name} ({scenario.complexity})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {tccSource === 'savedV2Job' && (
-                    <div className="space-y-2 pl-6 border-l-2 border-red-200">
-                      <Label htmlFor="tcc-source-select">Select V2 Result</Label>
-                      <Select 
-                        value={selectedDebugTccJobId || ''} 
-                        onValueChange={setSelectedDebugTccJobId}
-                        disabled={savedV2Jobs.length === 0}
-                      >
-                        <SelectTrigger id="tcc-source-select">
-                          <SelectValue placeholder={savedV2Jobs.length === 0 ? "No V2 results saved" : "Choose a saved V2 Job..."} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {savedV2Jobs.map(job => (
-                            <SelectItem key={job.id} value={job.id}>
-                              {job.productToolDefinition.metadata.title} ({job.id.slice(0, 8)}...)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="agent-select">2. Select Agent to Test</Label>
-                    <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                      <SelectTrigger id="agent-select">
-                        <SelectValue placeholder="Choose an agent to test..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableAgents.map(agent => (
-                          <SelectItem key={agent.id} value={agent.id}>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{agent.name}</span>
-                              <span className="text-xs text-muted-foreground">{agent.description}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedAgent && (
-                    <div className="space-y-2">
-                      <Label>3. Select Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
-                      <Select 
-                        value={agentModelMapping[selectedAgent] || ''} 
-                        onValueChange={(value) => handleAgentModelChange(selectedAgent, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose model for this agent..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModels.map(model => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-        )}
-
-        <div className="flex justify-center items-center pt-4 gap-4">
-          <Button 
-            onClick={handleSubmit} 
-            disabled={
-              isLoading || 
-              loadMode === 'load' || 
-              !selectedBrainstormId ||
-              (workflowMode === 'v2' && testJob?.status === 'loading') ||
-              (workflowMode === 'v1' && selectedModelIds.length === 0) ||
-              (workflowMode === 'debug' && (
-                !selectedAgent || 
-                !agentModelMapping[selectedAgent] ||
-                (tccSource === 'savedV2Job' && !selectedDebugTccJobId) ||
-                (tccSource === 'mockScenario' && !selectedMockScenarioId)
-              ))
-            } 
-            size="lg" 
-            className="flex-1"
-          >
-            {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <TestTube2 className="mr-2 h-5 w-5" />}
-            {workflowMode === 'v1' ? 'Generate Tool (V1)' : 
-             workflowMode === 'v2' ? 'Start V2 Orchestration' : 
-             'Test Selected Agent'}
-          </Button>
-
-          {workflowMode === 'v2' && testJob && (
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={handleResume}
-                disabled={orchestrationStatus !== 'paused' || isLoading}
-                title="Resume"
-              >
-                <Play className="h-4 w-4"/>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={handlePause}
-                disabled={orchestrationStatus === 'paused' || isLoading}
-                title="Pause"
-              >
-                <Pause className="h-4 w-4"/>
-              </Button>
-               <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={handleStepForward}
-                disabled={orchestrationStatus !== 'paused' || isLoading}
-                title="Step Forward"
-              >
-                <StepForward className="h-4 w-4"/>
-              </Button>
-            </div>
-          )}
-        </div>
-      </CardContent>
-      
-      { (testJob || progressUpdates.length > 0) && (
-        <CardFooter className="flex-col items-start space-y-6 pt-6 border-t">
-          <Tabs defaultValue="progress" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="progress">Progress</TabsTrigger>
-              <TabsTrigger value="tcc" disabled={(workflowMode === 'v1') || (!testJob?.jobId && !tccData)}>TCC Monitor</TabsTrigger>
-              <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
-              <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
-              <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
-              <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
-              <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="progress" className="mt-4">
-              {workflowMode === 'v2' ? (
-                <ProgressLog progressUpdates={progressUpdates} isDarkMode={isDarkMode} />
-              ) : (
-                <Card>
-                  <CardContent className="pt-6">
-                    {testJob?.status === 'loading' && (
-                      <div className="flex flex-col items-center justify-center h-40">
-                        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                        <p className="mt-2 text-sm text-gray-500">
-                          {workflowMode === 'v1' ? 'V1 tool creation in progress...' : 'Testing selected agent...'}
-                        </p>
-                      </div>
-                    )}
-                    {testJob?.status === 'error' && testJob.error && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>Generation Failed</AlertTitle>
-                        <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
-                      </Alert>
-                    )}
-                    {testJob?.status === 'success' && (
-                      <div className="text-center">
-                        <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold">
-                          {workflowMode === 'v1' ? 'V1 Tool Created Successfully!' : 'Agent Test Completed!'}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-2">
-                          Models used: {selectedModelIds.join(', ')}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="tcc" className="mt-4">
-              {(workflowMode === 'v2' && testJob?.jobId) || (workflowMode === 'debug' && tccData) ? (
-                <TCCVisualizer 
-                  tccData={tccData}
-                  currentStep={currentStep}
-                  jobId={testJob?.jobId || 'debug-mode'}
-                  onRefreshTCC={workflowMode === 'v2' ? () => { handleRefreshTCC(); } : () => {}}
-                  isLoading={isRefreshingTCC}
-                />
-              ) : (
-                <Card>
-                  <CardContent className="flex items-center justify-center h-48 pt-6">
-                    <div className="text-center">
-                      <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">
-                        {workflowMode === 'v1' 
-                          ? 'TCC Monitor is not available in V1 mode' 
-                          : 'TCC Monitor will be available once TCC data is loaded'
-                        }
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="websocket" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <div className="flex items-center">
-                    {getConnectionStatusIcon()}
-                      <span className="ml-2">WebSocket Debug Console</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getConnectionStatusBadge()}
-                      {connectionStatus === 'connected' && (
-                        <Badge variant="outline" className="text-green-600">
-                          🟢 Live
-                        </Badge>
-                      )}
-                    </div>
-                  </CardTitle>
-                  <CardDescription>
-                    Real-time WebSocket connection monitoring with detailed debugging information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Environment Configuration Debug */}
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border">
-                    <div className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Environment Configuration
-                    </div>
-                    <div className="text-xs space-y-1 grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="font-medium">ENV Variable Set:</span> 
-                        <span className={wsDebugInfo.hasEnvVar ? 'text-green-600 ml-1' : 'text-red-600 ml-1'}>
-                          {wsDebugInfo.hasEnvVar ? '✅ Yes' : '❌ No'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Is Placeholder:</span> 
-                        <span className={wsDebugInfo.isPlaceholder ? 'text-amber-600 ml-1' : 'text-green-600 ml-1'}>
-                          {wsDebugInfo.isPlaceholder ? '⚠️ Yes' : '✅ No'}
-                        </span>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="font-medium">WebSocket URL:</span>
-                        <div className="font-mono text-gray-600 break-all mt-1 p-2 bg-white dark:bg-gray-900 rounded">
-                          {wsDebugInfo.finalUrl}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Connection Statistics */}
-                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200">
-                    <div className="text-sm font-medium mb-2 flex items-center gap-2">
-                      <Wifi className="h-4 w-4" />
-                      Connection Statistics
-                    </div>
-                    <div className="text-xs space-y-1 grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="font-medium">Status:</span> 
-                        <span className="ml-1 font-mono">{connectionStatus}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Attempts:</span> 
-                        <span className="ml-1 font-mono">{wsDebugInfo.connectionAttempts}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium">Last Connected:</span>
-                        <div className="font-mono text-gray-600 text-xs mt-1">
-                          {wsDebugInfo.lastConnectionTime || 'Never'}
-                        </div>
-                      </div>
-                      <div>
-                        <span className="font-medium">Last Message:</span>
-                        <div className="font-mono text-gray-600 text-xs mt-1">
-                          {wsDebugInfo.lastMessageTime || 'None'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Fallback Mode Warning */}
-                  {connectionStatus === 'fallback' && (
-                    <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
-                      <AlertCircle className="h-4 w-4 text-orange-600" />
-                      <AlertTitle className="text-orange-800 dark:text-orange-200">⚠️ FALLBACK MODE ACTIVE</AlertTitle>
-                      <AlertDescription className="text-orange-700 dark:text-orange-300 text-sm">
-                        <strong>NOT using real WebSocket!</strong> This is in-memory simulation for development.
-                        <br />• Set <code className="bg-orange-100 dark:bg-orange-800 px-1 rounded">NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT</code> for production WebSocket
-                        <br />• Messages below are simulated, not from a real WebSocket server
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  
-                  {/* Real-time Message Log */}
-                  <div>
-                    <Label className="text-sm font-medium flex items-center gap-2">
-                      <Database className="h-4 w-4" />
-                      Real-time Activity Log
-                      {connectionStatus === 'fallback' && (
-                        <span className="text-xs text-orange-600 font-normal">(Fallback Mode)</span>
-                      )}
-                    </Label>
-                    <ScrollArea className="h-64 mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-md border">
-                      <div className="space-y-1">
-                        {wsLogs.length === 0 ? (
-                          <p className="text-sm text-gray-500 text-center py-8">
-                            {connectionStatus === 'fallback' 
-                              ? '🔄 Fallback mode active - waiting for job progress...' 
-                              : '🔄 Waiting for WebSocket activity...'
-                            }
-                            <br />
-                            <span className="text-xs">Start a V2 orchestration to see real-time logs</span>
-                          </p>
-                        ) : (
-                          wsLogs.map((log, index) => (
-                            <p key={index} className={`text-xs font-mono ${
-                              log.includes('[FALLBACK') ? 'text-orange-700 dark:text-orange-300' : 
-                              log.includes('[ERROR]') ? 'text-red-700 dark:text-red-300' :
-                              log.includes('[CONNECTION]') ? 'text-blue-700 dark:text-blue-300' :
-                              log.includes('[MESSAGE]') ? 'text-green-700 dark:text-green-300' :
-                              ''
-                            }`}>
-                              {log}
-                            </p>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                  
-                  {/* Progress Updates Summary */}
-                  {progressUpdates.length > 0 && (
-                    <div>
-                      <Label className="text-sm font-medium flex items-center gap-2">
-                        <Zap className="h-4 w-4" />
-                        Step Progress Summary ({progressUpdates.length} steps)
-                      </Label>
-                      <ScrollArea className="h-32 mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200">
-                        <div className="space-y-2">
-                          {progressUpdates.map((progress, index) => (
-                            <div key={index} className="flex items-center gap-3 text-xs">
-                              <div className={`w-2 h-2 rounded-full ${
-                                progress.status === 'completed' ? 'bg-green-500' :
-                                progress.status === 'running' ? 'bg-blue-500' :
-                                progress.status === 'failed' ? 'bg-red-500' :
-                                'bg-yellow-500'
-                              }`} />
-                              <span className="font-mono">{progress.stepName}</span>
-                              <span className="text-gray-500">→</span>
-                              <span className={`font-medium ${
-                                progress.status === 'completed' ? 'text-green-600' :
-                                progress.status === 'running' ? 'text-blue-600' :
-                                progress.status === 'failed' ? 'text-red-600' :
-                                'text-yellow-600'
-                              }`}>
-                                {progress.status}
-                              </span>
-                              {progress.isFallback && (
-                                <Badge variant="outline" className="text-xs text-orange-600">
-                                  Fallback
-                                </Badge>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
-
-                  {/* Debug inspection area when preview/result tabs are disabled */}
-                  {workflowMode === 'v2' && (!assembledCode || testJob?.status !== 'success') && tccData && (
-                    <div>
-                      <Label className="text-sm font-medium">🔍 Debug Inspection (Preview/Result tabs disabled):</Label>
-                      <ScrollArea className="h-48 mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-yellow-200">
-                        <div className="text-xs font-mono space-y-2">
-                          <p><strong>assembledCode:</strong> {assembledCode ? 'Available' : 'Missing'}</p>
-                          <p><strong>testJob.status:</strong> {testJob?.status || 'No job'}</p>
-                          <p><strong>TCC Keys:</strong> {Object.keys(tccData).join(', ')}</p>
-                          
-                          {tccData.assembledComponentCode && (
-                            <div>
-                              <p><strong>TCC.assembledComponentCode:</strong> Available ({tccData.assembledComponentCode.length} chars)</p>
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Code</summary>
-                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs whitespace-pre-wrap">{tccData.assembledComponentCode}</pre>
-                              </details>
-                            </div>
-                          )}
-
-                          {tccData.styling && (
-                            <div>
-                              <p><strong>TCC.styling:</strong> Available</p>
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Styling</summary>
-                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">{JSON.stringify(tccData.styling, null, 2)}</pre>
-                              </details>
-                            </div>
-                          )}
-
-                          {testJob?.result && (
-                            <div>
-                              <p><strong>testJob.result:</strong> Available</p>
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Tool Definition</summary>
-                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs">{JSON.stringify(testJob.result, null, 2)}</pre>
-                              </details>
-                            </div>
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="preview" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5"/>Component Preview</CardTitle>
-                  <CardDescription>
-                    {workflowMode === 'debug' ? 'Live preview of the agent\'s work - shows how the tool would look with current agent output' : 'Live preview of the generated component. Interact with it to test functionality.'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result && (testJob.result as any).updatedTcc ? (
-                    // For debug mode, try to create a preview from TCC data
-                    (() => {
-                      const tccData = (testJob.result as any).updatedTcc;
-                      const originalTool = (testJob.result as any).originalTool;
-                      const hasAssembledCode = tccData.assembledComponentCode;
-                      const hasStyledCode = tccData.styling?.styledComponentCode;
-                      const hasJsxLayout = tccData.jsxLayout?.componentStructure;
-                      
-                      if (hasAssembledCode || hasStyledCode || hasJsxLayout) {
-                        // Create a complete ProductToolDefinition for preview
-                        const previewTool = {
-                          id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                          slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: hasAssembledCode || hasStyledCode || hasJsxLayout || '<div>No component code available</div>',
-                          metadata: {
-                            id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                            slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                            title: originalTool?.metadata?.title || tccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
-                            type: originalTool?.metadata?.type || tccData.userInput?.toolType || 'Debug Tool',
-                            description: originalTool?.metadata?.description || tccData.userInput?.description || 'Tool created from isolated agent testing',
-                            userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
-                            developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
-                            dependencies: originalTool?.metadata?.dependencies || ['react'],
-                            source: 'debug-isolated-agent',
-                            version: originalTool?.metadata?.version || '1.0.0-debug'
-                          },
-                          initialStyleMap: originalTool?.initialStyleMap || tccData.styling?.styleMap || {},
-                          currentStyleMap: tccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
-                          createdAt: originalTool?.createdAt || Date.now(),
-                          updatedAt: Date.now()
-                        };
-                        
-                        return (
-                          <div className="space-y-4">
-                            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-                              <Eye className="h-4 w-4 text-blue-600" />
-                              <AlertTitle className="text-blue-800 dark:text-blue-200">🔍 Debug Preview</AlertTitle>
-                              <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
-                                This preview is generated from the TCC data updated by the isolated agent. It shows how the tool would look with the current agent's output.
-                              </AlertDescription>
-                            </Alert>
-                            <CanvasTool productToolDefinition={previewTool as any} isDarkMode={isDarkMode} />
-                          </div>
-                        );
-                      } else {
-                        return (
-                          <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50">
-                            <div className="text-center">
-                              <Eye className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                              <p className="text-blue-600 font-medium">AGENT PREVIEW NOT AVAILABLE</p>
-                              <p className="text-blue-500 text-sm">This agent doesn't produce visual components.</p>
-                              <p className="text-blue-500 text-sm">Check the "Agent Results" tab for detailed output.</p>
-                            </div>
-                          </div>
-                        );
-                      }
-                    })()
-                  ) : assembledCode && testJob?.result ? (
-                    <CanvasTool productToolDefinition={testJob.result} isDarkMode={isDarkMode} />
-                  ) : assembledCode ? (
-                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-red-500 bg-red-50">
-                      <div className="text-center">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <p className="text-red-600 font-medium">NO TOOL DATA AVAILABLE</p>
-                        <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
-                        <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                      <p className="text-gray-500">Waiting for component code...</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="component-code" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Code className="mr-2 h-5 w-5 text-purple-500"/>
-                    Raw Component Code
-                  </CardTitle>
-                  <CardDescription>
-                    The actual component code being passed to the renderer. This shows exactly what was generated, including any problematic import statements.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {(() => {
-                    // Get the component code from various sources
-                    let componentCode = '';
-                    let codeSource = '';
-                    
-                    // Try to get from assembled code first (V2 orchestration result)
-                    if (assembledCode) {
-                      componentCode = assembledCode;
-                      codeSource = 'Assembled Code (V2 Orchestration)';
-                    }
-                    // Try to get from test job result (completed tool)
-                    else if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
-                      componentCode = (testJob.result as any).componentCode;
-                      codeSource = 'Tool Definition componentCode';
-                    }
-                    // Try to get from TCC data (debug/agent results)
-                    else if (testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
-                      const tccData = (testJob.result as any).updatedTcc;
-                      if (tccData.assembledComponentCode) {
-                        componentCode = tccData.assembledComponentCode;
-                        codeSource = 'TCC assembledComponentCode';
-                      } else if (tccData.styling?.styledComponentCode) {
-                        componentCode = tccData.styling.styledComponentCode;
-                        codeSource = 'TCC styled component code';
-                      } else if (tccData.jsxLayout?.componentStructure) {
-                        componentCode = tccData.jsxLayout.componentStructure;
-                        codeSource = 'TCC JSX layout structure';
-                      }
-                    }
-
-                    if (componentCode) {
-                      const hasImports = componentCode.includes('import ');
-                      const lines = componentCode.split('\n');
-                      const importLines = lines.filter(line => line.trim().startsWith('import '));
-                      
-                      return (
-                        <div className="space-y-4">
-                          {/* Code source and analysis */}
-                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{codeSource}</Badge>
-                              <span className="text-sm text-gray-600">
-                                {lines.length} lines, {componentCode.length} characters
-                              </span>
-                            </div>
-                            {hasImports && (
-                              <Badge variant="destructive" className="text-xs">
-                                ⚠️ Contains {importLines.length} import statement{importLines.length !== 1 ? 's' : ''}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Import statements analysis */}
-                          {hasImports && (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Import Statements Detected</AlertTitle>
-                              <AlertDescription className="text-sm">
-                                <p className="mb-2">This component contains import statements which will cause execution errors:</p>
-                                <ul className="list-disc list-inside text-xs space-y-1">
-                                  {importLines.map((line, index) => (
-                                    <li key={index} className="font-mono bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
-                                      {line.trim()}
-                                    </li>
-                                  ))}
-                                </ul>
-                                <p className="mt-2 text-xs">
-                                  The DynamicComponentRenderer expects import-free code since dependencies are injected.
-                                </p>
-                              </AlertDescription>
-                            </Alert>
-                          )}
-
-                          {/* Component code display */}
-                          <div className="space-y-2">
-                            <Label className="text-sm font-medium">Component Code:</Label>
-                            <ScrollArea className="h-96 w-full border rounded-md">
-                              <pre className="p-4 text-xs font-mono whitespace-pre-wrap">
-                                <code>{componentCode}</code>
-                              </pre>
-                              <ScrollBar orientation="horizontal" />
-                            </ScrollArea>
-                          </div>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                          <div className="text-center">
-                            <Code className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500 font-medium">No Component Code Available</p>
-                            <p className="text-gray-400 text-sm">Run a tool generation or agent test to see code</p>
-                          </div>
-                        </div>
-                      );
-                    }
-                  })()}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="agent-results" className="mt-4">
-              {workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result ? (
-                <div className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <Brain className="mr-2 h-5 w-5 text-blue-500"/>
-                        Isolated Agent Results - {selectedAgent}
-                      </CardTitle>
-                      <CardDescription>
-                        TCC (Tool Construction Context) data updated by the isolated agent test.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertTitle className="text-green-800 dark:text-green-200">✅ Agent Test Successful</AlertTitle>
-                        <AlertDescription className="text-green-700 dark:text-green-300 text-sm">
-                          The isolated agent completed successfully without triggering the next orchestration step.
-                        </AlertDescription>
-                      </Alert>
-                      
-                      {(() => {
-                        const tccData = (testJob.result as any).updatedTcc;
-                        return (
-                          <div className="space-y-4">
-                            {/* Agent-specific results */}
-                            {selectedAgent === 'tailwind-styling' && tccData.styling && (
-                              <Card className="border-purple-200">
-                                <CardHeader>
-                                  <CardTitle className="text-purple-700 text-lg">🎨 Styling Results</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-3">
-                                    {tccData.styling.styledComponentCode && (
-                                      <div>
-                                        <Badge variant="outline" className="mb-2">Styled Component Code</Badge>
-                                        <pre className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                          {tccData.styling.styledComponentCode.substring(0, 300)}
-                                          {tccData.styling.styledComponentCode.length > 300 && '...'}
-                                        </pre>
-                                      </div>
-                                    )}
-                                    {tccData.styling.activeStyles && (
-                                      <div>
-                                        <Badge variant="outline" className="mb-2">Active Style Rules</Badge>
-                                        <div className="grid gap-2">
-                                          {Object.entries(tccData.styling.activeStyles).slice(0, 5).map(([key, value]) => (
-                                            <div key={key} className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
-                                              <span className="font-mono text-purple-700">{key}</span>
-                                              <span className="text-purple-600">{String(value)}</span>
-                                            </div>
-                                          ))}
-                                          {Object.keys(tccData.styling.activeStyles).length > 5 && (
-                                            <div className="text-sm text-purple-600">+ {Object.keys(tccData.styling.activeStyles).length - 5} more styles</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-                            
-                            {selectedAgent === 'jsx-layout' && tccData.jsxLayout && (
-                              <Card className="border-green-200">
-                                <CardHeader>
-                                  <CardTitle className="text-green-700 text-lg">🏗️ JSX Layout Results</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-3">
-                                    {tccData.jsxLayout.componentStructure && (
-                                      <div>
-                                        <Badge variant="outline" className="mb-2">Component Structure</Badge>
-                                        <pre className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                          {tccData.jsxLayout.componentStructure.substring(0, 300)}
-                                          {tccData.jsxLayout.componentStructure.length > 300 && '...'}
-                                        </pre>
-                                      </div>
-                                    )}
-                                    {tccData.jsxLayout.layoutDecisions && (
-                                      <div>
-                                        <Badge variant="outline" className="mb-2">Layout Decisions</Badge>
-                                        <div className="text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded">
-                                          {JSON.stringify(tccData.jsxLayout.layoutDecisions, null, 2)}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-                            
-                            {selectedAgent === 'function-planner' && tccData.functions && (
-                              <Card className="border-blue-200">
-                                <CardHeader>
-                                  <CardTitle className="text-blue-700 text-lg">⚙️ Function Planning Results</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-3">
-                                    {tccData.functions.plannedFunctions && (
-                                      <div>
-                                        <Badge variant="outline" className="mb-2">Planned Functions</Badge>
-                                        <div className="space-y-2">
-                                          {tccData.functions.plannedFunctions.slice(0, 3).map((func: any, idx: number) => (
-                                            <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-sm">
-                                              <div className="font-semibold text-blue-700">{func.name}</div>
-                                              <div className="text-blue-600">{func.description}</div>
-                                            </div>
-                                          ))}
-                                          {tccData.functions.plannedFunctions.length > 3 && (
-                                            <div className="text-sm text-blue-600">+ {tccData.functions.plannedFunctions.length - 3} more functions</div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-                            
-                            {/* TCC Step Status */}
-                            <Card className="border-gray-200">
-                              <CardHeader>
-                                <CardTitle className="text-gray-700 text-lg">📋 TCC Step Status</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="grid gap-2">
-                                  {Object.entries(tccData.stepStatus || {}).map(([step, status]) => (
-                                    <div key={step} className="flex justify-between items-center">
-                                      <span className="text-sm">{step}</span>
-                                      <Badge variant={status === 'completed' ? 'default' : status === 'in_progress' ? 'secondary' : 'outline'}>
-                                        {String(status)}
-                                      </Badge>
-                                    </div>
-                                  ))}
-                                </div>
-                              </CardContent>
-                            </Card>
-                            
-                            {/* Prompt Information (if available) */}
-                            {(testJob.result as any).promptInfo && (
-                              <Card className="border-orange-200">
-                                <CardHeader>
-                                  <CardTitle className="text-orange-700 text-lg">🤖 Model Prompts</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                  <div className="space-y-3">
-                                    <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
-                                      <MessageSquare className="h-4 w-4 text-orange-600" />
-                                      <AlertTitle className="text-orange-800 dark:text-orange-200">Prompt Preview</AlertTitle>
-                                      <AlertDescription className="text-orange-700 dark:text-orange-300 text-sm">
-                                        System: {(testJob.result as any).promptInfo.systemPromptPreview}<br/>
-                                        User: {(testJob.result as any).promptInfo.userPromptPreview}
-                                      </AlertDescription>
-                                    </Alert>
-                                    
-                                    <div>
-                                      <Badge variant="outline" className="mb-2">Full System Prompt</Badge>
-                                      <pre className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                        {(testJob.result as any).promptInfo.fullSystemPrompt}
-                                      </pre>
-                                    </div>
-                                    
-                                    <div>
-                                      <Badge variant="outline" className="mb-2">Full User Prompt</Badge>
-                                      <pre className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                        {(testJob.result as any).promptInfo.fullUserPrompt}
-                                      </pre>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : workflowMode === 'debug' && testJob?.status === 'error' ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <AlertCircle className="mr-2 h-5 w-5 text-red-500"/>
-                      Agent Test Failed
-                    </CardTitle>
-                    <CardDescription>The isolated agent test encountered an error.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Agent Error</AlertTitle>
-                      <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
-                    </Alert>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                  <p className="text-gray-500">
-                    {workflowMode === 'debug' ? 'Run an isolated agent test to see results.' : 'Tool generation is not yet complete.'}
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="result" className="mt-4">
-               {testJob?.status === 'success' && testJob.result ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <CheckCircle className="mr-2 h-5 w-5 text-green-500"/>
-                      {workflowMode === 'debug' ? 'Isolated Agent Result' : 'Generation Complete'}
-                    </CardTitle>
-                    <CardDescription>
-                      {workflowMode === 'debug' 
-                        ? 'Tool Definition object showing the complete tool state after applying the isolated agent\'s changes. This matches the ProductToolDefinition format used in full generation.'
-                        : 'The final tool definition has been created and is ready to be saved.'
-                      }
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant="outline">Models Used:</Badge>
-                      {selectedModelIds.map(modelId => (
-                        <Badge key={modelId} variant="secondary" className="text-xs">
-                          {availableModels.find(m => m.id === modelId)?.name?.split(' ')[0] || modelId}
-                        </Badge>
-                      ))}
-                    </div>
-                    
-                    {workflowMode === 'debug' && (
-                      <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertTitle className="text-green-800 dark:text-green-200">✅ Agent Test Complete</AlertTitle>
-                        <AlertDescription className="text-green-700 dark:text-green-300 text-sm">
-                          The isolated agent completed successfully. Below is the final ProductToolDefinition with the agent's changes applied.
-                          This is the same format as full generation, enabling consistent testing and validation.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    
-                    {(() => {
-                      // For debug mode, transform TCC data into ProductToolDefinition format
-                      if (workflowMode === 'debug' && testJob.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
-                        const tccData = (testJob.result as any).updatedTcc;
-                        const originalTool = (testJob.result as any).originalTool;
-                        
-                        // Create a ProductToolDefinition from the updated TCC
-                        const transformedResult = {
-                          id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                          slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: tccData.assembledComponentCode || tccData.styling?.styledComponentCode || originalTool?.componentCode || '<div>Component code not available</div>',
-                          metadata: {
-                            id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                            slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                            title: originalTool?.metadata?.title || tccData.userInput?.description || 'Debug Tool',
-                            type: originalTool?.metadata?.type || tccData.userInput?.toolType || 'Debug Tool',
-                            description: originalTool?.metadata?.description || tccData.userInput?.description || 'Tool created from isolated agent testing',
-                            userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
-                            developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
-                            dependencies: originalTool?.metadata?.dependencies || ['react'],
-                            source: 'debug-isolated-agent',
-                            version: originalTool?.metadata?.version || '1.0.0-debug'
-                          },
-                          initialStyleMap: originalTool?.initialStyleMap || tccData.styling?.styleMap || {},
-                          currentStyleMap: tccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
-                          createdAt: originalTool?.createdAt || Date.now(),
-                          updatedAt: Date.now()
-                        };
-
-                        return (
-                          <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-blue-600 border-blue-300">Agent Result</Badge>
-                              <Badge variant="secondary" className="text-xs">{selectedAgent}</Badge>
-                              <Badge variant="outline" className="text-xs">ProductToolDefinition Format</Badge>
-                            </div>
-                            
-                            <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
-                              {JSON.stringify(transformedResult, null, 2)}
-                            </pre>
-                            
-                            <div className="flex gap-2">
-                              <Button 
-                                onClick={() => handleSaveTool(transformedResult as ProductToolDefinition)}
-                                disabled={savedToolIds.has(transformedResult.id)}
-                                variant="default"
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {savedToolIds.has(transformedResult.id) ? 'Saved' : 'Save Tool to Browser DB'}
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(transformedResult, null, 2))}>
-                                <Copy className="mr-2 h-4 w-4" />
-                                Copy Result JSON
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => {
-                                const blob = new Blob([JSON.stringify(transformedResult, null, 2)], { type: 'application/json' });
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `${selectedAgent}-agent-result.json`;
-                                a.click();
-                                URL.revokeObjectURL(url);
-                              }}>
-                                <Download className="mr-2 h-4 w-4" />
-                                Export Result
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      } else {
-                        // For full generation or V1 mode, display the result as-is
-                        return (
-                          <div className="space-y-4">
-                    <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
-                      {JSON.stringify(testJob.result, null, 2)}
-                    </pre>
-                            
-                    {workflowMode === 'v1' && testJob.result && (
-                      <Button 
-                        onClick={() => handleSaveTool(testJob.result!)} 
-                        disabled={savedToolIds.has(testJob.result!.id)}
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
-                      </Button>
-                    )}
-                    {workflowMode === 'v2' && testJob.result && tccData && (
-                      <Button
-                        onClick={() => handleSaveV2Result(testJob.result!, tccData)}
-                        disabled={savedV2JobIds.has(tccData.jobId)}
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {savedV2JobIds.has(tccData.jobId)
-                          ? 'V2 Result Saved'
-                          : 'Save V2 Generation Result'}
-                      </Button>
-                    )}
-                          </div>
-                        );
-                      }
-                    })()}
-                  </CardContent>
-                </Card>
-              ) : workflowMode === 'debug' && testJob?.status === 'error' ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <AlertCircle className="mr-2 h-5 w-5 text-red-500"/>
-                      Agent Test Failed
-                    </CardTitle>
-                    <CardDescription>The isolated agent test encountered an error.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Agent Error</AlertTitle>
-                      <AlertDescription className="text-xs break-all">{testJob.error}</AlertDescription>
-                    </Alert>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                  <p className="text-gray-500">
-                    {workflowMode === 'debug' ? 'Run an isolated agent test to see results.' : 'Tool generation is not yet complete.'}
-                  </p>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardFooter>
-      )}
-      
-      {/* Debug Info */}
-      <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
-        <div className="text-sm space-y-2">
-          <div className="font-semibold text-yellow-800 dark:text-yellow-200">🐛 Debug State Information</div>
-          <div className="text-xs space-y-1 text-yellow-700 dark:text-yellow-300">
-            <div>• Available Models: {availableModels.length}</div>
-            <div>• Selected Models: {JSON.stringify(selectedModelIds)}</div>
-            <div>• First 3 Available: {JSON.stringify(availableModels.slice(0, 3).map(m => ({id: m.id, name: m.name})))}</div>
-            <div>• Agent Mapping: {JSON.stringify(Object.fromEntries(Object.entries(agentModelMapping).slice(0, 3)))}</div>
-          </div>
-        </div>
-      </div>
-    </Card>
+    <ToolTesterView
+      testJob={testJob}
+      getConnectionStatusIcon={getConnectionStatusIcon}
+      getConnectionStatusBadge={getConnectionStatusBadge}
+      error={error || dataError}
+      selectedBrainstormId={selectedBrainstormId}
+      setSelectedBrainstormId={setSelectedBrainstormId}
+      selectedMockScenarioId={selectedMockScenarioId}
+      setSelectedMockScenarioId={setSelectedMockScenarioId}
+      selectedDebugTccJobId={selectedDebugTccJobId}
+      setSelectedDebugTccJobId={setSelectedDebugTccJobId}
+      setSelectedAgent={setSelectedAgent}
+      orchestrationStatus={orchestrationStatus}
+      setOrchestrationStatus={setOrchestrationStatus}
+      savedBrainstorms={savedBrainstorms}
+      savedTools={savedTools}
+      savedV2Jobs={savedV2Jobs}
+      selectedLoadItem={selectedLoadItem}
+      setSelectedLoadItem={setSelectedLoadItem}
+      loadMode={loadMode}
+      setLoadMode={setLoadMode}
+      workflowMode={workflowMode}
+      setWorkflowMode={setWorkflowMode}
+      selectedModelIds={selectedModelIds}
+      handleModelToggle={handleModelToggle}
+      defaultPrimaryModel={defaultPrimaryModel}
+      availableModels={availableModels}
+      handleLoadSavedItem={handleLoadSavedItem}
+      handleDeleteSavedItem={handleDeleteSavedItem}
+      getSelectedBrainstormDetails={getSelectedBrainstormDetails}
+      isLoading={isLoading}
+      selectedAgent={selectedAgent}
+      agentModelMapping={agentModelMapping}
+      setAgentModelMapping={setAgentModelMapping}
+      tccSource={tccSource}
+      setTccSource={setTccSource}
+      availableAgents={availableAgents}
+      handleAgentModelChange={handleAgentModelChange}
+      handleSubmit={handleSubmit}
+      handleResume={handleResume}
+      handlePause={handlePause}
+      handleSaveV2Result={handleSaveV2Result}
+      savedToolIds={savedToolIds}
+      savedV2JobIds={savedV2JobIds}
+      handleStepForward={handleStepForward}
+      progressUpdates={progressUpdates}
+      assembledCode={assembledCode}
+      tccData={tccData}
+      getModelsUsed={getModelsUsed}
+      isDarkMode={isDarkMode}
+      wsLogs={wsLogs}
+      setWsLogs={setWsLogs}
+      wsLogsEndRef={wsLogsEndRef}
+      progressSummaryEndRef={progressSummaryEndRef}
+      isRefreshingTCC={isRefreshingTCC}
+      connectionStatus={connectionStatus}
+      wsDebugInfo={wsDebugInfo}
+      handleSaveTool={handleSaveTool}
+      handleRefreshTCC={handleRefreshTCC}
+    />
   );
 };
 
