@@ -463,7 +463,18 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         
         // Phase 3.1: Use the same transformation function as V2 workflow for consistency
         // This ensures agents get the comprehensive brainstorm data they need
-        const transformedBrainstormData = transformBrainstormDataToNewSchema(selectedBrainstorm);
+        const transformedBrainstormData = transformBrainstormDataToNewSchema({
+          ...selectedBrainstorm,
+          date: new Date().toISOString(),
+          result: selectedBrainstorm.result || {
+            userInput: {
+              description: selectedBrainstorm.businessContext || 'Debug tool from brainstorm',
+              targetAudience: selectedBrainstorm.targetAudience || 'general users',
+              toolType: selectedBrainstorm.toolType || 'general',
+              industry: selectedBrainstorm.industry || 'general'
+            }
+          }
+        });
         
         // Create a comprehensive mock TCC from the brainstorm with proper schema
         sourceTcc = {
