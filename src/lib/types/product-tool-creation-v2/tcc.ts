@@ -1,5 +1,74 @@
 import { z } from 'zod';
 
+// --- Brainstorm Data Schema (Phase 1: Full Brainstorm Data Integration) ---
+// This schema captures the complete brainstorm output structure for full agent integration
+export const BrainstormDataSchema = z.object({
+  // Core concept (handle both spellings for backward compatibility)
+  coreConcept: z.string().optional(),
+  coreWConcept: z.string().optional(), // Handle potential typo in legacy data
+  
+  // Value proposition
+  valueProposition: z.string(),
+  
+  // Key calculations for the tool
+  keyCalculations: z.array(z.object({
+    name: z.string(),
+    formula: z.string(),
+    description: z.string(),
+    variables: z.array(z.string()),
+  })),
+  
+  // User interaction flow steps
+  interactionFlow: z.array(z.object({
+    step: z.number(),
+    title: z.string(),
+    description: z.string(),
+    userAction: z.string(),
+    engagementHook: z.string().optional(),
+  })),
+  
+  // Lead capture strategy
+  leadCaptureStrategy: z.object({
+    timing: z.string(),
+    method: z.string(),
+    incentive: z.string(),
+  }),
+  
+  // Creative enhancements suggested by AI
+  creativeEnhancements: z.array(z.string()),
+  
+  // Suggested input fields for the tool
+  suggestedInputs: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    type: z.string(),
+    required: z.boolean(),
+    description: z.string(),
+  })),
+  
+  // Detailed calculation logic for implementation
+  calculationLogic: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    formula: z.string(),
+    dependencies: z.array(z.string()),
+    outputFormat: z.string(),
+    engagementMoment: z.string().optional(),
+  })),
+  
+  // Prompt options that guided the brainstorm generation
+  promptOptions: z.object({
+    includeComprehensiveColors: z.boolean(),
+    includeGorgeousStyling: z.boolean(),
+    includeAdvancedLayouts: z.boolean(),
+    styleComplexity: z.string(),
+    industryFocus: z.string().optional(),
+    toolComplexity: z.string(),
+  }),
+}).passthrough(); // Allow additional fields for future brainstorm enhancements
+
+export type BrainstormData = z.infer<typeof BrainstormDataSchema>;
+
 // --- Start: Schemas based on product-tool.ts interfaces ---
 // Duplicating/Adapting Zod schema definitions here to avoid circular dependencies
 // or for cases where product-tool.ts only exports types and not Zod schemas.
@@ -222,6 +291,9 @@ export const ToolConstructionContextSchema = z.object({
     // ... any other fields that define the tool request
   }),
   
+  // Phase 1: Rich brainstorm data integration
+  brainstormData: BrainstormDataSchema.optional(), // Complete brainstorm output for enhanced agent context
+  
   // Main properties
   definedFunctionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
   stateLogic: StateLogicSchema.optional(),
@@ -287,7 +359,12 @@ export const TCC_VERSION = '1.0.0';
 
 // Helper function to create a new TCC
 // Helper function to create a new TCC
-export function createTCC(jobId: string, userInput: any, userId?: string): ToolConstructionContext {
+export function createTCC(
+  jobId: string, 
+  userInput: any, 
+  userId?: string,
+  brainstormData?: BrainstormData // Phase 1: Accept brainstorm data
+): ToolConstructionContext {
   return {
     jobId,
     userId: userId || undefined,
@@ -296,6 +373,7 @@ export function createTCC(jobId: string, userInput: any, userId?: string): ToolC
     currentOrchestrationStep: 'initialization',
     status: 'pending',
     userInput,
+    brainstormData: brainstormData || undefined, // Phase 1: Include brainstorm data
     definedFunctionSignatures: undefined,
     stateLogic: undefined,
     jsxLayout: undefined,
