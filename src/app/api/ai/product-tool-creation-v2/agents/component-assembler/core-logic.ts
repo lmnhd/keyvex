@@ -252,9 +252,20 @@ REMEMBER:
 - NO JSX SYNTAX - Use React.createElement() only!
 - Every element needs data-style-id for dynamic styling!`;
 
+  // Generate component name with debugging
+  const suggestedComponentName = generateComponentName(tcc.userInput.description);
+  logger.info({
+    tccJobId: tcc.jobId,
+    originalDescription: tcc.userInput.description,
+    suggestedComponentName,
+    hasStyledCode: !!(tcc as any).styling?.styledComponentCode,
+    hasJsxLayout: !!tcc.jsxLayout?.componentStructure,
+    hasStateLogic: !!tcc.stateLogic
+  }, '🔧 ComponentAssembler: 🔍 Input data analysis');
+
   const userPrompt = `Please assemble the React component using the following parts.
 
-Component Name Suggestion: ${generateComponentName(tcc.userInput.description)}
+Component Name Suggestion: ${suggestedComponentName}
 
 STYLED JSX CODE (complete JSX with Tailwind classes already applied):
 \`\`\`jsx
@@ -428,7 +439,21 @@ function getModelForAgent(agentName: string, selectedModel?: string): { provider
 function generateComponentName(userInput: string): string {
   const name = userInput || 'Tool';
   const cleanedName = name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '');
-  return cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
+  
+  // Handle empty/corrupted names
+  if (!cleanedName || cleanedName.length === 0) {
+    return 'GeneratedTool';
+  }
+  
+  // Ensure name starts with a letter (not number)
+  const finalName = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
+  
+  // Additional safety check - ensure it's a valid JavaScript identifier
+  if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(finalName)) {
+    return 'GeneratedTool';
+  }
+  
+  return finalName;
 }
 
 /**
