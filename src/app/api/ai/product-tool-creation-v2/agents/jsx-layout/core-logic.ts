@@ -284,7 +284,8 @@ async function generateJsxLayoutWithAI(
   // Use comprehensive JSX layout prompt with dynamic editing support
   const systemPrompt = getJsxLayoutSystemPrompt(false);
 
-  const userPrompt = `Tool: ${
+  // Phase 1: Enhanced user prompt with brainstorm data integration
+  let userPrompt = `Tool: ${
     tcc.userInput?.description || 'No description provided.'
   }
 Target Audience: ${tcc.targetAudience || 'General users'}
@@ -300,7 +301,62 @@ State Logic Available:
 ${
   tcc.stateLogic?.variables?.map(v => `- ${v.name}: ${v.type}`).join('\n') ||
   'None'
-}
+}`;
+
+  // Phase 1: Inject rich brainstorm context for enhanced layout design
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    
+    userPrompt += `
+
+DETAILED BRAINSTORM CONTEXT (Use this to design a more specific and engaging layout):
+
+CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
+
+VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
+
+    // Add suggested inputs for layout structure
+    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
+      userPrompt += `
+
+SUGGESTED INPUT FIELDS (Design layout to accommodate these specific inputs):`;
+      brainstorm.suggestedInputs.forEach(input => {
+        userPrompt += `\n- ${input.label} (${input.type}): ${input.description}`;
+      });
+    }
+
+    // Add interaction flow for layout structure
+    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+      userPrompt += `
+
+INTERACTION FLOW (Design layout to support this specific user journey):`;
+      brainstorm.interactionFlow.forEach(step => {
+        userPrompt += `\n${step.step}. ${step.title}: ${step.description} - ${step.userAction}`;
+      });
+    }
+
+    // Add key calculations for results display areas
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      userPrompt += `
+
+KEY CALCULATIONS (Design layout sections to display these results prominently):`;
+      brainstorm.keyCalculations.forEach(calc => {
+        userPrompt += `\n- ${calc.name}: ${calc.description}`;
+      });
+    }
+
+    // Add lead capture strategy for layout optimization
+    if (brainstorm.leadCaptureStrategy) {
+      userPrompt += `
+
+LEAD CAPTURE STRATEGY (Incorporate this into the layout design):
+- Timing: ${brainstorm.leadCaptureStrategy.timing}
+- Method: ${brainstorm.leadCaptureStrategy.method}
+- Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
+    }
+  }
+
+  userPrompt += `
 
 Please generate the complete JSON object for the JSX layout.`;
 

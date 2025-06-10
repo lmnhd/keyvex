@@ -214,17 +214,75 @@ async function generateFunctionSignatures(
 
 /**
  * Creates the user prompt for the function planner based on TCC data
+ * Phase 1: Enhanced with brainstorm data integration for richer context
  */
 function createUserPrompt(tcc: ToolConstructionContext): string {
-  return `Please analyze this tool description and provide the function signatures needed:
+  let prompt = `Please analyze this tool description and provide the function signatures needed:
 
 TOOL DESCRIPTION: ${tcc.userInput.description}
 TOOL TYPE: ${tcc.userInput.toolType || 'Not specified'}
 
 Additional Context:
-- User Industry: ${tcc.userInput.targetAudience || 'General'}
+- User Industry: ${tcc.userInput.targetAudience || 'General'}`;
+
+  // Phase 1: Inject rich brainstorm context when available
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    
+    prompt += `
+
+DETAILED BRAINSTORM CONTEXT (Use this rich context to design more specific functions):
+
+CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
+
+VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
+
+    // Add suggested inputs for better function parameter design
+    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
+      prompt += `
+
+SUGGESTED INPUT FIELDS (Design functions to handle these):`;
+      brainstorm.suggestedInputs.forEach(input => {
+        prompt += `\n- ${input.label} (${input.type}): ${input.description}`;
+      });
+    }
+
+    // Add key calculations for calculation-focused functions
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      prompt += `
+
+KEY CALCULATIONS TO IMPLEMENT:`;
+      brainstorm.keyCalculations.forEach(calc => {
+        prompt += `\n- ${calc.name}: ${calc.formula} (${calc.description})`;
+      });
+    }
+
+    // Add interaction flow for user experience functions
+    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+      prompt += `
+
+INTERACTION FLOW (Design functions to support this flow):`;
+      brainstorm.interactionFlow.forEach(step => {
+        prompt += `\n${step.step}. ${step.title}: ${step.userAction}`;
+      });
+    }
+
+    // Add creative enhancements for additional functionality
+    if (brainstorm.creativeEnhancements && brainstorm.creativeEnhancements.length > 0) {
+      prompt += `
+
+CREATIVE ENHANCEMENTS TO CONSIDER:`;
+      brainstorm.creativeEnhancements.forEach(enhancement => {
+        prompt += `\n- ${enhancement}`;
+      });
+    }
+  }
+
+  prompt += `
 
 Please provide the JSON array of function signatures as specified in the guidelines.`;
+
+  return prompt;
 }
 
 /**
