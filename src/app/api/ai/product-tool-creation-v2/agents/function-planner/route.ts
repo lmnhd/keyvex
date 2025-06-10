@@ -1,16 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { planFunctionSignatures } from './core-logic';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
+
+// Phase 2: Edit mode schema for validation
+const EditModeContextSchema = z.object({
+  isEditMode: z.boolean(),
+  instructions: z.array(z.object({
+    targetAgent: z.string(),
+    editType: z.enum(['refine', 'replace', 'enhance']),
+    instructions: z.string(),
+    priority: z.enum(['low', 'medium', 'high']),
+    createdAt: z.string()
+  })),
+  context: z.string()
+}).optional();
 
 export async function POST(request: NextRequest) {
   console.log('📋 FunctionPlanner Route: ==================== INCOMING REQUEST ====================');
   console.log('📋 FunctionPlanner Route: Request received at:', new Date().toISOString());
 
   try {
-    const body: { jobId: string; selectedModel?: string, tcc: ToolConstructionContext, mockTcc?: ToolConstructionContext } = await request.json();
+    const body: { 
+      jobId: string; 
+      selectedModel?: string; 
+      tcc: ToolConstructionContext; 
+      mockTcc?: ToolConstructionContext;
+      editMode?: z.infer<typeof EditModeContextSchema>;
+    } = await request.json();
     
-    const { jobId, selectedModel, tcc, mockTcc } = body;
-    const parsedRequest = { jobId, selectedModel, tcc, mockTcc };
+    const { jobId, selectedModel, tcc, mockTcc, editMode } = body;
+    
+    // Phase 2: Validate edit mode context if provided
+    let validatedEditMode: z.infer<typeof EditModeContextSchema> | undefined;
+    if (editMode) {
+      try {
+        validatedEditMode = EditModeContextSchema.parse(editMode);
+        console.log('📋 FunctionPlanner Route: Edit mode validated:', {
+          isEditMode: validatedEditMode?.isEditMode,
+          instructionCount: validatedEditMode?.instructions?.length || 0
+        });
+      } catch (error) {
+        console.error('📋 FunctionPlanner Route: Edit mode validation failed:', error);
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Invalid edit mode context provided' 
+        }, { status: 400 });
+      }
+    }
+    
+    const parsedRequest = { jobId, selectedModel, tcc, mockTcc, editMode: validatedEditMode };
     const isIsolatedTest = !!parsedRequest.mockTcc;
 
     console.log('📋 FunctionPlanner Route: ✅ Request body parsed:', {
@@ -33,7 +72,8 @@ export async function POST(request: NextRequest) {
       selectedModel,
       tcc, // Pass the in-memory TCC
       mockTcc,
-      isIsolatedTest
+      isIsolatedTest,
+      editMode: validatedEditMode
     });
 
     if (result.success && result.updatedTcc) {

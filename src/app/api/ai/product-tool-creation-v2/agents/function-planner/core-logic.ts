@@ -15,6 +15,19 @@ import logger from '@/lib/logger';
 import { getFunctionPlannerSystemPrompt } from '@/lib/prompts/v2/function-planner-prompt';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 
+// Phase 2: Edit mode context type
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
 const functionSignaturesSchema = z.object({
   signatures: z.array(
     z.object({
@@ -36,14 +49,19 @@ export async function planFunctionSignatures(request: {
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
   isIsolatedTest?: boolean;
+  editMode?: EditModeContext;
 }): Promise<{
   success: boolean;
   functionSignatures?: DefinedFunctionSignature[];
   error?: string;
   updatedTcc?: ToolConstructionContext;
 }> {
-  const { jobId, selectedModel, isIsolatedTest = false } = request;
+  const { jobId, selectedModel, isIsolatedTest = false, editMode } = request;
   const tcc = request.mockTcc || request.tcc;
+  
+  // Phase 2: Edit mode detection
+  const isEditMode = editMode?.isEditMode || false;
+  const editInstructions = editMode?.instructions || [];
 
   try {
     logger.info({ jobId }, '🔧 FunctionPlanner: Starting function signature planning');
@@ -69,7 +87,7 @@ export async function planFunctionSignatures(request: {
       logger.info({ jobId }, '🔧 FunctionPlanner: Isolated test mode - skipping progress emission');
     }
 
-    const functionSignatures = await generateFunctionSignatures(tcc, selectedModel, isIsolatedTest);
+    const functionSignatures = await generateFunctionSignatures(tcc, selectedModel, isIsolatedTest, editMode);
 
     const updatedTcc = { ...tcc };
 
@@ -147,7 +165,8 @@ export async function planFunctionSignatures(request: {
 async function generateFunctionSignatures(
   tcc: ToolConstructionContext,
   selectedModel?: string,
-  isIsolatedTest?: boolean
+  isIsolatedTest?: boolean,
+  editMode?: EditModeContext
 ): Promise<DefinedFunctionSignature[]> {
   const primaryModelInfo = getPrimaryModel('functionPlanner');
   if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
@@ -155,7 +174,7 @@ async function generateFunctionSignatures(
   logger.info({ provider: primaryModelInfo.provider, modelName: primaryModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Attempting primary model');
 
   const systemPrompt = getFunctionPlannerSystemPrompt(false);
-  const userPrompt = createUserPrompt(tcc);
+  const userPrompt = createUserPrompt(tcc, editMode);
 
   // Log prompts when in isolated test mode for debugging
   if (isIsolatedTest) {
@@ -215,8 +234,9 @@ async function generateFunctionSignatures(
 /**
  * Creates the user prompt for the function planner based on TCC data
  * Phase 1: Enhanced with brainstorm data integration for richer context
+ * Phase 2: Enhanced with edit mode support for iterative refinement
  */
-function createUserPrompt(tcc: ToolConstructionContext): string {
+function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
   let prompt = `Please analyze this tool description and provide the function signatures needed:
 
 TOOL DESCRIPTION: ${tcc.userInput.description}
@@ -276,6 +296,41 @@ CREATIVE ENHANCEMENTS TO CONSIDER:`;
         prompt += `\n- ${enhancement}`;
       });
     }
+  }
+
+  // Phase 2: Add edit mode context if in edit mode
+  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+    prompt += `
+
+🔄 EDIT MODE INSTRUCTIONS:
+You are EDITING existing function signatures. Here are the current functions:
+
+CURRENT FUNCTION SIGNATURES:`;
+
+    if (tcc.definedFunctionSignatures && tcc.definedFunctionSignatures.length > 0) {
+      tcc.definedFunctionSignatures.forEach(func => {
+        prompt += `\n- ${func.name}: ${func.description}`;
+      });
+    } else {
+      prompt += `\n- No existing function signatures found`;
+    }
+
+    prompt += `
+
+EDIT INSTRUCTIONS TO FOLLOW:`;
+
+    editMode.instructions.forEach((instruction, index) => {
+      prompt += `
+
+${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
+${instruction.instructions}
+
+Created: ${instruction.createdAt}`;
+    });
+
+    prompt += `
+
+Please apply these edit instructions to improve the function signatures. Maintain overall consistency while implementing the requested changes.`;
   }
 
   prompt += `
