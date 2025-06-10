@@ -9,15 +9,26 @@ import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/mo
 import logger from '@/lib/logger';
 
 const assembledComponentSchema = z.object({
-  finalComponentCode: z.string().describe('The complete, single string of final React component code WITHOUT any import statements.'),
-  imports: z.array(z.string()).describe('An empty array - no imports are used since all components are available in execution context.'),
-  hooks: z.array(z.string()).describe('An array of React hooks used in the component (e.g., ["useState", "useEffect"]).'),
-  functions: z.array(z.string()).describe('An array of functions defined within the component.'),
-  metadata: z.object({
-    componentName: z.string().describe('The name of the generated component.'),
-    dependencies: z.array(z.string()).describe('An empty array - no external dependencies needed since components are injected.'),
-    estimatedLines: z.number().describe('An estimate of the total lines of code.'),
-  }),
+  finalComponentCode: z.string()
+    .min(10)
+    .describe('The complete, functional React component code using React.createElement syntax. Must be executable JavaScript without imports or exports.'),
+  componentName: z.string()
+    .min(1)
+    .describe('The name of the generated component (e.g., "BusinessHealthCalculator")'),
+  hooks: z.array(z.string())
+    .optional()
+    .default([])
+    .describe('Array of React hooks used (e.g., ["useState", "useEffect"]). Can be empty.'),
+  functions: z.array(z.string())
+    .optional()
+    .default([])
+    .describe('Array of function names defined in the component. Can be empty.'),
+  estimatedLines: z.number()
+    .int()
+    .min(1)
+    .optional()
+    .default(50)
+    .describe('Estimated number of lines in the component code'),
 });
 
 // Type definitions for component assembly
@@ -251,102 +262,53 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
-  const systemPrompt = `You are an expert React component assembler. Combine the provided layout structure, state logic, and styling into a single, complete, and functional React component.
+  const systemPrompt = `You are a React component assembler. Convert JSX to React.createElement syntax and integrate state logic.
 
-❌ ABSOLUTELY FORBIDDEN - DO NOT DO THESE THINGS:
-- DO NOT include any import statements (import React, import { Button }, etc.)
-- DO NOT include any export statements (export default, export const, etc.)
-- DO NOT import from 'some-ui-library' or any other library
-- DO NOT import react-icons or any external packages
-- DO NOT write: import React, { useState } from 'react';
-- DO NOT write: import { Card, Button } from 'any-library';
-- DO NOT write: export default ComponentName;
-- DO NOT write: export const ComponentName = ...;
-- DO NOT use JSX syntax with < > brackets (e.g., <div>, <Card>, <Button>)
-- DO NOT write JSX like: <Card><CardHeader><CardTitle>Title</CardTitle></CardHeader></Card>
-- DO NOT use TypeScript interface declarations (interface MyProps {})
-- DO NOT use TypeScript type annotations (React.FC<MyProps>, const x: string)
-- DO NOT use generic type parameters (<number>, <string>, etc.)
+🚨 CRITICAL OUTPUT REQUIREMENTS:
+- Return a JSON object with: finalComponentCode, componentName, hooks, functions, estimatedLines
+- finalComponentCode: Complete JavaScript React component using React.createElement() ONLY
+- componentName: Valid JavaScript identifier (e.g., "BusinessCalculator")
+- hooks: Array of hook names used (e.g., ["useState", "useEffect"]) or empty array
+- functions: Array of function names defined or empty array  
+- estimatedLines: Number estimate of code lines
 
-✅ WHAT YOU MUST DO INSTEAD:
-- Generate pure JavaScript code that can execute directly
-- Use ONLY React.createElement() syntax - NO JSX allowed
-- Start the component code directly with the function declaration
-- End the component code with just the function definition - NO export statements
-- Use components directly as if they are globally available
-- All React hooks and ShadCN components are already in scope
+❌ FORBIDDEN:
+- NO import statements
+- NO export statements  
+- NO JSX syntax (<div>, <Button>)
+- NO TypeScript (interface, React.FC, type annotations)
 
-EXECUTION CONTEXT - THESE ARE AVAILABLE WITHOUT IMPORTS:
-React: React (the React object itself)
-Hooks: useState, useEffect, useCallback, useMemo
-UI Components: Card, CardHeader, CardContent, CardTitle, CardDescription, Button, Input, Label, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Textarea, Progress, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, Accordion, AccordionContent, AccordionItem, AccordionTrigger
-Icons: Info, AlertCircle, Loader2
-
-CORRECT COMPONENT STRUCTURE EXAMPLE (Pure JavaScript with React.createElement):
+✅ REQUIRED FORMAT:
 \`\`\`javascript
 'use client';
 
-const Calculator = () => {
-  const [value, setValue] = useState(0);
-
-  return React.createElement(Card, { 'data-style-id': 'calculator-card' }, [
-    React.createElement(CardHeader, { 'data-style-id': 'calculator-header', key: 'header' }, [
-      React.createElement(CardTitle, { 'data-style-id': 'calculator-title', key: 'title' }, 'Calculator')
-    ]),
-    React.createElement(CardContent, { 'data-style-id': 'calculator-content', key: 'content' }, [
-      React.createElement(Button, {
-        onClick: () => setValue(v => v + 1),
-        'data-style-id': 'increment-button',
-        key: 'increment-btn'
-      }, 'Increment')
-    ])
+const ComponentName = () => {
+  const [state, setState] = useState(initialValue);
+  
+  const handleFunction = () => {
+    // logic here
+  };
+  
+  return React.createElement('div', { 
+    className: 'styles',
+    'data-style-id': 'element-id',
+    key: 'unique-key'
+  }, [
+    React.createElement(Card, { key: 'card' }, 'content')
   ]);
 };
-
-// NO EXPORT STATEMENTS - Component will be accessed directly by name
 \`\`\`
 
-CRITICAL REQUIREMENTS:
-1. Create COMPLETE, FUNCTIONAL JavaScript React component code using ONLY React.createElement() calls
-2. Apply ALL styling from the styleMap to correct elements using 'className' prop
-3. Integrate ALL state variables and functions from the state logic
-4. Ensure ALL function signatures from state logic are implemented correctly
-5. Use pure JavaScript without TypeScript syntax
-6. Add 'data-style-id' attributes to ALL React.createElement calls for styling
-7. Add 'key' props to ALL array elements to prevent React warnings
-8. Return a single JSON object that strictly conforms to the provided schema
-9. The finalComponentCode field must contain executable JavaScript React component code
-10. Start with 'use client'; directive for Next.js compatibility
-11. END WITH JUST THE FUNCTION DEFINITION - NO export statements
+AVAILABLE COMPONENTS (use directly):
+React, useState, useEffect, useCallback, useMemo, Card, CardHeader, CardContent, CardTitle, Button, Input, Label, Select, Textarea, AlertCircle, Info, Loader2
 
-CRITICAL FUNCTION ORDERING: Define ALL helper functions (like formatCurrency, validateInputs, etc.) 
-BEFORE any JSX that uses them. JavaScript function declarations are hoisted, but const/arrow 
-functions are NOT hoisted in execution contexts. Structure your component like this:
-
-const ComponentName = () => {
-  // 1. State variables first
-  const [state, setState] = useState(initial);
-  
-  // 2. Helper functions next (before JSX that calls them)
-  const helperFunction = (param) => {
-    // function logic
-  };
-  
-  // 3. Event handlers and main functions
-  const handleEvent = () => {
-    // can call helperFunction safely
-  };
-  
-  // 4. JSX return statement last
-  return React.createElement(...);
-};
-
-REMEMBER: 
-- Generate PURE JAVASCRIPT - No TypeScript interfaces, types, or annotations!
-- No imports allowed - everything is available in execution context!
-- NO JSX SYNTAX - Use React.createElement() only!
-- NO EXPORT STATEMENTS - Component accessed directly by name!
-- Every element needs data-style-id for dynamic styling!`;
+RULES:
+1. Start with 'use client';
+2. Use React.createElement() for ALL elements
+3. Add 'data-style-id' and 'key' props
+4. Apply className from provided styling
+5. Integrate all state logic provided
+6. End with just the function - NO exports`;
 
   // Generate component name with debugging
   const suggestedComponentName = generateComponentName(tcc.userInput.description);
@@ -421,8 +383,10 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
     console.log('='.repeat(80));
     console.log('Component Code:');
     console.log(object.finalComponentCode);
-    console.log('\nImports (should be empty):');
-    console.log(JSON.stringify(object.imports, null, 2));
+    console.log('\nComponent Name:');
+    console.log(object.componentName);
+    console.log('\nHooks:');
+    console.log(JSON.stringify(object.hooks || [], null, 2));
     console.log('='.repeat(80) + '\n');
 
     // Post-process to automatically remove import statements if AI ignored instructions
@@ -450,7 +414,6 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       
       // Update the object
       object.finalComponentCode = finalCode;
-      object.imports = []; // Clear imports array
     }
 
     // Post-process to automatically remove TypeScript syntax if AI ignored instructions
@@ -625,7 +588,22 @@ function getModelForAgent(agentName: string, selectedModel?: string): { provider
  */
 function generateComponentName(userInput: string): string {
   const name = userInput || 'Tool';
-  const cleanedName = name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '');
+  
+  // Handle specific case of "No description provided"
+  if (name.toLowerCase().includes('no description provided') || name.toLowerCase().includes('nodescriptionprovided')) {
+    return 'GeneratedTool';
+  }
+  
+  // Clean the name: remove special chars, handle spaces properly
+  const cleanedName = name
+    .replace(/[^a-zA-Z0-9 ]/g, '') // Remove special characters
+    .split(/\s+/) // Split on whitespace
+    .filter(Boolean) // Remove empty strings
+    .map((word, index) => {
+      // Capitalize first letter of each word
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(''); // Join without spaces for camelCase
   
   // Handle empty/corrupted names
   if (!cleanedName || cleanedName.length === 0) {
@@ -633,10 +611,19 @@ function generateComponentName(userInput: string): string {
   }
   
   // Ensure name starts with a letter (not number)
-  const finalName = cleanedName.charAt(0).toUpperCase() + cleanedName.slice(1);
+  let finalName = cleanedName;
+  if (/^[0-9]/.test(finalName)) {
+    finalName = 'Tool' + finalName;
+  }
   
   // Additional safety check - ensure it's a valid JavaScript identifier
   if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(finalName)) {
+    logger.warn({ 
+      originalUserInput: userInput,
+      cleanedName,
+      finalName,
+      reason: 'Invalid JavaScript identifier, using fallback'
+    }, '🔧 ComponentAssembler: Component name validation failed');
     return 'GeneratedTool';
   }
   
@@ -675,63 +662,88 @@ function generateFallbackComponent(tcc: ToolConstructionContext): AssembledCompo
   const timestamp = new Date().toISOString();
   
   return {
-    finalComponentCode: `interface ${componentName}Props {}
+    finalComponentCode: `'use client';
 
-const ${componentName}: React.FC<${componentName}Props> = () => {
-  return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <Card className="border-red-500 bg-red-50">
-        <CardHeader className="bg-red-100 border-b border-red-200">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="h-6 w-6 text-red-600" />
-            <CardTitle className="text-red-800">🚨 COMPONENT GENERATION FAILED</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="bg-red-100 border border-red-300 rounded-lg p-4">
-            <h3 className="font-semibold text-red-800 mb-2">ERROR: AI Component Assembly Failed</h3>
-            <p className="text-red-700 text-sm mb-2">
-              The AI model failed to generate the component code. This is a fallback error component.
-            </p>
-            <p className="text-red-600 text-xs">
-              Timestamp: ${timestamp}
-            </p>
-          </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium text-red-800">Requested Tool:</h4>
-            <p className="text-sm text-red-700">${tcc.userInput.description}</p>
-          </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium text-red-800">What to do:</h4>
-            <ul className="text-sm text-red-700 space-y-1 list-disc list-inside">
-              <li>Try regenerating the tool</li>
-              <li>Check if the AI service is available</li>
-              <li>Simplify your tool description</li>
-              <li>Contact support if the issue persists</li>
-            </ul>
-          </div>
-          
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
-            <p className="text-yellow-800 text-xs font-medium">
-              ⚠️ This is a system-generated fallback component indicating an error in the AI generation process.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-export default ${componentName};`,
-    imports: [], // No imports - all components are available in execution context
+const ${componentName} = () => {
+  return React.createElement('div', { 
+    className: 'p-8 max-w-2xl mx-auto',
+    'data-style-id': 'error-container'
+  }, [
+    React.createElement(Card, { 
+      className: 'border-red-500 bg-red-50',
+      'data-style-id': 'error-card',
+      key: 'error-card'
+    }, [
+      React.createElement(CardHeader, { 
+        className: 'bg-red-100 border-b border-red-200',
+        'data-style-id': 'error-header',
+        key: 'header'
+      }, [
+        React.createElement('div', { 
+          className: 'flex items-center space-x-2',
+          key: 'header-content'
+        }, [
+          React.createElement(AlertCircle, { 
+            className: 'h-6 w-6 text-red-600',
+            key: 'icon'
+          }),
+          React.createElement(CardTitle, { 
+            className: 'text-red-800',
+            key: 'title'
+          }, '🚨 COMPONENT GENERATION FAILED')
+        ])
+      ]),
+      React.createElement(CardContent, { 
+        className: 'p-6 space-y-4',
+        'data-style-id': 'error-content',
+        key: 'content'
+      }, [
+        React.createElement('div', { 
+          className: 'bg-red-100 border border-red-300 rounded-lg p-4',
+          key: 'error-details'
+        }, [
+          React.createElement('h3', { 
+            className: 'font-semibold text-red-800 mb-2',
+            key: 'error-title'
+          }, 'ERROR: AI Component Assembly Failed'),
+          React.createElement('p', { 
+            className: 'text-red-700 text-sm mb-2',
+            key: 'error-description'
+          }, 'The AI model failed to generate the component code. This is a fallback error component.'),
+          React.createElement('p', { 
+            className: 'text-red-600 text-xs',
+            key: 'timestamp'
+          }, 'Timestamp: ${timestamp}')
+        ]),
+        React.createElement('div', { 
+          className: 'space-y-2',
+          key: 'tool-info'
+        }, [
+          React.createElement('h4', { 
+            className: 'font-medium text-red-800',
+            key: 'tool-title'
+          }, 'Requested Tool:'),
+          React.createElement('p', { 
+            className: 'text-sm text-red-700',
+            key: 'tool-description'
+          }, '${tcc.userInput.description}')
+        ]),
+        React.createElement('div', { 
+          className: 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded',
+          key: 'warning'
+        }, [
+          React.createElement('p', { 
+            className: 'text-yellow-800 text-xs font-medium',
+            key: 'warning-text'
+          }, '⚠️ This is a system-generated fallback component indicating an error in the AI generation process.')
+        ])
+      ])
+    ])
+  ]);
+};`,
+    componentName: `${componentName}_ERROR_FALLBACK`,
     hooks: [],
     functions: [],
-    metadata: {
-      componentName: `${componentName}_ERROR_FALLBACK`,
-      dependencies: [], // No external dependencies needed
-      estimatedLines: 45
-    }
+    estimatedLines: 45
   };
 } 
