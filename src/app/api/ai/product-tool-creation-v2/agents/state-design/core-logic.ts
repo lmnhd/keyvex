@@ -78,19 +78,37 @@ function createModelInstance(provider: string, modelId: string) {
  * This function is a pure, testable unit of logic that takes a TCC,
  * performs state design, and returns an updated TCC without side effects.
  */
+// Phase 2: Edit mode context type
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
 export async function designStateLogic(request: {
   jobId: string;
   selectedModel?: string;
   tcc?: ToolConstructionContext;
   mockTcc?: ToolConstructionContext;
+  editMode?: EditModeContext;
 }): Promise<{
   success: boolean;
   stateLogic?: StateLogicResult;
   error?: string;
   updatedTcc?: ToolConstructionContext; // Return the updated TCC
-}> {
-  const { jobId, selectedModel } = request;
+  }> {
+  const { jobId, selectedModel, editMode } = request;
   const tcc = request.mockTcc || request.tcc;
+  
+  // Phase 2: Edit mode detection
+  const isEditMode = editMode?.isEditMode || false;
+  const editInstructions = editMode?.instructions || [];
 
   logger.info({ jobId }, '🎯 StateDesign: Starting state logic design');
 
@@ -110,7 +128,7 @@ export async function designStateLogic(request: {
     );
 
     logger.info({ jobId }, '🎯 StateDesign: Calling AI to generate state logic...');
-    const stateLogic = await generateStateLogic(tcc, selectedModel);
+    const stateLogic = await generateStateLogic(tcc, selectedModel, editMode);
     logger.info({ jobId }, '🎯 StateDesign: AI generated state logic successfully');
 
     // Convert to TCC-compatible format
@@ -190,7 +208,7 @@ export async function designStateLogic(request: {
 /**
  * Generate state logic using AI
  */
-async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: string): Promise<StateLogicResult> {
+async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: string, editMode?: EditModeContext): Promise<StateLogicResult> {
   // Model selection logic (same pattern as JSX agent)
   let modelConfig: { provider: string; modelId: string };
   let actualModelName: string;
@@ -255,11 +273,85 @@ Return structured JSON with:
   "hooks": ["..."]
 }`;
 
-  const userPrompt = `Tool: ${tcc.userInput}
+  let userPrompt = `Tool: ${tcc.userInput?.description || 'No description provided.'}
 Target Audience: ${tcc.targetAudience || 'General users'}
 
 Function Signatures to Implement:
-${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => `- ${sig.name}: ${sig.description}`).join('\n') || 'None'}
+${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => `- ${sig.name}: ${sig.description}`).join('\n') || 'None'}`;
+
+  // Phase 1: Inject rich brainstorm context for enhanced state design
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    
+    userPrompt += `
+
+DETAILED BRAINSTORM CONTEXT (Use this to design appropriate state management):
+
+CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
+
+VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
+
+    // Add suggested inputs for state variable structure
+    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
+      userPrompt += `
+
+SUGGESTED INPUT FIELDS (Design state variables to capture these inputs):`;
+      brainstorm.suggestedInputs.forEach(input => {
+        userPrompt += `\n- ${input.label} (${input.type}): ${input.description}`;
+      });
+    }
+
+    // Add key calculations for state and function design
+    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+      userPrompt += `
+
+KEY CALCULATIONS (Design state management to support these calculations):`;
+      brainstorm.keyCalculations.forEach(calc => {
+        userPrompt += `\n- ${calc.name}: ${calc.description}`;
+      });
+    }
+
+    // Add calculation logic for implementation guidance
+    if (brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0) {
+      userPrompt += `
+
+CALCULATION LOGIC (Implement these specific formulas in state functions):`;
+      brainstorm.calculationLogic.forEach(logic => {
+        userPrompt += `\n- ${logic.name}: ${logic.formula}`;
+      });
+    }
+  }
+
+  // Phase 2: Add edit mode context if in edit mode
+  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+    userPrompt += `
+
+🔄 EDIT MODE INSTRUCTIONS:
+You are EDITING existing state logic. Here is the current state:
+
+CURRENT STATE VARIABLES:
+${tcc.stateLogic?.variables?.map(v => `- ${v.name} (${v.type}): ${v.description}`).join('\n') || 'No existing state variables'}
+
+CURRENT FUNCTIONS:
+${tcc.stateLogic?.functions?.map(f => `- ${f.name}: ${f.description}`).join('\n') || 'No existing functions'}
+
+EDIT INSTRUCTIONS TO FOLLOW:`;
+
+    editMode.instructions.forEach((instruction, index) => {
+      userPrompt += `
+
+${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
+${instruction.instructions}
+
+Created: ${instruction.createdAt}`;
+    });
+
+    userPrompt += `
+
+Please apply these edit instructions to improve the state logic. Maintain existing functionality where appropriate but implement the requested changes.`;
+  }
+
+userPrompt += `
 
 Design React state variables and function implementations for this tool.`;
 

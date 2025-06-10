@@ -2,13 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 import { designStateLogic } from './core-logic';
 import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
+
+// Phase 2: Edit mode schema for agents
+const EditModeContextSchema = z.object({
+  isEditMode: z.boolean(),
+  instructions: z.array(z.object({
+    targetAgent: z.string(),
+    editType: z.enum(['refine', 'replace', 'enhance']),
+    instructions: z.string(),
+    priority: z.enum(['low', 'medium', 'high']),
+    createdAt: z.string(),
+  })),
+  context: z.string(),
+});
+
+const StateDesignRequestSchema = z.object({
+  jobId: z.string(),
+  selectedModel: z.string().optional(),
+  tcc: z.custom<ToolConstructionContext>().optional(),
+  mockTcc: z.custom<ToolConstructionContext>().optional(),
+  editMode: EditModeContextSchema.optional(),
+});
 
 export async function POST(request: NextRequest) {
   logger.info('🎯 StateDesign Route: Route handler started');
   
   try {
-    const body: { jobId: string; selectedModel?: string; tcc?: ToolConstructionContext; mockTcc?: ToolConstructionContext; } = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc } = body;
+    const body = await request.json();
+    const { jobId, selectedModel, tcc, mockTcc, editMode } = StateDesignRequestSchema.parse(body);
 
     if (!jobId || (!tcc && !mockTcc)) {
       return NextResponse.json(
@@ -16,12 +38,24 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Phase 2: Edit mode detection
+    const isEditMode = editMode?.isEditMode || false;
+    const editInstructions = editMode?.instructions || [];
+
+    logger.info({ 
+      jobId, 
+      selectedModel,
+      isEditMode,
+      editInstructionsCount: editInstructions.length
+    }, '🎯 StateDesign Route: Request received');
     
-    // Call the pure core logic function
+    // Call the pure core logic function with edit mode context
     const result = await designStateLogic({
       jobId,
       selectedModel,
       tcc: mockTcc || tcc,
+      editMode,
     });
 
     if (!result.success || !result.updatedTcc) {
