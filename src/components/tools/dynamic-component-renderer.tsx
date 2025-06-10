@@ -415,38 +415,38 @@ export default function DynamicComponentRenderer({
         `
         "use strict";
         try {
-          ${componentCode}
+          // Wrap the component code in an IIFE to preserve scope and directly return the component
+          return (function() {
+            ${componentCode}
+            
+            // Find the main component function using regex for both arrow functions and function declarations
+            const arrowFunctionPattern = /const\\s+(\\w+)\\s*=\\s*\\([^)]*\\)\\s*=>\\s*\\{/;
+            const functionDeclarationPattern = /function\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{/;
+            
+            const codeToCheck = \`${componentCode.replace(/`/g, '\\`')}\`;
+            const arrowMatch = codeToCheck.match(arrowFunctionPattern);
+            const funcMatch = codeToCheck.match(functionDeclarationPattern);
+            
+            const match = arrowMatch || funcMatch;
+            
+            if (!match || !match[1]) {
+              throw new Error('No valid React component function found - no function declaration or arrow function detected');
+            }
+            
+            const componentName = match[1];
+            console.log('🔍 TRACE: Found component function name:', componentName);
+            
+            // Return the component function using eval within the same scope
+            const componentFunc = eval(componentName);
+            
+            if (typeof componentFunc !== 'function') {
+              throw new Error('No valid React component function found - "' + componentName + '" is not a function');
+            }
+            
+            console.log('🔍 TRACE: Successfully extracted component function:', componentName);
+            return componentFunc;
+          })();
           
-          // Find the main component function using regex for both arrow functions and function declarations
-          const arrowFunctionPattern = /const\\s+(\\w+)\\s*=\\s*\\([^)]*\\)\\s*=>\\s*\\{/;
-          const functionDeclarationPattern = /function\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{/;
-          
-          const arrowMatch = \`${componentCode.replace(/`/g, '\\`')}\`.match(arrowFunctionPattern);
-          const funcMatch = \`${componentCode.replace(/`/g, '\\`')}\`.match(functionDeclarationPattern);
-          
-          const match = arrowMatch || funcMatch;
-          
-          if (!match || !match[1]) {
-            throw new Error('No valid React component function found - no function declaration or arrow function detected');
-          }
-          
-          const componentName = match[1];
-          console.log('🔍 TRACE: Found component function name:', componentName);
-          
-          // Try to get the component function
-          let componentFunc;
-          try {
-            componentFunc = eval(componentName);
-          } catch (evalError) {
-            throw new Error('No valid React component function found - function "' + componentName + '" is not accessible: ' + evalError.message);
-          }
-          
-          if (typeof componentFunc !== 'function') {
-            throw new Error('No valid React component function found - "' + componentName + '" is not a function');
-          }
-          
-          console.log('🔍 TRACE: Successfully extracted component function:', componentName);
-          return componentFunc;
         } catch (error) {
           console.error('🔍 TRACE: Component extraction error:', error);
           return () => React.createElement('div', {
