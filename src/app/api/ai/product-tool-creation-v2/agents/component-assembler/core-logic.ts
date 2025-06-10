@@ -193,16 +193,24 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
 
 ❌ ABSOLUTELY FORBIDDEN - DO NOT DO THESE THINGS:
 - DO NOT include any import statements (import React, import { Button }, etc.)
+- DO NOT include any export statements (export default, export const, etc.)
 - DO NOT import from 'some-ui-library' or any other library
 - DO NOT import react-icons or any external packages
 - DO NOT write: import React, { useState } from 'react';
 - DO NOT write: import { Card, Button } from 'any-library';
+- DO NOT write: export default ComponentName;
+- DO NOT write: export const ComponentName = ...;
 - DO NOT use JSX syntax with < > brackets (e.g., <div>, <Card>, <Button>)
 - DO NOT write JSX like: <Card><CardHeader><CardTitle>Title</CardTitle></CardHeader></Card>
+- DO NOT use TypeScript interface declarations (interface MyProps {})
+- DO NOT use TypeScript type annotations (React.FC<MyProps>, const x: string)
+- DO NOT use generic type parameters (<number>, <string>, etc.)
 
 ✅ WHAT YOU MUST DO INSTEAD:
+- Generate pure JavaScript code that can execute directly
 - Use ONLY React.createElement() syntax - NO JSX allowed
-- Start the component code directly with interface definitions
+- Start the component code directly with the function declaration
+- End the component code with just the function definition - NO export statements
 - Use components directly as if they are globally available
 - All React hooks and ShadCN components are already in scope
 
@@ -212,11 +220,11 @@ Hooks: useState, useEffect, useCallback, useMemo
 UI Components: Card, CardHeader, CardContent, CardTitle, CardDescription, Button, Input, Label, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, Textarea, Progress, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, Accordion, AccordionContent, AccordionItem, AccordionTrigger
 Icons: Info, AlertCircle, Loader2
 
-CORRECT COMPONENT STRUCTURE EXAMPLE (React.createElement ONLY):
-\`\`\`typescript
-interface CalculatorProps {}
+CORRECT COMPONENT STRUCTURE EXAMPLE (Pure JavaScript with React.createElement):
+\`\`\`javascript
+'use client';
 
-const Calculator: React.FC<CalculatorProps> = () => {
+const Calculator = () => {
   const [value, setValue] = useState(0);
 
   return React.createElement(Card, { 'data-style-id': 'calculator-card' }, [
@@ -233,23 +241,49 @@ const Calculator: React.FC<CalculatorProps> = () => {
   ]);
 };
 
-export default Calculator;
+// NO EXPORT STATEMENTS - Component will be accessed directly by name
 \`\`\`
 
 CRITICAL REQUIREMENTS:
-1. Create COMPLETE, FUNCTIONAL React component code using ONLY React.createElement() calls
+1. Create COMPLETE, FUNCTIONAL JavaScript React component code using ONLY React.createElement() calls
 2. Apply ALL styling from the styleMap to correct elements using 'className' prop
 3. Integrate ALL state variables and functions from the state logic
 4. Ensure ALL function signatures from state logic are implemented correctly
-5. Use TypeScript with proper types for props, state, and event handlers
+5. Use pure JavaScript without TypeScript syntax
 6. Add 'data-style-id' attributes to ALL React.createElement calls for styling
 7. Add 'key' props to ALL array elements to prevent React warnings
 8. Return a single JSON object that strictly conforms to the provided schema
-9. The finalComponentCode field must contain executable React component code
+9. The finalComponentCode field must contain executable JavaScript React component code
+10. Start with 'use client'; directive for Next.js compatibility
+11. END WITH JUST THE FUNCTION DEFINITION - NO export statements
+
+CRITICAL FUNCTION ORDERING: Define ALL helper functions (like formatCurrency, validateInputs, etc.) 
+BEFORE any JSX that uses them. JavaScript function declarations are hoisted, but const/arrow 
+functions are NOT hoisted in execution contexts. Structure your component like this:
+
+const ComponentName = () => {
+  // 1. State variables first
+  const [state, setState] = useState(initial);
+  
+  // 2. Helper functions next (before JSX that calls them)
+  const helperFunction = (param) => {
+    // function logic
+  };
+  
+  // 3. Event handlers and main functions
+  const handleEvent = () => {
+    // can call helperFunction safely
+  };
+  
+  // 4. JSX return statement last
+  return React.createElement(...);
+};
 
 REMEMBER: 
+- Generate PURE JAVASCRIPT - No TypeScript interfaces, types, or annotations!
 - No imports allowed - everything is available in execution context!
 - NO JSX SYNTAX - Use React.createElement() only!
+- NO EXPORT STATEMENTS - Component accessed directly by name!
 - Every element needs data-style-id for dynamic styling!`;
 
   // Generate component name with debugging
@@ -356,6 +390,97 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       object.finalComponentCode = finalCode;
       object.imports = []; // Clear imports array
     }
+
+    // Post-process to automatically remove TypeScript syntax if AI ignored instructions
+    const hasTypeScriptSyntax = finalCode.includes('interface ') || finalCode.includes(': React.FC') || finalCode.includes('<string>') || finalCode.includes('<number>');
+    
+    if (hasTypeScriptSyntax) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        provider,
+        modelId
+      }, '🔧 ComponentAssembler: ⚠️ AI generated TypeScript syntax despite instructions! Auto-removing...');
+      
+      // Strip TypeScript syntax
+      let strippedCode = finalCode;
+      
+      // Remove interface declarations entirely
+      strippedCode = strippedCode.replace(/interface\s+\w+\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g, '');
+      
+      // Remove React.FC type annotations
+      strippedCode = strippedCode.replace(/:\s*React\.FC\s*<[^>]*>/g, '');
+      strippedCode = strippedCode.replace(/:\s*FC\s*<[^>]*>/g, '');
+      
+      // Remove type annotations from function parameters
+      strippedCode = strippedCode.replace(/(\w+)\s*:\s*[^,)=]+/g, '$1');
+      
+      // Remove generic type parameters
+      strippedCode = strippedCode.replace(/<[^<>]*(?:<[^<>]*>[^<>]*)*>/g, '');
+      
+      // Clean up any double spaces or empty lines
+      strippedCode = strippedCode
+        .replace(/\n\s*\n\s*\n/g, '\n\n')
+        .replace(/  +/g, ' ')
+        .trim();
+      
+      finalCode = strippedCode;
+      
+      console.log('\n' + '🔧'.repeat(40));
+      console.log('🔧 ComponentAssembler: FIXED - Removed TypeScript syntax:');
+      console.log('🔧'.repeat(40));
+      console.log('JAVASCRIPT CODE:');
+      console.log(finalCode);
+      console.log('🔧'.repeat(40) + '\n');
+      
+      // Update the object
+      object.finalComponentCode = finalCode;
+    }
+
+    // Post-process to automatically remove export statements if AI ignored instructions
+    const hasExportStatements = finalCode.includes('export ');
+    
+    if (hasExportStatements) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        provider,
+        modelId
+      }, '🔧 ComponentAssembler: ⚠️ AI generated export statements despite instructions! Auto-removing...');
+      
+      // Strip export statements
+      let cleanedCode = finalCode;
+      
+      // Remove export default statements
+      cleanedCode = cleanedCode.replace(/export\s+default\s+\w+\s*;?\s*$/gm, '');
+      
+      // Remove export const/let/var statements
+      cleanedCode = cleanedCode.replace(/export\s+(const|let|var)\s+/g, '$1 ');
+      
+      // Remove standalone export statements
+      cleanedCode = cleanedCode.replace(/export\s*\{[^}]*\}\s*;?\s*$/gm, '');
+      
+      // Clean up any trailing empty lines
+      cleanedCode = cleanedCode.replace(/\n\s*\n\s*$/g, '\n').trim();
+      
+      finalCode = cleanedCode;
+      
+      console.log('\n' + '🚫'.repeat(40));
+      console.log('🔧 ComponentAssembler: FIXED - Removed export statements:');
+      console.log('🚫'.repeat(40));
+      console.log('CLEANED CODE:');
+      console.log(finalCode);
+      console.log('🚫'.repeat(40) + '\n');
+      
+      // Update the object
+      object.finalComponentCode = finalCode;
+    }
+
+    // Log final code length and imports check for debugging
+    logger.info({
+      jobId: tcc.jobId,
+      assembledCodeLength: finalCode.length,
+      hasImportsInFinalCode: finalCode.includes('import '),
+      hasExportsInFinalCode: finalCode.includes('export '),
+    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
 
     return object;
   } catch (error) {

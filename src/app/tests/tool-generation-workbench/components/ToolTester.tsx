@@ -1396,6 +1396,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
               isLoading || 
               loadMode === 'load' || 
               !selectedBrainstormId ||
+              (workflowMode === 'v2' && testJob?.status === 'loading') ||
               (workflowMode === 'v1' && selectedModelIds.length === 0) ||
               (workflowMode === 'debug' && (
                 !selectedAgent || 

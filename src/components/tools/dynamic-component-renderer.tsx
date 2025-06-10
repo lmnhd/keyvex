@@ -397,12 +397,17 @@ export default function DynamicComponentRenderer({
         try {
           ${componentCode}
           
-          // Find the main component function using regex
-          const functionPattern = /function\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{/;
-          const match = \`${componentCode.replace(/`/g, '\\`')}\`.match(functionPattern);
+          // Find the main component function using regex for both arrow functions and function declarations
+          const arrowFunctionPattern = /const\\s+(\\w+)\\s*=\\s*\\([^)]*\\)\\s*=>\\s*\\{/;
+          const functionDeclarationPattern = /function\\s+(\\w+)\\s*\\([^)]*\\)\\s*\\{/;
+          
+          const arrowMatch = \`${componentCode.replace(/`/g, '\\`')}\`.match(arrowFunctionPattern);
+          const funcMatch = \`${componentCode.replace(/`/g, '\\`')}\`.match(functionDeclarationPattern);
+          
+          const match = arrowMatch || funcMatch;
           
           if (!match || !match[1]) {
-            throw new Error('No valid React component function found - no function declaration detected');
+            throw new Error('No valid React component function found - no function declaration or arrow function detected');
           }
           
           const componentName = match[1];

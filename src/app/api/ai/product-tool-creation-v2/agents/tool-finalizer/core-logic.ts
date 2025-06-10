@@ -136,9 +136,48 @@ export async function finalizeTool(request: {
       aiResult.cleanedCode = finalCleanedCode;
     }
 
+    // Post-process to automatically remove export statements if AI ignored instructions
+    const hasExports = finalCleanedCode.includes('export ');
+    
+    if (hasExports) {
+      logger.warn({
+        jobId,
+        provider,
+        modelId
+      }, '📦 ToolFinalizer: ⚠️ AI generated export statements despite instructions! Auto-removing...');
+      
+      // Strip export statements
+      let cleanedCode = finalCleanedCode;
+      
+      // Remove export default statements
+      cleanedCode = cleanedCode.replace(/export\s+default\s+\w+\s*;?\s*$/gm, '');
+      
+      // Remove export const/let/var statements
+      cleanedCode = cleanedCode.replace(/export\s+(const|let|var)\s+/g, '$1 ');
+      
+      // Remove standalone export statements
+      cleanedCode = cleanedCode.replace(/export\s*\{[^}]*\}\s*;?\s*$/gm, '');
+      
+      // Clean up any trailing empty lines
+      cleanedCode = cleanedCode.replace(/\n\s*\n\s*$/g, '\n').trim();
+      
+      finalCleanedCode = cleanedCode;
+      
+      console.log('\n' + '🚫'.repeat(40));
+      console.log('📦 ToolFinalizer: FIXED - Removed export statements:');
+      console.log('🚫'.repeat(40));
+      console.log('CLEANED CODE:');
+      console.log(finalCleanedCode);
+      console.log('🚫'.repeat(40) + '\n');
+      
+      // Update the aiResult
+      aiResult.cleanedCode = finalCleanedCode;
+    }
+
     logger.info({ 
       jobId, 
       hasImports: hasImports,
+      hasExports: hasExports,
       finalCodeLength: finalCleanedCode.length,
       provider, 
       modelId 
@@ -257,8 +296,11 @@ function getSystemPrompt(): string {
 You will be given the complete context, including the assembled component code, validation results, and user requirements.
 Your job is to review all inputs, clean up the provided component code, and then generate the metadata needed to create a final, production-ready tool definition.
 
-CRITICAL: The component code should NOT include any import statements. All dependencies are injected at runtime. 
-Only clean up syntax, formatting, and logic issues - DO NOT add import statements.
+CRITICAL: The component code should NOT include any import statements OR export statements. All dependencies are injected at runtime.
+- DO NOT add import statements (import React, import Button, etc.)
+- DO NOT add export statements (export default, export const, etc.)
+- The component will be accessed directly by name in the execution context
+- Only clean up syntax, formatting, and logic issues - DO NOT add import/export statements
 
 Provide the final object exactly as specified in the schema. Do not add any extra fields. Focus on providing high-quality, concise, and accurate content for each field.`;
 }
@@ -281,10 +323,10 @@ ${tcc.assembledComponentCode}
 ${JSON.stringify(tcc.validationResult, null, 2)}
 
 **Your Task:**
-1.  **Review and Clean:** Review the assembled code and validation results. Make any minor corrections needed for syntax, formatting, and logic issues to ensure it is production-ready. DO NOT add import statements - all dependencies are injected at runtime.
+1.  **Review and Clean:** Review the assembled code and validation results. Make any minor corrections needed for syntax, formatting, and logic issues to ensure it is production-ready. DO NOT add import statements or export statements - all dependencies are injected at runtime and the component is accessed directly by name.
 2.  **Create Final Metadata:** Based on all the information, create the final metadata object with the following fields:
     - \`title\`: A great title for the tool.
-    - \`cleanedCode\`: The final, corrected, and production-ready component code WITHOUT import statements.
+    - \`cleanedCode\`: The final, corrected, and production-ready component code WITHOUT import statements or export statements.
     - \`dependencies\`: A list of any NPM package dependencies required.
     - \`userInstructions\`: Brief instructions for the end-user.
     - \`developerNotes\`: Technical notes for a developer.
