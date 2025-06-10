@@ -512,6 +512,13 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           return;
         }
         sourceTcc = selectedScenario.tcc;
+        
+        // Phase 3.1: Log mock scenario TCC data for verification
+        addWSLog(`🎭 Using mock scenario: ${selectedScenario.name}`);
+        addWSLog(`📊 Mock TCC includes brainstorm data: ${!!sourceTcc.brainstormData}`);
+        if (sourceTcc.brainstormData) {
+          addWSLog(`📋 Mock brainstorm keys: ${Object.keys(sourceTcc.brainstormData).join(', ')}`);
+        }
       } else { // tccSource === 'savedV2Job'
         const selectedJob = savedV2Jobs.find(j => j.id === selectedDebugTccJobId);
         if (!selectedJob) {
@@ -520,6 +527,26 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           return;
         }
         sourceTcc = selectedJob.toolConstructionContext;
+        
+        // Phase 3.1: Enhanced logging for saved V2 job TCC validation
+        addWSLog(`💾 Using saved V2 job: ${selectedJob.id}`);
+        addWSLog(`📊 V2 TCC includes brainstorm data: ${!!sourceTcc?.brainstormData}`);
+        addWSLog(`🔍 V2 TCC structure keys: ${sourceTcc ? Object.keys(sourceTcc).slice(0, 10).join(', ') : 'N/A'}`);
+        
+        if (sourceTcc?.brainstormData) {
+          addWSLog(`📋 V2 brainstorm keys: ${Object.keys(sourceTcc.brainstormData).join(', ')}`);
+        } else {
+          addWSLog(`⚠️ V2 job missing brainstorm data - agent may have limited context`);
+        }
+        
+        // Ensure TCC has required fields for agents
+        if (!sourceTcc?.agentModelMapping) {
+          addWSLog(`⚠️ V2 TCC missing agentModelMapping - using current agent mapping`);
+          sourceTcc = {
+            ...sourceTcc,
+            agentModelMapping: agentModelMapping
+          };
+        }
       }
 
       const agentToRun = selectedAgent;
