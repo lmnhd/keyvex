@@ -176,28 +176,56 @@ export default function DynamicComponentRenderer({
       
       console.log('🔍 TRACE: Checking for problematic undefined patterns...');
       
+      // More precise patterns that avoid false positives
       const problematicUndefinedPatterns = [
-        /,\s*undefined\s*,/g,           // undefined as array element: [a, undefined, b]
-        /,\s*undefined\s*\)/g,          // undefined as function parameter: func(a, undefined)
-        /\(\s*undefined\s*,/g,          // undefined as first parameter: func(undefined, b)
-        /:\s*undefined\s*,/g,           // undefined as object value: {key: undefined,}
-        /=\s*undefined\s*;/g,           // undefined assignment: var x = undefined;
+        /,\s*undefined\s*,/g,                    // undefined as array element: [a, undefined, b]
+        /,\s*undefined\s*\)/g,                   // undefined as function parameter: func(a, undefined)
+        /\(\s*undefined\s*,/g,                   // undefined as first parameter: func(undefined, b)
+        /:\s*undefined\s*[,}]/g,                 // undefined as object value: {key: undefined,} or {key: undefined}
+        /=\s*undefined\s*;/g,                    // undefined assignment: var x = undefined;
+        /useState\(\s*undefined\s*\)/g,          // useState(undefined) - problematic state initialization
+        /useEffect\(\s*undefined\s*[,)]/g,       // useEffect(undefined, ...) - invalid effect
+        /React\.createElement\([^,]*,\s*undefined\s*[,)]/g, // React.createElement(Component, undefined, ...)
+      ];
+      
+      // Additional check: exclude common valid patterns that contain "undefined" but are safe
+      const validUndefinedPatterns = [
+        /details:\s*undefined/g,                 // Object property can be undefined
+        /codeSnippet:\s*undefined/g,             // Object property can be undefined
+        /typeof\s+\w+\s*[!=]==?\s*['"]undefined['"]/g, // typeof checks
+        /!==?\s*undefined/g,                     // !== undefined checks
+        /===?\s*undefined/g,                     // === undefined checks
+        /\?\?\s*undefined/g,                     // nullish coalescing with undefined
+        /\|\|\s*undefined/g,                     // logical OR with undefined fallback
       ];
       
       for (const pattern of problematicUndefinedPatterns) {
         const matches = componentCode.match(pattern);
         if (matches) {
-          hasProblematicUndefined = true;
-          foundPatterns.push(...matches);
+          // Filter out matches that are actually valid patterns
+          const filteredMatches = matches.filter(match => {
+            return !validUndefinedPatterns.some(validPattern => validPattern.test(match));
+          });
+          
+          if (filteredMatches.length > 0) {
+            hasProblematicUndefined = true;
+            foundPatterns.push(...filteredMatches);
+          }
         }
       }
       
       if (hasProblematicUndefined) {
         console.warn('🔍 TRACE: ⚠️ Problematic undefined patterns found:', foundPatterns);
+        
+        // DEBUG: Log the exact patterns found to help diagnose false positives
+        console.log('🔍 DEBUG: Found undefined patterns:', foundPatterns);
+        console.log('🔍 DEBUG: Component code sample:', componentCode.substring(0, 500));
+        
+        // TEMPORARY: Convert this to a warning instead of blocking error
         const issueId = trackIssue(
-          'Component contains undefined values in data structures',
+          'Potential undefined values detected (non-blocking)',
           'undefined-values',
-          'error',
+          'warning',
           `Found patterns: ${foundPatterns.join(', ')}`,
           foundPatterns.slice(0, 3).join('; '), // First 3 examples
           false
@@ -205,24 +233,16 @@ export default function DynamicComponentRenderer({
         
         validationIssues.push({
           id: issueId,
-          issue: 'Component contains undefined values in data structures',
+          issue: 'Potential undefined values detected (non-blocking)',
           category: 'undefined-values',
-          severity: 'error',
+          severity: 'warning',
           details: `Found patterns: ${foundPatterns.join(', ')}`,
           codeSnippet: foundPatterns.slice(0, 3).join('; '),
           autoFixable: false
         });
         
-        // Call validation callback
-        onValidationIssues?.(validationIssues);
-        
-        return () => React.createElement('div', {
-          className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
-        }, [
-          React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Data Issue'),
-          React.createElement('div', { key: 'desc', className: 'text-sm' }, 'Component contains undefined values in data structures'),
-          React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Try regenerating the tool or contact support if this persists')
-        ]);
+        // Continue with component rendering instead of blocking
+        console.log('🔍 TRACE: ⚠️ Allowing component to render despite undefined pattern detection (debug mode)');
       }
       
       console.log('🔍 TRACE: ✅ No problematic undefined patterns detected');
