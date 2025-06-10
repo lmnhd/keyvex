@@ -519,7 +519,7 @@ Please generate the complete JSON object for the JSX layout.`;
       system: systemPrompt,
       prompt: userPrompt,
       temperature: 0.2,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
     logger.info({}, '🏗️ JSXLayout: AI FIRST - Using AI generated object');
     return jsxLayout;
