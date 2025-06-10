@@ -266,3 +266,6 @@ export interface BrainstormData {
     }
   ];
   
+  // Phase 3.2: Add agent mode for create/edit toggle
+  export type AgentMode = 'create' | 'edit';
+  

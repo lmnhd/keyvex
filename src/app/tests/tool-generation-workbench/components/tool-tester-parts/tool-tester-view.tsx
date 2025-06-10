@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { BrainstormData, WorkflowMode, ModelOption, AgentModelMapping, OrchestrationStatus, TccSource } from './tool-tester-types';
+import { BrainstormData, WorkflowMode, ModelOption, AgentModelMapping, OrchestrationStatus, TccSource, AgentMode } from './tool-tester-types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { getScenariosForAgent } from '@/lib/testing/mock-tcc-scenarios';
 import { ToolCreationJob } from '../tool-tester-core-logic';
@@ -79,6 +79,8 @@ export default function ToolTesterView({
     connectionStatus,
     wsDebugInfo,
     handleSaveTool,
+    agentMode,
+    setAgentMode,
 }: {
     testJob: ToolCreationJob | null;
     getConnectionStatusIcon: () => React.ReactNode;
@@ -142,6 +144,8 @@ export default function ToolTesterView({
     connectionStatus: ConnectionStatus;
     wsDebugInfo: any;
     handleSaveTool: (tool: ProductToolDefinition) => void;
+    agentMode: AgentMode;
+    setAgentMode: (mode: AgentMode) => void;
 }) {
   return (
     <Card className="w-full">
@@ -619,26 +623,56 @@ export default function ToolTesterView({
                   </div>
 
                   {selectedAgent && (
-                    <div className="space-y-2">
-                      <Label>3. Select Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
-                      <Select 
-                        value={agentModelMapping[selectedAgent] || ''} 
-                        onValueChange={(value) => handleAgentModelChange(selectedAgent, value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Choose model for this agent..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableModels.map(model => (
-                            <SelectItem key={model.id} value={model.id}>
-                              {model.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </CardContent>
+                    <>
+                      <div className="space-y-2">
+                        <Label>3. Agent Mode</Label>
+                        <RadioGroup 
+                          value={agentMode} 
+                          onValueChange={(value) => setAgentMode(value as AgentMode)} 
+                          className="flex items-center space-x-4"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="create" id="mode-create" />
+                            <Label htmlFor="mode-create">Create Mode</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="edit" id="mode-edit" />
+                            <Label htmlFor="mode-edit">Edit Mode</Label>
+                          </div>
+                        </RadioGroup>
+                        {agentMode === 'create' && (
+                          <p className="text-xs text-muted-foreground pl-6">
+                            Test agent creating new output from scratch using brainstorm/TCC data.
+                          </p>
+                        )}
+                        {agentMode === 'edit' && (
+                          <p className="text-xs text-muted-foreground pl-6">
+                            Test agent editing existing output with current state awareness and edit instructions.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                                                <Label>4. Select Model for {availableAgents.find(a => a.id === selectedAgent)?.name}</Label>
+                        <Select 
+                          value={agentModelMapping[selectedAgent] || ''} 
+                          onValueChange={(value) => handleAgentModelChange(selectedAgent, value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choose model for this agent..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableModels.map(model => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                    )}
+                  </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
