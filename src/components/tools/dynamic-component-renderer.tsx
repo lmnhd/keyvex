@@ -423,13 +423,26 @@ export default function DynamicComponentRenderer({
         `
         "use strict";
         try {
-          // Directly modify the component code to return the component function
-          // This preserves the closure scope properly
-          ${componentCode.replace(/^(\s*)(const\s+(\w+)\s*=\s*\([^)]*\)\s*=>\s*\{)/, 
-            '$1return $2')}
+          // Simply wrap the entire component code in a return statement
+          // This preserves the original scope and structure
+          ${componentCode}
+          
+          // Find the component function name from the code
+          const codeLines = \`${componentCode.replace(/`/g, '\\`')}\`.trim();
+          const componentMatch = codeLines.match(/(?:const|function)\\s+(\\w+)\\s*[=\\(]/);
+          
+          if (!componentMatch || !componentMatch[1]) {
+            throw new Error('Unable to detect component function name');
+          }
+          
+          const componentName = componentMatch[1];
+          console.log('🔍 TRACE: Detected component name:', componentName);
+          
+          // Return the component function
+          return eval(componentName);
           
         } catch (error) {
-          console.error('🔍 TRACE: Component extraction error:', error);
+          console.error('🔍 TRACE: Component execution error:', error);
           return () => React.createElement('div', {
             className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700 text-center'
           }, 'Component failed to load: ' + error.message);
