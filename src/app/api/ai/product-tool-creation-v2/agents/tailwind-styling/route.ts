@@ -4,12 +4,26 @@ import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { z } from 'zod';
 
+// Phase 2: Edit mode schema for agents
+const EditModeContextSchema = z.object({
+  isEditMode: z.boolean(),
+  instructions: z.array(z.object({
+    targetAgent: z.string(),
+    editType: z.enum(['refine', 'replace', 'enhance']),
+    instructions: z.string(),
+    priority: z.enum(['low', 'medium', 'high']),
+    createdAt: z.string(),
+  })),
+  context: z.string(),
+});
+
 // Define the request schema locally since it's not exported from core-logic
 const tailwindStylingRequestSchema = z.object({
   jobId: z.string().uuid(),
   selectedModel: z.string().optional(),
   tcc: z.custom<ToolConstructionContext>().optional(), // For orchestration calls
   mockTcc: z.custom<ToolConstructionContext>().optional(), // For isolated testing
+  editMode: EditModeContextSchema.optional(), // Phase 2: Edit mode context
 });
 
 export async function POST(request: NextRequest) {
@@ -22,19 +36,26 @@ export async function POST(request: NextRequest) {
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
     
+    // Phase 2: Edit mode detection
+    const isEditMode = parsedRequest.editMode?.isEditMode || false;
+    const editInstructions = parsedRequest.editMode?.instructions || [];
+
     logger.info({ 
       jobId: parsedRequest.jobId, 
       selectedModel: parsedRequest.selectedModel,
-      isIsolatedTest 
+      isIsolatedTest,
+      isEditMode,
+      editInstructionsCount: editInstructions.length
     }, '🎨 TailwindStyling API: Request received');
 
-    // Call the core logic with both tcc and mockTcc
+    // Call the core logic with both tcc and mockTcc and edit mode context
     const result = await applyStyling({
       jobId: parsedRequest.jobId,
       selectedModel: parsedRequest.selectedModel,
       tcc: parsedRequest.tcc, // Pass tcc from orchestration
       mockTcc: parsedRequest.mockTcc, // Pass mockTcc for isolated testing
-      isIsolatedTest
+      isIsolatedTest,
+      editMode: parsedRequest.editMode // Phase 2: Pass edit mode context
     });
 
     // Skip orchestration triggering during isolated testing
