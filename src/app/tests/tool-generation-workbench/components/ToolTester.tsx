@@ -6,7 +6,7 @@ import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema } from './tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB } from '../../ui/db-utils';
-import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode } from './tool-tester-parts/tool-tester-types';
+import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode, AgentMode } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
 import { Loader2, Wifi, WifiOff } from 'lucide-react';
@@ -98,6 +98,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [tccSource, setTccSource] = useState<TccSource>('brainstorm');
   const [selectedDebugTccJobId, setSelectedDebugTccJobId] = useState<string | null>(null);
   const [selectedMockScenarioId, setSelectedMockScenarioId] = useState<string>('');
+  
+  // Phase 3.2: Agent mode for create/edit toggle in debug section
+  const [agentMode, setAgentMode] = useState<AgentMode>('create');
   
   // TCC monitoring state
   const [tccData, setTccData] = useState<any>(null);
@@ -951,6 +954,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       wsDebugInfo={wsDebugInfo}
       handleSaveTool={handleSaveTool}
       handleRefreshTCC={handleRefreshTCC}
+      agentMode={agentMode}
+      setAgentMode={setAgentMode}
     />
   );
 };
