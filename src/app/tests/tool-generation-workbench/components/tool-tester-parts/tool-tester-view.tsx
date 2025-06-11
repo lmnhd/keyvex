@@ -81,6 +81,7 @@ export default function ToolTesterView({
     connectionStatus,
     wsDebugInfo,
     handleSaveTool,
+    handleUpdateTool,
     agentMode,
     setAgentMode,
     handleTccFinalization,
@@ -148,6 +149,7 @@ export default function ToolTesterView({
     connectionStatus: ConnectionStatus;
     wsDebugInfo: any;
     handleSaveTool: (tool: ProductToolDefinition) => void;
+    handleUpdateTool: (tool: ProductToolDefinition) => void;
     agentMode: AgentMode;
     setAgentMode: (mode: AgentMode) => void;
     handleTccFinalization: () => Promise<void>;
@@ -1578,14 +1580,21 @@ export default function ToolTesterView({
                             </pre>
                             
                             <div className="flex gap-2">
-                              <Button 
-                                onClick={() => handleSaveTool(transformedResult as ProductToolDefinition)}
-                                disabled={savedToolIds.has(transformedResult.id)}
-                                variant="default"
-                              >
-                                <Save className="mr-2 h-4 w-4" />
-                                {savedToolIds.has(transformedResult.id) ? 'Saved' : 'Save Tool to Browser DB'}
-                              </Button>
+                              {(() => {
+                                const isAlreadySaved = savedToolIds.has(transformedResult.id);
+                                const isLoadedTool = loadMode === 'load' && selectedLoadItem?.type === 'tool';
+                                
+                                return (
+                                  <Button 
+                                    onClick={() => isAlreadySaved || isLoadedTool ? handleUpdateTool(transformedResult as ProductToolDefinition) : handleSaveTool(transformedResult as ProductToolDefinition)}
+                                    disabled={false}
+                                    variant="default"
+                                  >
+                                    <Save className="mr-2 h-4 w-4" />
+                                    {isAlreadySaved || isLoadedTool ? 'Update Tool' : 'Save Tool to Browser DB'}
+                                  </Button>
+                                );
+                              })()}
                               <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(transformedResult, null, 2))}>
                                 <Copy className="mr-2 h-4 w-4" />
                                 Copy Result JSON
@@ -1613,25 +1622,67 @@ export default function ToolTesterView({
                       {JSON.stringify(testJob.result, null, 2)}
                     </pre>
                             
-                    {workflowMode === 'v1' && testJob.result && (
-                      <Button 
-                        onClick={() => handleSaveTool(testJob.result!)} 
-                        disabled={savedToolIds.has(testJob.result!.id)}
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {savedToolIds.has(testJob.result!.id) ? 'Saved' : 'Save Tool to Browser DB'}
-                      </Button>
-                    )}
-                    {workflowMode === 'v2' && testJob.result && tccData && (
-                      <Button
-                        onClick={() => handleSaveV2Result(testJob.result!, tccData)}
-                        disabled={savedV2JobIds.has(tccData.jobId)}
-                      >
-                        <Save className="mr-2 h-4 w-4" />
-                        {savedV2JobIds.has(tccData.jobId)
-                          ? 'V2 Result Saved'
-                          : 'Save V2 Generation Result'}
-                      </Button>
+                    {/* Universal Save/Update Section - works for all modes */}
+                    {testJob.result && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-green-600 border-green-300">Tool Definition Ready</Badge>
+                          <Badge variant="secondary" className="text-xs">{workflowMode.toUpperCase()}</Badge>
+                        </div>
+                        
+                        <div className="flex gap-2 flex-wrap">
+                          {(() => {
+                            const tool = testJob.result as ProductToolDefinition;
+                            const isAlreadySaved = savedToolIds.has(tool.id);
+                            const isLoadedTool = loadMode === 'load' && (selectedLoadItem?.type === 'tool' || selectedLoadItem?.type === 'v2job');
+                            
+                            return (
+                              <Button 
+                                onClick={() => isAlreadySaved || isLoadedTool ? handleUpdateTool(tool) : handleSaveTool(tool)}
+                                disabled={false}
+                                variant="default"
+                                size="default"
+                              >
+                                <Save className="mr-2 h-4 w-4" />
+                                {isAlreadySaved || isLoadedTool ? 'Update Tool' : 'Save Tool to Browser DB'}
+                              </Button>
+                            );
+                          })()}
+                          
+                          {/* V2 specific save option */}
+                          {workflowMode === 'v2' && tccData && (
+                            <Button
+                              onClick={() => handleSaveV2Result(testJob.result!, tccData)}
+                              disabled={savedV2JobIds.has(tccData.jobId)}
+                              variant="outline"
+                            >
+                              <Save className="mr-2 h-4 w-4" />
+                              {savedV2JobIds.has(tccData.jobId)
+                                ? 'V2 Context Saved'
+                                : 'Save V2 Generation Context'}
+                            </Button>
+                          )}
+                          
+                          <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(JSON.stringify(testJob.result, null, 2))}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copy JSON
+                          </Button>
+                          
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const tool = testJob.result as ProductToolDefinition;
+                            const blob = new Blob([JSON.stringify(tool, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${tool.metadata?.title || 'tool'}-definition.json`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }}>
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Tool
+                          </Button>
+                        </div>
+                      </div>
                     )}
                           </div>
                         );

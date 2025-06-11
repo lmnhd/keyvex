@@ -763,6 +763,28 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
+  const handleUpdateTool = async (tool: ProductToolDefinition) => {
+    try {
+      // Update the timestamp to indicate it's been modified
+      const updatedTool = {
+        ...tool,
+        updatedAt: Date.now()
+      };
+      
+      await saveToolToDBList(updatedTool);
+      setSavedToolIds(prev => new Set([...prev, tool.id]));
+      console.log(`✅ Tool updated in IndexedDB: ${tool.metadata.title}`);
+      addWSLog(`Tool updated: ${tool.metadata.title}`);
+      
+      // Refresh the saved tools list to reflect changes
+      await fetchSavedTools();
+    } catch (error) {
+      console.error('❌ Error updating tool in IndexedDB:', error);
+      setError('Failed to update tool in IndexedDB. Check console for details.');
+      addWSLog(`Failed to update tool: ${error}`);
+    }
+  };
+
   const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
     if (!tcc || !tool) {
       setError('Cannot save result, TCC or Tool definition is missing.');
@@ -1034,6 +1056,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       connectionStatus={connectionStatus}
       wsDebugInfo={wsDebugInfo}
       handleSaveTool={handleSaveTool}
+      handleUpdateTool={handleUpdateTool}
       agentMode={agentMode}
       setAgentMode={setAgentMode}
       handleTccFinalization={handleTccFinalization}
