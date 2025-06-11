@@ -1503,6 +1503,30 @@ export default function ToolTesterView({
             </TabsContent>
 
             <TabsContent value="result" className="mt-4">
+              {/* DEBUG: Add debugging info to help diagnose save button issues */}
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="text-sm space-y-1">
+                  <div className="font-semibold text-blue-800 dark:text-blue-200">🔍 Debug: Save Button Conditions</div>
+                  <div className="text-xs space-y-1 text-blue-700 dark:text-blue-300">
+                    <div>• testJob exists: {testJob ? '✅ Yes' : '❌ No'}</div>
+                    <div>• testJob.status: {testJob?.status || 'undefined'}</div>
+                    <div>• testJob.result exists: {testJob?.result ? '✅ Yes' : '❌ No'}</div>
+                    <div>• Should show save buttons: {(testJob?.status === 'success' && testJob.result) ? '✅ Yes' : '❌ No'}</div>
+                    <div>• Current workflow mode: {workflowMode}</div>
+                    <div>• Load mode: {loadMode}</div>
+                    {testJob?.result && (
+                      <>
+                        <div>• Current tool ID: {(testJob.result as any).id || 'No ID'}</div>
+                        <div>• Tool in savedToolIds: {(testJob.result as any).id && savedToolIds.has((testJob.result as any).id) ? '✅ Yes' : '❌ No'}</div>
+                        <div>• Selected load item: {selectedLoadItem ? `${selectedLoadItem.type}:${selectedLoadItem.id}` : 'None'}</div>
+                        <div>• savedToolIds count: {savedToolIds.size}</div>
+                        <div>• First few savedToolIds: [{Array.from(savedToolIds).slice(0, 3).join(', ')}]</div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
                {testJob?.status === 'success' && testJob.result ? (
                 <Card>
                   <CardHeader>
@@ -1630,21 +1654,74 @@ export default function ToolTesterView({
                           <Badge variant="secondary" className="text-xs">{workflowMode.toUpperCase()}</Badge>
                         </div>
                         
+                        {/* DEBUG: Save/Update Button Logic Debug */}
+                        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
+                          <div className="text-xs space-y-1 text-red-700 dark:text-red-300">
+                            <div className="font-semibold">🔍 Save/Update Button Debug:</div>
+                            {(() => {
+                              const tool = testJob.result as ProductToolDefinition;
+                              const isAlreadySaved = savedToolIds.has(tool.id);
+                              const isLoadedTool = loadMode === 'load' && (selectedLoadItem?.type === 'tool' || selectedLoadItem?.type === 'v2job');
+                              const wasLoadedAndFinalized = loadMode === 'load' && selectedLoadItem;
+                              const shouldUpdate = isAlreadySaved || isLoadedTool || wasLoadedAndFinalized;
+                              
+                              return (
+                                <>
+                                  <div>• Tool ID: {tool.id}</div>
+                                  <div>• Tool in savedToolIds: {isAlreadySaved ? '✅' : '❌'}</div>
+                                  <div>• Load mode: {loadMode}</div>
+                                  <div>• Selected load item: {selectedLoadItem ? `${selectedLoadItem.type}:${selectedLoadItem.id}` : 'None'}</div>
+                                  <div>• Is loaded tool: {isLoadedTool ? '✅' : '❌'}</div>
+                                  <div>• Was loaded and finalized: {wasLoadedAndFinalized ? '✅' : '❌'}</div>
+                                  <div>• Should update: {shouldUpdate ? '✅' : '❌'}</div>
+                                  <div>• Workflow mode: {workflowMode}</div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+
                         <div className="flex gap-2 flex-wrap">
                           {(() => {
                             const tool = testJob.result as ProductToolDefinition;
                             const isAlreadySaved = savedToolIds.has(tool.id);
                             const isLoadedTool = loadMode === 'load' && (selectedLoadItem?.type === 'tool' || selectedLoadItem?.type === 'v2job');
                             
+                            // Additional check: if this tool was derived from TCC finalization of a loaded item
+                            const wasLoadedAndFinalized = loadMode === 'load' && selectedLoadItem && (
+                              // Check if we have a finalized tool that should replace the original
+                              tool.metadata?.source === 'tcc-finalization' || 
+                              // Or if the tool has metadata indicating it's an update
+                              (tool.metadata?.version && tool.metadata.version !== '1.0.0') ||
+                              // Or if selectedLoadItem exists and we're in a finalization workflow
+                              (selectedLoadItem && (workflowMode === 'v2' || workflowMode === 'debug'))
+                            );
+                            
+                            const shouldUpdate = isAlreadySaved || isLoadedTool || wasLoadedAndFinalized;
+                            
                             return (
                               <Button 
-                                onClick={() => isAlreadySaved || isLoadedTool ? handleUpdateTool(tool) : handleSaveTool(tool)}
+                                onClick={() => {
+                                  if (shouldUpdate && selectedLoadItem) {
+                                    // For loaded tools, use the original tool ID for updating
+                                    const toolToUpdate = {
+                                      ...tool,
+                                      id: selectedLoadItem.id, // Keep the original ID for updating
+                                      updatedAt: Date.now()
+                                    };
+                                    handleUpdateTool(toolToUpdate);
+                                  } else if (shouldUpdate) {
+                                    handleUpdateTool(tool);
+                                  } else {
+                                    handleSaveTool(tool);
+                                  }
+                                }}
                                 disabled={false}
                                 variant="default"
                                 size="default"
                               >
                                 <Save className="mr-2 h-4 w-4" />
-                                {isAlreadySaved || isLoadedTool ? 'Update Tool' : 'Save Tool to Browser DB'}
+                                {shouldUpdate ? 'Update Tool' : 'Save Tool to Browser DB'}
                               </Button>
                             );
                           })()}
