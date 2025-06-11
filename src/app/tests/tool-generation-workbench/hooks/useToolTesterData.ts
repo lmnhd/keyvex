@@ -5,7 +5,7 @@ import { loadAllToolsFromDB, loadV2JobsFromDB } from '@/app/tests/ui/db-utils';
 import { ModelOption, BrainstormData } from '../components/tool-tester-parts/tool-tester-types';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 
-export const useToolTesterData = (newBrainstormFlag?: number) => {
+export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) => {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
   const [savedBrainstorms, setSavedBrainstorms] = useState<BrainstormData[]>([]);
@@ -97,14 +97,14 @@ export const useToolTesterData = (newBrainstormFlag?: number) => {
 
   const fetchSavedTools = useCallback(async () => {
     try {
-      const tools = await loadAllToolsFromDB();
+      const tools = await loadAllToolsFromDB(userId);
       setSavedTools(tools);
     } catch (err) {
         const typedErr = err as Error;
       console.error('Failed to load saved tools:', typedErr);
       setError(`Failed to load saved tools: ${typedErr.message}`);
     }
-  }, []);
+  }, [userId]);
 
   const fetchSavedV2Jobs = useCallback(async () => {
     try {

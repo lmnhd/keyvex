@@ -11,6 +11,7 @@ import { useToolTesterData } from '../hooks/useToolTesterData';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
 import { Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useUser } from '@clerk/nextjs';
 
 // interface BrainstormData {
 //   id: string;
@@ -58,6 +59,10 @@ import { Badge } from '@/components/ui/badge';
 // ];
 
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
+  // Get userId from Clerk or use test userId
+  const { user } = useUser();
+  const userId = user?.id || 'lem1'; // Always have a userId - real from Clerk or test userId
+
   // Use the custom hook for data fetching
   const {
     availableModels,
@@ -68,12 +73,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setSavedTools,
     savedV2Jobs,
     setSavedV2Jobs,
-    isLoading: isDataLoading,
+    isLoading: dataLoading,
     error: dataError,
     setError: setDataError,
     fetchSavedTools,
     fetchSavedV2Jobs,
-  } = useToolTesterData(newBrainstormFlag);
+  } = useToolTesterData(newBrainstormFlag, userId);
 
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
@@ -752,13 +757,24 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   const handleSaveTool = async (tool: ProductToolDefinition) => {
     try {
-      await saveToolToDBList(tool);
+      console.log(`🎯 DEBUG: Starting save process for tool: ${tool.id} - ${tool.metadata.title}`);
+      console.log(`🎯 DEBUG: Using userId: ${userId}`);
+      console.log(`🎯 DEBUG: Current savedToolIds before save:`, Array.from(savedToolIds));
+      
+      await saveToolToDBList(tool, userId);
       setSavedToolIds(prev => new Set([...prev, tool.id]));
-      console.log(`✅ Tool saved to IndexedDB: ${tool.metadata.title}`);
-      addWSLog(`Tool saved: ${tool.metadata.title}`);
+      console.log(`✅ Tool saved to BOTH IndexedDB AND DynamoDB: ${tool.metadata.title}`);
+      addWSLog(`Tool saved to BOTH databases: ${tool.metadata.title}`);
+      
+      // Refresh the saved tools list to reflect changes
+      console.log(`🎯 DEBUG: Refreshing saved tools list...`);
+      await fetchSavedTools();
+      
+      console.log(`🎯 DEBUG: Current savedToolIds after save:`, Array.from(savedToolIds));
+      console.log(`🎯 DEBUG: Current savedTools length:`, savedTools.length);
     } catch (error) {
-      console.error('❌ Error saving tool to IndexedDB:', error);
-      setError('Failed to save tool to IndexedDB. Check console for details.');
+      console.error('❌ Error saving tool to databases:', error);
+      setError('Failed to save tool to databases. Check console for details.');
       addWSLog(`Failed to save tool: ${error}`);
     }
   };
@@ -771,16 +787,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         updatedAt: Date.now()
       };
       
-      await saveToolToDBList(updatedTool);
+      console.log(`🎯 DEBUG: Updating tool ${tool.id} with userId: ${userId}`);
+      await saveToolToDBList(updatedTool, userId);
       setSavedToolIds(prev => new Set([...prev, tool.id]));
-      console.log(`✅ Tool updated in IndexedDB: ${tool.metadata.title}`);
-      addWSLog(`Tool updated: ${tool.metadata.title}`);
+      console.log(`✅ Tool updated in BOTH IndexedDB AND DynamoDB: ${tool.metadata.title}`);
+      addWSLog(`Tool updated in BOTH databases: ${tool.metadata.title}`);
       
       // Refresh the saved tools list to reflect changes
       await fetchSavedTools();
     } catch (error) {
-      console.error('❌ Error updating tool in IndexedDB:', error);
-      setError('Failed to update tool in IndexedDB. Check console for details.');
+      console.error('❌ Error updating tool in databases:', error);
+      setError('Failed to update tool in databases. Check console for details.');
       addWSLog(`Failed to update tool: ${error}`);
     }
   };
@@ -871,9 +888,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const handleDeleteSavedItem = async (type: 'tool' | 'v2job', id: string) => {
     try {
       if (type === 'tool') {
-        await deleteToolFromDBList(id);
+        console.log(`🎯 DEBUG: Deleting tool ${id} with userId: ${userId}`);
+        await deleteToolFromDBList(id, userId); // NOW PASSING USERID - DUAL DELETE FROM INDEXEDDB AND DYNAMODB!
         await fetchSavedTools();
-        addWSLog(`Deleted saved tool: ${id}`);
+        addWSLog(`Deleted saved tool from BOTH databases: ${id}`);
       } else if (type === 'v2job') {
         await deleteV2JobFromDB(id);
         await fetchSavedV2Jobs();
