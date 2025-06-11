@@ -549,6 +549,32 @@ export async function deleteToolFromDynamoDBOnly(toolId: string, userId: string)
   }
 }
 
+// NEW: Function to load all tools from DynamoDB without requiring a userId param
+// The API route will handle auth and fallbacks.
+export async function loadToolsFromDynamoDB(): Promise<ProductToolDefinition[]> {
+  console.log('Attempting to load all tools from DynamoDB via API...');
+  try {
+    const response = await fetch('/api/product-tools/list');
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = `Failed to load tools from DynamoDB: ${response.status} ${response.statusText}. Details: ${errorData.error || 'Unknown error'}`;
+      console.error(errorMessage, errorData);
+      throw new Error(errorMessage);
+    }
+    const tools = await response.json();
+    if (!Array.isArray(tools)) {
+        console.error('API did not return an array for tools:', tools);
+        throw new Error('Invalid data format received from server.');
+    }
+    console.log(`✅ Successfully loaded ${tools.length} tools from DynamoDB.`);
+    return tools;
+  } catch (error) {
+    console.error('❌ An exception occurred while loading tools from DynamoDB:', error);
+    // Re-throw the error so the calling component can handle it
+    throw error;
+  }
+}
+
 // UTILITY FUNCTIONS
 export async function syncToolFromIndexedDBToDynamoDB(toolId: string, userId: string): Promise<void> {
   try {

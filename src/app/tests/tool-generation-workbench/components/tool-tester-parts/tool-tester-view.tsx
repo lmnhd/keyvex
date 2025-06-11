@@ -85,6 +85,9 @@ export default function ToolTesterView({
     agentMode,
     setAgentMode,
     handleTccFinalization,
+    loadSource,
+    setLoadSource,
+    dynamoDBTools,
 }: {
     testJob: ToolCreationJob | null;
     getConnectionStatusIcon: () => React.ReactNode;
@@ -113,7 +116,7 @@ export default function ToolTesterView({
     defaultPrimaryModel: string | null | undefined;
     availableModels: ModelOption[];
     handleLoadSavedItem: () => void;
-    handleDeleteSavedItem: (type: 'tool' | 'v2job', id: string) => void;
+    handleDeleteSavedItem: (id: string, type: "tool" | "v2job") => Promise<void>;
     handleDeleteBrainstorm: (brainstormId: string) => void;
     handleRefreshTCC: () => void;
     getSelectedBrainstormDetails: () => BrainstormData | null | undefined;
@@ -153,7 +156,12 @@ export default function ToolTesterView({
     agentMode: AgentMode;
     setAgentMode: (mode: AgentMode) => void;
     handleTccFinalization: () => Promise<void>;
+    loadSource: 'indexeddb' | 'dynamodb';
+    setLoadSource: (source: 'indexeddb' | 'dynamodb') => void;
+    dynamoDBTools: ProductToolDefinition[];
 }) {
+  const [activeRightTab, setActiveRightTab] = useState('progress');
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -239,7 +247,7 @@ export default function ToolTesterView({
             <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
               <CardHeader className="pb-4">
                 <CardTitle className="flex items-center text-lg">
-                  <Database className="h-5 w-5 text-blue-600 mr-2" />
+                  <Database className="h-5 w-5 text-blue-600" />
                   Load Saved Items
                 </CardTitle>
                 <CardDescription>
@@ -347,7 +355,7 @@ export default function ToolTesterView({
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteSavedItem('tool', tool.id);
+                                        handleDeleteSavedItem(tool.id, 'tool');
                                       }}
                                       className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
                                     >
@@ -398,7 +406,7 @@ export default function ToolTesterView({
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteSavedItem('v2job', job.id);
+                                        handleDeleteSavedItem(job.id, 'v2job');
                                       }}
                                       className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
                                     >

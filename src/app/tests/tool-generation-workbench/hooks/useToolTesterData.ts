@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { loadLogicResultsFromDB } from '@/app/tests/tool-generation-workbench/components/tool-tester-core-logic';
-import { loadAllToolsFromDB, loadV2JobsFromDB } from '@/app/tests/ui/db-utils';
+import { loadAllToolsFromDB, loadV2JobsFromDB, loadToolsFromDynamoDB } from '../../ui/db-utils';
 import { ModelOption, BrainstormData } from '../components/tool-tester-parts/tool-tester-types';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 
@@ -13,6 +13,8 @@ export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) =
   const [savedV2Jobs, setSavedV2Jobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dynamoDBTools, setDynamoDBTools] = useState<ProductToolDefinition[]>([]);
+  const [loadSource, setLoadSource] = useState<'indexeddb' | 'dynamodb'>('indexeddb');
 
   const fetchDefaultModel = useCallback(async () => {
     console.log('🎯 fetchDefaultModel: Starting default model fetch...');
@@ -123,11 +125,28 @@ export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) =
     fetchModels();
   }, []); // Remove dependencies to avoid infinite loops
 
+  const fetchDynamoDBTools = useCallback(async () => {
+    console.log('Fetching tools from DynamoDB...');
+    setIsLoading(true);
+    try {
+        const tools = await loadToolsFromDynamoDB();
+        setDynamoDBTools(tools);
+        console.log(`Fetched ${tools.length} tools from DynamoDB.`);
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+        setError(`Failed to load tools from DynamoDB: ${errorMessage}`);
+        console.error(err);
+    } finally {
+        setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBrainstorms();
     fetchSavedTools();
     fetchSavedV2Jobs();
-  }, [newBrainstormFlag, fetchBrainstorms, fetchSavedTools, fetchSavedV2Jobs]);
+    fetchDynamoDBTools();
+  }, [newBrainstormFlag, fetchBrainstorms, fetchSavedTools, fetchSavedV2Jobs, fetchDynamoDBTools]);
 
   return {
     availableModels,
@@ -143,5 +162,8 @@ export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) =
     setError,
     fetchSavedTools,
     fetchSavedV2Jobs,
+    dynamoDBTools,
+    loadSource,
+    setLoadSource,
   };
 };

@@ -5,7 +5,7 @@ import { useToolGenerationStream, type StepProgress, type ConnectionStatus } fro
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema, runTccFinalizationSteps } from './tool-tester-core-logic';
-import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB } from '../../ui/db-utils';
+import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB, saveToolToDynamoDBOnly } from '../../ui/db-utils';
 import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode, AgentMode } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
@@ -78,6 +78,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setError: setDataError,
     fetchSavedTools,
     fetchSavedV2Jobs,
+    dynamoDBTools,
+    loadSource,
+    setLoadSource,
   } = useToolTesterData(newBrainstormFlag, userId);
 
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
@@ -255,8 +258,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     handleJobUpdate(progress);
   }, [handleJobUpdate, addDetailedWSLog]);
 
-  const { connect, disconnect, connectionStatus, progressUpdates, messages, setProgressUpdates }:{ connect: (jobId: string) => Promise<void>,
-    disconnect: () => void, connectionStatus: ConnectionStatus, progressUpdates: StepProgress[], messages: any, setProgressUpdates?: React.Dispatch<React.SetStateAction<StepProgress[]>> } = useToolGenerationStream({ 
+  const { connect, disconnect, connectionStatus, progressUpdates, messages, setProgressUpdates } = useToolGenerationStream({ 
     onProgress: enhancedHandleJobUpdate,
     onMessage: (message) => {
       addDetailedWSLog('message', `WebSocket message received: ${message.type}`, message.data);
@@ -755,28 +757,51 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     return savedBrainstorms.find(b => b.id === selectedBrainstormId);
   }
 
-  const handleSaveTool = async (tool: ProductToolDefinition) => {
-    try {
-      console.log(`🎯 DEBUG: Starting save process for tool: ${tool.id} - ${tool.metadata.title}`);
-      console.log(`🎯 DEBUG: Using userId: ${userId}`);
-      console.log(`🎯 DEBUG: Current savedToolIds before save:`, Array.from(savedToolIds));
-      
-      await saveToolToDBList(tool, userId);
-      setSavedToolIds(prev => new Set([...prev, tool.id]));
-      console.log(`✅ Tool saved to BOTH IndexedDB AND DynamoDB: ${tool.metadata.title}`);
-      addWSLog(`Tool saved to BOTH databases: ${tool.metadata.title}`);
-      
-      // Refresh the saved tools list to reflect changes
-      console.log(`🎯 DEBUG: Refreshing saved tools list...`);
-      await fetchSavedTools();
-      
-      console.log(`🎯 DEBUG: Current savedToolIds after save:`, Array.from(savedToolIds));
-      console.log(`🎯 DEBUG: Current savedTools length:`, savedTools.length);
-    } catch (error) {
-      console.error('❌ Error saving tool to databases:', error);
-      setError('Failed to save tool to databases. Check console for details.');
-      addWSLog(`Failed to save tool: ${error}`);
+  const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
+    if (!tool || !tcc || !tcc.jobId) {
+      setError('Cannot save V2 result: Missing tool definition or TCC with jobId.');
+      return;
     }
+    setIsLoading(true);
+    setError(null);
+    console.log(`Saving V2 result for job ID: ${tcc.jobId}`);
+    try {
+      // Step 1: Save the full job package to the correct IndexedDB table.
+      const jobPackage = {
+        id: tcc.jobId,
+        timestamp: Date.now(),
+        productToolDefinition: tool,
+        toolConstructionContext: tcc,
+      };
+      await saveV2JobToDB(jobPackage);
+      console.log('✅ V2 job saved to IndexedDB table: v2ToolCreationJobs');
+
+      // Step 2: Save the tool definition to DynamoDB.
+      await saveToolToDynamoDBOnly(tool, userId);
+      console.log('✅ Tool saved to DynamoDB.');
+
+      // Step 3: Update UI state.
+      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
+      await fetchSavedV2Jobs(); // Refresh the list of saved V2 jobs
+      
+      alert('V2 result saved successfully to IndexedDB and DynamoDB!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(`Failed to save V2 result: ${errorMessage}`);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveTool = async (tool: ProductToolDefinition) => {
+    if (!tccData) {
+        setError("Cannot save tool: No active V2 test job context available.");
+        alert("Save failed: No active V2 test job context. Please run a V2 job first.");
+        return;
+    }
+    // Delegate to the correct V2 save handler to ensure consistent behavior
+    await handleSaveV2Result(tool, tccData);
   };
 
   const handleUpdateTool = async (tool: ProductToolDefinition) => {
@@ -802,94 +827,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
-  const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
-    if (!tcc || !tool) {
-      setError('Cannot save result, TCC or Tool definition is missing.');
-      return;
-    }
-    try {
-      const jobPackage = {
-        id: tcc.jobId,
-        timestamp: Date.now(),
-        productToolDefinition: tool,
-        toolConstructionContext: tcc,
-      };
-      await saveV2JobToDB(jobPackage);
-      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
-      addWSLog(`V2 Result for job ${tcc.jobId} saved.`);
-      // Refresh the saved V2 jobs list
-      await fetchSavedV2Jobs();
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error';
-      setError(`Failed to save V2 result: ${msg}`);
-      addWSLog(`Failed to save V2 result: ${msg}`);
-    }
-  };
-
-  // NEW: Handle loading a saved item back into the workbench
-  const handleLoadSavedItem = async () => {
-    if (!selectedLoadItem) return;
-
-    try {
-      switch (selectedLoadItem.type) {
-        case 'brainstorm':
-          const brainstorm = savedBrainstorms.find(b => b.id === selectedLoadItem.id);
-          if (brainstorm) {
-            setSelectedBrainstormId(brainstorm.id);
-            setLoadMode('new');
-            addWSLog(`Loaded brainstorm: ${brainstorm.toolType} for ${brainstorm.targetAudience}`);
-          }
-          break;
-
-        case 'tool':
-          const tool = savedTools.find(t => t.id === selectedLoadItem.id);
-          if (tool) {
-            // Set the tool as the final product for preview
-            setFinalProduct(tool);
-            setAssembledCode(tool.componentCode);
-            setTestJob({
-              modelId: 'loaded',
-              status: 'success',
-              result: tool,
-              startTime: Date.now(),
-              endTime: Date.now()
-            });
-            addWSLog(`Loaded saved tool: ${tool.metadata.title}`);
-          }
-          break;
-
-        case 'v2job':
-          const v2Job = savedV2Jobs.find(j => j.id === selectedLoadItem.id);
-          if (v2Job) {
-            // Load both the tool and TCC data
-            setFinalProduct(v2Job.productToolDefinition);
-            setAssembledCode(v2Job.productToolDefinition.componentCode);
-            setTccData(v2Job.toolConstructionContext);
-            setTestJob({
-              modelId: 'loaded-v2',
-              jobId: v2Job.id,
-              status: 'success',
-              result: v2Job.productToolDefinition,
-              startTime: Date.now(),
-              endTime: Date.now()
-            });
-            addWSLog(`Loaded V2 job: ${v2Job.productToolDefinition.metadata.title} (${v2Job.id})`);
-          }
-          break;
-      }
-      setSelectedLoadItem(null);
-    } catch (error) {
-      console.error('Error loading saved item:', error);
-      setError('Failed to load saved item. Check console.');
-    }
-  };
-
-  // NEW: Handle deleting a saved item
-  const handleDeleteSavedItem = async (type: 'tool' | 'v2job', id: string) => {
+  const handleDeleteSavedItem = async (id: string, type: 'tool' | 'v2job') => {
     try {
       if (type === 'tool') {
-        console.log(`🎯 DEBUG: Deleting tool ${id} with userId: ${userId}`);
-        await deleteToolFromDBList(id, userId); // NOW PASSING USERID - DUAL DELETE FROM INDEXEDDB AND DYNAMODB!
+        await deleteToolFromDBList(id, userId);
         await fetchSavedTools();
         addWSLog(`Deleted saved tool from BOTH databases: ${id}`);
       } else if (type === 'v2job') {
@@ -968,6 +909,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
+
+
   const getConnectionStatusIcon = () => {
     switch (connectionStatus) {
       case 'connected':
@@ -1010,6 +953,96 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         return <Badge variant="destructive" className="text-xs">Error</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">Disconnected</Badge>;
+    }
+  };
+
+  const handleLoadSavedItem = async () => {
+    if (!selectedLoadItem) return;
+
+    setIsLoading(true);
+    setError(null);
+    setTestJob(null);
+    setAssembledCode(null);
+    setTccData(null);
+    setFinalProduct(null);
+
+    try {
+        let jobToLoad: ToolCreationJob | null = null;
+
+        if (loadSource === 'indexeddb') {
+            if (selectedLoadItem.type === 'v2job') {
+                const job = savedV2Jobs.find(j => j.id === selectedLoadItem.id);
+                if (job) {
+                    jobToLoad = {
+                        jobId: job.id,
+                        startTime: job.timestamp,
+                        endTime: job.timestamp,
+                        status: 'completed',
+                        result: job.result,
+                        productToolDefinition: job.result,
+                        modelId: job.modelId,
+                        toolConstructionContext: job.toolConstructionContext,
+                    };
+                }
+            } else if (selectedLoadItem.type === 'tool') {
+                const tool = savedTools.find(t => t.id === selectedLoadItem.id);
+                if (tool) {
+                    jobToLoad = {
+                        jobId: `loaded-tool-${tool.id}`,
+                        startTime: tool.createdAt,
+                        endTime: Date.now(),
+                        status: 'success' as const,
+                        result: tool,
+                        productToolDefinition: tool,
+                        modelId: 'unknown', // Legacy tool, model unknown
+                        toolConstructionContext: {
+                            jobId: `loaded-tool-${tool.id}`,
+                            finalProductToolDefinition: tool,
+                            userInput: { prompt: `Loaded from legacy tool: ${tool.metadata.title}` },
+                        },
+                    };
+                }
+            }
+        } else if (loadSource === 'dynamodb') {
+            const tool = dynamoDBTools.find(t => t.id === selectedLoadItem.id);
+            if (tool) {
+                const mockJobId = `loaded-ddb-${tool.id}`;
+                jobToLoad = {
+                    jobId: mockJobId,
+                    status: 'success' as const,
+                    result: tool,
+                    productToolDefinition: tool,
+                    modelId: defaultPrimaryModel || 'gpt-4o',
+                    toolConstructionContext: {
+                        jobId: mockJobId,
+                        finalProductToolDefinition: tool,
+                        userInput: { prompt: `Loaded from DynamoDB tool: ${tool.metadata.title}` },
+                    },
+                };
+            }
+        }
+
+        if (jobToLoad) {
+            setTestJob(jobToLoad);
+            setAssembledCode(jobToLoad.productToolDefinition?.componentCode || JSON.stringify(jobToLoad.result, null, 2) || '');
+            setTccData(jobToLoad.toolConstructionContext || null);
+            setWorkflowMode('v2' as const);
+            setOrchestrationStatus('free' as const);
+            addWSLog(`Loaded item: ${selectedLoadItem.id} from ${loadSource}`);
+            alert(`Successfully loaded '${jobToLoad.productToolDefinition?.metadata.title}'.`);
+        } else {
+            const msg = `Could not find the selected item with ID: ${selectedLoadItem.id} in ${loadSource}.`;
+            setError(msg);
+            alert(`Load failed: Item not found.`);
+        }
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+        setError(`Failed to load item: ${errorMessage}`);
+        console.error(err);
+        alert(`Load failed: ${errorMessage}`);
+    } finally {
+        setIsLoading(false);
+        setSelectedLoadItem(null);
     }
   };
 
@@ -1078,6 +1111,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       agentMode={agentMode}
       setAgentMode={setAgentMode}
       handleTccFinalization={handleTccFinalization}
+      loadSource={loadSource}
+      setLoadSource={setLoadSource}
+      dynamoDBTools={dynamoDBTools}
     />
   );
 };

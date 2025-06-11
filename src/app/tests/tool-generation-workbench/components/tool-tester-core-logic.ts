@@ -10,11 +10,13 @@ export type { SavedLogicResult };
 export interface ToolCreationJob {
   modelId: string;
   jobId?: string;
-  status: 'pending' | 'loading' | 'success' | 'error';
+  status: 'pending' | 'loading' | 'success' | 'error' | 'completed';
   result?: ProductToolDefinition | null;
   error?: string | null;
   startTime?: number;
   endTime?: number;
+  productToolDefinition?: ProductToolDefinition;
+  toolConstructionContext?: any;
 }
 
 // Phase 1: cleanBrainstormData function removed to ensure full brainstorm data integration
