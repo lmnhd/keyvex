@@ -258,7 +258,7 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
   }
 
   // Get model configuration
-  const { provider, modelId } = getModelForAgent('componentAssembler', selectedModel);
+  const { provider, modelId } = getModelForAgent('componentAssembler', selectedModel, tcc);
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
@@ -609,7 +609,7 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
   }
 }
 
-function getModelForAgent(agentName: string, selectedModel?: string): { provider: string; modelId: string } {
+function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolConstructionContext): { provider: string; modelId: string } {
     // PRIORITY 1: User-selected model from UI (highest priority)
     if (selectedModel && selectedModel !== 'default') {
         const provider = getModelProvider(selectedModel);
@@ -625,11 +625,38 @@ function getModelForAgent(agentName: string, selectedModel?: string): { provider
             logger.warn({ 
                 agentName, 
                 selectedModel 
-            }, '🔧 ComponentAssembler: User-selected model has unknown provider, falling back to config');
+            }, '🔧 ComponentAssembler: User-selected model has unknown provider, falling back to TCC mapping');
         }
     }
 
-    // PRIORITY 2: Primary model from configuration
+    // PRIORITY 2: Agent model mapping from TCC (from workbench agent-specific configuration)
+    if (tcc?.agentModelMapping && tcc.agentModelMapping['component-assembler']) {
+        const mappedModel = tcc.agentModelMapping['component-assembler'];
+        const provider = getModelProvider(mappedModel);
+        if (provider !== 'unknown') {
+            logger.info({ 
+                agentName, 
+                mappedModel, 
+                provider, 
+                source: 'TCC_AGENT_MAPPING' 
+            }, '🔧 ComponentAssembler: Using TCC AGENT MAPPING model from workbench');
+            return { provider, modelId: mappedModel };
+        } else {
+            logger.warn({ 
+                agentName, 
+                mappedModel 
+            }, '🔧 ComponentAssembler: TCC mapped model has unknown provider, falling back to config');
+        }
+    } else if (tcc) {
+        logger.warn({ 
+            agentName,
+            hasAgentModelMapping: !!tcc.agentModelMapping,
+            agentMappingKeys: tcc.agentModelMapping ? Object.keys(tcc.agentModelMapping) : [],
+            source: 'TCC_AGENT_MAPPING_MISSING'
+        }, '🔧 ComponentAssembler: ⚠️ No TCC agent mapping found for component-assembler');
+    }
+
+    // PRIORITY 3: Primary model from configuration
     const primaryModel = getPrimaryModel(agentName as any);
     if (primaryModel && 'modelInfo' in primaryModel) {
         logger.info({ 
@@ -641,7 +668,7 @@ function getModelForAgent(agentName: string, selectedModel?: string): { provider
         return { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id };
     }
 
-    // PRIORITY 3: Fallback model from configuration
+    // PRIORITY 4: Fallback model from configuration
     const fallbackModel = getFallbackModel(agentName as any);
     if (fallbackModel && 'modelInfo' in fallbackModel) {
         logger.warn({ 
@@ -653,10 +680,11 @@ function getModelForAgent(agentName: string, selectedModel?: string): { provider
         return { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id };
     }
 
-    // PRIORITY 4: Final hardcoded fallback (indicates configuration problem)
+    // PRIORITY 5: Final hardcoded fallback (indicates configuration problem)
     logger.error({ 
         agentName, 
         selectedModel,
+        tccAgentMapping: tcc?.agentModelMapping ? Object.keys(tcc.agentModelMapping) : 'No TCC provided',
         source: 'HARDCODED_FALLBACK' 
     }, '🔧 ComponentAssembler: 🚨 CRITICAL: No model configuration found! Using hardcoded fallback - check model configuration!');
     return { provider: 'openai', modelId: 'gpt-4o' }; // Final fallback
