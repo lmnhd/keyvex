@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { jobId, selectedModel, tcc, mockTcc, editMode } = StateDesignRequestSchema.parse(body);
 
+    // Detect isolated test mode
+    const isIsolatedTest = !!mockTcc;
+
     if (!jobId || (!tcc && !mockTcc)) {
       return NextResponse.json(
         { success: false, error: "jobId and either tcc or mockTcc must be provided." },
@@ -47,8 +50,9 @@ export async function POST(request: NextRequest) {
       jobId, 
       selectedModel,
       isEditMode,
-      editInstructionsCount: editInstructions.length
-    }, '🎯 StateDesign Route: Request received');
+      editInstructionsCount: editInstructions.length,
+      isIsolatedTest
+    }, '🎯 StateDesign Route: Request received with isolation detection');
     
     // Call the pure core logic function with edit mode context
     const result = await designStateLogic({
@@ -66,26 +70,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logger.info({ jobId }, '🎯 StateDesign Route: Core logic successful, checking parallel completion.');
+    // Only trigger orchestration if NOT in isolated test mode
+    if (!isIsolatedTest) {
+      logger.info({ jobId }, '🎯 StateDesign Route: Core logic successful, checking parallel completion.');
 
-    // Non-blocking call to the centralized parallel completion checker endpoint
-    const checkCompletionUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
-    fetch(checkCompletionUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            jobId,
-            tcc: result.updatedTcc,
-        }),
-    }).catch(error => {
-        logger.error({ jobId, error: error.message }, '🎯 StateDesign Route: Failed to trigger parallel completion check endpoint');
-    });
+      // Non-blocking call to the centralized parallel completion checker endpoint
+      const checkCompletionUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
+      fetch(checkCompletionUrl.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+              jobId,
+              tcc: result.updatedTcc,
+          }),
+      }).catch(error => {
+          logger.error({ jobId, error: error.message }, '🎯 StateDesign Route: Failed to trigger parallel completion check endpoint');
+      });
+    } else {
+      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Isolated test mode - skipping orchestration trigger');
+    }
 
-    logger.info({ jobId }, '🎯 StateDesign Route: Returning success response.');
-    return NextResponse.json({
+    // Return appropriate response for isolated vs normal mode
+    const responseData = {
       success: true,
       stateLogic: result.stateLogic,
-    });
+    };
+
+    if (isIsolatedTest) {
+      responseData.updatedTcc = result.updatedTcc;
+      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Including updatedTcc in isolated test response');
+    }
+
+    logger.info({ jobId }, '🎯 StateDesign Route: Returning success response.');
+    return NextResponse.json(responseData);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

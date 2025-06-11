@@ -82,7 +82,16 @@ export async function POST(request: NextRequest) {
       logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Isolated test mode - skipping orchestration trigger');
     }
 
-    return NextResponse.json(result);
+    // Return appropriate response for isolated vs normal mode
+    const responseData = result;
+    
+    if (isIsolatedTest && result.updatedTcc) {
+      // Ensure updatedTcc is explicitly included for isolated tests
+      responseData.updatedTcc = result.updatedTcc;
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: ✅ Including updatedTcc in isolated test response');
+    }
+
+    return NextResponse.json(responseData);
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
