@@ -310,14 +310,20 @@ async function generateJsxLayoutWithAI(
   const systemPrompt = getJsxLayoutSystemPrompt(false);
 
   // Phase 1: Enhanced user prompt with brainstorm data integration
-  // Create a rich tool description using brainstorm data when available
+  // 🚨 FORCE USE OF BRAINSTORM DATA - NO FALLBACKS ALLOWED
   let toolDescription = tcc.userInput?.description;
   if (!toolDescription && tcc.brainstormData) {
     const brainstorm = tcc.brainstormData;
     toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
   }
   
-  let userPrompt = `Tool: ${toolDescription || 'No description provided.'}
+  // 🚨 CRITICAL FIX: Always use brainstorm data if available, regardless of userInput.description
+  if (tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
+  }
+  
+  let userPrompt = `Tool: ${toolDescription || 'Business calculation tool'}
 Target Audience: ${tcc.targetAudience || 'General users'}
 
 Function Signatures:

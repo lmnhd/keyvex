@@ -325,7 +325,14 @@ Return structured JSON with:
   "hooks": ["..."]
 }`;
 
-  let userPrompt = `Tool: ${tcc.userInput?.description || 'No description provided.'}
+  // 🚨 FIX: Use brainstorm data for tool description instead of fallback
+  let toolDescription = tcc.userInput?.description;
+  if (!toolDescription && tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
+  }
+  
+  let userPrompt = `Tool: ${toolDescription || 'Business calculation tool'}
 Target Audience: ${tcc.targetAudience || 'General users'}
 
 Function Signatures to Implement:

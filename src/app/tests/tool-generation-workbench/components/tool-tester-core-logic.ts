@@ -190,12 +190,17 @@ async function startV2ToolCreation(
   console.log('🔍 [V2-START-DEBUG] businessContext value:', userInputData.businessContext);
   console.log('🔍 [V2-START-DEBUG] description value:', userInputData.description);
   
-  const finalDescription = userInputData.businessContext || userInputData.description || 'No description provided.';
-  console.log('🔍 [V2-START-DEBUG] Final description used:', finalDescription);
-  
-  // Phase 3.1: Transform brainstorm data to match new comprehensive schema
+  // Phase 3.1: Transform brainstorm data to match new comprehensive schema FIRST
   const transformedBrainstormData = transformBrainstormDataToNewSchema(brainstormResult);
   console.log('🔍 [V2-START-DEBUG] Transformed brainstorm data keys:', Object.keys(transformedBrainstormData));
+  
+  // 🚨 FIX: Use rich brainstorm data for description instead of generic fallback - ALWAYS USE PRIMARY DATA
+  const finalDescription = userInputData.businessContext || 
+                          userInputData.description || 
+                          (transformedBrainstormData.coreConcept ? 
+                            `${transformedBrainstormData.coreConcept}: ${transformedBrainstormData.valueProposition}` :
+                            'Business calculation tool');
+  console.log('🔍 [V2-START-DEBUG] Final description used:', finalDescription);
   
   const requestBody = {
     userInput: {

@@ -301,9 +301,16 @@ function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeConte
     }, '🔧 FunctionPlanner: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
   }
 
+  // 🚨 FIX: Use brainstorm data for tool description instead of fallback
+  let toolDescription = tcc.userInput?.description;
+  if (!toolDescription && tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
+  }
+
   let prompt = `Please analyze this tool description and provide the function signatures needed:
 
-TOOL DESCRIPTION: ${tcc.userInput.description}
+TOOL DESCRIPTION: ${toolDescription || 'Business calculation tool'}
 TOOL TYPE: ${tcc.userInput.toolType || 'Not specified'}
 
 Additional Context:

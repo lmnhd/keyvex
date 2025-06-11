@@ -234,8 +234,15 @@ async function generateTailwindStylingWithAI(
   const systemPrompt = getTailwindStylingSystemPrompt(false, industryContext);
 
   // Phase 1: Enhanced user prompt with style-specific brainstorm data integration
+  // 🚨 FIX: Use brainstorm data for tool description instead of fallback
+  let toolDescription = tcc.userInput?.description;
+  if (!toolDescription && tcc.brainstormData) {
+    const brainstorm = tcc.brainstormData;
+    toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
+  }
+
   let userPrompt = `Please apply full Tailwind CSS styling to the following JSX component.
-User Input/Goal: ${tcc.userInput?.description || 'A business tool'}
+User Input/Goal: ${toolDescription || 'Business calculation tool'}
 Target Audience: ${tcc.targetAudience || 'Professionals'}
 Unstyled JSX:
 \`\`\`jsx
