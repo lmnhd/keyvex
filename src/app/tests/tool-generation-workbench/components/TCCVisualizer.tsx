@@ -44,6 +44,14 @@ const getStepIcon = (stepName: string) => {
     case 'component-assembler':
     case 'componentassembler':
       return <FileText className="h-4 w-4" />;
+    case 'validator':
+    case 'validating':
+    case 'validating_code':
+      return <CheckCircle className="h-4 w-4" />;
+    case 'tool-finalizer':
+    case 'toolfinalizer':
+    case 'finalizing_tool':
+      return <RefreshCw className="h-4 w-4" />;
     default:
       return <FileText className="h-4 w-4" />;
   }
@@ -58,7 +66,9 @@ const getStepStatus = (tccData: any, stepName: string) => {
     'state-design': ['stateLogic', 'stateDesign', 'state'],
     'jsx-layout': ['jsxLayout', 'layout', 'jsx'],
     'tailwind-styling': ['styling', 'tailwindStyling', 'styles'],
-    'component-assembler': ['assembledComponentCode', 'componentCode', 'code']
+    'component-assembler': ['assembledComponentCode', 'componentCode', 'code'],
+    'validator': ['validationResult'],
+    'tool-finalizer': ['finalProduct']
   };
   
   const fields = stepFields[stepName.toLowerCase()] || [];
@@ -94,8 +104,71 @@ const TCCVisualizer: React.FC<TCCVisualizerProps> = ({
     { id: 'state-design', name: 'State Design', field: 'stateLogic' },
     { id: 'jsx-layout', name: 'JSX Layout', field: 'jsxLayout' },
     { id: 'tailwind-styling', name: 'Tailwind Styling', field: 'styling' },
-    { id: 'component-assembler', name: 'Component Assembler', field: 'assembledComponentCode' }
+    { id: 'component-assembler', name: 'Component Assembler', field: 'assembledComponentCode' },
+    { id: 'validator', name: 'Validator', field: 'validationResult' },
+    { id: 'tool-finalizer', name: 'Tool Finalizer', field: 'finalProduct' }
   ];
+
+  // Get validation status and display info
+  const getValidationDisplay = () => {
+    if (!tccData?.validationResult) return null;
+    
+    const validation = tccData.validationResult;
+    const errorCount = (validation.syntaxErrors?.length || 0) + (validation.typeErrors?.length || 0);
+    const warningCount = validation.warnings?.length || 0;
+    
+    return (
+      <div className="mt-4 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800/50">
+        <div className="flex items-center gap-2 mb-2">
+          <CheckCircle className={`h-4 w-4 ${validation.isValid ? 'text-green-500' : 'text-red-500'}`} />
+          <span className="font-medium text-sm">
+            Validation Status: {validation.isValid ? 'Valid' : 'Has Issues'}
+          </span>
+        </div>
+        
+        {errorCount > 0 && (
+          <div className="mb-2">
+            <Badge variant="destructive" className="text-xs mr-2">
+              {errorCount} Error{errorCount !== 1 ? 's' : ''}
+            </Badge>
+            <div className="mt-1 text-xs space-y-1">
+              {validation.syntaxErrors?.map((error: string, index: number) => (
+                <div key={`syntax-${index}`} className="text-red-600 dark:text-red-400">
+                  • Syntax: {error}
+                </div>
+              ))}
+              {validation.typeErrors?.map((error: string, index: number) => (
+                <div key={`type-${index}`} className="text-red-600 dark:text-red-400">
+                  • Type: {error}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {warningCount > 0 && (
+          <div className="mb-2">
+            <Badge variant="outline" className="text-xs mr-2 border-yellow-500 text-yellow-600">
+              {warningCount} Warning{warningCount !== 1 ? 's' : ''}
+            </Badge>
+            <div className="mt-1 text-xs space-y-1">
+              {validation.warnings?.map((warning: string, index: number) => (
+                <div key={`warning-${index}`} className="text-yellow-600 dark:text-yellow-400">
+                  • {warning}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {validation.isValid && errorCount === 0 && warningCount === 0 && (
+          <div className="text-green-600 dark:text-green-400 text-xs">
+            ✅ Code validation passed successfully
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Card className="w-full">
@@ -176,6 +249,9 @@ const TCCVisualizer: React.FC<TCCVisualizerProps> = ({
                   </div>
                 );
               })}
+              
+              {/* Validation Results Display */}
+              {getValidationDisplay()}
             </div>
           </TabsContent>
           

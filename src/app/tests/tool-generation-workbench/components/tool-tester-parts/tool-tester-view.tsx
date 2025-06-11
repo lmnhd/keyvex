@@ -1336,9 +1336,8 @@ export default function ToolTesterView({
                                     {tccData.styling.styledComponentCode && (
                                       <div>
                                         <Badge variant="outline" className="mb-2">Styled Component Code</Badge>
-                                        <pre className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                          {tccData.styling.styledComponentCode.substring(0, 300)}
-                                          {tccData.styling.styledComponentCode.length > 300 && '...'}
+                                        <pre className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md text-sm overflow-x-auto max-h-96 overflow-y-auto">
+                                          {tccData.styling.styledComponentCode}
                                         </pre>
                                       </div>
                                     )}

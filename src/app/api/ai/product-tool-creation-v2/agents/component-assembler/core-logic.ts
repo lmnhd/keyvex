@@ -278,12 +278,22 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
 - Local variables: rev, income, assets, etc. (use abbreviated forms)
 - Example: const rev = Number(revenue); NOT const revenue = Number(revenue);
 
+🚨 REACT KEY PROPS - MANDATORY:
+- EVERY React.createElement() call that creates an array of children MUST include unique 'key' props
+- Use descriptive keys: 'input-current-assets', 'result-liquidity-ratio', 'tooltip-revenue', etc.
+- FAILURE TO ADD KEYS TO ARRAY ELEMENTS WILL CAUSE REACT ERRORS
+- Example: React.createElement('div', { key: 'container' }, [
+    React.createElement(Input, { key: 'input-revenue' }),
+    React.createElement(Input, { key: 'input-income' })
+  ])
+
 ❌ FORBIDDEN:
 - NO import statements
 - NO export statements  
 - NO JSX syntax (<div>, <Button>)
 - NO TypeScript (interface, React.FC, type annotations)
 - NO variable name collisions (shadowing state variables)
+- NO React.createElement calls without keys when children are arrays
 
 ✅ REQUIRED FORMAT:
 \`\`\`javascript
@@ -302,7 +312,8 @@ const ComponentName = () => {
     'data-style-id': 'element-id',
     key: 'unique-key'
   }, [
-    React.createElement(Card, { key: 'card' }, 'content')
+    React.createElement(Card, { key: 'card-main' }, 'content'),
+    React.createElement(Input, { key: 'input-primary' })
   ]);
 };
 \`\`\`
@@ -313,11 +324,12 @@ React, useState, useEffect, useCallback, useMemo, Card, CardHeader, CardContent,
 RULES:
 1. Start with 'use client';
 2. Use React.createElement() for ALL elements
-3. Add 'data-style-id' and 'key' props
+3. Add 'data-style-id' and 'key' props to EVERY element
 4. Apply className from provided styling
 5. Integrate all state logic provided
 6. Use abbreviated variable names in calculations (rev, income, assets, etc.)
-7. End with just the function - NO exports`;
+7. When React.createElement has array children, EVERY child needs a unique key
+8. End with just the function - NO exports`;
 
   // Generate component name with debugging
   const suggestedComponentName = generateComponentName(tcc.userInput.description);

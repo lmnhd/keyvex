@@ -29,10 +29,28 @@ export async function POST(request: NextRequest) {
       logger.info({ jobId }, '📦 ToolFinalizer Route: Isolated test mode - skipping orchestration trigger');
     }
     
-    return NextResponse.json({
+    // Create updatedTcc with the finalProduct included for workbench state updates
+    const updatedTcc = {
+      ...(mockTcc || tcc),
+      finalProduct: result.finalProduct,
+      // Ensure the component code is preserved for preview
+      assembledComponentCode: result.finalProduct?.componentCode || (mockTcc || tcc)?.assembledComponentCode,
+      // Update status and step
+      status: 'completed' as const,
+      currentOrchestrationStep: 'finalizing_tool' as const,
+      updatedAt: new Date().toISOString()
+    };
+
+    const responseData: any = {
       success: true,
       finalProduct: result.finalProduct
-    });
+    };
+
+    // For isolated tests AND regular finalizations, return updatedTcc so workbench state updates properly
+    responseData.updatedTcc = updatedTcc;
+    logger.info({ jobId }, '📦 ToolFinalizer Route: ✅ Including updatedTcc with finalProduct in response');
+    
+    return NextResponse.json(responseData);
     
   } catch (error) {
     logger.error({ 

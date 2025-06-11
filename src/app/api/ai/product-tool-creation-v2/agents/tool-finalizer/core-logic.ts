@@ -341,17 +341,34 @@ Provide the final object exactly as specified in the schema. Do not add any extr
 }
 
 function createFinalizerUserPrompt(tcc: ToolConstructionContext): string {
+  // Extract key information from TCC for better context awareness
+  const brainstormTitle = tcc.brainstormData?.coreConcept || 'Tool';
+  const brainstormDescription = tcc.brainstormData?.valueProposition || tcc.userInput.description;
+  const hasJsxLayout = !!tcc.jsxLayout?.componentStructure;
+  const hasStyling = !!tcc.styling?.styleMap;
+  
   return `
-Please finalize the tool based on the following context.
+Please finalize the tool based on the following comprehensive context.
 
 **User's Original Request:**
-- Tool Type: ${tcc.userInput.toolType}
-- Description: ${tcc.userInput.description}
-- Target Audience: ${tcc.userInput.targetAudience}
+- Tool Type: ${tcc.userInput.toolType || 'Custom Tool'}
+- Description: ${tcc.userInput.description || 'No description provided'}
+- Target Audience: ${tcc.userInput.targetAudience || 'General users'}
+
+**Brainstorm Context:**
+- Core Concept: ${brainstormTitle}
+- Value Proposition: ${brainstormDescription}
+- Suggested Inputs: ${tcc.brainstormData?.suggestedInputs?.length || 0} input fields defined
+- Key Calculations: ${tcc.brainstormData?.keyCalculations?.length || 0} calculations defined
+
+**Design Structure:**
+- JSX Layout Available: ${hasJsxLayout ? 'Yes - sophisticated layout with Cards, Tooltips, and responsive grids' : 'No'}
+- Styling Applied: ${hasStyling ? 'Yes - Tailwind CSS styling configured' : 'No'}
+- State Logic: ${tcc.stateLogic?.variables?.length || 0} state variables and ${tcc.stateLogic?.functions?.length || 0} functions defined
 
 **Assembled Component Code (to be reviewed and cleaned):**
 \`\`\`jsx
-${tcc.assembledComponentCode}
+${tcc.assembledComponentCode || '// No assembled code available'}
 \`\`\`
 
 **Validation Results:**
@@ -359,13 +376,20 @@ ${JSON.stringify(tcc.validationResult, null, 2)}
 
 **Your Task:**
 1.  **Review and Clean:** Review the assembled code and validation results. Make any minor corrections needed for syntax, formatting, and logic issues to ensure it is production-ready. DO NOT add import statements or export statements - all dependencies are injected at runtime and the component is accessed directly by name.
-2.  **Create Final Metadata:** Based on all the information, create the final metadata object with the following fields:
-    - \`title\`: A great title for the tool.
-    - \`cleanedCode\`: The final, corrected, and production-ready component code WITHOUT import statements or export statements.
-    - \`dependencies\`: A list of any NPM package dependencies required.
-    - \`userInstructions\`: Brief instructions for the end-user.
-    - \`developerNotes\`: Technical notes for a developer.
-    - \`description\`: A short summary of the tool.
+
+2.  **Quality Check:** Ensure the code properly implements:
+    - All brainstormed input fields and calculations
+    - The sophisticated JSX layout structure (if available)
+    - Proper state management and function implementations
+    - Good user experience with clear labels and instructions
+
+3.  **Create Final Metadata:** Based on all the information, create the final metadata object with the following fields:
+    - \`title\`: Use the brainstorm concept "${brainstormTitle}" as the base for a great title
+    - \`cleanedCode\`: The final, corrected, and production-ready component code WITHOUT import statements or export statements
+    - \`dependencies\`: A list of any NPM package dependencies required (likely includes ShadCN/UI components if sophisticated layout is used)
+    - \`userInstructions\`: Brief instructions for the end-user based on the value proposition and input fields
+    - \`developerNotes\`: Technical notes for a developer, including any setup, integration points, or assumptions made
+    - \`description\`: Use the value proposition "${brainstormDescription}" as the base for a concise summary
 
 Produce the final JSON object now based on the schema.
 `;

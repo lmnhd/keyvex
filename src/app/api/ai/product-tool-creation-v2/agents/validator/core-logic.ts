@@ -131,6 +131,12 @@ async function validateCode(code: string) {
     }
   }
 
+  // React-specific validation checks
+  const reactKeyIssues = checkReactKeyIssues(code);
+  if (reactKeyIssues.length > 0) {
+    warnings.push(...reactKeyIssues);
+  }
+
   // TypeScript validation
   const tsResult = ts.transpileModule(code, {
     compilerOptions: {
@@ -176,6 +182,51 @@ async function validateCode(code: string) {
       dependencies,
     },
   };
+}
+
+/**
+ * Check for React key prop issues in React.createElement calls
+ */
+function checkReactKeyIssues(code: string): string[] {
+  const issues: string[] = [];
+  
+  // Look for React.createElement calls with array children but no keys
+  const createElementRegex = /React\.createElement\(\s*[^,]+\s*,\s*\{[^}]*\}\s*,\s*\[([^\]]+)\]/g;
+  let match;
+  
+  while ((match = createElementRegex.exec(code)) !== null) {
+    const arrayContent = match[1];
+    
+    // Check if any React.createElement calls in the array lack key props
+    const childElementRegex = /React\.createElement\([^)]+\)/g;
+    let childMatch;
+    let hasIssues = false;
+    
+    while ((childMatch = childElementRegex.exec(arrayContent)) !== null) {
+      const childElement = childMatch[0];
+      
+      // Check if this createElement call has a key prop
+      if (!childElement.includes('key:') && !childElement.includes('"key"')) {
+        hasIssues = true;
+        break;
+      }
+    }
+    
+    if (hasIssues) {
+      issues.push(`React key warning: Found React.createElement with array children that may be missing key props. Each child in a list should have a unique "key" prop.`);
+    }
+  }
+  
+  // Also check for .map() calls that might be missing keys
+  const mapRegex = /\.map\(\s*\([^)]*\)\s*=>\s*React\.createElement\([^)]+\)/g;
+  while ((match = mapRegex.exec(code)) !== null) {
+    const mapCall = match[0];
+    if (!mapCall.includes('key:') && !mapCall.includes('"key"')) {
+      issues.push(`React key warning: Found .map() with React.createElement that may be missing key props. Each child in a list should have a unique "key" prop.`);
+    }
+  }
+  
+  return issues;
 }
 
 /**

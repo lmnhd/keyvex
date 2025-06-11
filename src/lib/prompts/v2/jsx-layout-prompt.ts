@@ -16,7 +16,7 @@ const CORE_LAYOUT_RULES = `
 <core-layout-rules>
     - **Use JSX Syntax**: The entire layout must be standard JSX with < > brackets. Do NOT use React.createElement calls.
     - **Use Placeholder IDs**: Assign a unique \`"data-style-id"\` attribute to every element that needs styling. Use descriptive IDs (e.g., "main-container", "title-heading", "submit-button").
-    - **Keys for Lists**: When mapping over an array to create elements, you MUST provide a unique \`key\` prop.
+    - **🚨 CRITICAL: React Keys**: When creating multiple similar elements or mapping over arrays, you MUST provide unique \`key\` props. Use descriptive keys like \`key="input-current-assets"\`, \`key="result-liquidity-ratio"\`, etc. EVERY element that could be in an array needs a unique key to prevent React rendering errors.
     - **ShadCN/UI Components**: You MUST use component names from the provided list (e.g., 'Card', 'Button', 'Input'). Do not invent component names.
     - **Accessibility**: Include \`htmlFor\` on 'Label' components, linking them to the \`id\` of an 'Input'. Use ARIA attributes where appropriate.
     - **Semantic HTML**: Use proper HTML5 semantic elements (header, main, section, etc.).

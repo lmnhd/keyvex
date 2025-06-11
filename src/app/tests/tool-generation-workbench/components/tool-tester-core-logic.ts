@@ -1,6 +1,7 @@
 import { loadLogicResultsFromDB } from '../../ui/db-utils';
 import type { SavedLogicResult } from '../../ui/types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import logger from '@/lib/logger';
 
 export { loadLogicResultsFromDB };
 export type { SavedLogicResult };
@@ -289,6 +290,35 @@ export async function runTccFinalizationSteps(
 }> {
   try {
     const intermediateResults: any = {};
+    const jobId = tcc.jobId || 'unknown';
+    
+    // 🔍 LOG INITIAL TCC STATE
+    console.log(`🔍 [FINALIZATION-START] JobId: ${jobId}`);
+    console.log(`🔍 [FINALIZATION-START] Initial TCC Keys:`, Object.keys(tcc || {}).join(', '));
+    console.log(`🔍 [FINALIZATION-START] Initial TCC Structure:`, {
+      hasJsxLayout: !!tcc?.jsxLayout,
+      hasStateLogic: !!tcc?.stateLogic,
+      hasStyling: !!tcc?.styling,
+      hasAssembledCode: !!tcc?.assembledComponentCode,
+      hasFinalProduct: !!tcc?.finalProduct,
+      brainstormDataKeys: tcc?.brainstormData ? Object.keys(tcc.brainstormData) : [],
+      stepStatus: tcc?.stepStatus || {},
+    });
+
+    // 📊 PINO STRUCTURED LOGGING - FINALIZATION START
+    logger.info({
+      jobId,
+      phase: 'finalization_start',
+      tccKeys: Object.keys(tcc || {}),
+      initialTccStructure: {
+        hasJsxLayout: !!tcc?.jsxLayout,
+        hasStateLogic: !!tcc?.stateLogic,
+        hasStyling: !!tcc?.styling,
+        hasAssembledCode: !!tcc?.assembledComponentCode,
+        hasFinalProduct: !!tcc?.finalProduct,
+        brainstormDataPresent: !!tcc?.brainstormData,
+      }
+    }, '🔍 [TCC-FINALIZATION] Starting finalization process');
     
     // Step 1: Component Assembly
     console.log('🔧 Starting Component Assembly...');
@@ -314,6 +344,32 @@ export async function runTccFinalizationSteps(
     
     intermediateResults.assembledComponent = assemblerResult.assembledComponent;
     const updatedTccAfterAssembly = assemblerResult.updatedTcc;
+    
+    // 🔍 LOG TCC AFTER ASSEMBLY
+    console.log(`🔍 [FINALIZATION-ASSEMBLY] TCC Keys:`, Object.keys(updatedTccAfterAssembly || {}).join(', '));
+    console.log(`🔍 [FINALIZATION-ASSEMBLY] TCC Structure:`, {
+      hasJsxLayout: !!updatedTccAfterAssembly?.jsxLayout,
+      hasStateLogic: !!updatedTccAfterAssembly?.stateLogic,
+      hasStyling: !!updatedTccAfterAssembly?.styling,
+      hasAssembledCode: !!updatedTccAfterAssembly?.assembledComponentCode,
+      assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
+      hasFinalProduct: !!updatedTccAfterAssembly?.finalProduct,
+    });
+
+    // 📊 PINO STRUCTURED LOGGING - AFTER ASSEMBLY
+    logger.info({
+      jobId,
+      phase: 'after_assembly',
+      tccKeys: Object.keys(updatedTccAfterAssembly || {}),
+      tccStructure: {
+        hasJsxLayout: !!updatedTccAfterAssembly?.jsxLayout,
+        hasStateLogic: !!updatedTccAfterAssembly?.stateLogic,
+        hasStyling: !!updatedTccAfterAssembly?.styling,
+        hasAssembledCode: !!updatedTccAfterAssembly?.assembledComponentCode,
+        assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
+        hasFinalProduct: !!updatedTccAfterAssembly?.finalProduct,
+      }
+    }, '🔍 [TCC-FINALIZATION] Component Assembly completed');
     
     console.log('✅ Component Assembly completed');
     
@@ -357,6 +413,34 @@ export async function runTccFinalizationSteps(
     intermediateResults.validationResult = validatorResult.validationResult;
     const updatedTccAfterValidation = validatorResult.updatedTcc;
     
+    // 🔍 LOG TCC AFTER VALIDATION
+    console.log(`🔍 [FINALIZATION-VALIDATION] TCC Keys:`, Object.keys(updatedTccAfterValidation || {}).join(', '));
+    console.log(`🔍 [FINALIZATION-VALIDATION] TCC Structure:`, {
+      hasJsxLayout: !!updatedTccAfterValidation?.jsxLayout,
+      hasStateLogic: !!updatedTccAfterValidation?.stateLogic,
+      hasStyling: !!updatedTccAfterValidation?.styling,
+      hasAssembledCode: !!updatedTccAfterValidation?.assembledComponentCode,
+      assembledCodeLength: updatedTccAfterValidation?.assembledComponentCode?.length || 0,
+      hasFinalProduct: !!updatedTccAfterValidation?.finalProduct,
+      validationResult: updatedTccAfterValidation?.validationResult?.isValid || false,
+    });
+
+    // 📊 PINO STRUCTURED LOGGING - AFTER VALIDATION
+    logger.info({
+      jobId,
+      phase: 'after_validation',
+      tccKeys: Object.keys(updatedTccAfterValidation || {}),
+      tccStructure: {
+        hasJsxLayout: !!updatedTccAfterValidation?.jsxLayout,
+        hasStateLogic: !!updatedTccAfterValidation?.stateLogic,
+        hasStyling: !!updatedTccAfterValidation?.styling,
+        hasAssembledCode: !!updatedTccAfterValidation?.assembledComponentCode,
+        assembledCodeLength: updatedTccAfterValidation?.assembledComponentCode?.length || 0,
+        hasFinalProduct: !!updatedTccAfterValidation?.finalProduct,
+        validationResult: updatedTccAfterValidation?.validationResult?.isValid || false,
+      }
+    }, '🔍 [TCC-FINALIZATION] Validation completed');
+    
     console.log('✅ Validation completed');
     
     // Step 3: Tool Finalization
@@ -381,6 +465,53 @@ export async function runTccFinalizationSteps(
       throw new Error(`Tool Finalizer error: ${finalizerResult.error}`);
     }
     
+    // 🔍 LOG FINAL TCC STATE
+    const finalTcc = finalizerResult.updatedTcc;
+    console.log(`🔍 [FINALIZATION-COMPLETE] Final TCC Keys:`, Object.keys(finalTcc || {}).join(', '));
+    console.log(`🔍 [FINALIZATION-COMPLETE] Final TCC Structure:`, {
+      hasJsxLayout: !!finalTcc?.jsxLayout,
+      hasStateLogic: !!finalTcc?.stateLogic,
+      hasStyling: !!finalTcc?.styling,
+      hasAssembledCode: !!finalTcc?.assembledComponentCode,
+      assembledCodeLength: finalTcc?.assembledComponentCode?.length || 0,
+      hasFinalProduct: !!finalTcc?.finalProduct,
+      finalProductLength: finalTcc?.finalProduct?.componentCode?.length || 0,
+    });
+    
+    // Log final product details
+    if (finalizerResult.finalProduct) {
+      console.log(`🔍 [FINALIZATION-COMPLETE] Final Product:`, {
+        hasComponentCode: !!finalizerResult.finalProduct.componentCode,
+        componentCodeLength: finalizerResult.finalProduct.componentCode?.length || 0,
+        hasMetadata: !!finalizerResult.finalProduct.metadata,
+        toolName: finalizerResult.finalProduct.metadata?.name || 'unknown',
+        description: finalizerResult.finalProduct.metadata?.description || 'no description',
+      });
+    }
+
+    // 📊 PINO STRUCTURED LOGGING - FINALIZATION COMPLETE
+    logger.info({
+      jobId,
+      phase: 'finalization_complete',
+      finalTccKeys: Object.keys(finalTcc || {}),
+      finalTccStructure: {
+        hasJsxLayout: !!finalTcc?.jsxLayout,
+        hasStateLogic: !!finalTcc?.stateLogic,
+        hasStyling: !!finalTcc?.styling,
+        hasAssembledCode: !!finalTcc?.assembledComponentCode,
+        assembledCodeLength: finalTcc?.assembledComponentCode?.length || 0,
+        hasFinalProduct: !!finalTcc?.finalProduct,
+        finalProductLength: finalTcc?.finalProduct?.componentCode?.length || 0,
+      },
+      finalProduct: finalizerResult.finalProduct ? {
+        hasComponentCode: !!finalizerResult.finalProduct.componentCode,
+        componentCodeLength: finalizerResult.finalProduct.componentCode?.length || 0,
+        hasMetadata: !!finalizerResult.finalProduct.metadata,
+        toolName: finalizerResult.finalProduct.metadata?.name || 'unknown',
+        description: finalizerResult.finalProduct.metadata?.description || 'no description',
+      } : null
+    }, '🔍 [TCC-FINALIZATION] Finalization process completed successfully');
+    
     console.log('✅ Tool Finalization completed');
     
     return {
@@ -391,6 +522,15 @@ export async function runTccFinalizationSteps(
     
   } catch (error) {
     console.error('❌ TCC Finalization Steps Failed:', error);
+    console.log(`🔍 [FINALIZATION-ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // 📊 PINO STRUCTURED LOGGING - FINALIZATION ERROR
+    logger.error({
+      jobId: tcc?.jobId || 'unknown',
+      phase: 'finalization_error',
+      error: error instanceof Error ? error.message : String(error),
+    }, '🔍 [TCC-FINALIZATION] Finalization process failed');
+    
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error)
@@ -404,11 +544,59 @@ export async function runIsolatedAgentTest(
   modelId: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    // 🔍 LOG TCC BEFORE PROCESSING
+    const jobId = tcc.jobId || 'debug';
+    console.log(`🔍 [TCC-BEFORE] Agent: ${agentId} | JobId: ${jobId}`);
+    console.log(`🔍 [TCC-BEFORE] TCC Keys:`, Object.keys(tcc || {}).join(', '));
+    console.log(`🔍 [TCC-BEFORE] TCC Structure:`, {
+      hasJsxLayout: !!tcc?.jsxLayout,
+      hasStateLogic: !!tcc?.stateLogic,
+      hasStyling: !!tcc?.styling,
+      hasAssembledCode: !!tcc?.assembledComponentCode,
+      hasFinalProduct: !!tcc?.finalProduct,
+      brainstormDataKeys: tcc?.brainstormData ? Object.keys(tcc.brainstormData) : [],
+      stepStatus: tcc?.stepStatus || {},
+      tccVersion: tcc?.tccVersion || 'unknown'
+    });
+    
+    // Log a hash/summary of the TCC for comparison
+    const tccSummary = JSON.stringify({
+      jsxLayoutLength: tcc?.jsxLayout?.componentStructure?.length || 0,
+      stateLogicKeys: tcc?.stateLogic ? Object.keys(tcc.stateLogic) : [],
+      stylingKeys: tcc?.styling ? Object.keys(tcc.styling) : [],
+      assembledCodeLength: tcc?.assembledComponentCode?.length || 0,
+      finalProductLength: tcc?.finalProduct?.componentCode?.length || 0,
+    });
+    console.log(`🔍 [TCC-BEFORE] Content Summary:`, tccSummary);
+
+    // 📊 PINO STRUCTURED LOGGING - BEFORE PROCESSING
+    logger.info({
+      agentId,
+      jobId,
+      phase: 'before_processing',
+      tccKeys: Object.keys(tcc || {}),
+      tccStructure: {
+        hasJsxLayout: !!tcc?.jsxLayout,
+        hasStateLogic: !!tcc?.stateLogic,
+        hasStyling: !!tcc?.styling,
+        hasAssembledCode: !!tcc?.assembledComponentCode,
+        hasFinalProduct: !!tcc?.finalProduct,
+        brainstormDataPresent: !!tcc?.brainstormData,
+      },
+      contentSummary: {
+        jsxLayoutLength: tcc?.jsxLayout?.componentStructure?.length || 0,
+        stateLogicKeys: tcc?.stateLogic ? Object.keys(tcc.stateLogic) : [],
+        stylingKeys: tcc?.styling ? Object.keys(tcc.styling) : [],
+        assembledCodeLength: tcc?.assembledComponentCode?.length || 0,
+        finalProductLength: tcc?.finalProduct?.componentCode?.length || 0,
+      }
+    }, `🔍 [TCC-ISOLATION] Agent ${agentId} - TCC state before processing`);
+
     const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${agentId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        jobId: tcc.jobId || `debug-${Date.now()}`,
+        jobId: jobId,
         selectedModel: modelId,
         mockTcc: tcc,
       }),
@@ -420,8 +608,80 @@ export async function runIsolatedAgentTest(
     }
 
     const result = await response.json();
+    
+    // 🔍 LOG TCC AFTER PROCESSING
+    const updatedTcc = result?.updatedTcc;
+    console.log(`🔍 [TCC-AFTER] Agent: ${agentId} | JobId: ${jobId}`);
+    console.log(`🔍 [TCC-AFTER] TCC Keys:`, Object.keys(updatedTcc || {}).join(', '));
+    console.log(`🔍 [TCC-AFTER] TCC Structure:`, {
+      hasJsxLayout: !!updatedTcc?.jsxLayout,
+      hasStateLogic: !!updatedTcc?.stateLogic,
+      hasStyling: !!updatedTcc?.styling,
+      hasAssembledCode: !!updatedTcc?.assembledComponentCode,
+      hasFinalProduct: !!updatedTcc?.finalProduct,
+      brainstormDataKeys: updatedTcc?.brainstormData ? Object.keys(updatedTcc.brainstormData) : [],
+      stepStatus: updatedTcc?.stepStatus || {},
+      tccVersion: updatedTcc?.tccVersion || 'unknown'
+    });
+    
+    // Log updated content summary for comparison
+    const updatedTccSummary = JSON.stringify({
+      jsxLayoutLength: updatedTcc?.jsxLayout?.componentStructure?.length || 0,
+      stateLogicKeys: updatedTcc?.stateLogic ? Object.keys(updatedTcc.stateLogic) : [],
+      stylingKeys: updatedTcc?.styling ? Object.keys(updatedTcc.styling) : [],
+      assembledCodeLength: updatedTcc?.assembledComponentCode?.length || 0,
+      finalProductLength: updatedTcc?.finalProduct?.componentCode?.length || 0,
+    });
+    console.log(`🔍 [TCC-AFTER] Content Summary:`, updatedTccSummary);
+    
+    // Log differences detected
+    const hasDifferences = tccSummary !== updatedTccSummary;
+    console.log(`🔍 [TCC-DIFF] Changes Detected: ${hasDifferences ? 'YES' : 'NO'}`);
+    if (hasDifferences) {
+      console.log(`🔍 [TCC-DIFF] Before: ${tccSummary}`);
+      console.log(`🔍 [TCC-DIFF] After:  ${updatedTccSummary}`);
+    }
+
+    // 📊 PINO STRUCTURED LOGGING - AFTER PROCESSING
+    logger.info({
+      agentId,
+      jobId,
+      phase: 'after_processing',
+      tccKeys: Object.keys(updatedTcc || {}),
+      tccStructure: {
+        hasJsxLayout: !!updatedTcc?.jsxLayout,
+        hasStateLogic: !!updatedTcc?.stateLogic,
+        hasStyling: !!updatedTcc?.styling,
+        hasAssembledCode: !!updatedTcc?.assembledComponentCode,
+        hasFinalProduct: !!updatedTcc?.finalProduct,
+        brainstormDataPresent: !!updatedTcc?.brainstormData,
+      },
+      contentSummary: {
+        jsxLayoutLength: updatedTcc?.jsxLayout?.componentStructure?.length || 0,
+        stateLogicKeys: updatedTcc?.stateLogic ? Object.keys(updatedTcc.stateLogic) : [],
+        stylingKeys: updatedTcc?.styling ? Object.keys(updatedTcc.styling) : [],
+        assembledCodeLength: updatedTcc?.assembledComponentCode?.length || 0,
+        finalProductLength: updatedTcc?.finalProduct?.componentCode?.length || 0,
+      },
+      changesDetected: hasDifferences,
+      summaryComparison: {
+        before: tccSummary,
+        after: updatedTccSummary
+      }
+    }, `🔍 [TCC-ISOLATION] Agent ${agentId} - TCC state after processing (changes: ${hasDifferences ? 'YES' : 'NO'})`);
+
     return { success: true, data: result };
   } catch (error) {
+    console.log(`🔍 [TCC-ERROR] Agent: ${agentId} | Error: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // 📊 PINO STRUCTURED LOGGING - ERROR
+    logger.error({
+      agentId,
+      jobId: tcc.jobId || 'debug',
+      phase: 'error',
+      error: error instanceof Error ? error.message : String(error),
+    }, `🔍 [TCC-ISOLATION] Agent ${agentId} - Processing failed`);
+    
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
