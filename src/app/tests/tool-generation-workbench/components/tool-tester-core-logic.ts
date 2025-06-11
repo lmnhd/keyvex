@@ -319,6 +319,17 @@ export async function runTccFinalizationSteps(
     
     // Step 2: Validation
     console.log('🔍 Starting Validation...');
+    
+    // Debug: Log what we're sending to the validator
+    console.log('🔍 VALIDATOR DEBUG - Request payload:', {
+      jobId: tcc.jobId,
+      selectedModel: agentModelMapping?.['validator'],
+      hasTcc: !!updatedTccAfterAssembly,
+      tccKeys: updatedTccAfterAssembly ? Object.keys(updatedTccAfterAssembly) : [],
+      assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
+      isIsolatedTest: true
+    });
+    
     const validatorResponse = await fetch('/api/ai/product-tool-creation-v2/agents/validator', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -330,7 +341,11 @@ export async function runTccFinalizationSteps(
       })
     });
     
+    console.log('🔍 VALIDATOR DEBUG - Response status:', validatorResponse.status, validatorResponse.statusText);
+    
     if (!validatorResponse.ok) {
+      const errorText = await validatorResponse.text();
+      console.log('🔍 VALIDATOR DEBUG - Error response body:', errorText);
       throw new Error(`Validator failed: ${validatorResponse.statusText}`);
     }
     

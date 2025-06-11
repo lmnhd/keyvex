@@ -272,11 +272,18 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, selected
 - functions: Array of function names defined or empty array  
 - estimatedLines: Number estimate of code lines
 
+🚨 VARIABLE NAMING RULES - CRITICAL:
+- NEVER use the same name for local variables as React state variables
+- State variables: revenue, netIncome, currentAssets, etc.
+- Local variables: rev, income, assets, etc. (use abbreviated forms)
+- Example: const rev = Number(revenue); NOT const revenue = Number(revenue);
+
 ❌ FORBIDDEN:
 - NO import statements
 - NO export statements  
 - NO JSX syntax (<div>, <Button>)
 - NO TypeScript (interface, React.FC, type annotations)
+- NO variable name collisions (shadowing state variables)
 
 ✅ REQUIRED FORMAT:
 \`\`\`javascript
@@ -286,7 +293,8 @@ const ComponentName = () => {
   const [state, setState] = useState(initialValue);
   
   const handleFunction = () => {
-    // logic here
+    // Use abbreviated names: const val = Number(state);
+    // NOT: const state = Number(state);
   };
   
   return React.createElement('div', { 
@@ -308,7 +316,8 @@ RULES:
 3. Add 'data-style-id' and 'key' props
 4. Apply className from provided styling
 5. Integrate all state logic provided
-6. End with just the function - NO exports`;
+6. Use abbreviated variable names in calculations (rev, income, assets, etc.)
+7. End with just the function - NO exports`;
 
   // Generate component name with debugging
   const suggestedComponentName = generateComponentName(tcc.userInput.description);
@@ -494,6 +503,76 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       console.log('CLEANED CODE:');
       console.log(finalCode);
       console.log('🚫'.repeat(40) + '\n');
+      
+      // Update the object
+      object.finalComponentCode = finalCode;
+    }
+
+    // Post-process to fix variable name collisions (e.g., using 'revenue' as both state and local variable)
+    const hasVariableCollisions = finalCode.match(/const\s+(\w+)\s*=\s*Number\(\1\)/g);
+    
+    if (hasVariableCollisions) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        provider,
+        modelId,
+        collisions: hasVariableCollisions
+      }, '🔧 ComponentAssembler: ⚠️ AI generated variable name collisions! Auto-fixing...');
+      
+      // Fix variable collisions by using abbreviated variable names
+      let fixedCode = finalCode;
+      
+      // Pattern: const revenue = Number(revenue) becomes const rev = Number(revenue)
+      // Use abbreviated names to avoid conflicts
+      const varMap: Record<string, string> = {
+        'revenue': 'rev',
+        'netIncome': 'income',
+        'currentAssets': 'assets',
+        'currentLiabilities': 'liabilities',
+        'totalLiabilities': 'totalLiabs',
+        'shareholdersEquity': 'equity'
+      };
+      
+      // Replace each collision with a safe variable name
+      hasVariableCollisions.forEach(collision => {
+        const match = collision.match(/const\s+(\w+)\s*=\s*Number\(\1\)/);
+        if (match) {
+          const varName = match[1];
+          const safeVarName = varMap[varName] || `${varName}Val`;
+          
+          // Replace the collision declaration and subsequent usage in the same function
+          const functionPattern = new RegExp(
+            `(const\\s+${varName}\\s*=\\s*Number\\(${varName}\\);[\\s\\S]*?)(\\b${varName}\\b)(?![a-zA-Z])([\\s\\S]*?)(?=\\n\\s*\\}|$)`,
+            'g'
+          );
+          
+          fixedCode = fixedCode.replace(
+            new RegExp(`const\\s+${varName}\\s*=\\s*Number\\(${varName}\\)`, 'g'),
+            `const ${safeVarName} = Number(${varName})`
+          );
+          
+          // Replace usage within the calculation logic (but not in Number() calls)
+          fixedCode = fixedCode.replace(
+            new RegExp(`(const\\s+${safeVarName}\\s*=\\s*Number\\([^)]+\\);[\\s\\S]*?)(\\b${varName}\\b)(?!\\s*[),])`, 'g'),
+            (match, prefix, varUsage) => {
+              // Replace variable usage in calculations but preserve state variable references
+              if (match.includes('/ ' + varName) || match.includes('* ' + varName) || match.includes('- ' + varName) || match.includes('+ ' + varName)) {
+                return match.replace(varUsage, safeVarName);
+              }
+              return match;
+            }
+          );
+        }
+      });
+      
+      finalCode = fixedCode;
+      
+      console.log('\n' + '🔄'.repeat(40));
+      console.log('🔧 ComponentAssembler: FIXED - Variable name collisions:');
+      console.log('🔄'.repeat(40));
+      console.log('FIXED CODE:');
+      console.log(finalCode);
+      console.log('🔄'.repeat(40) + '\n');
       
       // Update the object
       object.finalComponentCode = finalCode;

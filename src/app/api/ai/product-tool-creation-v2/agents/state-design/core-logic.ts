@@ -289,15 +289,20 @@ Use modern React patterns and proper error handling.
 4. RESULTS: Never store NaN values - use null or proper defaults instead
 5. DIVISION BY ZERO: Always check denominators before dividing
 
+🚨 STATE VARIABLE NAMING CONVENTION:
+- Input state variables: Use 'state' prefix (stateRevenue, stateNetIncome, stateCurrentAssets)
+- Local calculation variables: Use simple names (revenue, income, assets)
+- This prevents variable name collisions and scope issues
+
 EXAMPLE CORRECT FINANCIAL IMPLEMENTATION:
 \`\`\`typescript
-const [currentAssets, setCurrentAssets] = useState('');
-const [currentLiabilities, setCurrentLiabilities] = useState('');
+const [stateCurrentAssets, setStateCurrentAssets] = useState('');
+const [stateCurrentLiabilities, setStateCurrentLiabilities] = useState('');
 const [liquidityRatio, setLiquidityRatio] = useState<number | null>(null);
 
 const handleCalculateLiquidityRatio = () => {
-  const assets = Number(currentAssets);
-  const liabilities = Number(currentLiabilities);
+  const assets = Number(stateCurrentAssets);     // ✅ No collision!
+  const liabilities = Number(stateCurrentLiabilities); // ✅ Clear!
   
   if (isNaN(assets) || isNaN(liabilities) || assets < 0 || liabilities <= 0) {
     setError('Please enter valid positive numbers for assets and liabilities');
@@ -581,21 +586,22 @@ function parseStateResponse(content: string, functionSignatures: DefinedFunction
  * Updated to create specific financial input variables instead of generic ones
  */
 function generateDefaultStateVariables(functionSignatures: DefinedFunctionSignature[]) {
-  // Base financial state variables for a comprehensive business health calculator
+  // Base financial state variables with 'state' prefix to prevent variable collision
+  // This allows local variables to safely use: revenue, netIncome, currentAssets, etc.
   const baseVars = [
-    { name: 'currentAssets', type: 'string', initialValue: "''", description: 'Current assets input (string for form control)' },
-    { name: 'currentLiabilities', type: 'string', initialValue: "''", description: 'Current liabilities input (string for form control)' },
-    { name: 'netIncome', type: 'string', initialValue: "''", description: 'Net income input (string for form control)' },
-    { name: 'revenue', type: 'string', initialValue: "''", description: 'Revenue input (string for form control)' },
-    { name: 'totalLiabilities', type: 'string', initialValue: "''", description: 'Total liabilities input (string for form control)' },
-    { name: 'shareholdersEquity', type: 'string', initialValue: "''", description: 'Shareholders equity input (string for form control)' },
+    { name: 'stateCurrentAssets', type: 'string', initialValue: "''", description: 'Current assets input (string for form control)' },
+    { name: 'stateCurrentLiabilities', type: 'string', initialValue: "''", description: 'Current liabilities input (string for form control)' },
+    { name: 'stateNetIncome', type: 'string', initialValue: "''", description: 'Net income input (string for form control)' },
+    { name: 'stateRevenue', type: 'string', initialValue: "''", description: 'Revenue input (string for form control)' },
+    { name: 'stateTotalLiabilities', type: 'string', initialValue: "''", description: 'Total liabilities input (string for form control)' },
+    { name: 'stateShareholdersEquity', type: 'string', initialValue: "''", description: 'Shareholders equity input (string for form control)' },
     
-    // Result state variables
+    // Result state variables (no collision risk)
     { name: 'liquidityRatio', type: 'number | null', initialValue: 'null', description: 'Calculated liquidity ratio result' },
     { name: 'profitMargin', type: 'number | null', initialValue: 'null', description: 'Calculated profit margin result' },
     { name: 'debtToEquityRatio', type: 'number | null', initialValue: 'null', description: 'Calculated debt to equity ratio result' },
     
-    // Control state variables
+    // Control state variables (no collision risk)
     { name: 'error', type: 'string | null', initialValue: 'null', description: 'Current error message' },
     { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state indicator' }
   ];
@@ -611,7 +617,7 @@ function generateDefaultStateVariables(functionSignatures: DefinedFunctionSignat
   if (!hasFinancialFunctions) {
     // Fallback to simpler structure for non-financial tools
     return [
-      { name: 'input', type: 'string', initialValue: "''", description: 'Primary input field (always string for form control)' },
+      { name: 'stateInput', type: 'string', initialValue: "''", description: 'Primary input field (always string for form control)' },
       { name: 'result', type: 'number | null', initialValue: 'null', description: 'Calculation result (null when no calculation)' },
       { name: 'error', type: 'string | null', initialValue: 'null', description: 'Current error message' },
       { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state indicator' }
@@ -634,9 +640,9 @@ function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]
     if (safeName.includes('liquidity') && safeName.includes('ratio')) {
       logic = `
   // Liquidity Ratio = Current Assets / Current Liabilities
-  const assets = Number(currentAssets);
-  const liabilities = Number(currentLiabilities);
-  if (currentAssets === '' || currentLiabilities === '' || isNaN(assets) || isNaN(liabilities) || assets < 0 || liabilities <= 0) {
+  const assets = Number(stateCurrentAssets);
+  const liabilities = Number(stateCurrentLiabilities);
+  if (stateCurrentAssets === '' || stateCurrentLiabilities === '' || isNaN(assets) || isNaN(liabilities) || assets < 0 || liabilities <= 0) {
     setError('Please enter valid positive numbers for current assets and current liabilities');
     setLiquidityRatio(null);
     return;
@@ -655,9 +661,9 @@ function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]
     } else if (safeName.includes('profit') && safeName.includes('margin')) {
       logic = `
   // Profit Margin = (Net Income / Revenue) * 100
-  const income = Number(netIncome);
-  const revenue = Number(revenue);
-  if (netIncome === '' || revenue === '' || isNaN(income) || isNaN(revenue) || revenue <= 0) {
+  const income = Number(stateNetIncome);
+  const revenue = Number(stateRevenue);
+  if (stateNetIncome === '' || stateRevenue === '' || isNaN(income) || isNaN(revenue) || revenue <= 0) {
     setError('Please enter valid numbers for net income and revenue (revenue must be positive)');
     setProfitMargin(null);
     return;
@@ -676,9 +682,9 @@ function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]
     } else if (safeName.includes('debt') && (safeName.includes('equity') || safeName.includes('ratio'))) {
       logic = `
   // Debt to Equity Ratio = Total Liabilities / Shareholders' Equity
-  const liabilities = Number(totalLiabilities);
-  const equity = Number(shareholdersEquity);
-  if (totalLiabilities === '' || shareholdersEquity === '' || isNaN(liabilities) || isNaN(equity) || liabilities < 0 || equity <= 0) {
+  const liabilities = Number(stateTotalLiabilities);
+  const equity = Number(stateShareholdersEquity);
+  if (stateTotalLiabilities === '' || stateShareholdersEquity === '' || isNaN(liabilities) || isNaN(equity) || liabilities < 0 || equity <= 0) {
     setError('Please enter valid positive numbers for total liabilities and shareholders equity');
     setDebtToEquityRatio(null);
     return;
@@ -725,12 +731,12 @@ function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]
     } else if (safeName.includes('reset') || safeName.includes('clear')) {
       logic = `
   // Safe reset - return to initial safe values for all financial inputs
-  setCurrentAssets('');
-  setCurrentLiabilities('');
-  setNetIncome('');
-  setRevenue('');
-  setTotalLiabilities('');
-  setShareholdersEquity('');
+  setStateCurrentAssets('');
+  setStateCurrentLiabilities('');
+  setStateNetIncome('');
+  setStateRevenue('');
+  setStateTotalLiabilities('');
+  setStateShareholdersEquity('');
   setLiquidityRatio(null);
   setProfitMargin(null);
   setDebtToEquityRatio(null);
