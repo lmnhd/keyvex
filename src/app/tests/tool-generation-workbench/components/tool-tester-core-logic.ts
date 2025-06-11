@@ -244,6 +244,7 @@ async function startV2ToolCreation(
   return { jobId: responseData.jobId };
 }
 
+// this must be the legacy tool creation process
 export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
   selectedModelId: string,

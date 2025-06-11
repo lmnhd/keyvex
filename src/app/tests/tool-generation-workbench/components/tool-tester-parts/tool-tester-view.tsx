@@ -20,7 +20,6 @@ import TCCVisualizer from '../TCCVisualizer';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import { ScrollBar } from '@/components/ui/scroll-area';
 
-
 export default function ToolTesterView({
     testJob,
     getConnectionStatusIcon,

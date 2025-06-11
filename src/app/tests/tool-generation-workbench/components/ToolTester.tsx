@@ -978,9 +978,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                         startTime: job.timestamp,
                         endTime: job.timestamp,
                         status: 'completed',
-                        result: job.result,
-                        productToolDefinition: job.result,
-                        modelId: job.modelId,
+                        result: job.productToolDefinition,
+                        productToolDefinition: job.productToolDefinition,
+                        modelId: 'unknown', // V2 jobs don't store the modelId in this object
                         toolConstructionContext: job.toolConstructionContext,
                     };
                 }
@@ -1022,11 +1022,16 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             }
         }
 
+        console.log('DEBUG: Attempting to load item. Final jobToLoad object:', JSON.stringify(jobToLoad, null, 2));
+
         if (jobToLoad) {
+            console.log('DEBUG: jobToLoad is truthy. productToolDefinition:', JSON.stringify(jobToLoad.productToolDefinition, null, 2));
             setTestJob(jobToLoad);
             setAssembledCode(jobToLoad.productToolDefinition?.componentCode || JSON.stringify(jobToLoad.result, null, 2) || '');
             setTccData(jobToLoad.toolConstructionContext || null);
-            setWorkflowMode('v2' as const);
+            if (selectedLoadItem.type === 'v2job' || selectedLoadItem.type === 'tool') {
+              setWorkflowMode('v2' as const);
+          }
             setOrchestrationStatus('free' as const);
             addWSLog(`Loaded item: ${selectedLoadItem.id} from ${loadSource}`);
             alert(`Successfully loaded '${jobToLoad.productToolDefinition?.metadata.title}'.`);
