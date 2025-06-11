@@ -189,6 +189,45 @@ const GORGEOUS_STYLING_LIBRARY = `
         METRIC LABELS:
         'text-sm font-semibold uppercase tracking-wide text-[INDUSTRY-SECONDARY]'
     </component-styling-patterns>
+
+    <layout-styling-patterns>
+        🎨 MODERN LAYOUT PATTERNS:
+
+        <example name="Space-Efficient Column Layouts">
+            <description>
+                To create modern, dashboard-like UIs, you must effectively use screen space. Avoid stacking all elements vertically. Instead, use multi-column grid layouts to position input sections next to action/result sections.
+            </description>
+
+            <bad-example title="Inefficient Vertical Stack">
+                <explanation>
+                    This layout is poor because it stacks the input container and the button container vertically. On wide screens, this leaves a lot of empty space on the sides and forces users to scroll. The 'md:grid-cols-2' on the inputs helps, but the overall page flow is still a simple vertical column.
+                </explanation>
+                <code>
+'''json'''
+{
+  "input-section": "class=\"space-y-6\"",
+  "input-grid": "class=\"grid grid-cols-1 md:grid-cols-2 gap-6\"",
+  "buttons-container": "class=\"flex flex-wrap gap-4 justify-center md:justify-start\""
+}
+'''end json'''             </code>
+            </bad-example>
+
+            <good-example title="Efficient Two-Column Grid Layout">
+                <explanation>
+                    This is a superior layout. The main container ('tool-main') is turned into a two-column grid on large screens ('lg:grid-cols-2'). The inputs sit in the left column, while the buttons and results are neatly organized in the right column. This maximizes space, reduces scrolling, and feels like a professional application.
+                </explanation>
+                <code>
+'''json'''
+{
+  "tool-main": "class=\"bg-white rounded-xl shadow-2xl p-6 grid grid-cols-1 lg:grid-cols-2 gap-8\"",
+  "input-section": "class=\"space-y-6\"",
+  "right-column": "class=\"space-y-8\"",
+  "buttons-grid": "class=\"grid grid-cols-1 sm:grid-cols-2 gap-4\""
+}
+'''end json'''             </code>
+            </good-example>
+        </example>
+    </layout-styling-patterns>
 </gorgeous-styling-library>
 `;
 

@@ -95,7 +95,7 @@ ${CORE_LAYOUT_RULES}
             - Typical ranges or benchmarks
 
             **Implementation Pattern**:
-            \`\`\`jsx
+            '''jsx'''   
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -113,7 +113,7 @@ ${CORE_LAYOUT_RULES}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            \`\`\`
+            '''end jsx'''
         </tooltip-requirements>
 
         <calculation-display-requirements>
@@ -155,6 +155,71 @@ ${CORE_LAYOUT_RULES}
     <data-style-id-requirements>
         - Assign descriptive IDs like 'main-container', 'input-revenue', 'submit-button', 'results-grid'.
     </data-style-id-requirements>
+
+    <layout-examples>
+        <example name="Space Utilization">
+            <description>
+                A common mistake is stacking all inputs and buttons vertically, which wastes horizontal space and creates a long, scrollable form. The goal is to use a multi-column layout to place controls side-by-side, creating a more compact and modern, dashboard-like feel.
+            </description>
+
+            <bad-example title="Inefficient Vertical Layout">
+                <explanation>
+                    In this example, the inputs are grouped together, and all the action buttons are placed in a separate container underneath. This forces the user to scroll and creates a poor user experience on wider screens. The JSX structure itself forces a vertical flow.
+                </explanation>
+                <code>
+        '''jsx'''
+                <main data-style-id="tool-main">
+                <section data-style-id="input-section">
+                    <div data-style-id="input-grid">
+                    {/* ... 6 input fields go here ... */}
+                    </div>
+                    <div data-style-id="buttons-container">
+                    {/* ... 5 buttons go here ... */}
+                    </div>
+                </section>
+                <section data-style-id="results-section">
+                    {/* ... Results display ... */}
+                </section>
+                </main>
+        '''end jsx'''
+                </code>
+            </bad-example>
+
+            <good-example title="Efficient Two-Column Layout">
+                <explanation>
+                    This layout is much better. It divides the main content area into two columns. The inputs are neatly organized on the left, while the action buttons and results are on the right. This makes better use of space and keeps all primary interactions visible without scrolling. Note the use of a grid on the main container.
+                </explanation>
+                <code>
+            '''jsx'''
+            <main data-style-id="tool-main">
+            <div data-style-id="main-grid"> {/* Main container is a 2-column grid */}
+                {/* Left Column: All inputs are grouped here */}
+                <section data-style-id="input-section">
+                <div data-style-id="input-grid">
+                    {/* ... 6 input fields go here ... */}
+                </div>
+                </section>
+
+                {/* Right Column: Contains both buttons and results */}
+                <div data-style-id="right-column">
+                <section data-style-id="actions-section">
+                    <h2 data-style-id="actions-title">Actions</h2>
+                    <div data-style-id="buttons-grid"> {/* Buttons are in a "staggered" or multi-column grid */}
+                    {/* ... 5 buttons go here ... */}
+                    </div>
+                </section>
+                
+                <section data-style-id="results-section">
+                    {/* ... Results display ... */}
+                </section>
+                </div>
+            </div>
+            </main>
+            '''end jsx'''
+                </code>
+            </good-example>
+        </example>
+    </layout-examples>
 
     <brainstorm-data-compliance>
         🚨 **ABSOLUTE REQUIREMENT**: You MUST implement EVERY SINGLE element from the brainstorm data:
