@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ALWAYS return updatedTcc for isolated tests to fix finalization steps bug
-    const responseData = { 
+    const responseData: any = { 
       success: true, 
       assembledComponent: result.assembledComponent
     };

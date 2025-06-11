@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return appropriate response for isolated vs normal mode
-    const responseData = result;
+    const responseData: any = result;
     
     if (isIsolatedTest && result.updatedTcc) {
       // Ensure updatedTcc is explicitly included for isolated tests

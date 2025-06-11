@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Return appropriate response for isolated vs normal mode
-    const responseData = {
+    const responseData: any = {
       success: true,
       stateLogic: result.stateLogic,
     };
