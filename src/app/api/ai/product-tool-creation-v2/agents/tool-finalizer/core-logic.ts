@@ -94,6 +94,7 @@ export async function finalizeTool(request: {
     const { provider, modelId } = getModelForAgent(
       'toolFinalizer',
       selectedModel,
+      tcc,
     );
     logger.info(
       { provider, modelId, agent: 'toolFinalizer' },
@@ -258,24 +259,58 @@ function createProductToolDefinition(
 function getModelForAgent(
   agentName: string,
   selectedModel?: string,
+  tcc?: ToolConstructionContext,
 ): { provider: string; modelId: string } {
+  // PRIORITY 1: Check TCC agent model mapping first (user's workbench selection)
+  if (tcc?.agentModelMapping?.['tool-finalizer']) {
+    const mappedModel = tcc.agentModelMapping['tool-finalizer'];
+    const provider = getModelProvider(mappedModel);
+    const modelConfig = { 
+      provider: provider !== 'unknown' ? provider : 'openai', 
+      modelId: mappedModel 
+    };
+    logger.info({ 
+      agentName, 
+      mappedModel, 
+      provider: modelConfig.provider,
+      source: 'TCC_AGENT_MAPPING' 
+    }, '📦 ToolFinalizer: Using TCC AGENT MAPPING model from workbench');
+    return modelConfig;
+  }
+  
+  // PRIORITY 2: User-selected model from request
   if (selectedModel && selectedModel !== 'default') {
     const provider = getModelProvider(selectedModel);
     if (provider !== 'unknown') {
+      logger.info({ 
+        agentName, 
+        selectedModel, 
+        provider,
+        source: 'REQUEST_PARAMETER' 
+      }, '📦 ToolFinalizer: Using REQUEST PARAMETER model');
       return { provider, modelId: selectedModel };
     }
   }
+  
+  // PRIORITY 3: Configuration fallback
   const primaryModel = getPrimaryModel(agentName);
   if (primaryModel && 'modelInfo' in primaryModel) {
-    return {
+    const modelConfig = {
       provider: primaryModel.provider,
       modelId: primaryModel.modelInfo.id,
     };
+    logger.info({ 
+      agentName,
+      modelConfig,
+      source: 'CONFIGURATION_PRIMARY' 
+    }, '📦 ToolFinalizer: Using CONFIGURATION PRIMARY model');
+    return modelConfig;
   }
-  // Final fallback if no config is found
+  
+  // PRIORITY 4: Final fallback if no config is found
   logger.warn(
     { agentName },
-    'No specific model config found, using global fallback gpt-4o.',
+    '📦 ToolFinalizer: No specific model config found, using global fallback gpt-4o.',
   );
   return { provider: 'openai', modelId: 'gpt-4o' };
 }

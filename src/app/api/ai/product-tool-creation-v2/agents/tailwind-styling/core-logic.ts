@@ -218,12 +218,40 @@ async function generateTailwindStylingWithAI(
   editMode?: EditModeContext,
 ): Promise<TccStyling> {
   let modelConfig: { provider: string; modelId: string };
-  if (selectedModel && selectedModel !== 'default') {
+  
+  // PRIORITY 1: Check TCC agent model mapping first (user's workbench selection)
+  if (tcc.agentModelMapping?.['tailwind-styling']) {
+    const mappedModel = tcc.agentModelMapping['tailwind-styling'];
+    const provider = getModelProvider(mappedModel);
+    modelConfig = { 
+      provider: provider !== 'unknown' ? provider : 'openai', 
+      modelId: mappedModel 
+    };
+    logger.info({ 
+      agentName: 'tailwindStyling', 
+      mappedModel, 
+      provider: modelConfig.provider,
+      source: 'TCC_AGENT_MAPPING' 
+    }, '🎨 TailwindStyling: Using TCC AGENT MAPPING model from workbench');
+  }
+  // PRIORITY 2: User-selected model from request
+  else if (selectedModel && selectedModel !== 'default') {
     const provider = getModelProvider(selectedModel);
     modelConfig = { provider: provider !== 'unknown' ? provider : 'openai', modelId: selectedModel };
-  } else {
+    logger.info({ 
+      selectedModel, 
+      provider: modelConfig.provider,
+      source: 'REQUEST_PARAMETER' 
+    }, '🎨 TailwindStyling: Using REQUEST PARAMETER model');
+  } 
+  // PRIORITY 3: Fallback to configuration
+  else {
     const primaryModel = getPrimaryModel('styleMaster');
     modelConfig = primaryModel && 'modelInfo' in primaryModel ? { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } : { provider: 'openai', modelId: 'gpt-4o' };
+    logger.info({ 
+      modelConfig,
+      source: 'CONFIGURATION_FALLBACK' 
+    }, '🎨 TailwindStyling: Using CONFIGURATION FALLBACK model');
   }
 
   logger.info({ ...modelConfig }, '🎨 TailwindStyling: Using model');
