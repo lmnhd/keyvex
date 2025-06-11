@@ -203,7 +203,7 @@ export async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
     });
     
     db.close();
-    console.log(`✅ Loaded ${results.length} logic results from IndexedDB`);
+    //console.log(`✅ Loaded ${results.length} logic results from IndexedDB`);
     return results;
   } catch (error) {
     console.error('❌ Error loading logic results from IndexedDB:', error);
@@ -359,7 +359,7 @@ export async function loadAllToolsFromDB(userId?: string): Promise<ProductToolDe
     });
     
     db.close();
-    console.log(`✅ Loaded ${indexedDbTools.length} tools from IndexedDB`);
+    //console.log(`✅ Loaded ${indexedDbTools.length} tools from IndexedDB`);
 
     // Also try to load from DynamoDB via API call and merge (NEW functionality)
     if (userId) {
@@ -651,7 +651,7 @@ export async function loadV2JobsFromDB(): Promise<Array<{
     });
     
     db.close();
-    console.log(`✅ Loaded ${results.length} V2 jobs from IndexedDB`);
+    //console.log(`✅ Loaded ${results.length} V2 jobs from IndexedDB`);
     return results;
   } catch (error) {
     console.error('❌ Error loading V2 jobs from IndexedDB:', error);

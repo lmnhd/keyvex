@@ -505,22 +505,32 @@ Please generate the complete JSON object for the JSX layout.`;
 
   // Log prompts when in isolated test mode for debugging
   if (isIsolatedTest) {
+    // Use console.log for prompts to make them readable during isolation testing
+    console.log(`\n🏗️ ========== JSX LAYOUT AGENT - ISOLATION TEST PROMPTS ==========`);
+    console.log(`JobId: ${tcc.jobId}`);
+    console.log(`Model: ${modelConfig.modelId}`);
+    
+    console.log(`\n🏗️ SYSTEM PROMPT PREVIEW (first 500 chars):`);
+    console.log(systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''));
+    
+    console.log(`\n🏗️ USER PROMPT PREVIEW (first 1000 chars):`);
+    console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : ''));
+    
+    console.log(`\n🏗️ FULL SYSTEM PROMPT:`);
+    console.log(systemPrompt);
+    
+    console.log(`\n🏗️ FULL USER PROMPT:`);
+    console.log(userPrompt);
+    
+    console.log(`\n🏗️ ========== END PROMPTS ==========\n`);
+    
+    // Keep minimal structured logging for debugging
     logger.info({ 
       jobId: tcc.jobId,
       modelId: modelConfig.modelId,
-      systemPrompt: systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''),
-      userPrompt: userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : '')
-    }, '🏗️ JSXLayout: [ISOLATED TEST] Prompt Preview');
-    
-    logger.info({ 
-      jobId: tcc.jobId,
-      fullSystemPrompt: systemPrompt 
-    }, '🏗️ JSXLayout: [ISOLATED TEST] Full System Prompt');
-    
-    logger.info({ 
-      jobId: tcc.jobId,
-      fullUserPrompt: userPrompt 
-    }, '🏗️ JSXLayout: [ISOLATED TEST] Full User Prompt');
+      systemPromptLength: systemPrompt.length,
+      userPromptLength: userPrompt.length
+    }, '🏗️ JSXLayout: [ISOLATED TEST] Prompt lengths logged to console');
   }
 
   try {
