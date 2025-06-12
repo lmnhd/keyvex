@@ -182,33 +182,48 @@ export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicR
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
   modelId: string,
-  agentModelMapping?: Record<string, string>
+  agentModelMapping?: Record<string, string>,
+  jobId?: string // NEW: Accept optional jobId
 ): Promise<{ jobId: string }> {
   console.log(`Requesting V2 tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
+  
+  // CRITICAL FIX: Log the jobId being passed
+  if (jobId) {
+    console.log(`🔍 [V2-START] Using provided jobId: ${jobId}`);
+  } else {
+    console.log(`⚠️ [V2-START] No jobId provided - server will generate new one`);
+  }
 
   const userInputData = brainstormResult.result?.userInput || {};
   
-  // 🔍 DEBUG: Log the exact data structure we're receiving
-  console.log('🔍 [V2-START-DEBUG] Full brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
-  console.log('🔍 [V2-START-DEBUG] userInputData extracted:', JSON.stringify(userInputData, null, 2));
-  console.log('🔍 [V2-START-DEBUG] businessContext value:', userInputData.businessContext);
-  console.log('🔍 [V2-START-DEBUG] description value:', userInputData.description);
+  // Debug log the entire brainstorm result
+  console.log('🔍 [V2-START] Full brainstorm result:', JSON.stringify(brainstormResult, null, 2));
+  console.log('🔍 [V2-START] User input data:', JSON.stringify(userInputData, null, 2));
   
-  // Phase 3.1: Transform brainstorm data to match new comprehensive schema FIRST
-  const transformedBrainstormData = transformBrainstormDataToNewSchema(brainstormResult);
-  console.log('🔍 [V2-START-DEBUG] Transformed brainstorm data keys:', Object.keys(transformedBrainstormData));
+  // Get description and validate it's not empty
+  const description = userInputData.businessContext || 'Tool creation request';
+  if (!description || description.trim().length === 0) {
+    throw new Error('Description is required but was empty');
+  }
   
-  // 🚨 FIX: Use rich brainstorm data for description instead of generic fallback - ALWAYS USE PRIMARY DATA
-  const finalDescription = userInputData.businessContext || 
-                          userInputData.description || 
-                          (transformedBrainstormData.coreConcept ? 
-                            `${transformedBrainstormData.coreConcept}: ${transformedBrainstormData.valueProposition}` :
-                            'Business calculation tool');
-  console.log('🔍 [V2-START-DEBUG] Final description used:', finalDescription);
+  console.log('🔍 [V2-START] Using description:', description);
   
+  // CRITICAL FIX: Use the transformation function to handle different brainstorm data structures
+  console.log('🔍 [V2-START] Transforming brainstorm data using transformation function...');
+  const actualBrainstormData = transformBrainstormDataToNewSchema(brainstormResult);
+  
+  if (!actualBrainstormData) {
+    console.error('🚨 [V2-START] Transformation function returned null/undefined');
+    console.error('🚨 [V2-START] Original brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
+    throw new Error('Invalid brainstorm data: transformation failed');
+  }
+  
+  console.log('🔍 [V2-START] Transformed brainstorm data:', JSON.stringify(actualBrainstormData, null, 2));
+
   const requestBody = {
+    jobId: jobId,
     userInput: {
-      description: finalDescription,
+      description: description.trim(),
       targetAudience: brainstormResult.targetAudience,
       industry: brainstormResult.industry,
       toolType: brainstormResult.toolType,
@@ -216,14 +231,15 @@ async function startV2ToolCreation(
     },
     selectedModel: modelId,
     agentModelMapping: agentModelMapping || {},
-    // Phase 3.1: Use transformed brainstorm data that matches BrainstormDataSchema
-    brainstormData: transformedBrainstormData,
+    brainstormData: actualBrainstormData, // FIXED: Use the actual brainstorm data, not the wrapper
     testingOptions: {
       enableWebSocketStreaming: true,
       enableTccOperations: true,
       enableOrchestrationTriggers: true
     }
   };
+
+  console.log('🔍 [V2-START] Full request body:', JSON.stringify(requestBody, null, 2));
 
   const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
     method: 'POST',
@@ -236,31 +252,40 @@ async function startV2ToolCreation(
   const responseData = await response.json();
 
   if (!response.ok || !responseData.success) {
-    const errorMessage = responseData.error || `Tool creation failed for model ${modelId} with status ${response.status}`;
+    const errorMessage = responseData.error || responseData.message || `HTTP ${response.status}: ${response.statusText}`;
     console.error(`[V2 Start] API error response:`, responseData);
     throw new Error(errorMessage);
   }
 
+  console.log(`🔍 [V2-START] Response jobId: ${responseData.jobId}`);
   return { jobId: responseData.jobId };
 }
 
 // this must be the legacy tool creation process
+// this must be the legacy tool creation process
 export async function runToolCreationProcess(
   brainstormResult: SavedLogicResult,
   selectedModelId: string,
-  agentModelMapping?: Record<string, string>
+  agentModelMapping?: Record<string, string>,
+  jobId?: string // NEW: Accept optional jobId
 ): Promise<ToolCreationJob> {
   let job: ToolCreationJob = {
     modelId: selectedModelId,
     status: 'loading',
     startTime: Date.now(),
+    jobId: jobId, // Set the jobId immediately if provided
   };
   
   try {
-    const { jobId } = await startV2ToolCreation(brainstormResult, selectedModelId, agentModelMapping);
+    const { jobId: returnedJobId } = await startV2ToolCreation(
+      brainstormResult, 
+      selectedModelId, 
+      agentModelMapping,
+      jobId // CRITICAL: Pass the jobId to ensure consistency
+    );
     job = {
       ...job,
-      jobId: jobId,
+      jobId: returnedJobId, // This should be the same as the input jobId
       status: 'loading',
     };
   } catch (error) {

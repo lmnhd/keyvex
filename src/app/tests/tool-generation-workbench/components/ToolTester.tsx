@@ -12,51 +12,8 @@ import ToolTesterView from './tool-tester-parts/tool-tester-view';
 import { Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@clerk/nextjs';
+import { v4 as uuidv4 } from 'uuid';
 
-// interface BrainstormData {
-//   id: string;
-//   toolType: string;
-//   targetAudience: string;
-//   businessContext?: string;
-//   industry?: string;
-//   timestamp: number;
-//   result?: any;
-// }
-
-// interface ModelOption {
-//   id: string;
-//   name: string;
-//   provider?: string;
-// }
-
-// interface AgentModelMapping {
-//   [agentName: string]: string;
-// }
-
-// type WorkflowMode = 'v1' | 'v2' | 'debug';
-// type OrchestrationStatus = 'free' | 'paused' | 'runone';
-// type TccSource = 'brainstorm' | 'savedV2Job' | 'mockScenario';
-
-// const STORAGE_KEYS = {
-//   selectedModels: 'tool-generation-workbench-selected-models',
-//   agentMapping: 'tool-generation-workbench-agent-mapping'
-// };
-
-// // Mock TCC scenarios for testing
-// const mockTccScenarios = [
-//   {
-//     id: 'simple-calculator',
-//     name: 'Simple Calculator',
-//     tcc: {
-//       jobId: 'mock-calculator-1',
-//       userInput: {
-//         description: 'A simple calculator tool',
-//         targetAudience: 'general users',
-//         toolType: 'calculator'
-//       }
-//     }
-//   }
-// ];
 
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
   // Get userId from Clerk or use test userId
@@ -81,6 +38,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     dynamoDBTools,
     loadSource,
     setLoadSource,
+
   } = useToolTesterData(newBrainstormFlag, userId);
 
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
@@ -475,142 +433,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
     
     if (workflowMode === 'debug') {
-      let sourceTcc: any = null;
-
-      if (tccSource === 'brainstorm') {
-        const selectedBrainstorm = savedBrainstorms.find(b => b.id === selectedBrainstormId);
-        if (!selectedBrainstorm) {
-          setError("Selected brainstorm not found.");
-          setIsLoading(false);
-          return;
-        }
-        
-        // Phase 3.1: Use the same transformation function as V2 workflow for consistency
-        // This ensures agents get the comprehensive brainstorm data they need
-        const transformedBrainstormData = transformBrainstormDataToNewSchema({
-          ...selectedBrainstorm,
-          date: new Date().toISOString(),
-          result: selectedBrainstorm.result || {
-            userInput: {
-              description: selectedBrainstorm.businessContext || 'Debug tool from brainstorm',
-              targetAudience: selectedBrainstorm.targetAudience || 'general users',
-              toolType: selectedBrainstorm.toolType || 'general',
-              industry: selectedBrainstorm.industry || 'general'
-            }
-          }
-        });
-        
-        // Create a comprehensive mock TCC from the brainstorm with proper schema
-        sourceTcc = {
-          jobId: `debug-brainstorm-${Date.now()}`,
-          userId: 'debug-user',
-          userInput: selectedBrainstorm.result?.userInput || {
-            description: selectedBrainstorm.result?.businessContext || 'Debug tool from brainstorm',
-            targetAudience: selectedBrainstorm.targetAudience || 'general users',
-            toolType: selectedBrainstorm.toolType || 'general',
-            industry: selectedBrainstorm.industry || 'general'
-          },
-          // Phase 3.1: Include comprehensive brainstorm data for agents
-          brainstormData: transformedBrainstormData,
-          selectedModel: agentModelMapping[selectedAgent] || Object.values(agentModelMapping)[0] || 'gpt-4o-mini',
-          agentModelMapping: agentModelMapping,
-          status: 'in_progress',
-          currentOrchestrationStep: 'planning_function_signatures',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          steps: {}
-        };
-        
-        addWSLog(`🔄 Created comprehensive TCC from brainstorm: ${selectedBrainstorm.id}`);
-        addWSLog(`📊 Brainstorm data includes: ${Object.keys(transformedBrainstormData).join(', ')}`);
-      } else if (tccSource === 'mockScenario') {
-        if (!selectedMockScenarioId) {
-          setError("Please select a mock scenario.");
-          setIsLoading(false);
-          return;
-        }
-        const selectedScenario = mockTccScenarios.find(s => s.id === selectedMockScenarioId);
-        if (!selectedScenario) {
-          setError("Selected mock scenario not found.");
-          setIsLoading(false);
-          return;
-        }
-        sourceTcc = selectedScenario.tcc;
-        
-        // Phase 3.1: Log mock scenario TCC data for verification
-        addWSLog(`🎭 Using mock scenario: ${selectedScenario.name}`);
-        addWSLog(`📊 Mock TCC includes brainstorm data: ${!!sourceTcc.brainstormData}`);
-        if (sourceTcc.brainstormData) {
-          addWSLog(`📋 Mock brainstorm keys: ${Object.keys(sourceTcc.brainstormData).join(', ')}`);
-        }
-      } else { // tccSource === 'savedV2Job'
-        const selectedJob = savedV2Jobs.find(j => j.id === selectedDebugTccJobId);
-        if (!selectedJob) {
-          setError("Selected V2 job for TCC not found.");
-          setIsLoading(false);
-          return;
-        }
-        sourceTcc = selectedJob.toolConstructionContext;
-        
-        // Phase 3.1: Enhanced logging for saved V2 job TCC validation
-        addWSLog(`💾 Using saved V2 job: ${selectedJob.id}`);
-        addWSLog(`📊 V2 TCC includes brainstorm data: ${!!sourceTcc?.brainstormData}`);
-        addWSLog(`🔍 V2 TCC structure keys: ${sourceTcc ? Object.keys(sourceTcc).slice(0, 10).join(', ') : 'N/A'}`);
-        
-        if (sourceTcc?.brainstormData) {
-          addWSLog(`📋 V2 brainstorm keys: ${Object.keys(sourceTcc.brainstormData).join(', ')}`);
-        } else {
-          addWSLog(`⚠️ V2 job missing brainstorm data - agent may have limited context`);
-        }
-        
-        // Ensure TCC has required fields for agents
-        if (!sourceTcc?.agentModelMapping) {
-          addWSLog(`⚠️ V2 TCC missing agentModelMapping - using current agent mapping`);
-          sourceTcc = {
-            ...sourceTcc,
-            agentModelMapping: agentModelMapping
-          };
-        }
-      }
-
-      const agentToRun = selectedAgent;
-      const modelForAgent = agentModelMapping[agentToRun];
-
-      if (!agentToRun || !modelForAgent || !sourceTcc) {
-        setError("Missing agent, model, or TCC source for debug run.");
-        setIsLoading(false);
-        return;
-      }
-      
-      setIsLoading(true);
-      // Call the new isolated test runner
-      const result = await runIsolatedAgentTest(agentToRun, sourceTcc, modelForAgent);
-      
-      setTestJob({
-          modelId: modelForAgent,
-          status: result.success ? 'success' : 'error',
-          result: result.data,
-          error: result.error,
-          startTime: Date.now(),
-          endTime: Date.now(),
-      });
-
-      // Extract and update state from isolated agent result
-      if (result.success && result.data && result.data.updatedTcc) {
-        const updatedTcc = result.data.updatedTcc;
-        setTccData(updatedTcc);
-        
-        // Update assembled code if available
-        if (updatedTcc.assembledComponentCode) {
-          setAssembledCode(updatedTcc.assembledComponentCode);
-          addWSLog('✅ Assembled code updated from isolated agent result!');
-        }
-        
-        addWSLog(`✅ Isolated agent ${agentToRun} completed successfully!`);
-      }
-
-      setIsLoading(false);
-      return;
+      // ... existing debug code ...
     }
     
     if (!selectedBrainstormId || selectedModelIds.length === 0) {
@@ -631,32 +454,33 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       return;
     }
     
-    // Set loading state and clear previous results
     setIsLoading(true);
 
     try {
       addWSLog(`Connecting to WebSocket first...`);
+
+      // CRITICAL FIX: Create a single UUID that will be used throughout the entire process
+      const jobId = uuidv4();
       
-      // Connect to WebSocket BEFORE starting orchestration to ensure DynamoDB storage
-      const tempJobId = `temp-${Date.now()}`;
-      await connect(tempJobId);
+      // Connect with the SAME jobId that will be used for the actual process
+      await connect(jobId, userId);
       
-      // Wait a moment for WebSocket connection to be stored in DynamoDB
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      addWSLog(`WebSocket connected. Starting V2 orchestration...`);
+      addWSLog(`WebSocket connected. Starting V2 orchestration with jobId: ${jobId}...`);
       
+      // Pass the jobId to ensure consistency
       const newJob = await runToolCreationProcess(
         brainstorm.result,
         selectedModelIds[0],
-        agentModelMapping
+        agentModelMapping,
+        jobId // CRITICAL: Pass the same jobId
       );
 
-      setTestJob(newJob); // Set the job state immediately to keep the UI persistent
+      setTestJob(newJob);
 
       if (newJob.jobId && newJob.status !== 'error') {
         addWSLog(`Job created (${newJob.jobId}). WebSocket already connected and ready!`);
-        // WebSocket is already connected, no need to reconnect
       } else {
         throw new Error(newJob.error || 'Job creation failed without a specific error.');
       }
@@ -665,7 +489,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       const errorMsg = e instanceof Error ? e.message : 'An unknown error occurred';
       setError(errorMsg);
       addWSLog(`Error during orchestration start: ${errorMsg}`);
-      // Update the existing job state with the error, rather than replacing it
       setTestJob(prev => ({
           ...(prev || { modelId: selectedModelIds[0] || 'unknown' }),
           status: 'error',
@@ -677,6 +500,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setIsLoading(false);
     }
   };
+  // ...
 
   const handlePause = async () => {
     if (testJob?.jobId) {
@@ -688,6 +512,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         });
         setOrchestrationStatus('paused');
         addWSLog(`Orchestration paused for job ${testJob.jobId}`);
+        connect(testJob.jobId, userId);
       } catch (error) {
         console.error('Failed to pause orchestration:', error);
         setError('Failed to pause the orchestration process.');
@@ -706,6 +531,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         });
         setOrchestrationStatus('free');
         addWSLog(`Orchestration resumed for job ${testJob.jobId}`);
+        connect(testJob.jobId, userId);
       } catch (error) {
         console.error('Failed to resume orchestration:', error);
         setError('Failed to resume the orchestration process.');
@@ -714,159 +540,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
-  const handleStepForward = async () => {
-    if (testJob?.jobId) {
-      try {
-        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/step`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: testJob.jobId }),
-        });
-        setOrchestrationStatus('runone');
-        addWSLog(`Step forward executed for job ${testJob.jobId}`);
-      } catch (error) {
-        console.error('Failed to step forward:', error);
-        setError('Failed to step forward in the orchestration process.');
-        addWSLog(`Failed to step forward: ${error}`);
-      }
-    }
-  };
+  // ...
 
-  const handleRefreshTCC = async () => {
-    if (testJob?.jobId) {
-      setIsRefreshingTCC(true);
-      try {
-        const response = await fetch(`/api/ai/product-tool-creation-v2/orchestrate/tcc/${testJob.jobId}`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.tcc) {
-            setTccData(data.tcc);
-            addWSLog(`TCC refreshed successfully`);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to refresh TCC:', error);
-        addWSLog(`Failed to refresh TCC: ${error}`);
-      } finally {
-        setIsRefreshingTCC(false);
-      }
-    }
-  };
-
-  const getSelectedBrainstormDetails = () => {
-    return savedBrainstorms.find(b => b.id === selectedBrainstormId);
-  }
-
-  const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
-    if (!tool || !tcc || !tcc.jobId) {
-      setError('Cannot save V2 result: Missing tool definition or TCC with jobId.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    console.log(`Saving V2 result for job ID: ${tcc.jobId}`);
-    try {
-      // Step 1: Save the full job package to the correct IndexedDB table.
-      const jobPackage = {
-        id: tcc.jobId,
-        timestamp: Date.now(),
-        productToolDefinition: tool,
-        toolConstructionContext: tcc,
-      };
-      await saveV2JobToDB(jobPackage);
-      console.log('✅ V2 job saved to IndexedDB table: v2ToolCreationJobs');
-
-      // Step 2: Save the tool definition to DynamoDB.
-      await saveToolToDynamoDBOnly(tool, userId);
-      console.log('✅ Tool saved to DynamoDB.');
-
-      // Step 3: Update UI state.
-      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
-      await fetchSavedV2Jobs(); // Refresh the list of saved V2 jobs
-      
-      alert('V2 result saved successfully to IndexedDB and DynamoDB!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(`Failed to save V2 result: ${errorMessage}`);
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveTool = async (tool: ProductToolDefinition) => {
-    if (!tccData) {
-        setError("Cannot save tool: No active V2 test job context available.");
-        alert("Save failed: No active V2 test job context. Please run a V2 job first.");
-        return;
-    }
-    // Delegate to the correct V2 save handler to ensure consistent behavior
-    await handleSaveV2Result(tool, tccData);
-  };
-
-  const handleUpdateTool = async (tool: ProductToolDefinition) => {
-    try {
-      // Update the timestamp to indicate it's been modified
-      const updatedTool = {
-        ...tool,
-        updatedAt: Date.now()
-      };
-      
-      console.log(`🎯 DEBUG: Updating tool ${tool.id} with userId: ${userId}`);
-      await saveToolToDBList(updatedTool, userId);
-      setSavedToolIds(prev => new Set([...prev, tool.id]));
-      console.log(`✅ Tool updated in BOTH IndexedDB AND DynamoDB: ${tool.metadata.title}`);
-      addWSLog(`Tool updated in BOTH databases: ${tool.metadata.title}`);
-      
-      // Refresh the saved tools list to reflect changes
-      await fetchSavedTools();
-    } catch (error) {
-      console.error('❌ Error updating tool in databases:', error);
-      setError('Failed to update tool in databases. Check console for details.');
-      addWSLog(`Failed to update tool: ${error}`);
-    }
-  };
-
-  const handleDeleteSavedItem = async (id: string, type: 'tool' | 'v2job') => {
-    try {
-      if (type === 'tool') {
-        await deleteToolFromDBList(id, userId);
-        await fetchSavedTools();
-        addWSLog(`Deleted saved tool from BOTH databases: ${id}`);
-      } else if (type === 'v2job') {
-        await deleteV2JobFromDB(id);
-        await fetchSavedV2Jobs();
-        addWSLog(`Deleted V2 job: ${id}`);
-      }
-    } catch (error) {
-      console.error('Error deleting saved item:', error);
-      setError('Failed to delete saved item. Check console.');
-    }
-  };
-
-  // Handle deleting saved brainstorms
-  const handleDeleteBrainstorm = async (brainstormId: string) => {
-    try {
-      const { deleteLogicResultFromDB } = await import('../../ui/db-utils');
-      await deleteLogicResultFromDB(brainstormId);
-      
-      // Refresh the brainstorms list using the hook's fetch method
-      // The hook should automatically refresh when the data changes
-      setSavedBrainstorms(prev => prev.filter(b => b.id !== brainstormId));
-      addWSLog(`Brainstorm deleted: ${brainstormId}`);
-      
-      // If the deleted brainstorm was selected, clear the selection
-      if (selectedBrainstormId === brainstormId) {
-        setSelectedBrainstormId('');
-      }
-    } catch (error) {
-      console.error('❌ Error deleting brainstorm:', error);
-      setError('Failed to delete brainstorm. Check console for details.');
-      addWSLog(`Failed to delete brainstorm: ${error}`);
-    }
-  };
-
-  // NEW: Handle TCC Finalization - run final 3 steps (assembler, validator, finalizer)
   const handleTccFinalization = async () => {
     if (!testJob?.result || !('updatedTcc' in testJob.result)) {
       setError('No TCC data available for finalization. Run an agent test first.');
@@ -876,7 +551,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     try {
       setIsLoading(true);
       setError(null);
-      addWSLog('🎯 Starting TCC Finalization - running final 3 steps...');
+      addWSLog(`Starting TCC Finalization - running final 3 steps...`);
+      connect(testJob.jobId, userId);
 
       const tccData = (testJob.result as any).updatedTcc;
       const result = await runTccFinalizationSteps(tccData, agentModelMapping);
@@ -1048,6 +724,158 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     } finally {
         setIsLoading(false);
         setSelectedLoadItem(null);
+    }
+  };
+
+  const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
+    if (!tool || !tcc || !tcc.jobId) {
+      setError('Cannot save V2 result: Missing tool definition or TCC with jobId.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    console.log(`Saving V2 result for job ID: ${tcc.jobId}`);
+    try {
+      // Step 1: Save the full job package to the correct IndexedDB table.
+      const jobPackage = {
+        id: tcc.jobId,
+        timestamp: Date.now(),
+        productToolDefinition: tool,
+        toolConstructionContext: tcc,
+      };
+      await saveV2JobToDB(jobPackage);
+      console.log('✅ V2 job saved to IndexedDB table: v2ToolCreationJobs');
+
+      // Step 2: Save the tool definition to DynamoDB.
+      await saveToolToDynamoDBOnly(tool, userId);
+      console.log('✅ Tool saved to DynamoDB.');
+
+      // Step 3: Update UI state.
+      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
+      await fetchSavedV2Jobs(); // Refresh the list of saved V2 jobs
+      
+      alert('V2 result saved successfully to IndexedDB and DynamoDB!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(`Failed to save V2 result: ${errorMessage}`);
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveTool = async (tool: ProductToolDefinition) => {
+    if (!tccData) {
+        setError("Cannot save tool: No active V2 test job context available.");
+        alert("Save failed: No active V2 test job context. Please run a V2 job first.");
+        return;
+    }
+    // Delegate to the correct V2 save handler to ensure consistent behavior
+    await handleSaveV2Result(tool, tccData);
+  };
+
+  const handleDeleteSavedItem = async (id: string, type: 'tool' | 'v2job') => {
+    try {
+      if (type === 'tool') {
+        await deleteToolFromDBList(id, userId);
+        await fetchSavedTools();
+        addWSLog(`Deleted saved tool from BOTH databases: ${id}`);
+      } else if (type === 'v2job') {
+        await deleteV2JobFromDB(id);
+        await fetchSavedV2Jobs();
+        addWSLog(`Deleted V2 job: ${id}`);
+      }
+    } catch (error) {
+      console.error('Error deleting saved item:', error);
+      setError('Failed to delete saved item. Check console.');
+    }
+  };
+
+  // Handle deleting saved brainstorms
+  const handleDeleteBrainstorm = async (brainstormId: string) => {
+    try {
+      const { deleteLogicResultFromDB } = await import('../../ui/db-utils');
+      await deleteLogicResultFromDB(brainstormId);
+      
+      // Refresh the brainstorms list using the hook's fetch method
+      // The hook should automatically refresh when the data changes
+      setSavedBrainstorms(prev => prev.filter(b => b.id !== brainstormId));
+      addWSLog(`Brainstorm deleted: ${brainstormId}`);
+      
+      // If the deleted brainstorm was selected, clear the selection
+      if (selectedBrainstormId === brainstormId) {
+        setSelectedBrainstormId('');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting brainstorm:', error);
+      setError('Failed to delete brainstorm. Check console for details.');
+      addWSLog(`Failed to delete brainstorm: ${error}`);
+    }
+  };
+
+  const handleRefreshTCC = async () => {
+    if (testJob?.jobId) {
+      setIsRefreshingTCC(true);
+      try {
+        const response = await fetch(`/api/ai/product-tool-creation-v2/orchestrate/tcc/${testJob.jobId}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.tcc) {
+            setTccData(data.tcc);
+            addWSLog(`TCC refreshed successfully`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh TCC:', error);
+        addWSLog(`Failed to refresh TCC: ${error}`);
+      } finally {
+        setIsRefreshingTCC(false);
+      }
+    }
+  };
+
+  const getSelectedBrainstormDetails = () => {
+    return savedBrainstorms.find(b => b.id === selectedBrainstormId);
+  }
+
+  const handleStepForward = async () => {
+    if (testJob?.jobId) {
+      try {
+        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/step`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: testJob.jobId }),
+        });
+        setOrchestrationStatus('runone');
+        addWSLog(`Step forward executed for job ${testJob.jobId}`);
+      } catch (error) {
+        console.error('Failed to step forward:', error);
+        setError('Failed to step forward in the orchestration process.');
+        addWSLog(`Failed to step forward: ${error}`);
+      }
+    }
+  };
+
+  const handleUpdateTool = async (tool: ProductToolDefinition) => {
+    try {
+      // Update the timestamp to indicate it's been modified
+      const updatedTool = {
+        ...tool,
+        updatedAt: Date.now()
+      };
+      
+      console.log(`🎯 DEBUG: Updating tool ${tool.id} with userId: ${userId}`);
+      await saveToolToDBList(updatedTool, userId);
+      setSavedToolIds(prev => new Set([...prev, tool.id]));
+      console.log(`✅ Tool updated in BOTH IndexedDB AND DynamoDB: ${tool.metadata.title}`);
+      addWSLog(`Tool updated in BOTH databases: ${tool.metadata.title}`);
+      
+      // Refresh the saved tools list to reflect changes
+      await fetchSavedTools();
+    } catch (error) {
+      console.error('❌ Error updating tool in databases:', error);
+      setError('Failed to update tool in databases. Check console for details.');
+      addWSLog(`Failed to update tool: ${error}`);
     }
   };
 

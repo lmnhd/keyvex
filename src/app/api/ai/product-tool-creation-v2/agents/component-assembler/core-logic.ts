@@ -99,10 +99,26 @@ export async function assembleComponent(request: {
       tcc // Pass TCC with userId
     );
 
+    // CRITICAL FIX: Add progress updates during long-running assembly
+    // Break down the assembly process with intermediate progress reports
+    
+    // Step 1: Prepare assembly context
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
+      'Preparing component assembly context...',
+      tcc
+    );
+    
+    // Add a small delay to allow progress to be sent
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Assemble the component with AI
     const assembledComponent = await generateAssembledComponent(
       tcc,
-      selectedModel,
+      jobId,
+      selectedModel
     );
 
     // Update TCC with results
@@ -194,7 +210,7 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 /**
  * Use AI to generate the assembled component based on existing TCC parts
  */
-async function generateAssembledComponent(tcc: ToolConstructionContext, selectedModel?: string): Promise<AssembledComponent> {
+async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: string, selectedModel?: string): Promise<AssembledComponent> {
   // 🔍 DEBUG: Log brainstorm data structure for debugging
   logger.info({ 
     jobId: tcc.jobId,
@@ -384,6 +400,15 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
   console.log('='.repeat(80) + '\n');
 
   try {
+    // CRITICAL FIX: Send progress update before starting AI generation
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
+      'Generating component with AI - this may take 1-2 minutes...',
+      tcc
+    );
+
     const { object } = await generateObject({
       model: modelInstance,
       schema: assembledComponentSchema,
@@ -392,6 +417,16 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       temperature: 0.1,
       maxTokens: 8192,
     });
+    
+    // CRITICAL FIX: Send progress update after AI generation completes
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
+      'AI generation complete, post-processing component...',
+      tcc
+    );
+    
     logger.info({ 
       tccJobId: tcc.jobId, 
       provider, 

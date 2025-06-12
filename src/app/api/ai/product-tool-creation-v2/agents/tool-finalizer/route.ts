@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { finalizeTool } from './core-logic';
+import { V2ToolCreationJobService } from '@/lib/db/dynamodb/v2-tool-creation-jobs';
 import logger from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -40,6 +41,27 @@ export async function POST(request: NextRequest) {
       currentOrchestrationStep: 'finalizing_tool' as const,
       updatedAt: new Date().toISOString()
     };
+
+    // CRITICAL FIX: Update the database with completed job for polling fallback
+    if (!isIsolated && jobId && tcc?.userId) {
+      try {
+        const jobService = new V2ToolCreationJobService();
+        await jobService.updateJob(tcc.userId, jobId, {
+          status: 'completed',
+          toolConstructionContext: updatedTcc,
+          productToolDefinition: result.finalProduct,
+          updatedAt: Date.now()
+        });
+        logger.info({ jobId, userId: tcc.userId }, '📦 ToolFinalizer: ✅ Database updated with completed job for polling fallback');
+      } catch (dbError) {
+        logger.error({ 
+          jobId, 
+          userId: tcc.userId,
+          error: dbError instanceof Error ? dbError.message : String(dbError)
+        }, '📦 ToolFinalizer: ⚠️ Failed to update database - polling fallback may not work');
+        // Don't fail the request if database update fails
+      }
+    }
 
     const responseData: any = {
       success: true,

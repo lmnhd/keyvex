@@ -646,6 +646,31 @@ export async function syncAllToolsFromIndexedDBToDynamoDB(userId: string): Promi
 }
 
 // NEW V2 JOB LOADING FUNCTIONS
+export async function getV2JobFromDB(jobId: string): Promise<any | null> {
+  try {
+    const db = await openToolDB();
+    const transaction = db.transaction([V2_JOBS_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(V2_JOBS_STORE_NAME);
+
+    const result = await new Promise<any>((resolve, reject) => {
+      const request = store.get(jobId);
+      request.onsuccess = () => {
+        resolve(request.result || null);
+      };
+      request.onerror = () => {
+        console.error('❌ Error loading V2 job from IndexedDB:', request.error);
+        reject(request.error);
+      };
+    });
+
+    db.close();
+    return result;
+  } catch (error) {
+    console.error('❌ Error loading V2 job from IndexedDB:', error);
+    return null;
+  }
+}
+
 export async function loadV2JobsFromDB(): Promise<Array<{
   id: string;
   timestamp: number;
