@@ -91,7 +91,7 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
     You must return a valid JSON object with this EXACT structure:
 
     {
-      "coreWConcept": "string",
+      "coreConcept": "string",
       "keyCalculations": [
         {
           "name": "string",
@@ -111,9 +111,9 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
       ],
       "valueProposition": "string",
       "leadCaptureStrategy": {
-        "timing": "string",
-        "method": "string", 
-        "incentive": "string"
+        "timing": "after_completion|during_tool|before_results|progressive_unlock",
+        "method": "email_signup|form_completion|pdf_download|results_sharing", 
+        "incentive": "detailed_report|industry_benchmarks|personalized_insights|action_plan"
       },
       "creativeEnhancements": [
         "Enhancement idea 1",
@@ -159,6 +159,7 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
 </creativity-setting>
 
 <critical-constraints>
+    <constraint>🚨 CRITICAL: leadCaptureStrategy MUST ALWAYS be included with valid timing, method, and incentive values - this is essential for business tool success</constraint>
     <constraint>The "creativeEnhancements" field MUST be an array of strings, NOT a JSON string representation of an array</constraint>
     <constraint>Keep calculations business-relevant and credible</constraint>
     <constraint>Ensure formulas can be implemented with standard inputs</constraint>

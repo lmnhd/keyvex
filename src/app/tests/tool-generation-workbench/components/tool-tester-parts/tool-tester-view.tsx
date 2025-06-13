@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BrainstormData, WorkflowMode, ModelOption, AgentModelMapping, OrchestrationStatus, TccSource, AgentMode } from './tool-tester-types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { getScenariosForAgent } from '@/lib/testing/mock-tcc-scenarios';
 import { ToolCreationJob } from '../tool-tester-core-logic';
 import { ConnectionStatus, StepProgress } from '../../hooks/useToolGenerationStream';
@@ -87,6 +88,8 @@ export default function ToolTesterView({
     loadSource,
     setLoadSource,
     dynamoDBTools,
+    editMessage,
+    setEditMessage,
 }: {
     testJob: ToolCreationJob | null;
     getConnectionStatusIcon: () => React.ReactNode;
@@ -158,6 +161,8 @@ export default function ToolTesterView({
     loadSource: 'indexeddb' | 'dynamodb';
     setLoadSource: (source: 'indexeddb' | 'dynamodb') => void;
     dynamoDBTools: ProductToolDefinition[];
+    editMessage: string;
+    setEditMessage: (message: string) => void;
 }) {
   const [activeRightTab, setActiveRightTab] = useState('progress');
 
@@ -676,9 +681,25 @@ export default function ToolTesterView({
                           </p>
                         )}
                         {agentMode === 'edit' && (
-                          <p className="text-xs text-muted-foreground pl-6">
-                            Test agent editing existing output with current state awareness and edit instructions.
-                          </p>
+                          <div className="pl-6 space-y-3">
+                            <p className="text-xs text-muted-foreground">
+                              Test agent editing existing output with current state awareness and edit instructions.
+                            </p>
+                            <div className="space-y-2">
+                              <Label htmlFor="edit-message">Edit Instructions</Label>
+                              <Textarea
+                                id="edit-message"
+                                placeholder="Enter instructions for how the agent should modify its output..."
+                                value={editMessage}
+                                onChange={(e) => setEditMessage(e.target.value)}
+                                rows={3}
+                                className="text-sm"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                These instructions will be sent to the agent along with the current result to guide modifications.
+                              </p>
+                            </div>
+                          </div>
                         )}
                       </div>
 

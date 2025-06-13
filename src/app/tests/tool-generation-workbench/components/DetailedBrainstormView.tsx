@@ -24,7 +24,7 @@ interface BrainstormOutput {
     engagementHook?: string;
   }>;
   valueProposition: string;
-  leadCaptureStrategy: {
+  leadCaptureStrategy?: {
     timing: string;
     method: string;
     incentive: string;
@@ -215,13 +215,17 @@ export const DetailedBrainstormView: React.FC<DetailedBrainstormViewProps> = ({ 
 
         <section>
           <SectionTitle>Lead Capture Strategy</SectionTitle>
-          <Card className="bg-white dark:bg-gray-800/50 shadow-sm">
-            <CardContent className="pt-6 space-y-1">
-              <PropertyDisplay label="Timing" value={data.leadCaptureStrategy.timing} />
-              <PropertyDisplay label="Method" value={data.leadCaptureStrategy.method} />
-              <PropertyDisplay label="Incentive" value={data.leadCaptureStrategy.incentive} />
-            </CardContent>
-          </Card>
+          {data.leadCaptureStrategy ? (
+            <Card className="bg-white dark:bg-gray-800/50 shadow-sm">
+              <CardContent className="pt-6 space-y-1">
+                <PropertyDisplay label="Timing" value={data.leadCaptureStrategy.timing} />
+                <PropertyDisplay label="Method" value={data.leadCaptureStrategy.method} />
+                <PropertyDisplay label="Incentive" value={data.leadCaptureStrategy.incentive} />
+              </CardContent>
+            </Card>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No lead capture strategy provided.</p>
+          )}
         </section>
 
         <Separator className="my-6" />

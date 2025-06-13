@@ -140,9 +140,9 @@ export default function ProductToolPage() {
                   </div>
                 </div>
                 
-                {tool.metadata.tags.length > 0 && (
+                {tool.metadata.tags && tool.metadata.tags.length > 0 && (
                   <div className="flex items-center gap-2 mt-3">
-                    {tool.metadata.tags.map((tag) => (
+                    {tool.metadata.tags?.map((tag) => (
                       <Badge key={tag} variant="outline">
                         {tag}
                       </Badge>

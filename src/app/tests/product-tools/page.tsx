@@ -58,7 +58,12 @@ const sampleROICalculator: ProductToolDefinition = {
     icon: {
       type: 'lucide',
       value: 'Calculator'
-    }
+    },
+    dependencies: [],
+    userInstructions: '',
+    developerNotes: '',
+    source: 'demo',
+    version: '1.0'
   },
   
   componentSet: 'shadcn',
@@ -177,6 +182,9 @@ export default function ROICalculator() {
     warning: '#f59e0b',
     error: '#ef4444'
   },
+  
+  initialStyleMap: {},
+  currentStyleMap: {},
   
   analytics: {
     enabled: true,

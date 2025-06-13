@@ -4,8 +4,8 @@ import { openai } from '@ai-sdk/openai';
 
 // Define the Zod schema for the expected output object
 export const ToolDetailsSchema = z.object({
-  toolType: z.string().describe("The primary type or category of the tool, e.g., 'ROI Calculator', 'Lead Qualification Quiz', 'Content Generator'."),
-  targetAudience: z.string().describe("The main group of users this tool is intended for, e.g., 'Marketing Agencies', 'Small Business Owners', 'University Students'."),
+  toolType: z.string().describe("The primary type or category of the tool, e.g., 'ROI Calculator', 'Lead Qualification Quiz', 'Content Generator', 'Healthcare Compliance Assessment', 'Manufacturing Efficiency Analyzer', 'Real Estate Investment Evaluator'."),
+  targetAudience: z.string().describe("The main group that will ultimately use the tool; this is the audience that will be using the tool as opposed to the client that is providing the tool to the audience, e.g., 'University Students', 'Small Business Owners', 'Consultants', 'Entrepreneurs', 'Coaches', 'B2B Service Providers', 'Health enthusiasts', 'Content creators', etc."),
 });
 
 export type ExtractedToolDetails = z.infer<typeof ToolDetailsSchema>;

@@ -595,37 +595,29 @@ Return a JSON array of formula objects.`;
   ): any {
     console.log('🔄 [V2-FORMAT] Creating structured V2 format result');
     
+    // 🎯 CRITICAL FIX: Return brainstorm data in flat structure that matches BrainstormDataSchema
+    // The schema expects all fields at the root level, not nested under brainstormOutput
     const v2Result = {
-      // User input context (required by BrainstormDataSchema)
-      userInput: {
-        toolType,
-        targetAudience,
-        industry,
-        businessContext,
+      // Core brainstorm output (matches BrainstormDataSchema exactly - FLAT structure)
+      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
+      valueProposition: brainstormData.valueProposition || 'Provides value to users',
+      keyCalculations: brainstormData.keyCalculations || [],
+      interactionFlow: brainstormData.interactionFlow || [],
+      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+        timing: 'after_completion',
+        method: 'email_signup',
+        incentive: 'Save and share results'
       },
-      
-      // Core brainstorm output (matches BrainstormDataSchema exactly)
-      brainstormOutput: {
-        coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
-        valueProposition: brainstormData.valueProposition || 'Provides value to users',
-        keyCalculations: brainstormData.keyCalculations || [],
-        interactionFlow: brainstormData.interactionFlow || [],
-        leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
-          timing: 'after_completion',
-          method: 'email_signup',
-          incentive: 'Save and share results'
-        },
-        creativeEnhancements: brainstormData.creativeEnhancements || [],
-        suggestedInputs: brainstormData.suggestedInputs || [],
-        calculationLogic: brainstormData.calculationLogic || [],
-        promptOptions: brainstormData.promptOptions || {
-          includeComprehensiveColors: true,
-          includeGorgeousStyling: true,
-          includeAdvancedLayouts: false,
-          styleComplexity: 'enhanced',
-          industryFocus: industry || undefined,
-          toolComplexity: 'moderate'
-        }
+      creativeEnhancements: brainstormData.creativeEnhancements || [],
+      suggestedInputs: brainstormData.suggestedInputs || [],
+      calculationLogic: brainstormData.calculationLogic || [],
+      promptOptions: brainstormData.promptOptions || {
+        includeComprehensiveColors: true,
+        includeGorgeousStyling: true,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'enhanced',
+        industryFocus: industry || undefined,
+        toolComplexity: 'moderate'
       },
       
       // V2 metadata
@@ -634,7 +626,7 @@ Return a JSON array of formula objects.`;
     };
     
     console.log('✅ [V2-FORMAT] Created V2 format with keys:', Object.keys(v2Result));
-    console.log('🔍 [V2-FORMAT] BrainstormOutput keys:', Object.keys(v2Result.brainstormOutput));
+    console.log('🔍 [V2-FORMAT] Structure is now FLAT to match BrainstormDataSchema');
     return v2Result;
   }
 
@@ -735,6 +727,30 @@ Return a JSON array of formula objects.`;
           result.promptOptions[key] = defaultValue;
           console.log(`🔧 Added default value for promptOptions.${key}: ${defaultValue}`);
         }
+      }
+    }
+
+    // 🎯 NEW: Ensure leadCaptureStrategy always exists to prevent undefined access errors
+    if (!result.leadCaptureStrategy || typeof result.leadCaptureStrategy !== 'object') {
+      console.log('🔧 Adding default leadCaptureStrategy to brainstorming result');
+      result.leadCaptureStrategy = {
+        timing: 'after_completion',
+        method: 'email_signup',
+        incentive: 'Save and share results'
+      };
+    } else {
+      // Ensure all leadCaptureStrategy fields have values
+      if (!result.leadCaptureStrategy.timing) {
+        result.leadCaptureStrategy.timing = 'after_completion';
+        console.log('🔧 Added default timing to leadCaptureStrategy');
+      }
+      if (!result.leadCaptureStrategy.method) {
+        result.leadCaptureStrategy.method = 'email_signup';
+        console.log('🔧 Added default method to leadCaptureStrategy');
+      }
+      if (!result.leadCaptureStrategy.incentive) {
+        result.leadCaptureStrategy.incentive = 'Save and share results';
+        console.log('🔧 Added default incentive to leadCaptureStrategy');
       }
     }
 

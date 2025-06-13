@@ -68,9 +68,9 @@ async function startV2ToolCreation(
   
   console.log('🔍 [V2-START] Using description:', description);
   
-  // 🎯 NEW: Direct brainstorm data extraction - no transformation needed
-  // Logic Architect now generates data in correct V2 format when called with 'v2' parameter
-  console.log('🔍 [V2-START] Extracting brainstorm data directly from result...');
+  // 🎯 SIMPLIFIED: Extract brainstorm data from V2 format only
+  // Legacy handling removed - all new brainstorm data should use correct V2 format
+  console.log('🔍 [V2-START] Extracting brainstorm data from V2 format...');
   
   // ENHANCED DEBUGGING: Log the complete structure
   console.log('🔍 [V2-START] Complete brainstormResult structure analysis:', {
@@ -90,27 +90,63 @@ async function startV2ToolCreation(
       ? Object.keys(brainstormResult.result.brainstormOutput) : []
   });
   
-    // Check if this is new V2 format data - FLEXIBLE MODE: Handle both structures
-  let actualBrainstormData = brainstormResult.result?.brainstormOutput || (brainstormResult as any).brainstormOutput;
+  // 🎯 V2 FORMAT ONLY: Extract the brainstorm data from the correct location
+  let actualBrainstormData;
   
-  if (!actualBrainstormData) {
-    console.error('🚨 [V2-START] No brainstorm data found in either location');
-    console.error('🚨 [V2-START] Original brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
-    console.error('🚨 [V2-START] Checked locations:', {
+  if (brainstormResult.result?.brainstormOutput) {
+    // V2 format - brainstorm data should be flat in brainstormOutput
+    actualBrainstormData = brainstormResult.result.brainstormOutput;
+    console.log('🔍 [V2-START] Found V2 format brainstorm data in result.brainstormOutput');
+    console.log('🔍 [V2-START] Brainstorm data keys:', Object.keys(actualBrainstormData));
+  } else {
+    console.error('🚨 [V2-START] Expected V2 format with result.brainstormOutput but not found');
+    console.error('🚨 [V2-START] Available structure:', {
       hasResult: !!brainstormResult.result,
       resultKeys: brainstormResult.result ? Object.keys(brainstormResult.result) : [],
-      hasBrainstormOutputInResult: !!brainstormResult.result?.brainstormOutput,
-      hasBrainstormOutputDirect: !!(brainstormResult as any).brainstormOutput,
-      hasUserInput: !!brainstormResult.result?.userInput,
-      directBrainstormOutputValue: (brainstormResult as any).brainstormOutput,
-      nestedBrainstormOutputValue: brainstormResult.result?.brainstormOutput,
-      directBrainstormOutputType: typeof (brainstormResult as any).brainstormOutput,
-      nestedBrainstormOutputType: typeof brainstormResult.result?.brainstormOutput
+      directKeys: Object.keys(brainstormResult)
     });
-    throw new Error('CRITICAL: No brainstormOutput found in either result.brainstormOutput or direct brainstormOutput - brainstorm generation failed or data corruption occurred');
+    throw new Error('CRITICAL: Expected V2 format brainstorm data not found. The brainstorm generation may have failed or returned an unexpected format.');
   }
   
   console.log('🔍 [V2-START] Using brainstorm data:', JSON.stringify(actualBrainstormData, null, 2));
+
+  // 🎯 CRITICAL VALIDATION: Ensure all required BrainstormDataSchema fields are present
+  // NO FALLBACKS - Process should FAIL if data is incomplete to identify root cause
+  const requiredFields = [
+    'valueProposition',
+    'keyCalculations', 
+    'interactionFlow',
+    'leadCaptureStrategy',
+    'creativeEnhancements',
+    'suggestedInputs',
+    'calculationLogic',
+    'promptOptions'
+  ];
+  
+  const missingFields = requiredFields.filter(field => {
+    const value = actualBrainstormData[field];
+    return value === undefined || value === null || (Array.isArray(value) && value.length === 0);
+  });
+  
+  if (missingFields.length > 0) {
+    console.error('🚨 [V2-START] CRITICAL VALIDATION FAILURE - Missing required brainstorm fields:', missingFields);
+    console.error('🚨 [V2-START] Available fields in actualBrainstormData:', Object.keys(actualBrainstormData));
+    console.error('🚨 [V2-START] Field values check:', {
+      valueProposition: actualBrainstormData.valueProposition,
+      keyCalculations: actualBrainstormData.keyCalculations?.length || 'undefined/null',
+      interactionFlow: actualBrainstormData.interactionFlow?.length || 'undefined/null',
+      leadCaptureStrategy: actualBrainstormData.leadCaptureStrategy ? 'present' : 'missing',
+      creativeEnhancements: actualBrainstormData.creativeEnhancements?.length || 'undefined/null',
+      suggestedInputs: actualBrainstormData.suggestedInputs?.length || 'undefined/null',
+      calculationLogic: actualBrainstormData.calculationLogic?.length || 'undefined/null',
+      promptOptions: actualBrainstormData.promptOptions ? 'present' : 'missing'
+    });
+    console.error('🚨 [V2-START] Complete actualBrainstormData structure:', JSON.stringify(actualBrainstormData, null, 2));
+    
+    throw new Error(`CRITICAL BRAINSTORM DATA VALIDATION FAILURE: The Logic Architect failed to generate complete brainstorm data. Missing required fields: ${missingFields.join(', ')}. This indicates a problem with the brainstorm generation process that must be fixed at the source, not masked with fallbacks.`);
+  }
+  
+  console.log('✅ [V2-START] All required brainstorm fields are present and valid');
 
   const requestBody = {
     jobId: jobId,
@@ -460,149 +496,111 @@ export async function runTccFinalizationSteps(
 }
 
 export async function runIsolatedAgentTest(
-  agentId: string,
-  tcc: any,
-  modelId: string
-): Promise<{ success: boolean; data?: any; error?: string }> {
+  params: {
+    userId: string;
+    agentId: string;
+    modelId: string;
+    tccSource: string;
+    brainstormId?: string;
+    mockScenarioId?: string;
+    savedV2JobId?: string;
+    agentMode: string;
+    editMessage?: string;
+    currentTcc?: any;
+  },
+  addLog: (type: 'debug' | 'error', message: string, data?: any) => void
+): Promise<{ success: boolean; data?: any; error?: string } | undefined> {
+  const {
+    userId,
+    agentId,
+    modelId,
+    tccSource,
+    brainstormId,
+    mockScenarioId,
+    savedV2JobId,
+    agentMode,
+    editMessage,
+    currentTcc
+  } = params;
+
+  addLog('debug', `Starting isolated test for agent: ${agentId}`, params);
+
   try {
-    // 🔍 LOG TCC BEFORE PROCESSING
-    const jobId = tcc.jobId || 'debug';
-    console.log(`🔍 [TCC-BEFORE] Agent: ${agentId} | JobId: ${jobId}`);
-    console.log(`🔍 [TCC-BEFORE] TCC Keys:`, Object.keys(tcc || {}).join(', '));
-    console.log(`🔍 [TCC-BEFORE] TCC Structure:`, {
-      hasJsxLayout: !!tcc?.jsxLayout,
-      hasStateLogic: !!tcc?.stateLogic,
-      hasStyling: !!tcc?.styling,
-      hasAssembledCode: !!tcc?.assembledComponentCode,
-      hasFinalProduct: !!tcc?.finalProduct,
-      brainstormDataKeys: tcc?.brainstormData ? Object.keys(tcc.brainstormData) : [],
-      stepStatus: tcc?.stepStatus || {},
-      tccVersion: tcc?.tccVersion || 'unknown'
-    });
+    // Import required utilities
+    const { loadLogicResultsFromDB, loadV2JobsFromDB } = await import('../../ui/db-utils');
+    const { getScenarioById } = await import('@/lib/testing/mock-tcc-scenarios');
+    const { v4: uuidv4 } = await import('uuid');
+
+    // 1. Get the base TCC data based on the selected source
+    let tcc: any;
+    if (tccSource === 'brainstorm') {
+      if (!brainstormId) throw new Error('Brainstorm ID is required for brainstorm TCC source.');
+      const brainstorms = await loadLogicResultsFromDB();
+      const selectedBrainstorm = brainstorms.find((b: any) => b.id === brainstormId);
+      if (!selectedBrainstorm) throw new Error(`Brainstorm with ID ${brainstormId} not found.`);
+      tcc = {
+        userId,
+        jobId: `debug-${uuidv4()}`,
+        userInput: selectedBrainstorm.result?.userInput || {},
+        brainstormData: selectedBrainstorm.result?.brainstormOutput || selectedBrainstorm.result,
+        stepStatus: {}
+      };
+      addLog('debug', 'Loaded TCC from brainstorm', { id: brainstormId });
+    } else if (tccSource === 'mockScenario') {
+      if (!mockScenarioId) throw new Error('Mock Scenario ID is required.');
+      const scenario = getScenarioById(mockScenarioId);
+      if (!scenario) throw new Error(`Mock scenario with ID ${mockScenarioId} not found.`);
+      tcc = scenario.tcc;
+      addLog('debug', 'Loaded TCC from mock scenario', { id: mockScenarioId });
+    } else if (tccSource === 'savedV2Job') {
+      if (!savedV2JobId) throw new Error('Saved V2 Job ID is required.');
+      const v2Jobs = await loadV2JobsFromDB();
+      const selectedJob = v2Jobs.find((j: any) => j.id === savedV2JobId);
+      if (!selectedJob) throw new Error(`V2 Job with ID ${savedV2JobId} not found.`);
+      tcc = selectedJob.toolConstructionContext;
+      addLog('debug', 'Loaded TCC from saved V2 Job', { id: savedV2JobId });
+    } else {
+      throw new Error(`Invalid TCC source: ${tccSource}`);
+    }
+
+    // If in edit mode, ensure the current TCC data is used.
+    if (agentMode === 'edit' && currentTcc) {
+      tcc = { ...currentTcc }; // Use the most recent TCC from the state
+      addLog('debug', 'Running in EDIT mode, using current TCC data from state.', { keys: Object.keys(tcc) });
+    }
     
-    // Log a hash/summary of the TCC for comparison
-    const tccSummary = JSON.stringify({
-      jsxLayoutLength: tcc?.jsxLayout?.componentStructure?.length || 0,
-      stateLogicKeys: tcc?.stateLogic ? Object.keys(tcc.stateLogic) : [],
-      stylingKeys: tcc?.styling ? Object.keys(tcc.styling) : [],
-      assembledCodeLength: tcc?.assembledComponentCode?.length || 0,
-      finalProductLength: tcc?.finalProduct?.componentCode?.length || 0,
-    });
-    console.log(`🔍 [TCC-BEFORE] Content Summary:`, tccSummary);
+    // 2. Prepare the request body
+    const requestBody = {
+      jobId: tcc.jobId,
+      model: modelId,
+      tcc,
+      isEditMode: agentMode === 'edit',
+      editInstructions: agentMode === 'edit' ? editMessage : undefined,
+    };
 
-    // 📊 CONSOLE LOGGING - BEFORE PROCESSING
-    console.log(`🔍 [TCC-ISOLATION] Agent ${agentId} - TCC state before processing`, {
-      agentId,
-      jobId,
-      phase: 'before_processing',
-      tccKeys: Object.keys(tcc || {}),
-      tccStructure: {
-        hasJsxLayout: !!tcc?.jsxLayout,
-        hasStateLogic: !!tcc?.stateLogic,
-        hasStyling: !!tcc?.styling,
-        hasAssembledCode: !!tcc?.assembledComponentCode,
-        hasFinalProduct: !!tcc?.finalProduct,
-        brainstormDataPresent: !!tcc?.brainstormData,
-      },
-      contentSummary: {
-        jsxLayoutLength: tcc?.jsxLayout?.componentStructure?.length || 0,
-        stateLogicKeys: tcc?.stateLogic ? Object.keys(tcc.stateLogic) : [],
-        stylingKeys: tcc?.styling ? Object.keys(tcc.styling) : [],
-        assembledCodeLength: tcc?.assembledComponentCode?.length || 0,
-        finalProductLength: tcc?.finalProduct?.componentCode?.length || 0,
-      }
-    });
+    addLog('debug', `Sending request to /api/ai/product-tool-creation-v2/agents/${agentId}`, requestBody);
 
+    // 3. Make the API call
     const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${agentId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobId: jobId,
-        selectedModel: modelId,
-        mockTcc: tcc,
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    const responseData = await response.json();
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Agent ${agentId} failed with status ${response.status}`);
+      const errorMsg = responseData.error || `Agent ${agentId} failed with status ${response.status}`;
+      addLog('error', errorMsg, responseData);
+      return { success: false, error: errorMsg, data: responseData };
     }
 
-    const result = await response.json();
-    
-    // 🔍 LOG TCC AFTER PROCESSING
-    const updatedTcc = result?.updatedTcc;
-    console.log(`🔍 [TCC-AFTER] Agent: ${agentId} | JobId: ${jobId}`);
-    console.log(`🔍 [TCC-AFTER] TCC Keys:`, Object.keys(updatedTcc || {}).join(', '));
-    console.log(`🔍 [TCC-AFTER] TCC Structure:`, {
-      hasJsxLayout: !!updatedTcc?.jsxLayout,
-      hasStateLogic: !!updatedTcc?.stateLogic,
-      hasStyling: !!updatedTcc?.styling,
-      hasAssembledCode: !!updatedTcc?.assembledComponentCode,
-      hasFinalProduct: !!updatedTcc?.finalProduct,
-      brainstormDataKeys: updatedTcc?.brainstormData ? Object.keys(updatedTcc.brainstormData) : [],
-      stepStatus: updatedTcc?.stepStatus || {},
-      tccVersion: updatedTcc?.tccVersion || 'unknown'
-    });
-    
-    // Log updated content summary for comparison
-    const updatedTccSummary = JSON.stringify({
-      jsxLayoutLength: updatedTcc?.jsxLayout?.componentStructure?.length || 0,
-      stateLogicKeys: updatedTcc?.stateLogic ? Object.keys(updatedTcc.stateLogic) : [],
-      stylingKeys: updatedTcc?.styling ? Object.keys(updatedTcc.styling) : [],
-      assembledCodeLength: updatedTcc?.assembledComponentCode?.length || 0,
-      finalProductLength: updatedTcc?.finalProduct?.componentCode?.length || 0,
-    });
-    console.log(`🔍 [TCC-AFTER] Content Summary:`, updatedTccSummary);
-    
-    // Log differences detected
-    const hasDifferences = tccSummary !== updatedTccSummary;
-    console.log(`🔍 [TCC-DIFF] Changes Detected: ${hasDifferences ? 'YES' : 'NO'}`);
-    if (hasDifferences) {
-      console.log(`🔍 [TCC-DIFF] Before: ${tccSummary}`);
-      console.log(`🔍 [TCC-DIFF] After:  ${updatedTccSummary}`);
-    }
+    addLog('debug', `Agent ${agentId} test successful`, responseData);
+    return { success: true, data: responseData };
 
-    // 📊 CONSOLE LOGGING - AFTER PROCESSING
-    console.log(`🔍 [TCC-ISOLATION] Agent ${agentId} - TCC state after processing (changes: ${hasDifferences ? 'YES' : 'NO'})`, {
-      agentId,
-      jobId,
-      phase: 'after_processing',
-      tccKeys: Object.keys(updatedTcc || {}),
-      tccStructure: {
-        hasJsxLayout: !!updatedTcc?.jsxLayout,
-        hasStateLogic: !!updatedTcc?.stateLogic,
-        hasStyling: !!updatedTcc?.styling,
-        hasAssembledCode: !!updatedTcc?.assembledComponentCode,
-        hasFinalProduct: !!updatedTcc?.finalProduct,
-        brainstormDataPresent: !!updatedTcc?.brainstormData,
-      },
-      contentSummary: {
-        jsxLayoutLength: updatedTcc?.jsxLayout?.componentStructure?.length || 0,
-        stateLogicKeys: updatedTcc?.stateLogic ? Object.keys(updatedTcc.stateLogic) : [],
-        stylingKeys: updatedTcc?.styling ? Object.keys(updatedTcc.styling) : [],
-        assembledCodeLength: updatedTcc?.assembledComponentCode?.length || 0,
-        finalProductLength: updatedTcc?.finalProduct?.componentCode?.length || 0,
-      },
-      changesDetected: hasDifferences,
-      summaryComparison: {
-        before: tccSummary,
-        after: updatedTccSummary
-      }
-    });
-
-    return { success: true, data: result };
-  } catch (error) {
-    console.log(`🔍 [TCC-ERROR] Agent: ${agentId} | Error: ${error instanceof Error ? error.message : String(error)}`);
-    
-    // 📊 CONSOLE LOGGING - ERROR
-    console.error(`🔍 [TCC-ISOLATION] Agent ${agentId} - Processing failed`, {
-      agentId,
-      jobId: tcc.jobId || 'debug',
-      phase: 'error',
-      error: error instanceof Error ? error.message : String(error),
-    });
-    
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  } catch (err: any) {
+    const errorMsg = err.message || 'An unknown error occurred during the isolated agent test.';
+    addLog('error', errorMsg, err);
+    return { success: false, error: errorMsg };
   }
 }

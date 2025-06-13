@@ -185,4 +185,7 @@ export default function InspectToolPage() {
             </CardContent>
           </Card>
         </div>
- 
+      )}
+    </div>
+  );
+} 

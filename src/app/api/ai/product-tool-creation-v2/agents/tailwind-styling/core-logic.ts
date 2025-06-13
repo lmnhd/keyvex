@@ -85,6 +85,8 @@ export async function applyStyling(request: {
   mockTcc?: ToolConstructionContext;
   isIsolatedTest?: boolean;
   editMode?: EditModeContext;
+  isEditMode?: boolean;
+  editInstructions?: string;
 }): Promise<{
   success: boolean;
   styling?: TccStyling;
@@ -94,9 +96,9 @@ export async function applyStyling(request: {
   const { jobId, selectedModel, isIsolatedTest = false, editMode } = request;
   const tcc = request.mockTcc || request.tcc;
   
-  // Phase 2: Edit mode detection
-  const isEditMode = editMode?.isEditMode || false;
-  const editInstructions = editMode?.instructions || [];
+  // Phase 2: Edit mode detection (support both legacy and simple modes)
+  const isEditMode = request.isEditMode || editMode?.isEditMode || false;
+  const editInstructions = request.editInstructions || (editMode?.instructions ? editMode.instructions.map(i => i.instructions).join('\n') : undefined);
 
   logger.info({ jobId, isIsolatedTest }, '🎨 TailwindStyling: Starting styling application');
 
@@ -133,7 +135,7 @@ export async function applyStyling(request: {
       logger.info({ jobId }, '🎨 TailwindStyling: [DEBUG] in_progress emitted successfully');
     }
 
-    const styling = await generateTailwindStylingWithAI(tcc, selectedModel, isIsolatedTest, editMode);
+    const styling = await generateTailwindStylingWithAI(tcc, selectedModel, isIsolatedTest, editMode, isEditMode, editInstructions);
 
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
@@ -216,6 +218,8 @@ async function generateTailwindStylingWithAI(
   selectedModel?: string,
   isIsolatedTest?: boolean,
   editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string,
 ): Promise<TccStyling> {
   let modelConfig: { provider: string; modelId: string };
   
@@ -357,6 +361,52 @@ Created: ${instruction.createdAt}`;
     });
 
     userPrompt += `
+
+Please apply these edit instructions to improve the styling. Maintain the overall design cohesion while implementing the requested changes.`;
+  }
+
+  // Simple edit mode handling
+  if (isEditMode && editInstructions && !editMode?.isEditMode) {
+    userPrompt += `
+
+🔄 EDIT MODE - SIMPLE INSTRUCTIONS:
+You are EDITING existing styling. Here is the current styling:
+
+CURRENT STYLED CODE:
+\`\`\`jsx
+${tcc.styling?.styledComponentCode || 'No existing styled code found'}
+\`\`\`
+
+CURRENT COLOR SCHEME:
+- Primary: ${tcc.styling?.colorScheme?.primary || 'Not set'}
+- Secondary: ${tcc.styling?.colorScheme?.secondary || 'Not set'}
+- Background: ${tcc.styling?.colorScheme?.background || 'Not set'}
+
+EDIT INSTRUCTIONS:
+${editInstructions}
+
+Please apply these edit instructions to improve the styling. Maintain the overall design cohesion while implementing the requested changes.`;
+  }
+
+  // Simple edit mode handling
+  if (isEditMode && editInstructions && !editMode?.isEditMode) {
+    userPrompt += `
+
+🔄 EDIT MODE - SIMPLE INSTRUCTIONS:
+You are EDITING existing styling. Here is the current styling:
+
+CURRENT STYLED CODE:
+\`\`\`jsx
+${tcc.styling?.styledComponentCode || 'No existing styled code found'}
+\`\`\`
+
+CURRENT COLOR SCHEME:
+- Primary: ${tcc.styling?.colorScheme?.primary || 'Not set'}
+- Secondary: ${tcc.styling?.colorScheme?.secondary || 'Not set'}
+- Background: ${tcc.styling?.colorScheme?.background || 'Not set'}
+
+EDIT INSTRUCTIONS:
+${editInstructions}
 
 Please apply these edit instructions to improve the styling. Maintain the overall design cohesion while implementing the requested changes.`;
   }

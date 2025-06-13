@@ -107,7 +107,7 @@ async function generateOrUpdateProductTool(
     // Generate updated tool definition based on input and update type
     const updatedDefinition: ProductToolDefinition = {
       ...baseDefinition,
-      version: existingDefinition ? `${parseFloat(existingDefinition.version) + 0.1}` : '1.0.0',
+      version: existingDefinition ? `${parseFloat(existingDefinition.version || '1.0') + 0.1}` : '1.0.0',
       updatedAt: Date.now(),
       
       metadata: {
@@ -143,22 +143,27 @@ function createBaseToolDefinition(): ProductToolDefinition {
     updatedAt: Date.now(),
     createdBy: 'ai-agent',
     
-    metadata: {
-      id: toolId,
-      slug: 'ai-generated-tool',
-      title: 'Business Calculator',
-      description: 'AI-generated business tool',
-      shortDescription: 'AI-generated business tool',
-      type: 'calculator',
-      category: 'ai-generated',
-      targetAudience: 'Business professionals',
-      industry: 'General',
-      tags: ['ai-generated', 'dynamic', 'calculator'],
-      estimatedCompletionTime: 3,
-      difficultyLevel: 'beginner',
-      features: ['Real-time calculations'],
-      icon: { type: 'lucide', value: 'Calculator' }
-    },
+          metadata: {
+        id: toolId,
+        slug: 'ai-generated-tool',
+        title: 'Business Calculator',
+        description: 'AI-generated business tool',
+        shortDescription: 'AI-generated business tool',
+        type: 'calculator',
+        category: 'ai-generated',
+        targetAudience: 'Business professionals',
+        industry: 'General',
+        tags: ['ai-generated', 'dynamic', 'calculator'],
+        estimatedCompletionTime: 3,
+        difficultyLevel: 'beginner',
+        features: ['Real-time calculations'],
+        icon: { type: 'lucide', value: 'Calculator' },
+        dependencies: [],
+        userInstructions: '',
+        developerNotes: '',
+        source: 'ai-test',
+        version: '1.0'
+      },
     
     componentCode: `
       export default function BusinessCalculator() {
@@ -167,6 +172,8 @@ function createBaseToolDefinition(): ProductToolDefinition {
     `,
     
     componentSet: 'legacy',
+    initialStyleMap: {},
+    currentStyleMap: {},
     
     colorScheme: {
       primary: '#3b82f6',

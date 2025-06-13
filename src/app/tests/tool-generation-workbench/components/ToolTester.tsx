@@ -67,6 +67,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   
   // Phase 3.2: Agent mode for create/edit toggle in debug section
   const [agentMode, setAgentMode] = useState<AgentMode>('create');
+  const [editMessage, setEditMessage] = useState('');
   
   // TCC monitoring state
   const [tccData, setTccData] = useState<any>(null);
@@ -433,7 +434,49 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
     
     if (workflowMode === 'debug') {
-      // ... existing debug code ...
+      const debugParams = {
+        userId,
+        agentId: selectedAgent,
+        modelId: agentModelMapping[selectedAgent],
+        tccSource,
+        brainstormId: tccSource === 'brainstorm' ? selectedBrainstormId : undefined,
+        mockScenarioId: tccSource === 'mockScenario' ? selectedMockScenarioId : undefined,
+        savedV2JobId: tccSource === 'savedV2Job' ? (selectedDebugTccJobId || undefined) : undefined,
+        agentMode,
+        editMessage: agentMode === 'edit' ? editMessage : undefined,
+        currentTcc: tccData // Pass current TCC for edit mode
+      };
+
+      console.log("Running isolated agent test with params:", debugParams);
+      addDetailedWSLog('debug', 'Starting isolated agent test...', debugParams);
+      
+      const result = await runIsolatedAgentTest(debugParams, addDetailedWSLog);
+      
+      if (result && result.success) {
+        setTestJob({
+          modelId: agentModelMapping[selectedAgent],
+          jobId: `debug-${Date.now()}`,
+          status: 'success',
+          result: result.data,
+          startTime: Date.now(),
+          endTime: Date.now()
+        });
+        
+        if (result.data?.updatedTcc) {
+          setTccData(result.data.updatedTcc);
+          if (result.data.updatedTcc.styling?.styledComponentCode) {
+            setAssembledCode(result.data.updatedTcc.styling.styledComponentCode);
+          }
+        }
+        
+        addDetailedWSLog('debug', 'Agent test completed successfully', result.data);
+      } else {
+        setError(result?.error || 'Agent test failed');
+        addDetailedWSLog('error', 'Agent test failed', result);
+      }
+      
+      setIsLoading(false);
+      return;
     }
     
     if (!selectedBrainstormId || selectedModelIds.length === 0) {
@@ -471,7 +514,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       
       // Pass the jobId to ensure consistency
       const newJob = await runToolCreationProcess(
-        brainstorm.result,
+        brainstorm, // ✅ Pass the full brainstorm object, not just brainstorm.result
         selectedModelIds[0],
         agentModelMapping,
         jobId // CRITICAL: Pass the same jobId
@@ -947,6 +990,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       loadSource={loadSource}
       setLoadSource={setLoadSource}
       dynamoDBTools={dynamoDBTools}
+      editMessage={editMessage}
+      setEditMessage={setEditMessage}
     />
   );
 };

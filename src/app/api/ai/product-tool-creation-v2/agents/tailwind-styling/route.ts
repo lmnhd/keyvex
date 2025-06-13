@@ -21,9 +21,12 @@ const EditModeContextSchema = z.object({
 const tailwindStylingRequestSchema = z.object({
   jobId: z.string().uuid(),
   selectedModel: z.string().optional(),
+  model: z.string().optional(), // Alternative model field name
   tcc: z.custom<ToolConstructionContext>().optional(), // For orchestration calls
   mockTcc: z.custom<ToolConstructionContext>().optional(), // For isolated testing
-  editMode: EditModeContextSchema.optional(), // Phase 2: Edit mode context
+  editMode: EditModeContextSchema.optional(), // Phase 2: Edit mode context (legacy)
+  isEditMode: z.boolean().optional(), // Simple edit mode flag
+  editInstructions: z.string().optional(), // Simple edit instructions
 });
 
 export async function POST(request: NextRequest) {
@@ -36,9 +39,9 @@ export async function POST(request: NextRequest) {
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
     
-    // Phase 2: Edit mode detection
-    const isEditMode = parsedRequest.editMode?.isEditMode || false;
-    const editInstructions = parsedRequest.editMode?.instructions || [];
+    // Phase 2: Edit mode detection (support both legacy and simple modes)
+    const isEditMode = parsedRequest.isEditMode || parsedRequest.editMode?.isEditMode || false;
+    const editInstructions = parsedRequest.editInstructions || parsedRequest.editMode?.instructions || [];
 
     logger.info({ 
       jobId: parsedRequest.jobId, 
@@ -51,11 +54,13 @@ export async function POST(request: NextRequest) {
     // Call the core logic with both tcc and mockTcc and edit mode context
     const result = await applyStyling({
       jobId: parsedRequest.jobId,
-      selectedModel: parsedRequest.selectedModel,
+      selectedModel: parsedRequest.selectedModel || parsedRequest.model,
       tcc: parsedRequest.tcc, // Pass tcc from orchestration
       mockTcc: parsedRequest.mockTcc, // Pass mockTcc for isolated testing
       isIsolatedTest,
-      editMode: parsedRequest.editMode // Phase 2: Pass edit mode context
+      editMode: parsedRequest.editMode, // Phase 2: Pass edit mode context (legacy)
+      isEditMode, // Simple edit mode flag
+      editInstructions: typeof editInstructions === 'string' ? editInstructions : undefined // Simple edit instructions
     });
 
     // Skip orchestration triggering during isolated testing

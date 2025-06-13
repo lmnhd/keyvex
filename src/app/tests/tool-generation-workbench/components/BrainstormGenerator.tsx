@@ -200,7 +200,7 @@ const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: SavedLogi
                                 <HelpCircle className="ml-2 h-4 w-4 text-gray-400 dark:text-gray-500 cursor-help" />
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
-                                <p>Enter a general description of your tool idea. The AI (o4-mini) will attempt to extract the 'Tool Type' and 'Target Audience' and populate the fields below for you. You can then refine these before generating the full brainstorm.</p>
+                                <p>Enter a general description of your tool idea. The AI will attempt to extract the 'Tool Type' and 'Target Audience' and populate the fields below for you. You can then refine these before generating the full brainstorm.</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
