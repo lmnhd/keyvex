@@ -466,14 +466,16 @@ Return a JSON array of formula objects.`;
   }
 
   /**
-   * Brainstorm creative tool logic with high temperature for maximum creativity
+   * Generate brainstorm data in specified format
+   * @param outputFormat - 'v1' for legacy format, 'v2' for BrainstormDataSchema format
    */
   async brainstormToolLogic(
     toolType: string,
     targetAudience: string,
     industry: string,
     businessContext: string,
-    availableData: any
+    availableData: any,
+    outputFormat: 'v1' | 'v2' = 'v2' // Default to v2 for new implementations
   ): Promise<any> {
     try {
       const prompt = generateLogicBrainstorming(
@@ -484,6 +486,7 @@ Return a JSON array of formula objects.`;
         availableData
       );
 
+      console.log(`🧠 Logic Architect brainstorming with format: ${outputFormat}`);
       console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 1200) + '...');
 
       // 📋 COMPREHENSIVE PROMPT LOGGING FOR LOGIC ARCHITECT - Added for debugging
@@ -507,18 +510,132 @@ Return a JSON array of formula objects.`;
       const processedObject = this.postProcessBrainstormingResult(object);
 
       console.log('✅ Logic Architect brainstorming complete:', processedObject.coreConcept);
-      return processedObject;
+      
+      // 🎯 NEW: Return data in requested format only
+      if (outputFormat === 'v1') {
+        console.log('📤 [V1-FORMAT] Returning legacy format for V1 compatibility');
+        return this.formatAsV1(processedObject, toolType, targetAudience, industry, businessContext);
+      } else {
+        console.log('📤 [V2-FORMAT] Returning structured format for V2 process');
+        return this.formatAsV2(processedObject, toolType, targetAudience, industry, businessContext);
+      }
 
     } catch (error) {
       console.error('❌ Logic brainstorming failed:', error);
       
       if (error instanceof Error && error.message.includes('JSON')) {
         console.log('🔧 JSON parsing failed, providing fallback brainstorming result');
-        return this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
+        const fallbackResult = this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
+        
+        if (outputFormat === 'v1') {
+          return this.formatAsV1(fallbackResult, toolType, targetAudience, industry, businessContext);
+        } else {
+          return this.formatAsV2(fallbackResult, toolType, targetAudience, industry, businessContext);
+        }
       }
       
       throw new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * 🎯 NEW: Format brainstorm data as V1 (legacy) format
+   */
+  private formatAsV1(
+    brainstormData: any,
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string
+  ): any {
+    console.log('🔄 [V1-FORMAT] Creating legacy format result');
+    
+    const v1Result = {
+      ...brainstormData,
+      // Ensure all required fields exist with proper defaults
+      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
+      valueProposition: brainstormData.valueProposition || 'Provides value to users',
+      keyCalculations: brainstormData.keyCalculations || [],
+      interactionFlow: brainstormData.interactionFlow || [],
+      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+        timing: 'after_completion',
+        method: 'email_signup',
+        incentive: 'Save and share results'
+      },
+      creativeEnhancements: brainstormData.creativeEnhancements || [],
+      suggestedInputs: brainstormData.suggestedInputs || [],
+      calculationLogic: brainstormData.calculationLogic || [],
+      promptOptions: brainstormData.promptOptions || {
+        includeComprehensiveColors: true,
+        includeGorgeousStyling: true,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'enhanced',
+        industryFocus: industry || undefined,
+        toolComplexity: 'moderate'
+      },
+      
+      // V1 metadata
+      _formatVersion: 'v1',
+      _generatedAt: new Date().toISOString()
+    };
+    
+    console.log('✅ [V1-FORMAT] Created legacy format with keys:', Object.keys(v1Result));
+    return v1Result;
+  }
+
+  /**
+   * 🎯 NEW: Format brainstorm data as V2 (BrainstormDataSchema) format
+   */
+  private formatAsV2(
+    brainstormData: any,
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string
+  ): any {
+    console.log('🔄 [V2-FORMAT] Creating structured V2 format result');
+    
+    const v2Result = {
+      // User input context (required by BrainstormDataSchema)
+      userInput: {
+        toolType,
+        targetAudience,
+        industry,
+        businessContext,
+      },
+      
+      // Core brainstorm output (matches BrainstormDataSchema exactly)
+      brainstormOutput: {
+        coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
+        valueProposition: brainstormData.valueProposition || 'Provides value to users',
+        keyCalculations: brainstormData.keyCalculations || [],
+        interactionFlow: brainstormData.interactionFlow || [],
+        leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+          timing: 'after_completion',
+          method: 'email_signup',
+          incentive: 'Save and share results'
+        },
+        creativeEnhancements: brainstormData.creativeEnhancements || [],
+        suggestedInputs: brainstormData.suggestedInputs || [],
+        calculationLogic: brainstormData.calculationLogic || [],
+        promptOptions: brainstormData.promptOptions || {
+          includeComprehensiveColors: true,
+          includeGorgeousStyling: true,
+          includeAdvancedLayouts: false,
+          styleComplexity: 'enhanced',
+          industryFocus: industry || undefined,
+          toolComplexity: 'moderate'
+        }
+      },
+      
+      // V2 metadata
+      _formatVersion: 'v2',
+      _generatedAt: new Date().toISOString()
+    };
+    
+    console.log('✅ [V2-FORMAT] Created V2 format with keys:', Object.keys(v2Result));
+    console.log('🔍 [V2-FORMAT] BrainstormOutput keys:', Object.keys(v2Result.brainstormOutput));
+    return v2Result;
   }
 
   /**

@@ -39,12 +39,18 @@ const jsxLayoutSchema = z.object({
     ),
   elementMap: z
     .array(elementMapSchema)
+    .optional()
+    .default([])
     .describe('An array of objects mapping element IDs to their details.'),
   accessibilityFeatures: z
     .array(z.string())
+    .optional()
+    .default(['Basic semantic HTML'])
     .describe('A list of key accessibility features implemented.'),
   responsiveBreakpoints: z
     .array(z.string())
+    .optional()
+    .default(['mobile', 'desktop'])
     .describe('A list of responsive breakpoints considered (e.g., "mobile").'),
 });
 
@@ -306,21 +312,17 @@ async function generateJsxLayoutWithAI(
     modelConfig.modelId,
   );
 
-  // Use comprehensive JSX layout prompt with dynamic editing support
   const systemPrompt = getJsxLayoutSystemPrompt(false);
 
-  // Phase 1: Enhanced user prompt with brainstorm data integration
-  // 🚨 FORCE USE OF BRAINSTORM DATA - NO FALLBACKS ALLOWED
-  let toolDescription = tcc.userInput?.description;
-  if (!toolDescription && tcc.brainstormData) {
-    const brainstorm = tcc.brainstormData;
-    toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
-  }
+  let toolDescription;
   
-  // 🚨 CRITICAL FIX: Always use brainstorm data if available, regardless of userInput.description
   if (tcc.brainstormData) {
     const brainstorm = tcc.brainstormData;
     toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
+    logger.info({jobId: tcc.jobId}, "🏗️ JSXLayout: Using high-quality description from brainstorm data.");
+  } else {
+    toolDescription = tcc.userInput?.description;
+    logger.warn({jobId: tcc.jobId}, "🏗️ JSXLayout: ⚠️ Falling back to basic user input description.");
   }
   
   let userPrompt = `Tool: ${toolDescription || 'Business calculation tool'}
@@ -339,74 +341,13 @@ ${
   'None'
 }`;
 
-  // Phase 1: Inject rich brainstorm context for enhanced layout design
   if (tcc.brainstormData) {
     const brainstorm = tcc.brainstormData;
     
-    // 🔍 DEBUG: Log brainstorm data structure for debugging
     logger.info({ 
       jobId: tcc.jobId,
-      hasBrainstormData: !!tcc.brainstormData,
-      brainstormDataKeys: tcc.brainstormData ? Object.keys(tcc.brainstormData) : [],
-      brainstormDataSize: tcc.brainstormData ? JSON.stringify(tcc.brainstormData).length : 0
-    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Available brainstorm data structure');
+    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Injecting full brainstorm context into prompt.');
 
-    logger.info({ 
-      jobId: tcc.jobId,
-      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
-      valueProposition: brainstorm.valueProposition || 'Not specified',
-      suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
-      keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
-      interactionFlowCount: brainstorm.interactionFlow?.length || 0,
-      hasLeadCaptureStrategy: !!brainstorm.leadCaptureStrategy,
-      hasCreativeEnhancements: !!brainstorm.creativeEnhancements && brainstorm.creativeEnhancements.length > 0
-    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Detailed brainstorm data analysis');
-
-    // Log specific brainstorm fields for debugging
-    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
-      logger.info({ 
-        jobId: tcc.jobId,
-        suggestedInputs: brainstorm.suggestedInputs.map(input => ({
-          label: input.label,
-          type: input.type,
-          description: input.description?.substring(0, 100) + (input.description?.length > 100 ? '...' : '')
-        }))
-      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Suggested inputs detail');
-    }
-
-    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
-      logger.info({ 
-        jobId: tcc.jobId,
-        interactionFlow: brainstorm.interactionFlow.map(step => ({
-          step: step.step,
-          title: step.title,
-          description: step.description?.substring(0, 100) + (step.description?.length > 100 ? '...' : ''),
-          userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
-        }))
-      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Interaction flow detail');
-    }
-
-    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
-      logger.info({ 
-        jobId: tcc.jobId,
-        keyCalculations: brainstorm.keyCalculations.map(calc => ({
-          name: calc.name,
-          description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
-        }))
-      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Key calculations detail');
-    }
-
-    if (brainstorm.leadCaptureStrategy) {
-      logger.info({ 
-        jobId: tcc.jobId,
-        leadCaptureStrategy: {
-          timing: brainstorm.leadCaptureStrategy.timing,
-          method: brainstorm.leadCaptureStrategy.method,
-          incentive: brainstorm.leadCaptureStrategy.incentive?.substring(0, 100) + (brainstorm.leadCaptureStrategy.incentive?.length > 100 ? '...' : '')
-        }
-      }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Lead capture strategy detail');
-    }
-    
     userPrompt += `
 
 DETAILED BRAINSTORM CONTEXT (Use this to design a more specific and engaging layout):
@@ -415,7 +356,6 @@ CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specif
 
 VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
 
-    // Add suggested inputs for layout structure
     if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
       userPrompt += `
 
@@ -425,7 +365,6 @@ SUGGESTED INPUT FIELDS (Design layout to accommodate these specific inputs):`;
       });
     }
 
-    // Add interaction flow for layout structure
     if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
       userPrompt += `
 
@@ -435,7 +374,6 @@ INTERACTION FLOW (Design layout to support this specific user journey):`;
       });
     }
 
-    // Add key calculations for results display areas
     if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
       userPrompt += `
 
@@ -445,7 +383,6 @@ KEY CALCULATIONS (Design layout sections to display these results prominently):`
       });
     }
 
-    // Add lead capture strategy for layout optimization
     if (brainstorm.leadCaptureStrategy) {
       userPrompt += `
 
@@ -454,22 +391,12 @@ LEAD CAPTURE STRATEGY (Incorporate this into the layout design):
 - Method: ${brainstorm.leadCaptureStrategy.method}
 - Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
     }
-
-    logger.info({ 
-      jobId: tcc.jobId,
-      promptLength: userPrompt.length,
-      brainstormContextAdded: true
-    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Brainstorm context successfully added to prompt');
   } else {
     logger.warn({ 
       jobId: tcc.jobId,
-      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...',
-      toolType: tcc.userInput?.toolType || 'Not specified',
-      targetAudience: tcc.targetAudience || 'Not specified'
     }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
   }
 
-  // Phase 2: Add edit mode context if in edit mode
   if (editMode?.isEditMode && editMode.instructions.length > 0) {
     userPrompt += `
 
@@ -497,67 +424,28 @@ Created: ${instruction.createdAt}`;
 Please apply these edit instructions to create an improved version of the JSX layout. Maintain the structure where appropriate but implement the requested changes.`;
   }
 
-  userPrompt += `
-
-Please generate the complete JSON object for the JSX layout.`;
-
-  logger.info({ modelId: modelConfig.modelId }, '🏗️ JSXLayout: Calling AI');
-
-  // Log prompts when in isolated test mode for debugging
-  if (isIsolatedTest) {
-    // Use console.log for prompts to make them readable during isolation testing
-    console.log(`\n🏗️ ========== JSX LAYOUT AGENT - ISOLATION TEST PROMPTS ==========`);
-    console.log(`JobId: ${tcc.jobId}`);
-    console.log(`Model: ${modelConfig.modelId}`);
-    
-    console.log(`\n🏗️ SYSTEM PROMPT PREVIEW (first 500 chars):`);
-    console.log(systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''));
-    
-    console.log(`\n🏗️ USER PROMPT PREVIEW (first 1000 chars):`);
-    console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : ''));
-    
-    console.log(`\n🏗️ FULL SYSTEM PROMPT:`);
-    console.log(systemPrompt);
-    
-    console.log(`\n🏗️ FULL USER PROMPT:`);
-    console.log(userPrompt);
-    
-    console.log(`\n🏗️ ========== END PROMPTS ==========\n`);
-    
-    // Keep minimal structured logging for debugging
-    logger.info({ 
-      jobId: tcc.jobId,
-      modelId: modelConfig.modelId,
-      systemPromptLength: systemPrompt.length,
-      userPromptLength: userPrompt.length
-    }, '🏗️ JSXLayout: [ISOLATED TEST] Prompt lengths logged to console');
-  }
-
   try {
-    const { object: jsxLayout } = await generateObject({
+    const { object } = await generateObject({
       model: modelInstance,
       schema: jsxLayoutSchema,
-      system: systemPrompt,
       prompt: userPrompt,
-      temperature: 0.2,
+      system: systemPrompt,
       maxTokens: 8192,
+      temperature: 0.2, 
     });
-    logger.info({}, '🏗️ JSXLayout: AI FIRST - Using AI generated object');
-    return jsxLayout;
+    return object;
   } catch (error) {
-    logger.warn({ error }, 'Primary model for JSX layout failed. Using fallback.');
-    const fallbackJsx = generateFallbackJsx(
-      tcc.definedFunctionSignatures || tcc.functionSignatures || [],
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      'Error generating JSX layout with AI',
     );
+    // Fallback to a simpler, more robust generation if structured generation fails
+    const fallbackJsx = generateFallbackJsx(tcc.definedFunctionSignatures || []);
     return {
       componentStructure: fallbackJsx,
       elementMap: extractElementMap(fallbackJsx),
-      accessibilityFeatures: [
-        'ARIA labels',
-        'Semantic HTML',
-        'Form accessibility',
-      ],
-      responsiveBreakpoints: ['mobile', 'tablet', 'desktop'],
+      accessibilityFeatures: ['Basic semantic HTML'],
+      responsiveBreakpoints: ['mobile', 'desktop'],
     };
   }
 }

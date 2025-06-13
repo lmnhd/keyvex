@@ -36,148 +36,8 @@ export interface ToolCreationJob {
 //
 // For now, keeping transformation to support legacy data and move V2 forward.
 
-// Phase 3.1: Transform saved brainstorm data to match new comprehensive BrainstormDataSchema
-export function transformBrainstormDataToNewSchema(brainstormResult: SavedLogicResult | any): any {
-  console.log('🚨 TRANSFORMATION FUNCTION CALLED! 🚨');
-  console.log('🔄 [TRANSFORM] Converting brainstorm data to new schema format');
-  console.log('🔍 [TRANSFORM] Full brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
-  
-  // Check if this is a SavedLogicResult (nested structure) or direct brainstorm data
-  const isDirectBrainstormData = brainstormResult.coreConcept || brainstormResult.keyCalculations || brainstormResult.suggestedInputs;
-  
-  if (isDirectBrainstormData) {
-    console.log('🎯 [TRANSFORM] Detected DIRECT brainstorm data - using as-is');
-    console.log('🔍 [TRANSFORM] Direct data keys:', Object.keys(brainstormResult));
-    console.log('🔍 [TRANSFORM] Direct coreConcept:', brainstormResult.coreConcept);
-    console.log('🔍 [TRANSFORM] Direct keyCalculations count:', brainstormResult.keyCalculations?.length || 0);
-    console.log('🔍 [TRANSFORM] Direct suggestedInputs count:', brainstormResult.suggestedInputs?.length || 0);
-    
-    // This is direct brainstorm data - return it as-is
-    return brainstormResult;
-  }
-  
-  // Original nested logic for SavedLogicResult
-  const brainstormOutput = brainstormResult.result?.brainstormOutput;
-  const rawResult = brainstormResult.result;
-  
-  console.log('🔍 [TRANSFORM] brainstormOutput found:', !!brainstormOutput);
-  console.log('🔍 [TRANSFORM] brainstormOutput structure:', brainstormOutput ? Object.keys(brainstormOutput) : 'N/A');
-  console.log('🔍 [TRANSFORM] brainstormOutput DETAILED:', brainstormOutput);
-  
-  // 🚨 CRITICAL DEBUG: Check if we have rich brainstormOutput data
-  if (brainstormOutput && typeof brainstormOutput === 'object') {
-    console.log('🔍 [TRANSFORM] brainstormOutput coreConcept:', brainstormOutput.coreConcept);
-    console.log('🔍 [TRANSFORM] brainstormOutput keyCalculations count:', brainstormOutput.keyCalculations?.length);
-    console.log('🔍 [TRANSFORM] brainstormOutput suggestedInputs count:', brainstormOutput.suggestedInputs?.length);
-    
-    // Check if it has the expected new schema fields
-    if (brainstormOutput.valueProposition || brainstormOutput.keyCalculations || brainstormOutput.interactionFlow) {
-      console.log('✅ [TRANSFORM] BrainstormOutput already matches new schema - using directly');
-      console.log('🔍 [TRANSFORM] Returning rich brainstorm data with keys:', Object.keys(brainstormOutput));
-      console.log('🔍 [TRANSFORM] FINAL CORE CONCEPT BEING RETURNED:', brainstormOutput.coreConcept);
-      return brainstormOutput;
-    }
-  }
-  
-  console.log('🔄 [TRANSFORM] Converting legacy brainstorm format to new schema');
-  console.log('🔍 [TRANSFORM] Raw result structure:', Object.keys(rawResult || {}));
-  
-  // 🚨 BUG FIX: If we have brainstormOutput but it doesn't match the schema check above,
-  // it might still contain rich data that we should use instead of generic fallbacks
-  const sourceData = brainstormOutput && typeof brainstormOutput === 'object' ? brainstormOutput : rawResult;
-  console.log('🔍 [TRANSFORM] Using sourceData from:', brainstormOutput ? 'brainstormOutput' : 'rawResult');
-  console.log('🔍 [TRANSFORM] SourceData keys:', Object.keys(sourceData || {}));
-  
-  // Transform legacy format to new comprehensive schema
-  const transformedData = {
-    // Core concept (handle both spellings) - USE ACTUAL DATA
-    coreConcept: sourceData?.coreConcept || sourceData?.coreWConcept || 'Business tool',
-    valueProposition: sourceData?.valueProposition || 'Provides value to users',
-    
-    // Key calculations - extract from various legacy fields - USE ACTUAL DATA
-    keyCalculations: sourceData?.keyCalculations || sourceData?.calculations || [
-      {
-        name: 'Main Calculation',
-        formula: 'Basic calculation logic',
-        description: 'Primary tool calculation',
-        variables: ['input']
-      }
-    ],
-    
-    // Interaction flow - build from legacy data or create default - USE ACTUAL DATA
-    interactionFlow: sourceData?.interactionFlow || [
-      {
-        step: 1,
-        title: 'Input Collection',
-        description: 'User provides required information',
-        userAction: 'Enter data in form fields',
-        engagementHook: 'Clear, intuitive interface'
-      },
-      {
-        step: 2,
-        title: 'Processing',
-        description: 'System processes user input',
-        userAction: 'Click calculate/submit button',
-        engagementHook: 'Immediate feedback and results'
-      }
-    ],
-    
-    // Lead capture strategy - USE ACTUAL DATA
-    leadCaptureStrategy: sourceData?.leadCaptureStrategy || {
-      timing: 'after_completion',
-      method: 'email_signup',
-      incentive: 'Save and share results'
-    },
-    
-    // Creative enhancements - USE ACTUAL DATA
-    creativeEnhancements: sourceData?.creativeEnhancements || [
-      'Professional styling and branding',
-      'Mobile-responsive design',
-      'Clear result presentation'
-    ],
-    
-    // Suggested inputs - extract from legacy or create defaults - USE ACTUAL DATA
-    suggestedInputs: sourceData?.suggestedInputs || [
-      {
-        id: 'primary_input',
-        label: 'Primary Input',
-        type: 'number',
-        required: true,
-        description: 'Main input for calculation'
-      }
-    ],
-    
-    // Calculation logic - more detailed than keyCalculations - USE ACTUAL DATA
-    calculationLogic: sourceData?.calculationLogic || [
-      {
-        id: 'main_calc',
-        name: 'Main Calculation',
-        formula: 'result = input * factor',
-        dependencies: ['input'],
-        outputFormat: 'number',
-        engagementMoment: 'Real-time calculation display'
-      }
-    ],
-    
-    // Prompt options that guided generation - USE ACTUAL DATA
-    promptOptions: sourceData?.promptOptions || {
-      includeComprehensiveColors: true,
-      includeGorgeousStyling: true,
-      includeAdvancedLayouts: false,
-      styleComplexity: 'standard',
-      industryFocus: brainstormResult.industry || undefined,
-      toolComplexity: 'standard'
-    }
-  };
-  
-  console.log('✅ [TRANSFORM] Successfully transformed to new schema with keys:', Object.keys(transformedData));
-  console.log('🔍 [TRANSFORM] Final coreConcept:', transformedData.coreConcept);
-  console.log('🔍 [TRANSFORM] Final valueProposition:', transformedData.valueProposition);
-  console.log('🔍 [TRANSFORM] Final keyCalculations count:', transformedData.keyCalculations?.length);
-  console.log('🔍 [TRANSFORM] Final suggestedInputs count:', transformedData.suggestedInputs?.length);
-  
-  return transformedData;
-}
+// Phase 3.1: REMOVED - Transform function no longer needed
+// The Logic Architect now generates data in the correct format based on version parameter
 
 async function startV2ToolCreation(
   brainstormResult: SavedLogicResult,
@@ -208,17 +68,49 @@ async function startV2ToolCreation(
   
   console.log('🔍 [V2-START] Using description:', description);
   
-  // CRITICAL FIX: Use the transformation function to handle different brainstorm data structures
-  console.log('🔍 [V2-START] Transforming brainstorm data using transformation function...');
-  const actualBrainstormData = transformBrainstormDataToNewSchema(brainstormResult);
+  // 🎯 NEW: Direct brainstorm data extraction - no transformation needed
+  // Logic Architect now generates data in correct V2 format when called with 'v2' parameter
+  console.log('🔍 [V2-START] Extracting brainstorm data directly from result...');
+  
+  // ENHANCED DEBUGGING: Log the complete structure
+  console.log('🔍 [V2-START] Complete brainstormResult structure analysis:', {
+    id: brainstormResult.id,
+    timestamp: brainstormResult.timestamp,
+    toolType: brainstormResult.toolType,
+    hasResult: !!brainstormResult.result,
+    resultType: typeof brainstormResult.result,
+    resultKeys: brainstormResult.result ? Object.keys(brainstormResult.result) : [],
+    hasUserInput: !!brainstormResult.result?.userInput,
+    userInputKeys: brainstormResult.result?.userInput ? Object.keys(brainstormResult.result.userInput) : [],
+    hasBrainstormOutput: !!brainstormResult.result?.brainstormOutput,
+    brainstormOutputType: brainstormResult.result?.brainstormOutput ? typeof brainstormResult.result.brainstormOutput : 'undefined',
+    brainstormOutputIsNull: brainstormResult.result?.brainstormOutput === null,
+    brainstormOutputIsUndefined: brainstormResult.result?.brainstormOutput === undefined,
+    brainstormOutputKeys: brainstormResult.result?.brainstormOutput && typeof brainstormResult.result.brainstormOutput === 'object' 
+      ? Object.keys(brainstormResult.result.brainstormOutput) : []
+  });
+  
+    // Check if this is new V2 format data - FLEXIBLE MODE: Handle both structures
+  let actualBrainstormData = brainstormResult.result?.brainstormOutput || (brainstormResult as any).brainstormOutput;
   
   if (!actualBrainstormData) {
-    console.error('🚨 [V2-START] Transformation function returned null/undefined');
+    console.error('🚨 [V2-START] No brainstorm data found in either location');
     console.error('🚨 [V2-START] Original brainstormResult structure:', JSON.stringify(brainstormResult, null, 2));
-    throw new Error('Invalid brainstorm data: transformation failed');
+    console.error('🚨 [V2-START] Checked locations:', {
+      hasResult: !!brainstormResult.result,
+      resultKeys: brainstormResult.result ? Object.keys(brainstormResult.result) : [],
+      hasBrainstormOutputInResult: !!brainstormResult.result?.brainstormOutput,
+      hasBrainstormOutputDirect: !!(brainstormResult as any).brainstormOutput,
+      hasUserInput: !!brainstormResult.result?.userInput,
+      directBrainstormOutputValue: (brainstormResult as any).brainstormOutput,
+      nestedBrainstormOutputValue: brainstormResult.result?.brainstormOutput,
+      directBrainstormOutputType: typeof (brainstormResult as any).brainstormOutput,
+      nestedBrainstormOutputType: typeof brainstormResult.result?.brainstormOutput
+    });
+    throw new Error('CRITICAL: No brainstormOutput found in either result.brainstormOutput or direct brainstormOutput - brainstorm generation failed or data corruption occurred');
   }
   
-  console.log('🔍 [V2-START] Transformed brainstorm data:', JSON.stringify(actualBrainstormData, null, 2));
+  console.log('🔍 [V2-START] Using brainstorm data:', JSON.stringify(actualBrainstormData, null, 2));
 
   const requestBody = {
     jobId: jobId,

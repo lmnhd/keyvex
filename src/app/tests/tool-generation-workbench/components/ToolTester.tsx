@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useToolGenerationStream, type StepProgress, type ConnectionStatus } from '../hooks/useToolGenerationStream';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
-import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, transformBrainstormDataToNewSchema, runTccFinalizationSteps } from './tool-tester-core-logic';
+import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, runTccFinalizationSteps } from './tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB, saveToolToDynamoDBOnly } from '../../ui/db-utils';
 import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode, AgentMode } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';

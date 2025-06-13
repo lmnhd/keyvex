@@ -191,7 +191,8 @@ export async function POST(request: NextRequest) {
             targetAudience,
             industry || '',
             businessContext || '',
-            availableData || {}
+            availableData || {},
+            'v2' // Use V2 format for better compatibility with V2 tool creation
           );
           
           logger.info({ 
@@ -200,7 +201,26 @@ export async function POST(request: NextRequest) {
             hasResult: !!finalResult
           }, '🧠 API [logic-architect/brainstorm]: Result from logicArchitect.brainstormToolLogic received');
           
-          // Send completion
+          // STRICT MODE: No fallbacks - if Logic Architect fails, we need to know immediately
+          if (!finalResult) {
+            const errorMsg = 'Logic Architect returned null/undefined result - this indicates a critical failure in brainstorm generation';
+            logger.error({
+              toolType,
+              targetAudience,
+              industry,
+              businessContext: businessContext?.substring(0, 100)
+            }, `🧠 API [logic-architect/brainstorm]: ${errorMsg}`);
+            
+            const errorData = JSON.stringify({
+              type: 'error',
+              message: errorMsg,
+              timestamp: Date.now()
+            });
+            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+            return;
+          }
+          
+          // Send completion with actual result only
           const completionData = JSON.stringify({
             type: 'complete',
             data: finalResult,
