@@ -1,6 +1,13 @@
 import { loadLogicResultsFromDB } from '../../ui/db-utils';
 import type { SavedLogicResult } from '../../ui/types';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { 
+  type BrainstormResult,
+  type BrainstormData,
+  migrateLegacySavedLogicResult,
+  isBrainstormResult,
+  validateBrainstormResult
+} from '../types/unified-brainstorm-types';
 
 // Using console logging for test utilities
 
@@ -8,13 +15,13 @@ export { loadLogicResultsFromDB };
 export type { SavedLogicResult };
 
 export interface ToolCreationJob {
-  modelId: string;
   jobId?: string;
-  status: 'pending' | 'loading' | 'success' | 'error' | 'completed';
-  result?: ProductToolDefinition | null;
-  error?: string | null;
-  startTime?: number;
+  modelId: string;
+  status: 'loading' | 'success' | 'error' | 'completed';
+  startTime: number;
   endTime?: number;
+  result?: any;
+  error?: string;
   productToolDefinition?: ProductToolDefinition;
   toolConstructionContext?: any;
 }
@@ -40,78 +47,33 @@ export interface ToolCreationJob {
 // The Logic Architect now generates data in the correct format based on version parameter
 
 async function startV2ToolCreation(
-  brainstormResult: SavedLogicResult,
+  brainstormResult: BrainstormResult,
   modelId: string,
   agentModelMapping?: Record<string, string>,
-  jobId?: string // NEW: Accept optional jobId
+  jobId?: string
 ): Promise<{ jobId: string }> {
-  console.log(`Requesting V2 tool creation with model: ${modelId} for brainstorm: ${brainstormResult.id}`);
+  console.log(`🔍 [V2-START] Starting V2 tool creation with unified BrainstormResult`);
+  console.log(`🔍 [V2-START] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
   
-  // CRITICAL FIX: Log the jobId being passed
   if (jobId) {
     console.log(`🔍 [V2-START] Using provided jobId: ${jobId}`);
   } else {
     console.log(`⚠️ [V2-START] No jobId provided - server will generate new one`);
   }
 
-  const userInputData = brainstormResult.result?.userInput || {};
-  
-  // Debug log the entire brainstorm result
-  console.log('🔍 [V2-START] Full brainstorm result:', JSON.stringify(brainstormResult, null, 2));
-  console.log('🔍 [V2-START] User input data:', JSON.stringify(userInputData, null, 2));
-  
-  // Get description and validate it's not empty
-  const description = userInputData.businessContext || 'Tool creation request';
+  // --- PHASE 2: DIRECT ACCESS TO UNIFIED STRUCTURE ---
+  // No more complex extraction - direct access to typed data
+  const description = (brainstormResult.userInput as any).businessContext;
   if (!description || description.trim().length === 0) {
     throw new Error('Description is required but was empty');
   }
   
   console.log('🔍 [V2-START] Using description:', description);
-  
-  // 🎯 SIMPLIFIED: Extract brainstorm data from V2 format only
-  // Legacy handling removed - all new brainstorm data should use correct V2 format
-  console.log('🔍 [V2-START] Extracting brainstorm data from V2 format...');
-  
-  // ENHANCED DEBUGGING: Log the complete structure
-  console.log('🔍 [V2-START] Complete brainstormResult structure analysis:', {
-    id: brainstormResult.id,
-    timestamp: brainstormResult.timestamp,
-    toolType: brainstormResult.toolType,
-    hasResult: !!brainstormResult.result,
-    resultType: typeof brainstormResult.result,
-    resultKeys: brainstormResult.result ? Object.keys(brainstormResult.result) : [],
-    hasUserInput: !!brainstormResult.result?.userInput,
-    userInputKeys: brainstormResult.result?.userInput ? Object.keys(brainstormResult.result.userInput) : [],
-    hasBrainstormOutput: !!brainstormResult.result?.brainstormOutput,
-    brainstormOutputType: brainstormResult.result?.brainstormOutput ? typeof brainstormResult.result.brainstormOutput : 'undefined',
-    brainstormOutputIsNull: brainstormResult.result?.brainstormOutput === null,
-    brainstormOutputIsUndefined: brainstormResult.result?.brainstormOutput === undefined,
-    brainstormOutputKeys: brainstormResult.result?.brainstormOutput && typeof brainstormResult.result.brainstormOutput === 'object' 
-      ? Object.keys(brainstormResult.result.brainstormOutput) : []
-  });
-  
-  // 🎯 V2 FORMAT ONLY: Extract the brainstorm data from the correct location
-  let actualBrainstormData;
-  
-  if (brainstormResult.result?.brainstormOutput) {
-    // V2 format - brainstorm data should be flat in brainstormOutput
-    actualBrainstormData = brainstormResult.result.brainstormOutput;
-    console.log('🔍 [V2-START] Found V2 format brainstorm data in result.brainstormOutput');
-    console.log('🔍 [V2-START] Brainstorm data keys:', Object.keys(actualBrainstormData));
-  } else {
-    console.error('🚨 [V2-START] Expected V2 format with result.brainstormOutput but not found');
-    console.error('🚨 [V2-START] Available structure:', {
-      hasResult: !!brainstormResult.result,
-      resultKeys: brainstormResult.result ? Object.keys(brainstormResult.result) : [],
-      directKeys: Object.keys(brainstormResult)
-    });
-    throw new Error('CRITICAL: Expected V2 format brainstorm data not found. The brainstorm generation may have failed or returned an unexpected format.');
-  }
-  
-  console.log('🔍 [V2-START] Using brainstorm data:', JSON.stringify(actualBrainstormData, null, 2));
+  console.log('🔍 [V2-START] Brainstorm data keys:', Object.keys(brainstormResult.brainstormData as any));
 
-  // 🎯 CRITICAL VALIDATION: Ensure all required BrainstormDataSchema fields are present
-  // NO FALLBACKS - Process should FAIL if data is incomplete to identify root cause
+  // --- PHASE 2: DIRECT VALIDATION ---
+  // Validate that all required fields are present in the brainstorm data
+  const brainstormData = brainstormResult.brainstormData as any;
   const requiredFields = [
     'valueProposition',
     'keyCalculations', 
@@ -124,26 +86,15 @@ async function startV2ToolCreation(
   ];
   
   const missingFields = requiredFields.filter(field => {
-    const value = actualBrainstormData[field];
+    const value = brainstormData[field];
     return value === undefined || value === null || (Array.isArray(value) && value.length === 0);
   });
   
   if (missingFields.length > 0) {
     console.error('🚨 [V2-START] CRITICAL VALIDATION FAILURE - Missing required brainstorm fields:', missingFields);
-    console.error('🚨 [V2-START] Available fields in actualBrainstormData:', Object.keys(actualBrainstormData));
-    console.error('🚨 [V2-START] Field values check:', {
-      valueProposition: actualBrainstormData.valueProposition,
-      keyCalculations: actualBrainstormData.keyCalculations?.length || 'undefined/null',
-      interactionFlow: actualBrainstormData.interactionFlow?.length || 'undefined/null',
-      leadCaptureStrategy: actualBrainstormData.leadCaptureStrategy ? 'present' : 'missing',
-      creativeEnhancements: actualBrainstormData.creativeEnhancements?.length || 'undefined/null',
-      suggestedInputs: actualBrainstormData.suggestedInputs?.length || 'undefined/null',
-      calculationLogic: actualBrainstormData.calculationLogic?.length || 'undefined/null',
-      promptOptions: actualBrainstormData.promptOptions ? 'present' : 'missing'
-    });
-    console.error('🚨 [V2-START] Complete actualBrainstormData structure:', JSON.stringify(actualBrainstormData, null, 2));
+    console.error('🚨 [V2-START] Available fields:', Object.keys(brainstormData));
     
-    throw new Error(`CRITICAL BRAINSTORM DATA VALIDATION FAILURE: The Logic Architect failed to generate complete brainstorm data. Missing required fields: ${missingFields.join(', ')}. This indicates a problem with the brainstorm generation process that must be fixed at the source, not masked with fallbacks.`);
+    throw new Error(`CRITICAL BRAINSTORM DATA VALIDATION FAILURE: Missing required fields: ${missingFields.join(', ')}. This indicates a problem with the brainstorm generation process.`);
   }
   
   console.log('✅ [V2-START] All required brainstorm fields are present and valid');
@@ -152,14 +103,14 @@ async function startV2ToolCreation(
     jobId: jobId,
     userInput: {
       description: description.trim(),
-      targetAudience: brainstormResult.targetAudience,
-      industry: brainstormResult.industry,
-      toolType: brainstormResult.toolType,
-      features: userInputData.features || []
+      targetAudience: (brainstormResult.userInput as any).targetAudience,
+      industry: (brainstormResult.userInput as any).industry,
+      toolType: (brainstormResult.userInput as any).toolType,
+      features: [] // No features in unified structure
     },
     selectedModel: modelId,
     agentModelMapping: agentModelMapping || {},
-    brainstormData: actualBrainstormData, // FIXED: Use the actual brainstorm data, not the wrapper
+    brainstormData: brainstormData, // Direct access to validated data
     testingOptions: {
       enableWebSocketStreaming: true,
       enableTccOperations: true,
@@ -167,7 +118,7 @@ async function startV2ToolCreation(
     }
   };
 
-  console.log('🔍 [V2-START] Full request body:', JSON.stringify(requestBody, null, 2));
+  console.log('🔍 [V2-START] Request body created with unified structure');
 
   const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
     method: 'POST',
@@ -189,31 +140,41 @@ async function startV2ToolCreation(
   return { jobId: responseData.jobId };
 }
 
-// this must be the legacy tool creation process
-// this must be the legacy tool creation process
 export async function runToolCreationProcess(
-  brainstormResult: SavedLogicResult,
+  brainstormInput: BrainstormResult | any,
   selectedModelId: string,
   agentModelMapping?: Record<string, string>,
-  jobId?: string // NEW: Accept optional jobId
+  jobId?: string
 ): Promise<ToolCreationJob> {
   let job: ToolCreationJob = {
     modelId: selectedModelId,
     status: 'loading',
     startTime: Date.now(),
-    jobId: jobId, // Set the jobId immediately if provided
+    jobId: jobId,
   };
   
   try {
+    let brainstormResult: BrainstormResult;
+    
+    if (isBrainstormResult(brainstormInput)) {
+      brainstormResult = brainstormInput;
+      console.log('🔍 [TOOL-CREATION] Using new unified BrainstormResult format');
+    } else {
+      console.log('🔍 [TOOL-CREATION] Migrating legacy format to unified BrainstormResult');
+      brainstormResult = migrateLegacySavedLogicResult(brainstormInput);
+      console.log('🔍 [TOOL-CREATION] Migration completed');
+    }
+
     const { jobId: returnedJobId } = await startV2ToolCreation(
       brainstormResult, 
       selectedModelId, 
       agentModelMapping,
-      jobId // CRITICAL: Pass the jobId to ensure consistency
+      jobId
     );
+    
     job = {
       ...job,
-      jobId: returnedJobId, // This should be the same as the input jobId
+      jobId: returnedJobId,
       status: 'loading',
     };
   } catch (error) {

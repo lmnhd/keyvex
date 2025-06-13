@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, Wand2, AlertCircle, CheckCircle, Sparkles, HelpCircle } from 'lucide-react';
-import { generateBrainstorm, BrainstormRequest, BrainstormStreamData } from './brainstorm-generator-core-logic';
-import { SavedLogicResult } from '../../ui/types';
+import { generateBrainstorm, type BrainstormRequest, type BrainstormStreamData } from './brainstorm-generator-core-logic';
+// --- PHASE 2: UNIFIED TYPES ---
+import { type BrainstormResult } from '../types/unified-brainstorm-types';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -32,7 +33,7 @@ interface ExtractedDetailsResponse {
     errors?: any;
 }
 
-const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: SavedLogicResult) => void }> = ({ onBrainstormGenerated }) => {
+const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: BrainstormResult) => void }> = ({ onBrainstormGenerated }) => {
   // State for the new feature
   const [masterDescription, setMasterDescription] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
@@ -49,7 +50,7 @@ const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: SavedLogi
 
   const [isLoading, setIsLoading] = useState(false); // For brainstorm generation
   const [streamingThoughts, setStreamingThoughts] = useState<string[]>([]);
-  const [finalResult, setFinalResult] = useState<SavedLogicResult | null>(null);
+  const [finalResult, setFinalResult] = useState<BrainstormResult | null>(null);
   const [error, setError] = useState<string | null>(null); // For brainstorm generation
   const [detailedBrainstormData, setDetailedBrainstormData] = useState<any | null>(null);
 
@@ -170,10 +171,10 @@ const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: SavedLogi
     const result = await generateBrainstorm(request, handleProgress);
     if (result) {
       setFinalResult(result);
-      if (result.result && typeof result.result.brainstormOutput === 'object' && result.result.brainstormOutput !== null) {
-        setDetailedBrainstormData(result.result.brainstormOutput);
+      if (result.brainstormData && typeof result.brainstormData === 'object') {
+        setDetailedBrainstormData(result.brainstormData);
       } else {
-        console.warn('Brainstorm output was not in the expected format or was missing.', result.result);
+        console.warn('Brainstorm data was not in the expected format or was missing.', result.brainstormData);
       }
       if (onBrainstormGenerated) {
         onBrainstormGenerated(result);
@@ -344,9 +345,9 @@ const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: SavedLogi
               <p className="mb-2 text-xs">ID: {finalResult.id}</p>
               <p className="mb-2">This brainstorm result has been saved and is available in the 'Test Tool Creation' tab.</p>
               <details className="mt-2 text-xs">
-                <summary className="cursor-pointer font-semibold">View Raw Output (from SavedLogicResult)</summary>
+                <summary className="cursor-pointer font-semibold">View Raw Output (from BrainstormResult)</summary>
                 <pre className="mt-1 p-2 bg-gray-100 dark:bg-gray-700 rounded-md overflow-x-auto max-h-80">
-                  {JSON.stringify(finalResult.result, null, 2)}
+                  {`${JSON.stringify(finalResult.brainstormData as any, null, 2)}`}
                 </pre>
               </details>
             </AlertDescription>
