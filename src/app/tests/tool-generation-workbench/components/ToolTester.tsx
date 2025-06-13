@@ -4,9 +4,21 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useToolGenerationStream, type StepProgress, type ConnectionStatus } from '../hooks/useToolGenerationStream';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
-import { ToolCreationJob, type SavedLogicResult, runIsolatedAgentTest, runToolCreationProcess, runTccFinalizationSteps } from './tool-tester-core-logic';
+import { ToolCreationJob, runIsolatedAgentTest, runToolCreationProcess, runTccFinalizationSteps } from './tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, saveToolToDBList, saveV2JobToDB, deleteToolFromDBList, deleteV2JobFromDB, saveToolToDynamoDBOnly } from '../../ui/db-utils';
-import { AgentModelMapping, BrainstormData, mockTccScenarios, ModelOption, OrchestrationStatus, STORAGE_KEYS, TccSource, WorkflowMode, AgentMode } from './tool-tester-parts/tool-tester-types';
+import { type BrainstormResult } from '../types/unified-brainstorm-types';
+import { 
+  AgentModelMapping, 
+  mockTccScenarios, 
+  ModelOption, 
+  OrchestrationStatus, 
+  STORAGE_KEYS, 
+  TccSource, 
+  WorkflowMode, 
+  AgentMode,
+  migrateLegacySavedLogicResult,
+  isBrainstormResult
+} from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
 import { Loader2, Wifi, WifiOff } from 'lucide-react';
@@ -375,20 +387,20 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   useEffect(() => {
     if (savedBrainstorms.length > 0 && !selectedBrainstormId) {
       // Sort by timestamp descending and select the most recent one
-      const sortedBrainstorms = [...savedBrainstorms].sort((a, b) => b.timestamp - a.timestamp);
+      const sortedBrainstorms = [...savedBrainstorms].sort((a, b) => (b as any).timestamp - (a as any).timestamp);
       const mostRecentBrainstorm = sortedBrainstorms[0];
       
       console.log('🎯 Auto-selecting most recent brainstorm:', {
         total: savedBrainstorms.length,
-        selected: mostRecentBrainstorm.id,
+        selected: (mostRecentBrainstorm as any).id,
         selectedData: {
-          toolType: mostRecentBrainstorm.toolType,
-          targetAudience: mostRecentBrainstorm.targetAudience,
-          timestamp: new Date(mostRecentBrainstorm.timestamp).toLocaleString()
+          toolType: (mostRecentBrainstorm as any).toolType,
+          targetAudience: (mostRecentBrainstorm as any).targetAudience,
+          timestamp: new Date((mostRecentBrainstorm as any).timestamp).toLocaleString()
         }
       });
       
-      setSelectedBrainstormId(mostRecentBrainstorm.id);
+      setSelectedBrainstormId((mostRecentBrainstorm as any).id);
     }
   }, [savedBrainstorms, selectedBrainstormId]);
 
@@ -533,7 +545,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setError(errorMsg);
       addWSLog(`Error during orchestration start: ${errorMsg}`);
       setTestJob(prev => ({
-          ...(prev || { modelId: selectedModelIds[0] || 'unknown' }),
+          ...(prev || { modelId: selectedModelIds[0] || 'unknown', startTime: Date.now() }),
           status: 'error',
           error: errorMsg,
           endTime: Date.now()
@@ -706,20 +718,20 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             } else if (selectedLoadItem.type === 'tool') {
                 const tool = savedTools.find(t => t.id === selectedLoadItem.id);
                 if (tool) {
-                    jobToLoad = {
+                                    jobToLoad = {
+                    jobId: `loaded-tool-${tool.id}`,
+                    startTime: tool.createdAt || Date.now(),
+                    endTime: Date.now(),
+                    status: 'success' as const,
+                    result: tool,
+                    productToolDefinition: tool,
+                    modelId: 'unknown', // Legacy tool, model unknown
+                    toolConstructionContext: {
                         jobId: `loaded-tool-${tool.id}`,
-                        startTime: tool.createdAt,
-                        endTime: Date.now(),
-                        status: 'success' as const,
-                        result: tool,
-                        productToolDefinition: tool,
-                        modelId: 'unknown', // Legacy tool, model unknown
-                        toolConstructionContext: {
-                            jobId: `loaded-tool-${tool.id}`,
-                            finalProductToolDefinition: tool,
-                            userInput: { prompt: `Loaded from legacy tool: ${tool.metadata.title}` },
-                        },
-                    };
+                        finalProductToolDefinition: tool,
+                        userInput: { prompt: `Loaded from legacy tool: ${tool.metadata.title}` },
+                    },
+                };
                 }
             }
         } else if (loadSource === 'dynamodb') {
@@ -728,6 +740,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
                 const mockJobId = `loaded-ddb-${tool.id}`;
                 jobToLoad = {
                     jobId: mockJobId,
+                    startTime: Date.now(),
                     status: 'success' as const,
                     result: tool,
                     productToolDefinition: tool,
