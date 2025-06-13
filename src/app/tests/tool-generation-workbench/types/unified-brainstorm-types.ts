@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BrainstormDataSchema, type BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
 
 // --- PHASE 1: UNIFIED BRAINSTORM TYPES ---
 // This file replaces the conflicting BrainstormData and SavedLogicResult types

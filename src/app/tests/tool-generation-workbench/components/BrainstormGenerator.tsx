@@ -342,7 +342,7 @@ const BrainstormGenerator: React.FC<{ onBrainstormGenerated?: (result: Brainstor
             <CheckCircle className="h-4 w-4" />
             <AlertTitle>Full Brainstorm Generated Successfully!</AlertTitle>
             <AlertDescription>
-              <p className="mb-2 text-xs">ID: {finalResult.id}</p>
+              <p className="mb-2 text-xs">ID: {(finalResult as any).id}</p>
               <p className="mb-2">This brainstorm result has been saved and is available in the 'Test Tool Creation' tab.</p>
               <details className="mt-2 text-xs">
                 <summary className="cursor-pointer font-semibold">View Raw Output (from BrainstormResult)</summary>
