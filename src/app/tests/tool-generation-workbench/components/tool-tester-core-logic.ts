@@ -505,8 +505,8 @@ export async function runIsolatedAgentTest(
       tcc = {
         userId,
         jobId: `debug-${uuidv4()}`,
-        userInput: selectedBrainstorm.result?.userInput || {},
-        brainstormData: selectedBrainstorm.result?.brainstormOutput || selectedBrainstorm.result,
+        userInput: selectedBrainstorm.userInput || {},
+        brainstormData: selectedBrainstorm.brainstormData || {},
         stepStatus: {}
       };
       addLog('debug', 'Loaded TCC from brainstorm', { id: brainstormId });

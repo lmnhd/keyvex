@@ -1,5 +1,8 @@
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { SavedLogicResult } from './types';
+// Import unified brainstorm types
+import { type BrainstormResult } from '../tool-generation-workbench/types/unified-brainstorm-types';
+
 
 // IndexedDB Constants
 const DB_NAME = 'KeyvexUIDevDB';
@@ -158,7 +161,7 @@ export async function loadLastActiveToolFromDB(): Promise<ProductToolDefinition 
   }
 }
 
-export async function saveLogicResultToDB(logicResult: SavedLogicResult): Promise<void> {
+export async function saveLogicResultToDB(logicResult: BrainstormResult): Promise<void> {
   try {
     const db = await openToolDB();
     const transaction = db.transaction([LOGIC_RESULT_STORE_NAME], 'readwrite');
@@ -167,29 +170,29 @@ export async function saveLogicResultToDB(logicResult: SavedLogicResult): Promis
     await new Promise<void>((resolve, reject) => {
       const request = store.put(logicResult);
       request.onsuccess = () => {
-        console.log('✅ Logic result saved to IndexedDB:', logicResult.id);
+        console.log('✅ Unified BrainstormResult saved to IndexedDB:', logicResult.id);
         resolve();
       };
       request.onerror = () => {
-        console.error('❌ Error saving logic result to IndexedDB:', request.error);
+        console.error('❌ Error saving BrainstormResult to IndexedDB:', request.error);
         reject(request.error);
       };
     });
     
     db.close();
   } catch (error) {
-    console.error('❌ Error saving logic result to IndexedDB:', error);
+    console.error('❌ Error saving BrainstormResult to IndexedDB:', error);
   }
 }
 
-export async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
+export async function loadLogicResultsFromDB(): Promise<BrainstormResult[]> {
   try {
     const db = await openToolDB();
     const transaction = db.transaction([LOGIC_RESULT_STORE_NAME], 'readonly');
     const store = transaction.objectStore(LOGIC_RESULT_STORE_NAME);
     const index = store.index('timestamp');
     
-    const results = await new Promise<SavedLogicResult[]>((resolve, reject) => {
+    const results = await new Promise<BrainstormResult[]>((resolve, reject) => {
       const request = index.getAll();
       request.onsuccess = () => {
         // Sort by timestamp descending (most recent first)
@@ -197,16 +200,16 @@ export async function loadLogicResultsFromDB(): Promise<SavedLogicResult[]> {
         resolve(sortedResults);
       };
       request.onerror = () => {
-        console.error('❌ Error loading logic results from IndexedDB:', request.error);
+        console.error('❌ Error loading BrainstormResults from IndexedDB:', request.error);
         reject(request.error);
       };
     });
     
     db.close();
-    //console.log(`✅ Loaded ${results.length} logic results from IndexedDB`);
+    console.log(`✅ Loaded ${results.length} unified BrainstormResults from IndexedDB`);
     return results;
   } catch (error) {
-    console.error('❌ Error loading logic results from IndexedDB:', error);
+    console.error('❌ Error loading BrainstormResults from IndexedDB:', error);
     return [];
   }
 }

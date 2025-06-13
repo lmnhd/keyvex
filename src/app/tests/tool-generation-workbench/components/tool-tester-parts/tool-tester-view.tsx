@@ -20,6 +20,10 @@ import ProgressLog from '../ProgressLog';
 import TCCVisualizer from '../TCCVisualizer';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import { ScrollBar } from '@/components/ui/scroll-area';
+import { 
+  type BrainstormResult,
+  type BrainstormData as BrainstormDataContent
+} from '../../types/unified-brainstorm-types';
 
 export default function ToolTesterView({
     testJob,
@@ -35,7 +39,7 @@ export default function ToolTesterView({
     setSelectedAgent,
     orchestrationStatus,
     setOrchestrationStatus,
-    savedBrainstorms,
+    savedBrainstorms: savedBrainstormsContent,
     savedTools,
     savedV2Jobs,
     selectedLoadItem,
@@ -104,7 +108,7 @@ export default function ToolTesterView({
     setSelectedAgent: (agent: string) => void;
     orchestrationStatus: OrchestrationStatus;
     setOrchestrationStatus: (status: OrchestrationStatus) => void;
-    savedBrainstorms: BrainstormData[];
+    savedBrainstorms: BrainstormResult[];
     savedTools: ProductToolDefinition[];
     savedV2Jobs: any[];
     selectedLoadItem: { type: 'brainstorm' | 'tool' | 'v2job', id: string } | null;
@@ -121,7 +125,7 @@ export default function ToolTesterView({
     handleDeleteSavedItem: (id: string, type: "tool" | "v2job") => Promise<void>;
     handleDeleteBrainstorm: (brainstormId: string) => void;
     handleRefreshTCC: () => void;
-    getSelectedBrainstormDetails: () => BrainstormData | null | undefined;
+    getSelectedBrainstormDetails: () => BrainstormResult | null | undefined;
     isLoading: boolean;
     selectedAgent: string;
     agentModelMapping: AgentModelMapping;
@@ -195,15 +199,15 @@ export default function ToolTesterView({
               <Select 
                 value={selectedBrainstormId}
                 onValueChange={setSelectedBrainstormId} 
-                disabled={isLoading || savedBrainstorms.length === 0}
+                disabled={isLoading || savedBrainstormsContent.length === 0}
               >
                 <SelectTrigger id="selectedBrainstorm">
-                  <SelectValue placeholder={savedBrainstorms.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
+                  <SelectValue placeholder={savedBrainstormsContent.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {savedBrainstorms.map(bs => (
+                  {savedBrainstormsContent.map(bs => (
                     <SelectItem key={bs.id} value={bs.id}>
-                      {bs.toolType} for {bs.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
+                      {bs.userInput.toolType} for {bs.userInput.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -216,12 +220,12 @@ export default function ToolTesterView({
                     <CardTitle className="text-sm flex items-center"><Info className="mr-2 h-4 w-4 text-blue-500"/>Selected Brainstorm Details</CardTitle>
                 </CardHeader>
                 <CardContent className="text-xs space-y-1">
-                    <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.toolType}</p>
-                    <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.targetAudience}</p>
+                    <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.userInput.toolType}</p>
+                    <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.userInput.targetAudience}</p>
                     <details className="mt-1">
                         <summary className="cursor-pointer font-medium">View Full Input Data</summary>
                         <pre className="mt-1 p-1.5 bg-white dark:bg-gray-700/50 rounded-md overflow-x-auto max-h-32 text-[10px]">
-                        {JSON.stringify(getSelectedBrainstormDetails()?.result?.userInput || getSelectedBrainstormDetails()?.result, null, 2)}
+                        {JSON.stringify(getSelectedBrainstormDetails()?.userInput, null, 2)}
                         </pre>
                     </details>
                 </CardContent>
@@ -262,7 +266,7 @@ export default function ToolTesterView({
                 <Tabs defaultValue="brainstorms" className="w-full">
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="brainstorms">
-                      Brainstorms ({savedBrainstorms.length})
+                      Brainstorms ({savedBrainstormsContent.length})
                     </TabsTrigger>
                     <TabsTrigger value="tools">
                       Saved Tools ({savedTools.length})
@@ -277,10 +281,10 @@ export default function ToolTesterView({
                       <Label>Select a Saved Brainstorm</Label>
                       <ScrollArea className="h-48 border rounded-md p-3">
                         <div className="space-y-2">
-                          {savedBrainstorms.length === 0 ? (
+                          {savedBrainstormsContent.length === 0 ? (
                             <p className="text-sm text-gray-500 text-center py-8">No saved brainstorms found</p>
                           ) : (
-                            savedBrainstorms.map(brainstorm => (
+                            savedBrainstormsContent.map(brainstorm => (
                               <div 
                                 key={brainstorm.id}
                                 className={`p-3 rounded-md border cursor-pointer transition-colors ${
@@ -292,9 +296,9 @@ export default function ToolTesterView({
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{brainstorm.toolType} for {brainstorm.targetAudience}</h4>
+                                    <h4 className="font-medium text-sm">{brainstorm.userInput.toolType} for {brainstorm.userInput.targetAudience}</h4>
                                     <p className="text-xs text-gray-500 mt-1">
-                                      {brainstorm.industry && `${brainstorm.industry} • `}
+                                      {brainstorm.userInput.industry && `${brainstorm.userInput.industry} • `}
                                       {new Date(brainstorm.timestamp).toLocaleDateString()}
                                     </p>
                                   </div>

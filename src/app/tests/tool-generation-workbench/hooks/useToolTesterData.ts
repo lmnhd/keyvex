@@ -2,13 +2,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { loadLogicResultsFromDB } from '@/app/tests/tool-generation-workbench/components/tool-tester-core-logic';
 import { loadAllToolsFromDB, loadV2JobsFromDB, loadToolsFromDynamoDB } from '../../ui/db-utils';
-import { ModelOption, BrainstormData } from '../components/tool-tester-parts/tool-tester-types';
+import { ModelOption } from '../components/tool-tester-parts/tool-tester-types';
+import { type BrainstormResult } from '../types/unified-brainstorm-types';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 
 export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) => {
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
-  const [savedBrainstorms, setSavedBrainstorms] = useState<BrainstormData[]>([]);
+  const [savedBrainstorms, setSavedBrainstorms] = useState<BrainstormResult[]>([]);
   const [savedTools, setSavedTools] = useState<ProductToolDefinition[]>([]);
   const [savedV2Jobs, setSavedV2Jobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);

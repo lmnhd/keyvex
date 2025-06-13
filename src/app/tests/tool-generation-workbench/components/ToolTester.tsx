@@ -15,9 +15,7 @@ import {
   STORAGE_KEYS, 
   TccSource, 
   WorkflowMode, 
-  AgentMode,
-  migrateLegacySavedLogicResult,
-  isBrainstormResult
+  AgentMode
 } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
@@ -524,23 +522,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       
       addWSLog(`WebSocket connected. Starting V2 orchestration with jobId: ${jobId}...`);
       
-      // CRITICAL FIX: Convert legacy format to unified format
-      // savedBrainstorms contains legacy SavedLogicResult format, but runToolCreationProcess expects BrainstormResult
-      let unifiedBrainstorm;
-      if (isBrainstormResult(brainstorm)) {
-        // Already in unified format
-        unifiedBrainstorm = brainstorm;
-        addWSLog(`✅ Brainstorm is already in unified format`);
-      } else {
-        // Convert from legacy format to unified format
-        addWSLog(`🔄 Converting legacy brainstorm format to unified format...`);
-        unifiedBrainstorm = migrateLegacySavedLogicResult(brainstorm);
-        addWSLog(`✅ Legacy brainstorm converted to unified format`);
-      }
+      // ✅ Brainstorm is already in unified BrainstormResult format - no conversion needed!
+      addWSLog(`✅ Using unified BrainstormResult format directly`);
       
-      // Pass the unified brainstorm to ensure consistency
+      // Pass the unified brainstorm directly to the tool creation process
       const newJob = await runToolCreationProcess(
-        unifiedBrainstorm, // ✅ Pass the unified brainstorm object
+        brainstorm, // ✅ Already in unified BrainstormResult format
         selectedModelIds[0],
         agentModelMapping,
         jobId // CRITICAL: Pass the same jobId

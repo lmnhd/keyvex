@@ -115,23 +115,13 @@ export async function generateBrainstorm(
       
       console.log('[BrainstormGeneratorCoreLogic] Preparing to save to DB. Data:', JSON.stringify(newBrainstormResult, null, 2));
       
-      // --- TEMPORARY: Save in legacy format for backward compatibility ---
-      // TODO: Remove this once all consumers are updated to use the new format
-      const legacyFormat = {
-        id: newBrainstormResult.id,
-        timestamp: newBrainstormResult.timestamp,
-        date: newBrainstormResult.date,
-        toolType: userInput.toolType,
-        targetAudience: userInput.targetAudience,
-        industry: userInput.industry,
-        result: {
-          userInput: userInput,
-          brainstormOutput: newBrainstormResult.brainstormData
-        }
-      };
-      
-      await saveLogicResultToDB(legacyFormat as any); // Type assertion for legacy compatibility
-      console.log('[BrainstormGeneratorCoreLogic] Successfully saved to DB. Result ID:', newBrainstormResult.id);
+      // --- SAVE IN UNIFIED FORMAT DIRECTLY ---
+      // Save the unified BrainstormResult format directly to the database
+      // This eliminates the need for conversions and migrations
+      await saveLogicResultToDB(newBrainstormResult);
+      console.log('[BrainstormGeneratorCoreLogic] ✅ Unified BrainstormResult saved to DB successfully');
+
+      onProgress({ type: 'complete', data: newBrainstormResult, timestamp: Date.now() });
       return newBrainstormResult;
     } else {
       console.error('[BrainstormGeneratorCoreLogic] Stream completed but finalResultData is null or undefined. This is unexpected.');
