@@ -62,8 +62,107 @@ export function isBrainstormResult(data: unknown): data is BrainstormResult {
   return BrainstormResultSchema.safeParse(data).success;
 }
 
-export function validateBrainstormData(data: unknown): BrainstormData {
-  return BrainstormDataSchema.parse(data);
+// Validation function with detailed error logging
+export function validateBrainstormData(data: any): BrainstormData {
+  console.log('🔍 [BRAINSTORM-VALIDATION] Starting brainstorm data validation', { 
+    dataKeys: Object.keys(data || {}),
+    dataType: typeof data 
+  });
+
+  try {
+    const result = BrainstormDataSchema.parse(data);
+    console.log('✅ [BRAINSTORM-VALIDATION] Brainstorm data validation successful', {
+      validatedFields: Object.keys(result)
+    });
+    return result;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error('❌ [BRAINSTORM-VALIDATION] Zod validation failed for brainstorm data', {
+        errorCount: error.errors.length,
+        errors: error.errors.map(err => ({
+          path: err.path.join('.'),
+          code: err.code,
+          message: err.message,
+          // Safely access expected/received properties that may not exist on all ZodIssue types
+          ...(('expected' in err) && { expected: err.expected }),
+          ...(('received' in err) && { received: err.received })
+        })),
+        inputData: data,
+        inputDataKeys: Object.keys(data || {}),
+        missingRequiredFields: error.errors
+          .filter(err => err.code === 'invalid_type' && ('received' in err) && err.received === 'undefined')
+          .map(err => err.path.join('.')),
+        invalidTypeFields: error.errors
+          .filter(err => err.code === 'invalid_type' && ('received' in err) && err.received !== 'undefined')
+          .map(err => ({
+            field: err.path.join('.'),
+            ...(('expected' in err) && { expected: err.expected }),
+            ...(('received' in err) && { received: err.received })
+          }))
+      });
+
+      // Log specific field analysis
+      const requiredFields = [
+        'coreConcept',
+        'keyCalculations', 
+        'interactionFlow',
+        'valueProposition',
+        'leadCaptureStrategy',
+        'creativeEnhancements',
+        'suggestedInputs',
+        'calculationLogic',
+        'promptOptions'
+      ];
+
+      const fieldAnalysis = requiredFields.map(field => ({
+        field,
+        present: data && data[field] !== undefined,
+        type: data && data[field] !== undefined ? typeof data[field] : 'undefined',
+        value: data && data[field] !== undefined ? (
+          Array.isArray(data[field]) ? `Array(${data[field].length})` :
+          typeof data[field] === 'object' ? `Object(${Object.keys(data[field]).join(', ')})` :
+          String(data[field]).substring(0, 100)
+        ) : 'undefined'
+      }));
+
+      console.error('📊 [BRAINSTORM-VALIDATION] Field-by-field analysis', { fieldAnalysis });
+
+      // Special focus on problematic fields
+      if (data?.leadCaptureStrategy) {
+        console.error('🎯 [BRAINSTORM-VALIDATION] leadCaptureStrategy analysis', {
+          leadCaptureStrategy: data.leadCaptureStrategy,
+          hasTimingField: data.leadCaptureStrategy.timing !== undefined,
+          hasMethodField: data.leadCaptureStrategy.method !== undefined,
+          hasIncentiveField: data.leadCaptureStrategy.incentive !== undefined,
+          timingValue: data.leadCaptureStrategy.timing,
+          methodValue: data.leadCaptureStrategy.method,
+          incentiveValue: data.leadCaptureStrategy.incentive
+        });
+      } else {
+        console.error('🎯 [BRAINSTORM-VALIDATION] leadCaptureStrategy is completely missing');
+      }
+
+      if (data?.promptOptions) {
+        console.error('🎯 [BRAINSTORM-VALIDATION] promptOptions analysis', {
+          promptOptions: data.promptOptions,
+          requiredBooleans: {
+            includeComprehensiveColors: data.promptOptions.includeComprehensiveColors,
+            includeGorgeousStyling: data.promptOptions.includeGorgeousStyling,
+            includeAdvancedLayouts: data.promptOptions.includeAdvancedLayouts
+          },
+          requiredEnums: {
+            styleComplexity: data.promptOptions.styleComplexity,
+            toolComplexity: data.promptOptions.toolComplexity
+          }
+        });
+      } else {
+        console.error('🎯 [BRAINSTORM-VALIDATION] promptOptions is completely missing');
+      }
+    }
+
+    console.error('💥 [BRAINSTORM-VALIDATION] Throwing validation error after detailed logging');
+    throw error;
+  }
 }
 
 export function isBrainstormData(data: unknown): data is BrainstormData {
@@ -75,7 +174,7 @@ export function isBrainstormData(data: unknown): data is BrainstormData {
 // Convert legacy SavedLogicResult to new BrainstormResult
 export function migrateLegacySavedLogicResult(legacy: any): BrainstormResult {
   // Handle the nested structure from legacy data
-  const brainstormData = legacy.result?.brainstormOutput || legacy.result || {};
+  const rawBrainstormData = legacy.result?.brainstormOutput || legacy.result || {};
   
   // Handle the user input extraction
   const userInput: BrainstormUserInput = {
@@ -86,13 +185,41 @@ export function migrateLegacySavedLogicResult(legacy: any): BrainstormResult {
     selectedModel: legacy.result?.userInput?.selectedModel,
   };
 
+  // Safely migrate brainstorm data with fallbacks for missing fields
+  const brainstormData = migrateBrainstormDataSafely(rawBrainstormData, userInput);
+
   return {
     id: legacy.id,
     timestamp: legacy.timestamp,
     date: legacy.date || new Date(legacy.timestamp).toISOString(),
     userInput,
-    brainstormData: validateBrainstormData(brainstormData),
+    brainstormData,
   };
+}
+
+// NO FALLBACK MIGRATION - Let it fail to expose the real issues
+export function migrateBrainstormDataSafely(rawData: any, userInput: BrainstormUserInput): BrainstormData {
+  console.error('🚨 [MIGRATION] ATTEMPTING TO MIGRATE LEGACY DATA - THIS SHOULD NOT HAPPEN!');
+  console.error('🚨 [MIGRATION] Raw data received:', JSON.stringify(rawData, null, 2));
+  console.error('🚨 [MIGRATION] User input:', JSON.stringify(userInput, null, 2));
+  
+  // NO FALLBACKS - Use the actual data or throw an error
+  const actualData = {
+    coreConcept: rawData.coreConcept || rawData.coreWConcept,
+    valueProposition: rawData.valueProposition,
+    keyCalculations: rawData.keyCalculations,
+    interactionFlow: rawData.interactionFlow,
+    leadCaptureStrategy: rawData.leadCaptureStrategy,
+    creativeEnhancements: rawData.creativeEnhancements,
+    suggestedInputs: rawData.suggestedInputs,
+    calculationLogic: rawData.calculationLogic,
+    promptOptions: rawData.promptOptions
+  };
+
+  console.error('🚨 [MIGRATION] Attempting validation with actual data (no fallbacks)');
+  
+  // Validate with actual data - let it throw if invalid
+  return validateBrainstormData(actualData);
 }
 
 // Convert legacy BrainstormData to new BrainstormResult
@@ -109,6 +236,6 @@ export function migrateLegacyBrainstormData(legacy: any): BrainstormResult {
     timestamp: legacy.timestamp,
     date: new Date(legacy.timestamp).toISOString(),
     userInput,
-    brainstormData: validateBrainstormData(legacy.result || legacy),
+    brainstormData: migrateBrainstormDataSafely(legacy.result || legacy, userInput),
   };
 } 

@@ -69,115 +69,26 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
   }, [onMessage]);
 
   const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    // Polling is disabled - nothing to stop
+    console.log('🚫 [POLLING] Polling is disabled - nothing to stop');
   }, []);
+
   const startPolling = useCallback(() => {
-    const jobId = activeJobIdRef.current;
-    const userId = activeUserIdRef.current;
+    console.error('🚨 [POLLING] POLLING FALLBACK DISABLED - NO FALLBACKS ALLOWED!');
+    console.error('🚨 [POLLING] WebSocket failed and polling is disabled to expose real issues');
+    setConnectionStatus('error');
+    onError?.('WebSocket failed and polling fallback is disabled. Fix the WebSocket connection.');
+  }, [onError]);
 
-    if (!jobId || !userId) {
-      console.error('[Polling] Cannot start polling without a job ID and user ID.');
-      addMessage('system', { error: 'Polling failed: Missing job or user ID.' });
-      return;
-    }
-    stopPolling();
-    setConnectionStatus('polling');
-    addMessage('system', { action: 'polling_started', jobId, message: 'Connection lost, falling back to polling.' }, undefined, true);
-
-    pollingIntervalRef.current = setInterval(async () => {
-      try {
-        console.log(`[Polling] Checking status for job: ${jobId} for user: ${userId}`);
-        
-        const response = await fetch(`/api/tool-generation/status/${jobId}?userId=${encodeURIComponent(userId)}`);
-        
-        if (!response.ok) {
-          throw new Error(`Polling request failed with status ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log('[Polling] Received status:', result);
-
-        if (result.status === 'completed' && result.productToolDefinition) {
-          const finalData = {
-            jobId: result.id,
-            finalProduct: result.productToolDefinition,
-            toolConstructionContext: result.toolConstructionContext,
-          };
-
-          addMessage('received', { ...finalData, isFallback: true }, JSON.stringify(finalData), true);
-          
-          const finalProgress: StepProgress = {
-            jobId: result.id,
-            stepName: 'Finalization',
-            status: 'completed',
-            message: 'Tool generation completed via polling fallback.',
-            data: finalData,
-            timestamp: new Date(result.updatedAt).toISOString(),
-            isFallback: true,
-          };
-          setProgressUpdates(prev => [...prev, finalProgress]);
-          if (onProgress) {
-            onProgress(finalProgress);
-          }
-
-          setConnectionStatus('disconnected');
-          activeJobIdRef.current = null;
-          activeUserIdRef.current = null;
-          stopPolling();
-        } else if (result.status === 'failed') {
-          addMessage('system', { error: 'Job failed according to polling.', details: result }, undefined, true);
-          setConnectionStatus('error');
-          onError?.('Tool generation failed.');
-          activeJobIdRef.current = null;
-          activeUserIdRef.current = null;
-          stopPolling();
-        }
-      } catch (error) {
-        console.error('[Polling] Error during polling:', error);
-        addMessage('system', { error: 'Polling failed.', details: (error as Error).message }, undefined, true);
-        // Optional: stop polling after a few errors
-      }
-    }, 2000); // CRITICAL FIX: Reduced from 5000ms to 2000ms for faster polling feedback
-  }, [addMessage, onError, onProgress, stopPolling]);
-
-  // CRITICAL FIX: Add heartbeat monitoring to detect WebSocket silence
   const startHeartbeatMonitoring = useCallback(() => {
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-    }
-    
-    // Check for silence every 30 seconds during active jobs
-    heartbeatTimeoutRef.current = setTimeout(() => {
-      const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current;
-      const SILENCE_THRESHOLD = 3 * 60 * 1000; // 3 minutes of silence
-      
-      if (activeJobIdRef.current && timeSinceLastMessage > SILENCE_THRESHOLD) {
-        console.log(`[WebSocket] Detected ${Math.round(timeSinceLastMessage/1000)}s of silence for job ${activeJobIdRef.current}. Starting polling fallback.`);
-        setConnectionStatus('polling');
-        addMessage('system', { 
-          action: 'polling_fallback_started', 
-          jobId: activeJobIdRef.current,
-          reason: `WebSocket silent for ${Math.round(timeSinceLastMessage/1000)} seconds` 
-        }, undefined, true);
-        startPolling();
-      } else if (activeJobIdRef.current) {
-        // Continue monitoring if job is still active
-        startHeartbeatMonitoring();
-      }
-    }, 30000); // Check every 30 seconds
-  }, [addMessage, startPolling]);
+    console.error('🚨 [HEARTBEAT] HEARTBEAT MONITORING DISABLED - NO FALLBACKS!');
+    // Heartbeat monitoring disabled to prevent fallback to polling
+  }, []);
 
   const stopHeartbeatMonitoring = useCallback(() => {
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
-    }
+    // Heartbeat monitoring disabled - nothing to stop
+    console.log('🚫 [HEARTBEAT] Heartbeat monitoring is disabled - nothing to stop');
   }, []);
-
-
 
   const disconnect = useCallback(() => {
     stopPolling();
@@ -218,20 +129,11 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
     }
 
     if (!WEBSOCKET_URL) {
-      console.log('🔄 [FALLBACK MODE] No WebSocket URL, using in-memory emitter for job:', jobId);
-      setConnectionStatus('fallback');
-      addMessage('system', { action: 'fallback_mode_activated', jobId }, undefined, true);
-      unsubscribeRef.current = subscribeToProgress(jobId, (progressEvent) => {
-        const progress: StepProgress = { 
-          ...progressEvent, 
-          status: progressEvent.status === 'in_progress' ? 'running' : progressEvent.status,
-          isFallback: true 
-        };
-        setProgressUpdates(prev => [...prev, progress]);
-        if (onProgress) {
-          onProgress(progress);
-        }
-      });
+      console.error('🚨 [FALLBACK MODE] NO WEBSOCKET URL - FALLBACK MODE DISABLED!');
+      console.error('🚨 [FALLBACK MODE] Fix the WebSocket configuration instead of using fallback');
+      setConnectionStatus('error');
+      addMessage('system', { action: 'no_websocket_url', error: 'WebSocket URL not configured and fallback disabled' }, undefined, true);
+      onError?.('WebSocket URL not configured. No fallback available.');
       return;
     }
 
@@ -284,6 +186,14 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
                 return [...prev, progress];
             });
             if (onProgress) onProgress(progress);
+            
+            // Stop polling and clear active job when tool is completed
+            if (progress.stepName === 'finalizing_tool' && progress.status === 'completed') {
+              console.log('🛑 [WebSocket] Tool completed - stopping polling and clearing active job');
+              stopPolling();
+              activeJobIdRef.current = null;
+              activeUserIdRef.current = null;
+            }
           }
         } catch (error) {
           console.error('[WebSocket] Failed to parse message:', error);
@@ -295,35 +205,28 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
         console.log('[WebSocket] Connection closed:', { code: event.code, reason: event.reason });
         wsRef.current = null;
         
-        // CRITICAL FIX: Start polling if there's an active job, regardless of close code
-        // The connection can timeout during long operations even with code 1000
-        if (activeJobIdRef.current) {
-          console.log(`[WebSocket] Connection closed for active job ${activeJobIdRef.current}. Starting polling fallback.`);
-          setConnectionStatus('polling');
-          addMessage('system', { 
-            action: 'polling_fallback_started', 
-            jobId: activeJobIdRef.current,
-            reason: `WebSocket closed (code: ${event.code}) during active job` 
-          }, undefined, true);
-          startPolling();
-        } else {
-          setConnectionStatus('disconnected');
-          addMessage('system', { action: 'disconnected', code: event.code, reason: event.reason });
-          activeUserIdRef.current = null;
-        }
+        // NO FALLBACK - Let it fail completely
+        console.error('🚨 [WebSocket] Connection closed - NO POLLING FALLBACK!');
+        console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
+        setConnectionStatus('error');
+        addMessage('system', { action: 'connection_failed', code: event.code, reason: event.reason });
+        activeJobIdRef.current = null;
+        activeUserIdRef.current = null;
+        onError?.(`WebSocket connection closed (code: ${event.code}). No fallback available.`);
       };
 
       ws.onerror = (errorEvent) => {
         console.error('[WebSocket] Connection error:', errorEvent);
-        if (activeJobIdRef.current) {
-          console.log(`[WebSocket] Connection error for job ${activeJobIdRef.current}. Starting polling fallback.`);
-          startPolling();
-        } else {
-          setConnectionStatus('error');
-          onError?.('WebSocket connection error.');
-          addMessage('system', { action: 'error', error: 'WebSocket connection error' });
-        }
+        
+        // NO FALLBACK - Let it fail completely  
+        console.error('🚨 [WebSocket] Connection error - NO POLLING FALLBACK!');
+        console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
+        setConnectionStatus('error');
+        onError?.('WebSocket connection error. No fallback available.');
+        addMessage('system', { action: 'connection_error', error: 'WebSocket connection error' });
         wsRef.current = null;
+        activeJobIdRef.current = null;
+        activeUserIdRef.current = null;
       };
 
     } catch (error) {
@@ -345,5 +248,6 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
     connectionStatus,
     messages,
     progressUpdates,
+    setProgressUpdates,
   };
 };

@@ -25,8 +25,8 @@ export type AgentModelMapping = Record<string, string>;
 export type OrchestrationStatus = 'free' | 'paused' | 'runone';
 
 export const STORAGE_KEYS = {
-  selectedModels: 'keyvex_tool_tester_selected_models',
-  agentMapping: 'keyvex_tool_tester_agent_mapping',
+  selectedModels: 'tool-generation-workbench-selected-models',
+  agentMapping: 'tool-generation-workbench-agent-mapping',
 } as const;
 
 export type TccSource = 'brainstorm' | 'mockScenario' | 'savedV2Job';

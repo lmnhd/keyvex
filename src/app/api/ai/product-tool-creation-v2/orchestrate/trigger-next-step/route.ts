@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
           jobId,
           nextStep as any,
           'started',
-          `[DEV-FALLBACK] Starting ${stepDisplayName}...`,
+          `Starting ${stepDisplayName}...`,
           { tcc }
         );
 

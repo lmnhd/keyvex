@@ -73,11 +73,11 @@ export async function generateBrainstorm(
             } else if (data.type === 'error') {
               onProgress({ type: 'error', data: null, message: data.message, timestamp: Date.now() });
               return null;
-            }
+          }
           } catch (parseError) {
             console.warn('[BrainstormGeneratorCoreLogic] Failed to parse stream data:', line);
-          }
         }
+      }
       }
       
       if (finalResultData) break;
@@ -90,14 +90,16 @@ export async function generateBrainstorm(
       // --- PHASE 1: GENERATE UNIFIED STRUCTURE ---
       // Create the new unified BrainstormResult structure (no more nested result.brainstormOutput)
       const userInput: BrainstormUserInput = {
-        toolType: request.toolType,
-        targetAudience: request.targetAudience,
-        industry: request.industry,
-        businessContext: request.businessContext,
-        selectedModel: request.selectedModel,
+            toolType: request.toolType,
+            targetAudience: request.targetAudience,
+            industry: request.industry,
+            businessContext: request.businessContext,
+            selectedModel: request.selectedModel,
       };
 
       // Validate the brainstorm data to ensure it matches BrainstormDataSchema
+      // NO FALLBACKS - Let it fail if Logic Architect generates bad data
+      console.log('[BrainstormGeneratorCoreLogic] Validating Logic Architect output (NO FALLBACKS)');
       const validatedBrainstormData = validateBrainstormData(finalResultData);
 
       const newBrainstormResult: BrainstormResult = {

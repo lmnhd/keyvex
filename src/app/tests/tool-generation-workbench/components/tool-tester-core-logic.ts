@@ -70,7 +70,7 @@ async function startV2ToolCreation(
   
   console.log('🔍 [V2-START] Using description:', description);
   console.log('🔍 [V2-START] Brainstorm data keys:', Object.keys(brainstormResult.brainstormData as any));
-
+  
   // --- PHASE 2: DIRECT VALIDATION ---
   // Validate that all required fields are present in the brainstorm data
   const brainstormData = brainstormResult.brainstormData as any;
@@ -160,9 +160,12 @@ export async function runToolCreationProcess(
       brainstormResult = brainstormInput;
       console.log('🔍 [TOOL-CREATION] Using new unified BrainstormResult format');
     } else {
-      console.log('🔍 [TOOL-CREATION] Migrating legacy format to unified BrainstormResult');
-      brainstormResult = migrateLegacySavedLogicResult(brainstormInput);
-      console.log('🔍 [TOOL-CREATION] Migration completed');
+      console.error('🚨 [TOOL-CREATION] BRAINSTORM INPUT IS NOT IN UNIFIED FORMAT!');
+      console.error('🚨 [TOOL-CREATION] Input data:', JSON.stringify(brainstormInput, null, 2));
+      console.error('🚨 [TOOL-CREATION] This indicates a problem with brainstorm generation or storage!');
+      
+      // NO FALLBACK - Let it fail to expose the real problem
+      throw new Error('BRAINSTORM DATA FORMAT ERROR: Input is not in unified BrainstormResult format. This indicates a problem with brainstorm generation or storage. Check the console for detailed input data.');
     }
 
     const { jobId: returnedJobId } = await startV2ToolCreation(

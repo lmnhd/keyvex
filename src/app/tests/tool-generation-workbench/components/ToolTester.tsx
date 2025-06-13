@@ -524,9 +524,23 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       
       addWSLog(`WebSocket connected. Starting V2 orchestration with jobId: ${jobId}...`);
       
-      // Pass the jobId to ensure consistency
+      // CRITICAL FIX: Convert legacy format to unified format
+      // savedBrainstorms contains legacy SavedLogicResult format, but runToolCreationProcess expects BrainstormResult
+      let unifiedBrainstorm;
+      if (isBrainstormResult(brainstorm)) {
+        // Already in unified format
+        unifiedBrainstorm = brainstorm;
+        addWSLog(`✅ Brainstorm is already in unified format`);
+      } else {
+        // Convert from legacy format to unified format
+        addWSLog(`🔄 Converting legacy brainstorm format to unified format...`);
+        unifiedBrainstorm = migrateLegacySavedLogicResult(brainstorm);
+        addWSLog(`✅ Legacy brainstorm converted to unified format`);
+      }
+      
+      // Pass the unified brainstorm to ensure consistency
       const newJob = await runToolCreationProcess(
-        brainstorm, // ✅ Pass the full brainstorm object, not just brainstorm.result
+        unifiedBrainstorm, // ✅ Pass the unified brainstorm object
         selectedModelIds[0],
         agentModelMapping,
         jobId // CRITICAL: Pass the same jobId
@@ -718,20 +732,20 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             } else if (selectedLoadItem.type === 'tool') {
                 const tool = savedTools.find(t => t.id === selectedLoadItem.id);
                 if (tool) {
-                                    jobToLoad = {
-                    jobId: `loaded-tool-${tool.id}`,
-                    startTime: tool.createdAt || Date.now(),
-                    endTime: Date.now(),
-                    status: 'success' as const,
-                    result: tool,
-                    productToolDefinition: tool,
-                    modelId: 'unknown', // Legacy tool, model unknown
-                    toolConstructionContext: {
+                    jobToLoad = {
                         jobId: `loaded-tool-${tool.id}`,
-                        finalProductToolDefinition: tool,
-                        userInput: { prompt: `Loaded from legacy tool: ${tool.metadata.title}` },
-                    },
-                };
+                    startTime: tool.createdAt || Date.now(),
+                        endTime: Date.now(),
+                        status: 'success' as const,
+                        result: tool,
+                        productToolDefinition: tool,
+                        modelId: 'unknown', // Legacy tool, model unknown
+                        toolConstructionContext: {
+                            jobId: `loaded-tool-${tool.id}`,
+                            finalProductToolDefinition: tool,
+                            userInput: { prompt: `Loaded from legacy tool: ${tool.metadata.title}` },
+                        },
+                    };
                 }
             }
         } else if (loadSource === 'dynamodb') {
