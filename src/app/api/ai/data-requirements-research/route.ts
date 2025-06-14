@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeDataRequirementsAndResearch } from '../product-tool-creation-v2/agents/data-requirements-research/core-logic';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
-import { auth } from '@clerk/nextjs/server';
+import { requireAuth, debugLog } from '@/lib/auth/debug';
 import logger from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Use centralized debug authentication system
+    const userId = await requireAuth();
+    
+    debugLog('DataRequirementsResearch API: Request received', { userId });
 
     const body = await request.json();
     const { 
@@ -75,6 +75,11 @@ export async function POST(request: NextRequest) {
       wasPersistedToDB: !!result.updatedBrainstorm
     }, '🔍 DataRequirementsResearch API: Analysis completed successfully');
 
+    debugLog('DataRequirementsResearch API: Success', { 
+      jobId, 
+      hasResults: !!result.dataRequirementsResearch 
+    });
+
     return NextResponse.json({
       success: true,
       jobId,
@@ -87,6 +92,10 @@ export async function POST(request: NextRequest) {
     logger.error({ 
       error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error) 
     }, '🔍 DataRequirementsResearch API: Unexpected error');
+    
+    debugLog('DataRequirementsResearch API: Error', { 
+      error: error instanceof Error ? error.message : String(error) 
+    });
     
     return NextResponse.json({ 
       error: 'Internal server error' 

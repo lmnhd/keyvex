@@ -284,44 +284,103 @@ export default function ToolTesterView({
                           {savedBrainstormsContent.length === 0 ? (
                             <p className="text-sm text-gray-500 text-center py-8">No saved brainstorms found</p>
                           ) : (
-                            savedBrainstormsContent.map(brainstorm => (
-                              <div 
-                                key={brainstorm.id}
-                                className={`p-3 rounded-md border cursor-pointer transition-colors ${
-                                  selectedLoadItem?.type === 'brainstorm' && selectedLoadItem?.id === brainstorm.id
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
-                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                                onClick={() => setSelectedLoadItem({ type: 'brainstorm', id: brainstorm.id })}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{brainstorm.userInput.toolType} for {brainstorm.userInput.targetAudience}</h4>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                      {brainstorm.userInput.industry && `${brainstorm.userInput.industry} • `}
-                                      {new Date(brainstorm.timestamp).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">Brainstorm</Badge>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (confirm('Are you sure you want to delete this brainstorm? This action cannot be undone.')) {
-                                          handleDeleteBrainstorm(brainstorm.id);
-                                        }
-                                      }}
-                                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                                      title="Delete this brainstorm"
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
+                            savedBrainstormsContent.map(brainstorm => {
+                              // Check if brainstorm has been through data verification
+                              const hasDataRequirements = brainstorm.brainstormData?.dataRequirements;
+                              const hasExternalDataNeeds = hasDataRequirements?.hasExternalDataNeeds;
+                              const hasGeneratedMockData = brainstorm.brainstormData?.mockData && Object.keys(brainstorm.brainstormData.mockData).length > 0;
+                              const hasUserInstructions = brainstorm.brainstormData?.userDataInstructions;
+                              
+                              // Determine verification status
+                              let verificationStatus: 'unverified' | 'no-data-needed' | 'data-researched' | 'partially-verified' = 'unverified';
+                              let statusColor = 'text-gray-500';
+                              let statusIcon = '⚪';
+                              let statusText = 'Not Verified';
+                              
+                              if (hasDataRequirements) {
+                                if (hasExternalDataNeeds === false) {
+                                  verificationStatus = 'no-data-needed';
+                                  statusColor = 'text-blue-600';
+                                  statusIcon = '🔵';
+                                  statusText = 'No External Data Needed';
+                                } else if (hasExternalDataNeeds === true) {
+                                  if (hasGeneratedMockData && hasUserInstructions) {
+                                    verificationStatus = 'data-researched';
+                                    statusColor = 'text-green-600';
+                                    statusIcon = '✅';
+                                    statusText = 'Data Researched & Ready';
+                                  } else {
+                                    verificationStatus = 'partially-verified';
+                                    statusColor = 'text-yellow-600';
+                                    statusIcon = '🟡';
+                                    statusText = 'Partially Researched';
+                                  }
+                                }
+                              }
+                              
+                              return (
+                                <div 
+                                  key={brainstorm.id}
+                                  className={`p-3 rounded-md border cursor-pointer transition-colors ${
+                                    selectedLoadItem?.type === 'brainstorm' && selectedLoadItem?.id === brainstorm.id
+                                      ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' 
+                                      : 'bg-gray-50 dark:bg-gray-800 border-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                  }`}
+                                  onClick={() => setSelectedLoadItem({ type: 'brainstorm', id: brainstorm.id })}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <h4 className="font-medium text-sm">{brainstorm.userInput.toolType} for {brainstorm.userInput.targetAudience}</h4>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        {brainstorm.userInput.industry && `${brainstorm.userInput.industry} • `}
+                                        {new Date(brainstorm.timestamp).toLocaleDateString()}
+                                      </p>
+                                      {/* 🆕 Data Verification Status */}
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <span className={`text-xs font-medium ${statusColor}`}>
+                                          {statusIcon} {statusText}
+                                        </span>
+                                        {hasDataRequirements && hasExternalDataNeeds === true && (
+                                          <Badge variant="outline" className="text-xs">
+                                            {brainstorm.brainstormData?.dataRequirements?.requiredDataTypes?.length || 0} Data Types
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">Brainstorm</Badge>
+                                      {/* 🆕 Data verification badge */}
+                                      {verificationStatus !== 'unverified' && (
+                                        <Badge 
+                                          variant={
+                                            verificationStatus === 'data-researched' ? 'default' :
+                                            verificationStatus === 'no-data-needed' ? 'secondary' : 'outline'
+                                          } 
+                                          className="text-xs"
+                                        >
+                                          {verificationStatus === 'data-researched' ? 'Data Ready' :
+                                           verificationStatus === 'no-data-needed' ? 'No Data Needed' : 'Partial'}
+                                        </Badge>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (confirm('Are you sure you want to delete this brainstorm? This action cannot be undone.')) {
+                                            handleDeleteBrainstorm(brainstorm.id);
+                                          }
+                                        }}
+                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                        title="Delete this brainstorm"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       </ScrollArea>
