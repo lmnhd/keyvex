@@ -2,6 +2,7 @@ import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { getBehaviorTracker } from '@/lib/ai/behavior-tracker';
 import { SavedLogicResult } from './types';
 import { saveLastActiveToolToDB, saveToolToDBList, loadAllToolsFromDB, saveLogicResultToDB } from './db-utils';
+import { type BrainstormResult } from '../tool-generation-workbench/types/unified-brainstorm-types';
 
 export const handleStreamingAIRequest = async (requestBody: any) => {
   try {
@@ -399,21 +400,25 @@ export const createToolWithBrainstorming = async (
                 console.log('🧠 Logic Architect brainstorming complete:', data.data);
                 setLatestBrainstormingResult(data.data);
                 
-                // Save logic result to IndexedDB
-                const newBrainstormForDB: SavedLogicResult = {
+                // Save logic result to IndexedDB in unified BrainstormResult format
+                const newBrainstormForDB: BrainstormResult = {
                   id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                   timestamp: Date.now(),
                   date: new Date().toISOString(),
-                  toolType: context.toolType || data.data?.toolType || 'Unknown Tool Type',
-                  targetAudience: context.targetAudience || data.data?.targetAudience || 'General Audience',
-                  industry: context.industry || data.data?.industry,
-                  result: data.data
+                  userInput: {
+                    toolType: context.toolType || data.data?.toolType || 'Unknown Tool Type',
+                    targetAudience: context.targetAudience || data.data?.targetAudience || 'General Audience',
+                    industry: context.industry || data.data?.industry,
+                    businessContext: context.businessDescription || 'Generated from main UI',
+                    selectedModel: logicArchitectModel || 'default'
+                  },
+                  brainstormData: data.data
                 };
                 try {
                   await saveLogicResultToDB(newBrainstormForDB);
-                  console.log('💾 Brainstorming result saved to IndexedDB:', newBrainstormForDB.id);
+                  console.log('💾 Unified BrainstormResult saved to IndexedDB:', newBrainstormForDB.id);
                 } catch (dbError) {
-                  console.error('❌ Error saving brainstorming result to IndexedDB:', dbError);
+                  console.error('❌ Error saving BrainstormResult to IndexedDB:', dbError);
                 }
                 
                 // Update context with brainstorming results
@@ -435,21 +440,25 @@ export const createToolWithBrainstorming = async (
         context.brainstormingResult = brainstormingData.result;
         context.logicArchitectInsights = brainstormingData.result;
         
-        // Save logic result to IndexedDB
-        const newBrainstormForDB: SavedLogicResult = {
+        // Save logic result to IndexedDB in unified BrainstormResult format
+        const newBrainstormForDB: BrainstormResult = {
           id: `logic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           timestamp: Date.now(),
           date: new Date().toISOString(),
-          toolType: context.toolType || brainstormingData.result?.toolType || 'Unknown Tool Type',
-          targetAudience: context.targetAudience || brainstormingData.result?.targetAudience || 'General Audience',
-          industry: context.industry || brainstormingData.result?.industry,
-          result: brainstormingData.result
+          userInput: {
+            toolType: context.toolType || brainstormingData.result?.toolType || 'Unknown Tool Type',
+            targetAudience: context.targetAudience || brainstormingData.result?.targetAudience || 'General Audience',
+            industry: context.industry || brainstormingData.result?.industry,
+            businessContext: context.businessDescription || 'Generated from main UI (non-streaming)',
+            selectedModel: logicArchitectModel || 'default'
+          },
+          brainstormData: brainstormingData.result
         };
         try {
           await saveLogicResultToDB(newBrainstormForDB);
-          console.log('💾 Brainstorming result (non-streaming) saved to IndexedDB:', newBrainstormForDB.id);
+          console.log('💾 Unified BrainstormResult (non-streaming) saved to IndexedDB:', newBrainstormForDB.id);
         } catch (dbError) {
-          console.error('❌ Error saving brainstorming result (non-streaming) to IndexedDB:', dbError);
+          console.error('❌ Error saving BrainstormResult (non-streaming) to IndexedDB:', dbError);
         }
       }
     }

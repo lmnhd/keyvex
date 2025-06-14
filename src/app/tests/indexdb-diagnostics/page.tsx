@@ -36,30 +36,62 @@ export default function IndexedDBDiagnosticsPage() {
     loadSavedResults();
   }, []);
 
-  const analyzeResult = (result: BrainstormResult) => {
+  const analyzeResult = (result: any) => {
+    // Detect format type
+    const isLegacyFormat = !!(result as any).result?.brainstormOutput;
+    const isUnifiedFormat = !!(result as any).userInput && !!(result as any).brainstormData;
+    
+    let userInput, brainstormData, toolType, targetAudience, industry, businessContext;
+    
+    if (isUnifiedFormat) {
+      // Unified format: data at root level
+      userInput = (result as any).userInput;
+      brainstormData = (result as any).brainstormData;
+      toolType = userInput?.toolType;
+      targetAudience = userInput?.targetAudience;
+      industry = userInput?.industry;
+      businessContext = userInput?.businessContext;
+    } else if (isLegacyFormat) {
+      // Legacy format: data nested under result
+      userInput = (result as any).result?.userInput;
+      brainstormData = (result as any).result?.brainstormOutput;
+      toolType = (result as any).toolType || userInput?.toolType;
+      targetAudience = (result as any).targetAudience || userInput?.targetAudience;
+      industry = (result as any).industry || userInput?.industry;
+      businessContext = userInput?.businessContext;
+    } else {
+      // Unknown format
+      userInput = null;
+      brainstormData = null;
+      toolType = (result as any).toolType;
+      targetAudience = (result as any).targetAudience;
+      industry = (result as any).industry;
+      businessContext = null;
+    }
+
     const analysis = {
       id: result.id,
       timestamp: result.timestamp,
       date: result.date,
-      format: 'unified_brainstorm_result',
-      hasUserInput: !!result.userInput,
-      userInputKeys: result.userInput ? Object.keys(result.userInput) : [],
-      toolType: result.userInput?.toolType || 'Unknown',
-      targetAudience: result.userInput?.targetAudience || 'Unknown',
-      industry: result.userInput?.industry || 'Not specified',
-      businessContext: result.userInput?.businessContext || 'Not provided',
-      hasBrainstormData: !!result.brainstormData,
-      brainstormDataKeys: result.brainstormData ? Object.keys(result.brainstormData) : [],
+      format: isUnifiedFormat ? 'unified_brainstorm_result' : isLegacyFormat ? 'legacy_format' : 'unknown_format',
+      hasUserInput: !!userInput,
+      userInputKeys: userInput ? Object.keys(userInput) : [],
+      toolType: toolType || 'Unknown',
+      targetAudience: targetAudience || 'Unknown',
+      industry: industry || 'Not specified',
+      businessContext: businessContext || 'Not provided',
+      hasBrainstormData: !!brainstormData,
+      brainstormDataKeys: brainstormData ? Object.keys(brainstormData) : [],
       requiredFieldsPresent: {
-        coreConcept: !!(result.brainstormData as any)?.coreConcept,
-        keyCalculations: !!(result.brainstormData as any)?.keyCalculations,
-        interactionFlow: !!(result.brainstormData as any)?.interactionFlow,
-        valueProposition: !!(result.brainstormData as any)?.valueProposition,
-        leadCaptureStrategy: !!(result.brainstormData as any)?.leadCaptureStrategy,
-        creativeEnhancements: !!(result.brainstormData as any)?.creativeEnhancements,
-        suggestedInputs: !!(result.brainstormData as any)?.suggestedInputs,
-        calculationLogic: !!(result.brainstormData as any)?.calculationLogic,
-        promptOptions: !!(result.brainstormData as any)?.promptOptions
+        coreConcept: !!(brainstormData as any)?.coreConcept,
+        keyCalculations: !!(brainstormData as any)?.keyCalculations,
+        interactionFlow: !!(brainstormData as any)?.interactionFlow,
+        valueProposition: !!(brainstormData as any)?.valueProposition,
+        leadCaptureStrategy: !!(brainstormData as any)?.leadCaptureStrategy,
+        creativeEnhancements: !!(brainstormData as any)?.creativeEnhancements,
+        suggestedInputs: !!(brainstormData as any)?.suggestedInputs,
+        calculationLogic: !!(brainstormData as any)?.calculationLogic,
+        promptOptions: !!(brainstormData as any)?.promptOptions
       }
     };
     return analysis;
@@ -218,7 +250,7 @@ export default function IndexedDBDiagnosticsPage() {
               {/* Results List */}
               <div>
                 <h3 className="font-semibold mb-3 text-gray-900">Saved Brainstorm Results</h3>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-2 overflow-y-auto">
                   {savedResults.map((result) => {
                     const compatible = isV2Compatible(result);
                     return (

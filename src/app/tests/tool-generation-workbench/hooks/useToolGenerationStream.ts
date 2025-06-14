@@ -193,6 +193,12 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
               stopPolling();
               activeJobIdRef.current = null;
               activeUserIdRef.current = null;
+              
+              // Automatically disconnect WebSocket after tool completion to ensure clean state
+              setTimeout(() => {
+                console.log('🔌 [WebSocket] Auto-disconnecting after tool completion');
+                disconnect();
+              }, 1000); // Give a small delay to ensure all final messages are received
             }
           }
         } catch (error) {
@@ -205,14 +211,23 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
         console.log('[WebSocket] Connection closed:', { code: event.code, reason: event.reason });
         wsRef.current = null;
         
-        // NO FALLBACK - Let it fail completely
-        console.error('🚨 [WebSocket] Connection closed - NO POLLING FALLBACK!');
-        console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
-        setConnectionStatus('error');
-        addMessage('system', { action: 'connection_failed', code: event.code, reason: event.reason });
+        // Check if this is a normal closure (code 1000) or an error closure
+        if (event.code === 1000 || event.reason === 'User disconnected') {
+          // Normal closure - job completed or user disconnected
+          console.log('✅ [WebSocket] Connection closed normally (job completed or user disconnected)');
+          setConnectionStatus('disconnected');
+          addMessage('system', { action: 'connection_closed_normal', code: event.code, reason: event.reason });
+        } else {
+          // Unexpected closure - treat as error
+          console.error('🚨 [WebSocket] Connection closed unexpectedly - NO POLLING FALLBACK!');
+          console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
+          setConnectionStatus('error');
+          addMessage('system', { action: 'connection_failed', code: event.code, reason: event.reason });
+          onError?.(`WebSocket connection closed unexpectedly (code: ${event.code}). No fallback available.`);
+        }
+        
         activeJobIdRef.current = null;
         activeUserIdRef.current = null;
-        onError?.(`WebSocket connection closed (code: ${event.code}). No fallback available.`);
       };
 
       ws.onerror = (errorEvent) => {
