@@ -370,6 +370,12 @@ export const ToolConstructionContextSchema = z.object({
   
   // Steps tracking for orchestration
   steps: z.object({
+    dataRequirementsResearch: z.object({
+      startedAt: z.string().optional(),
+      completedAt: z.string().optional(),
+      status: OrchestrationStatusEnum.optional(),
+      result: z.any().optional(),
+    }).optional(),
     designingStateLogic: z.object({
       startedAt: z.string().optional(),
       completedAt: z.string().optional(),

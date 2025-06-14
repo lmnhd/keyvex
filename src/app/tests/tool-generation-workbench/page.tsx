@@ -7,7 +7,7 @@ import { Moon, Sun } from 'lucide-react';
 import BrainstormGenerator from './components/BrainstormGenerator';
 import DataRequirementsResearch from './components/DataRequirementsResearch';
 import ToolTester from './components/ToolTester';
-import { SavedLogicResult } from '@/app/tests/ui/types'; // Corrected import path using @ alias
+import { BrainstormResult } from './types/unified-brainstorm-types';
 
 const ToolGenerationWorkbenchPage = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -26,7 +26,7 @@ const ToolGenerationWorkbenchPage = () => {
 
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
-  const handleBrainstormGenerated = (result: SavedLogicResult) => {
+  const handleBrainstormGenerated = (result: BrainstormResult) => {
     console.log('New brainstorm generated in workbench:', result.id);
     setNewBrainstormFlag(prev => prev + 1); // Increment flag to trigger refresh
     // setActiveTab("tester"); // This line was causing the tab switch and is now removed/commented

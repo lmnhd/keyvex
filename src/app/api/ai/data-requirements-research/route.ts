@@ -47,13 +47,13 @@ export async function POST(request: NextRequest) {
       steps: {},
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    };
+    } as ToolConstructionContext;
 
     // Call the research agent
     const result = await analyzeDataRequirementsAndResearch({
       jobId,
       selectedModel,
-      mockTcc,
+      mockTcc: mockTcc as any,
       userLocation,
       persistToBrainstorm,
       brainstormId,
