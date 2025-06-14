@@ -65,6 +65,29 @@ export const BrainstormDataSchema = z.object({
     industryFocus: z.string().optional(),
     toolComplexity: z.string(),
   }),
+
+  // 🆕 NEW: Data Requirements & Research Agent fields (optional for backward compatibility)
+  dataRequirements: z.object({
+    hasExternalDataNeeds: z.boolean().describe('Whether this tool requires external data'),
+    requiredDataTypes: z.array(z.string()).describe('Types of external data needed'),
+    researchQueries: z.array(z.object({
+      query: z.string(),
+      domain: z.string(),
+      dataType: z.enum(['regulatory', 'market_pricing', 'geographic', 'industry_standards', 'tax_rates', 'statistical', 'other']),
+      priority: z.enum(['high', 'medium', 'low']),
+      locationDependent: z.boolean(),
+      expectedDataStructure: z.string()
+    }))
+  }).optional().describe('Analysis of external data requirements'),
+
+  mockData: z.record(z.any()).optional().describe('Generated mock data organized by category'),
+  
+  userDataInstructions: z.object({
+    summary: z.string().describe('Summary of data requirements for the user'),
+    dataNeeded: z.array(z.string()).describe('List of data the user needs to provide'),
+    format: z.string().describe('Expected format for user data')
+  }).optional().describe('Instructions for the user about data requirements'),
+
 }).passthrough(); // Allow additional fields for future brainstorm enhancements
 
 export type BrainstormData = z.infer<typeof BrainstormDataSchema>;
