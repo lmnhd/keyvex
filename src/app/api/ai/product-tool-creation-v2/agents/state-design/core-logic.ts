@@ -7,6 +7,8 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { generateText, generateObject } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
+import { getModelForAgent } from '@/lib/ai/model-mapping-helper';
+import { getStateDesignSystemPrompt } from '@/lib/prompts/v2';
 
 // Enhanced testing options for granular control
 export type TestingOptions = {
@@ -229,7 +231,9 @@ export async function designStateLogic(request: {
  * Generate state logic using AI
  */
 async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: string, editMode?: EditModeContext): Promise<StateLogicResult> {
-  const { provider, modelId } = getModelForAgent('state-design', selectedModel, tcc);
+  // ✅ FIXED: Get model info properly
+  const modelId = selectedModel || 'gpt-4o';
+  const provider = getModelProvider(modelId);
   const functionSignatures = tcc.functionSignatures || [];
 
   logger.info({ 
@@ -290,65 +294,60 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
 }
 
 /**
- * AI FIRST: Parse AI response for state logic
+ * ✅ ADDED: Generate user prompt for AI
  */
-function parseStateResponse(content: string, functionSignatures: DefinedFunctionSignature[], brainstormData?: any) {
-  // Debug: Log the actual AI response for troubleshooting
-  logger.info({ 
-    contentLength: content.length,
-    contentPreview: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
-    hasJsonBlock: content.includes('```json'),
-    hasVariables: content.includes('"variables"') || content.includes('"stateVariables"')
-  }, '🎯 StateDesign: [DEBUG] Raw AI response analysis');
-
-  // 🚨 FIXED: Corrected regex patterns (removed double escaping)
-  const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
-                   content.match(/\{[\s\S]*"variables"[\s\S]*\}/) ||
-                   content.match(/\{[\s\S]*"stateVariables"[\s\S]*\}/);
+function getUserPrompt(tcc: ToolConstructionContext, functionSignatures: DefinedFunctionSignature[], editMode?: EditModeContext): string {
+  const brainstormData = tcc.brainstormResult;
+  const isEditMode = editMode?.isEditMode || false;
   
-  if (jsonMatch) {
-    try {
-      const jsonStr = jsonMatch[1] || jsonMatch[0];
-      
-      // Debug: Log the extracted JSON string
-      logger.info({ 
-        jsonStrLength: jsonStr.length,
-        jsonStrPreview: jsonStr.substring(0, 300) + (jsonStr.length > 300 ? '...' : '')
-      }, '🎯 StateDesign: [DEBUG] Extracted JSON string');
-      
-      const parsed = JSON.parse(jsonStr);
-      
-      // ✅ AI SUCCESS: Use the AI-generated JSON
-      logger.info({ 
-        hasVariables: !!(parsed.variables || parsed.stateVariables), 
-        hasFunctions: !!parsed.functions,
-        variableCount: (parsed.variables || parsed.stateVariables || []).length,
-        functionCount: (parsed.functions || []).length
-      }, '🎯 StateDesign: ✅ AI SUCCESS - Using AI-generated JSON');
-      
-      return {
-        stateVariables: parsed.variables || parsed.stateVariables || [],
-        functions: parsed.functions || [],
-        imports: parsed.imports || ["import React, { useState, useEffect } from 'react';"],
-        hooks: parsed.hooks || ['useState', 'useEffect']
-      };
-    } catch (parseError) {
-      logger.error({ 
-        parseError: parseError instanceof Error ? parseError.message : String(parseError),
-        jsonPreview: (jsonMatch[1] || jsonMatch[0])?.substring(0, 200) + '...'
-      }, '🚨 StateDesign: JSON parsing failed - AI generated invalid JSON');
-    }
-  } else {
-    // Log when no JSON pattern is found
-    logger.error({ 
-      contentHasJson: content.includes('json'),
-      contentHasBraces: content.includes('{') && content.includes('}'),
-      firstBraceIndex: content.indexOf('{'),
-      lastBraceIndex: content.lastIndexOf('}')
-    }, '🚨 StateDesign: No JSON pattern matched in AI response');
+  if (isEditMode) {
+    const editInstructions = editMode?.instructions?.filter(i => i.targetAgent === 'state-design') || [];
+    const editContext = editMode?.context || '';
+    
+    return `EDIT MODE: Modify existing state logic based on these instructions:
+
+EDIT INSTRUCTIONS:
+${editInstructions.map(inst => `- ${inst.editType.toUpperCase()}: ${inst.instructions}`).join('\n')}
+
+EDIT CONTEXT:
+${editContext}
+
+CURRENT TOOL DATA:
+Tool Type: ${brainstormData?.toolType || 'Unknown'}
+Core Concept: ${brainstormData?.coreConcept || 'N/A'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(f => `- ${f.name}(${f.parameters?.join(', ') || ''}): ${f.description || 'No description'}`).join('\n')}
+
+SPECIFIC REQUIREMENTS:
+${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label}: ${input.type}`).join('\n') || 'No specific inputs defined'}
+
+Please modify the existing state logic according to the edit instructions above.`;
   }
 
-  // 🚨 NO FALLBACKS! - Fail cleanly if AI doesn't generate proper JSON
-  logger.error('🚨 StateDesign: CRITICAL - AI failed to generate proper JSON response. NO FALLBACKS ALLOWED!');
-  throw new Error('State Design Agent failed to generate proper JSON response. AI must provide valid state logic - no fallbacks allowed.');
+  return `Generate React state logic for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${brainstormData?.toolType || 'Unknown'}
+- Core Concept: ${brainstormData?.coreConcept || 'N/A'}
+- Target Audience: ${brainstormData?.targetAudience || 'General'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(f => `- ${f.name}(${f.parameters?.join(', ') || ''}): ${f.description || 'No description'}`).join('\n')}
+
+SUGGESTED INPUTS:
+${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label} (${input.type}): ${input.placeholder || input.description || ''}`).join('\n') || 'No specific inputs defined'}
+
+CALCULATION LOGIC (if available):
+${brainstormData?.calculationLogic || 'No specific calculation logic provided'}
+
+REQUIREMENTS:
+1. Create state variables for each input field
+2. Create state variables for results/outputs  
+3. Implement actual business logic in functions (NOT empty stubs)
+4. Use specific formulas and calculations based on the tool type
+5. Include proper error handling and validation
+6. Follow React hooks patterns (useState, useEffect)
+
+Generate complete, working state logic that implements the actual business requirements of this ${brainstormData?.toolType || 'tool'}.`;
 } 
