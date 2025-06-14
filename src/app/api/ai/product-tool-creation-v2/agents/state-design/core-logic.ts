@@ -236,8 +236,8 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
   const provider = getModelProvider(modelId);
   const functionSignatures = tcc.functionSignatures || [];
 
-  logger.info({ 
-    jobId: tcc.jobId, 
+    logger.info({ 
+      jobId: tcc.jobId,
     functionSignatureCount: functionSignatures.length,
     provider, 
     modelId 

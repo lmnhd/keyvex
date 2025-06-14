@@ -249,7 +249,7 @@ export async function runTccFinalizationSteps(
       body: JSON.stringify({ 
         jobId: tcc.jobId,
         selectedModel: agentModelMapping?.['component-assembler'],
-        tcc: tcc,
+        mockTcc: tcc,                                    // ✅ Signals isolation
         isIsolatedTest: true // Prevent triggering next step automatically
       })
     });
@@ -313,7 +313,7 @@ export async function runTccFinalizationSteps(
       body: JSON.stringify({ 
         jobId: tcc.jobId,
         selectedModel: agentModelMapping?.['validator'],
-        tcc: updatedTccAfterAssembly,
+        mockTcc: updatedTccAfterAssembly,                // ✅ Chain isolation
         isIsolatedTest: true // Prevent triggering next step automatically
       })
     });
@@ -372,7 +372,7 @@ export async function runTccFinalizationSteps(
       body: JSON.stringify({ 
         jobId: tcc.jobId,
         selectedModel: agentModelMapping?.['tool-finalizer'],
-        tcc: updatedTccAfterValidation,
+        mockTcc: updatedTccAfterValidation,              // ✅ Chain isolation
         isIsolatedTest: true // Prevent triggering next step automatically
       })
     });
@@ -536,10 +536,20 @@ export async function runIsolatedAgentTest(
     // 2. Prepare the request body
     const requestBody = {
       jobId: tcc.jobId,
-      model: modelId,
-      tcc,
-      isEditMode: agentMode === 'edit',
-      editInstructions: agentMode === 'edit' ? editMessage : undefined,
+      selectedModel: modelId,                           // ✅ Correct parameter name
+      mockTcc: tcc,                                    // ✅ Signals isolation
+      isIsolatedTest: true,                            // ✅ Explicit isolation flag
+      editMode: agentMode === 'edit' ? {               // ✅ Correct structure
+        isEditMode: true,
+        instructions: [{
+          targetAgent: agentId,
+          editType: 'enhance',
+          instructions: editMessage,
+          priority: 'high',
+          createdAt: new Date().toISOString()
+        }],
+        context: `Isolated edit mode testing for ${agentId}`
+      } : undefined
     };
 
     addLog('debug', `Sending request to /api/ai/product-tool-creation-v2/agents/${agentId}`, requestBody);

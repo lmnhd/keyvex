@@ -24,7 +24,9 @@ const jsxLayoutRequestSchema = z.object({
   tcc: z.custom<ToolConstructionContext>().optional(), 
   mockTcc: z.custom<ToolConstructionContext>().optional(),
   // Phase 2: Edit mode context from orchestration
-  editMode: EditModeContextSchema.optional(),
+  editMode: EditModeContextSchema.optional(),       // ✅ Complex edit mode (existing)
+  isEditMode: z.boolean().optional(),               // ✅ Simple edit mode (ADD)
+  editInstructions: z.string().optional(),          // ✅ Simple edit mode (ADD)
 });
 
 export async function POST(request: NextRequest) {
@@ -37,9 +39,9 @@ export async function POST(request: NextRequest) {
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
     
-    // Phase 2: Detect edit mode context
-    const isEditMode = parsedRequest.editMode?.isEditMode || false;
-    const editInstructions = parsedRequest.editMode?.instructions || [];
+    // ADD to both agents' route handlers:
+    const isEditMode = parsedRequest.isEditMode || parsedRequest.editMode?.isEditMode || false;
+    const editInstructions = parsedRequest.editInstructions ? [parsedRequest.editInstructions] : (parsedRequest.editMode?.instructions || []);
     
     logger.info({ 
       jobId: parsedRequest.jobId, 

@@ -2,19 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assembleComponent } from './core-logic';
 import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
 
 export async function POST(request: NextRequest) {
   logger.info('🔧 ComponentAssembler Route: Route handler started');
 
   try {
-    const body: { 
-      jobId: string; 
-      selectedModel?: string; 
-      tcc?: ToolConstructionContext; 
-      mockTcc?: ToolConstructionContext; 
-      isIsolatedTest?: boolean;
-    } = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc, isIsolatedTest } = body;
+    // ADD Zod schema validation:
+    const componentAssemblerRequestSchema = z.object({
+      jobId: z.string(),
+      selectedModel: z.string().optional(),
+      model: z.string().optional(),                    // ✅ Alternative parameter name
+      tcc: z.custom<ToolConstructionContext>().optional(),
+      mockTcc: z.custom<ToolConstructionContext>().optional(),
+      isIsolatedTest: z.boolean().optional(),
+    });
+
+    const body = await request.json();
+    const parsedRequest = componentAssemblerRequestSchema.parse(body);
+    const { jobId, selectedModel, model, tcc, mockTcc, isIsolatedTest } = parsedRequest;
+    const effectiveModel = selectedModel || model;    // ✅ Accept both
 
     // Detect if this is an isolated test - check explicit parameter OR mockTcc presence
     const isActuallyIsolatedTest = isIsolatedTest || !!mockTcc;
@@ -29,7 +36,7 @@ export async function POST(request: NextRequest) {
     logger.info({ 
       jobId, 
       isIsolatedTest: isActuallyIsolatedTest, 
-      selectedModel,
+      selectedModel: effectiveModel,
       hasExplicitIsolatedFlag: !!isIsolatedTest,
       hasMockTcc: !!mockTcc
     }, '🔧 ComponentAssembler: Request received with isolation detection');
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
     // Call the pure core logic function
     const result = await assembleComponent({
       jobId,
-      selectedModel,
+      selectedModel: effectiveModel,
       tcc: mockTcc || tcc,
     });
     
@@ -53,20 +60,21 @@ export async function POST(request: NextRequest) {
     if (!isActuallyIsolatedTest && result.success && result.updatedTcc) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step.');
 
-      // CRITICAL FIX: Use same endpoint as other agents for consistency
-      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
+      // Trigger the next step by calling the centralized orchestrator endpoint
+      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
       fetch(triggerUrl.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId,
+          nextStep: result.updatedTcc.currentOrchestrationStep,
           tcc: result.updatedTcc,
         }),
       }).catch(error => {
-        logger.error({ jobId, error: error.message }, '🔧 ComponentAssembler Route: Failed to trigger orchestration endpoint');
+        logger.error({ jobId, error: error.message }, '🔧 ComponentAssembler Route: Failed to trigger next step orchestration endpoint');
       });
         
-      logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered orchestration step.');
+      logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered next step.');
     } else if (isActuallyIsolatedTest) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Isolated test mode - NOT triggering next step');
     }

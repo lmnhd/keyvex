@@ -2,13 +2,26 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateComponent } from './core-logic';
 import logger from '@/lib/logger';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
 
 export async function POST(request: NextRequest) {
   logger.info('🔍 Validator Route: Route handler started');
   
   try {
-    const body: { jobId: string; selectedModel?: string; tcc?: ToolConstructionContext; mockTcc?: ToolConstructionContext; isIsolatedTest?: boolean; } = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc, isIsolatedTest } = body;
+    // ADD Zod schema validation:
+    const validatorRequestSchema = z.object({
+      jobId: z.string(),
+      selectedModel: z.string().optional(),
+      model: z.string().optional(),                    // ✅ Alternative parameter name
+      tcc: z.custom<ToolConstructionContext>().optional(),
+      mockTcc: z.custom<ToolConstructionContext>().optional(),
+      isIsolatedTest: z.boolean().optional(),
+    });
+
+    const body = await request.json();
+    const parsedRequest = validatorRequestSchema.parse(body);
+    const { jobId, selectedModel, model, tcc, mockTcc, isIsolatedTest } = parsedRequest;
+    const effectiveModel = selectedModel || model;    // ✅ Accept both
 
     // Detect if this is an isolated test
     const isIsolated = isIsolatedTest || !!mockTcc;
@@ -23,13 +36,13 @@ export async function POST(request: NextRequest) {
     logger.info({ 
       jobId, 
       isIsolated, 
-      selectedModel 
+      selectedModel: effectiveModel 
     }, '🔍 Validator: Request received');
     
     // Call the pure core logic function
     const result = await validateComponent({
       jobId,
-      selectedModel,
+      selectedModel: effectiveModel,
       tcc: mockTcc || tcc,
     });
 

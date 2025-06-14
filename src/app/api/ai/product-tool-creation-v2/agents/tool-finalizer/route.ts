@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { finalizeTool } from './core-logic';
 import { V2ToolCreationJobService } from '@/lib/db/dynamodb/v2-tool-creation-jobs';
 import logger from '@/lib/logger';
+import { z } from 'zod';
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 
 export async function POST(request: NextRequest) {
   try {
+    // ADD Zod schema validation:
+    const toolFinalizerRequestSchema = z.object({
+      jobId: z.string(),
+      selectedModel: z.string().optional(),
+      model: z.string().optional(),                    // ✅ Alternative parameter name
+      tcc: z.custom<ToolConstructionContext>().optional(),
+      mockTcc: z.custom<ToolConstructionContext>().optional(),
+      isIsolatedTest: z.boolean().optional(),
+    });
+
     const body = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc, isIsolatedTest } = body;
+    const parsedRequest = toolFinalizerRequestSchema.parse(body);
+    const { jobId, selectedModel, model, tcc, mockTcc, isIsolatedTest } = parsedRequest;
+    const effectiveModel = selectedModel || model;    // ✅ Accept both
 
     // Detect if this is an isolated test
     const isIsolated = isIsolatedTest || !!mockTcc;
@@ -14,10 +28,16 @@ export async function POST(request: NextRequest) {
     logger.info({ 
       jobId, 
       isIsolated, 
-      selectedModel 
+      selectedModel: effectiveModel 
     }, '📦 ToolFinalizer: Route handler started');
     
-    const result = await finalizeTool(body);
+    const result = await finalizeTool({
+      jobId,
+      selectedModel: effectiveModel,
+      tcc: mockTcc || tcc,
+      mockTcc,
+      isIsolatedTest
+    });
     
     if (!result.success) {
       return NextResponse.json({ 

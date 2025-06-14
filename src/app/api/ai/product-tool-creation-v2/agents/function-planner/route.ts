@@ -79,23 +79,21 @@ export async function POST(request: NextRequest) {
     if (result.success && result.updatedTcc) {
       // Only trigger orchestration if not in isolated test mode
       if (!isIsolatedTest) {
-        console.log('📋 FunctionPlanner Route: Core logic successful, triggering next orchestration step.');
-
-        // CRITICAL FIX: Use standard orchestration endpoint like other agents
-        const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
-        fetch(triggerUrl.toString(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jobId,
-            nextStep: 'designing_state_logic', // Function planner triggers the parallel state/layout step
-            tcc: result.updatedTcc,
-          }),
-        }).catch(error => {
-          console.error(`📋 FunctionPlanner Route: Failed to trigger orchestration endpoint for jobId ${jobId}:`, error);
-        });
+      // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
+      const baseUrl = request.nextUrl.origin;
+      
+      const stateDesignModel = result.updatedTcc.agentModelMapping?.['state-design'] || result.updatedTcc.selectedModel;
+      const jsxLayoutModel = result.updatedTcc.agentModelMapping?.['jsx-layout'] || result.updatedTcc.selectedModel;
+      
+      // Trigger both agents in parallel, passing the updated TCC
+      Promise.all([
+        triggerStateDesignAgent(baseUrl, jobId, stateDesignModel, result.updatedTcc),
+        triggerJsxLayoutAgent(baseUrl, jobId, jsxLayoutModel, result.updatedTcc)
+      ]).catch(error => {
+        console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${jobId}:`, error);
+      });
       } else {
-        console.log('📋 FunctionPlanner Route: ✅ Isolated test mode - skipping orchestration triggering');
+        console.log('📋 FunctionPlanner Route: Isolated test mode - skipping orchestration triggering');
       }
 
       // Return the function signatures, but not the whole TCC
@@ -124,4 +122,50 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// REMOVED: Direct agent triggering functions - now using standard orchestration endpoint 
+/**
+ * Triggers the State Design Agent, passing the full TCC
+ */
+async function triggerStateDesignAgent(baseUrl: string, jobId: string, selectedModel: string | undefined, tcc: ToolConstructionContext): Promise<void> {
+  const stateAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/state-design', baseUrl);
+  
+  try {
+    const response = await fetch(stateAgentUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, selectedModel, tcc }) // Pass the full TCC object
+    });
+
+    if (!response.ok) {
+      throw new Error(`State agent responded with status: ${response.status}`);
+    }
+
+    console.log(`[FunctionPlanner] Successfully triggered State Design Agent for jobId: ${jobId}`);
+  } catch (error) {
+    console.error(`[FunctionPlanner] Failed to trigger State Design Agent:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Triggers the JSX Layout Agent, passing the full TCC
+ */
+async function triggerJsxLayoutAgent(baseUrl: string, jobId: string, selectedModel: string | undefined, tcc: ToolConstructionContext): Promise<void> {
+  const jsxAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/jsx-layout', baseUrl);
+  
+  try {
+    const response = await fetch(jsxAgentUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, selectedModel, tcc }) // Pass the full TCC object
+    });
+
+    if (!response.ok) {
+      throw new Error(`JSX agent responded with status: ${response.status}`);
+    }
+
+    console.log(`[FunctionPlanner] Successfully triggered JSX Layout Agent for jobId: ${jobId}`);
+  } catch (error) {
+    console.error(`[FunctionPlanner] Failed to trigger JSX Layout Agent:`, error);
+    throw error;
+  }
+} 

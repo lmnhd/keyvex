@@ -22,7 +22,9 @@ const StateDesignRequestSchema = z.object({
   selectedModel: z.string().optional(),
   tcc: z.custom<ToolConstructionContext>().optional(),
   mockTcc: z.custom<ToolConstructionContext>().optional(),
-  editMode: EditModeContextSchema.optional(),
+  editMode: EditModeContextSchema.optional(),       // ✅ Complex edit mode (existing)
+  isEditMode: z.boolean().optional(),               // ✅ Simple edit mode (ADD)
+  editInstructions: z.string().optional(),          // ✅ Simple edit mode (ADD)
 });
 
 export async function POST(request: NextRequest) {
@@ -30,7 +32,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc, editMode } = StateDesignRequestSchema.parse(body);
+    const { jobId, selectedModel, tcc, mockTcc, editMode, isEditMode, editInstructions } = StateDesignRequestSchema.parse(body);
 
     // Detect isolated test mode
     const isIsolatedTest = !!mockTcc;
@@ -42,15 +44,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Phase 2: Edit mode detection
-    const isEditMode = editMode?.isEditMode || false;
-    const editInstructions = editMode?.instructions || [];
+    // ADD to both agents' route handlers:
+    const isEditModeActive = isEditMode || editMode?.isEditMode || false;
+    const editInstructionsArray = editInstructions ? [editInstructions] : (editMode?.instructions || []);
 
     logger.info({ 
       jobId, 
       selectedModel,
-      isEditMode,
-      editInstructionsCount: editInstructions.length,
+      isEditMode: isEditModeActive,
+      editInstructionsCount: editInstructionsArray.length,
       isIsolatedTest
     }, '🎯 StateDesign Route: Request received with isolation detection');
     
