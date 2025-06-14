@@ -32,8 +32,164 @@ const CRITICAL_STYLING_PROHIBITIONS = `
     - FORBIDDEN: Input/results cards as siblings of main-tool-card
     - REQUIRED: ALL content sections INSIDE main-tool-card wrapper
     - REQUIRED: Proper ShadCN Card component hierarchy
+
+    ❌ NEVER USE FULL-WIDTH BUTTON STRETCHING:
+    - FORBIDDEN: w-full on buttons (makes tools look like basic forms)
+    - FORBIDDEN: Buttons that stretch across entire container width
+    - REQUIRED: Compact button sizing (px-6 py-2) for device-like appearance
+    - REQUIRED: Button groups with proper spacing (flex gap-2)
 </critical-styling-failures>
 `;
+
+// ============================================================================
+// FUTURISTIC DEVICE STYLING SYSTEM
+// ============================================================================
+const FUTURISTIC_DEVICE_STYLING = `
+🚀 **FUTURISTIC DEVICE STYLING SYSTEM** - Transform tools into sophisticated instruments!
+
+<device-aesthetic-principles>
+    **🎛️ SCIENTIFIC INSTRUMENT INSPIRATION:**
+    - Rich dark gradients mimicking premium device housings
+    - Metallic borders and accents for professional appearance
+    - Compact, purposeful layouts with maximum information density
+    - Tactile-looking buttons and controls
+    - Glass-like surfaces with subtle transparency effects
+    - Professional color schemes that convey precision and quality
+
+    **🔬 DARK THEME HIERARCHY:**
+    - **Tool Container**: Deep dark gradients (slate-800 to slate-900)
+    - **Control Panels**: Medium dark surfaces (slate-700 to slate-800)
+    - **Input Areas**: Lighter dark backgrounds (slate-600 to slate-700)
+    - **Results Areas**: Accent dark colors with subtle glows
+    - **Interactive Elements**: Hover effects with metallic highlights
+
+    **⚡ PREMIUM MATERIAL EFFECTS:**
+    - Use shadow-2xl for deep, realistic shadows
+    - Implement border-2 with metallic colors (slate-400, zinc-400)
+    - Add subtle gradients for depth and dimension
+    - Include hover:scale-105 for tactile feedback
+    - Use backdrop-blur effects for glass-like surfaces
+</device-aesthetic-principles>
+
+<compact-sizing-system>
+    **📏 PRECISE COMPONENT DIMENSIONS:**
+    
+    **Number Input Sizing (Context-Aware):**
+    - Currency fields: 'max-w-32' (8-character width for amounts like $50,000)
+    - Percentage fields: 'max-w-20' (5-character width for values like 15.5%)
+    - Age/Years fields: 'max-w-16' (3-character width for values like 25)
+    - Quantity fields: 'max-w-24' (6-character width for values like 1,500)
+    - NEVER use 'w-full' for number inputs - it wastes space!
+
+    **Button Sizing Revolution:**
+    - Primary actions: 'px-6 py-2' (compact, professional)
+    - Secondary actions: 'px-4 py-1.5' (smaller, supporting)
+    - Icon buttons: 'p-2' (square, minimal)
+    - FORBIDDEN: 'w-full' buttons (makes tools look like forms)
+    - REQUIRED: Natural button width based on content
+
+    **Card Section Spacing:**
+    - Input groups: 'p-4' (compact, efficient)
+    - Results sections: 'p-3' (tight, information-dense)
+    - Header sections: 'p-3' (minimal, focused)
+    - Section gaps: 'gap-3' or 'gap-4' (purposeful spacing)
+
+    **Grid Density Optimization:**
+    - Desktop: 'grid-cols-3' or 'grid-cols-4' for maximum efficiency
+    - Tablet: 'grid-cols-2' for balanced layout
+    - Mobile: 'grid-cols-1' with compact spacing
+    - Always use tight gaps: 'gap-3' or 'gap-4'
+</compact-sizing-system>
+
+<dark-gradient-palette>
+    **🎨 RICH DARK COLOR SYSTEM:**
+    
+    **Tool Container Gradients:**
+    - 'bg-gradient-to-br from-slate-800 via-slate-900 to-gray-900'
+    - 'bg-gradient-to-r from-zinc-800 via-slate-800 to-gray-900'
+    - 'bg-gradient-to-bl from-gray-800 via-slate-900 to-zinc-900'
+
+    **Control Panel Surfaces:**
+    - 'bg-gradient-to-r from-slate-700 to-slate-800'
+    - 'bg-gradient-to-br from-zinc-700 to-slate-800'
+    - 'bg-gradient-to-t from-gray-700 to-slate-700'
+
+    **Input Area Backgrounds:**
+    - 'bg-gradient-to-r from-slate-600 to-slate-700'
+    - 'bg-slate-700/50' (semi-transparent for layering)
+    - 'bg-zinc-700/80' (subtle transparency)
+
+    **Accent & Status Colors:**
+    - Success: 'from-emerald-600 to-green-700'
+    - Warning: 'from-amber-600 to-orange-700'
+    - Info: 'from-blue-600 to-cyan-700'
+    - Error: 'from-red-600 to-rose-700'
+
+    **Metallic Border Colors:**
+    - Primary borders: 'border-slate-400'
+    - Secondary borders: 'border-zinc-400'
+    - Accent borders: 'border-gray-400'
+    - Interactive borders: 'border-blue-400'
+</dark-gradient-palette>
+
+<button-styling-revolution>
+    **🔘 DEVICE-LIKE BUTTON STYLING:**
+    
+    **Primary Action Buttons:**
+    'bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold px-6 py-2 rounded-lg shadow-lg border border-blue-400 transition-all duration-200 hover:scale-105 hover:shadow-xl'
+
+    **Secondary Action Buttons:**
+    'bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white font-medium px-4 py-1.5 rounded-md shadow-md border border-slate-400 transition-all duration-200 hover:scale-105'
+
+    **Outline/Ghost Buttons:**
+    'bg-transparent hover:bg-slate-700/50 text-slate-300 hover:text-white font-medium px-4 py-1.5 rounded-md border-2 border-slate-400 hover:border-slate-300 transition-all duration-200'
+
+    **Icon Buttons:**
+    'bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white p-2 rounded-md shadow-md border border-slate-500 transition-all duration-200 hover:scale-110'
+
+    **Button Group Layout:**
+    'flex gap-3 justify-center items-center' (NEVER use w-full on individual buttons)
+</button-styling-revolution>
+
+<input-styling-precision>
+    **📝 DEVICE-LIKE INPUT STYLING:**
+    
+    **Standard Input Fields:**
+    'bg-slate-700/50 border-2 border-slate-400 text-gray-100 placeholder-slate-400 px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 shadow-inner'
+
+    **Number Input Fields (with precise sizing):**
+    - Currency: 'max-w-32 bg-slate-700/50 border-2 border-slate-400 text-gray-100 px-3 py-2 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400'
+    - Percentage: 'max-w-20 bg-slate-700/50 border-2 border-slate-400 text-gray-100 px-3 py-2 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400'
+    - Years/Age: 'max-w-16 bg-slate-700/50 border-2 border-slate-400 text-gray-100 px-3 py-2 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400'
+
+    **Select Dropdowns:**
+    'bg-slate-700/50 border-2 border-slate-400 text-gray-100 px-4 py-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200'
+
+    **Textarea Fields:**
+    'bg-slate-700/50 border-2 border-slate-400 text-gray-100 placeholder-slate-400 px-4 py-3 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 resize-none'
+</input-styling-precision>
+
+<results-display-styling>
+    **📊 SOPHISTICATED RESULTS STYLING:**
+    
+    **Metric Display Cards:**
+    'bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-slate-400 rounded-lg p-4 shadow-xl transform hover:scale-105 transition-all duration-200'
+
+    **Large Metric Values:**
+    'text-3xl font-black text-emerald-400 mb-2 font-mono tracking-tight'
+
+    **Metric Labels:**
+    'text-sm font-semibold uppercase tracking-wide text-slate-300 mb-1'
+
+    **Status Indicators:**
+    - Good: 'text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded-full text-xs font-semibold'
+    - Warning: 'text-amber-400 bg-amber-900/30 px-2 py-1 rounded-full text-xs font-semibold'
+    - Poor: 'text-red-400 bg-red-900/30 px-2 py-1 rounded-full text-xs font-semibold'
+
+    **Chart Container Styling:**
+    'bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-500 rounded-lg p-4 shadow-2xl'
+</results-display-styling>
+</futuristic-device-styling>
 
 // ============================================================================
 // INDUSTRY-SPECIFIC COLOR SCHEMES
