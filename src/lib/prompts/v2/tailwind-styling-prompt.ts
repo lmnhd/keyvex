@@ -190,6 +190,7 @@ const FUTURISTIC_DEVICE_STYLING = `
     'bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-500 rounded-lg p-4 shadow-2xl'
 </results-display-styling>
 </futuristic-device-styling>
+`;
 
 // ============================================================================
 // INDUSTRY-SPECIFIC COLOR SCHEMES
