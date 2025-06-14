@@ -169,7 +169,40 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
       if (data.wasPersistedToDB) {
         toast.success('✅ Research complete and saved to database!');
-        await loadSavedBrainstorms(); // Refresh to show updated status
+        
+        // Update the brainstorm in IndexedDB with research data
+        if (selectedBrainstorm) {
+          const updatedBrainstorm = {
+            ...selectedBrainstorm,
+            brainstormData: {
+              ...selectedBrainstorm.brainstormData,
+              dataRequirements: {
+                hasExternalDataNeeds: data.dataRequirementsResearch.hasExternalDataNeeds,
+                requiredDataTypes: data.dataRequirementsResearch.requiredDataTypes,
+                researchQueries: data.dataRequirementsResearch.researchQueries
+              },
+              mockData: data.dataRequirementsResearch.mockData,
+              userDataInstructions: data.dataRequirementsResearch.userInstructions
+            }
+          };
+          
+          try {
+            // Import the save function dynamically to avoid import issues
+            const { saveLogicResultToDB } = await import('../../ui/db-utils');
+            await saveLogicResultToDB(updatedBrainstorm);
+            
+            // Update local state immediately
+            setSelectedBrainstorm(updatedBrainstorm);
+            
+            // Refresh the brainstorms list
+            await loadSavedBrainstorms();
+            
+            console.log('✅ Research data saved to IndexedDB for brainstorm:', selectedBrainstorm.id);
+          } catch (dbError) {
+            console.error('❌ Failed to save research data to IndexedDB:', dbError);
+            toast.error('Research completed but failed to save to local database');
+          }
+        }
       } else {
         toast.success('✅ Research analysis complete!');
       }
@@ -449,22 +482,22 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <ScrollArea className="h-32">
                   <div className="space-y-2">
                     {researchResults.researchQueries.map((query, index) => (
-                      <div key={index} className="p-3 bg-gray-50 rounded border">
+                      <div key={index} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-1">
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
                             {query.domain}
                           </Badge>
                           <Badge variant={query.priority === 'high' ? 'destructive' : 'secondary'} className="text-xs">
                             {query.priority}
                           </Badge>
                         </div>
-                        <p className="text-sm font-medium">{query.query}</p>
+                        <p className="text-sm font-medium text-slate-100">{query.query}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
                             {query.dataType}
                           </Badge>
                           {query.locationDependent && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
                               <MapPin className="h-3 w-3 mr-1" />
                               Location-dependent
                             </Badge>
@@ -489,16 +522,16 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <ScrollArea className="h-40">
                   <div className="space-y-3">
                     {Object.entries(researchResults.mockData).map(([category, data]) => (
-                      <div key={category} className="p-3 bg-gray-50 rounded border">
+                      <div key={category} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
                             {category}
                           </Badge>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-slate-300">
                             {typeof data === 'object' ? Object.keys(data).length : 1} items
                           </span>
                         </div>
-                        <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+                        <pre className="text-xs bg-slate-900 text-slate-200 p-2 rounded border border-slate-600 overflow-x-auto">
                           {JSON.stringify(data, null, 2)}
                         </pre>
                       </div>
