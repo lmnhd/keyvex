@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
           logger.error({ jobId, error: error.message }, '🎯 StateDesign Route: Failed to trigger parallel completion check endpoint');
       });
     } else {
-      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Isolated test mode - skipping orchestration trigger');
+      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Isolated test mode - skipping parallel completion check');
     }
 
     // Return appropriate response for isolated vs normal mode

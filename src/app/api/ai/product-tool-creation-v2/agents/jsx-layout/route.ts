@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Skip orchestration triggering during isolated testing
     if (!isIsolatedTest && result.success && result.updatedTcc) {
-      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Core logic successful, triggering next step.');
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Core logic successful, triggering parallel completion check.');
 
       // Trigger the next step by calling the centralized orchestrator endpoint
       const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
@@ -74,12 +74,12 @@ export async function POST(request: NextRequest) {
           tcc: result.updatedTcc,
         }),
       }).catch(error => {
-        logger.error({ jobId: parsedRequest.jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger next step orchestration endpoint');
+        logger.error({ jobId: parsedRequest.jobId, error: error.message }, '🏗️ JSXLayout Route: Failed to trigger parallel completion check endpoint');
       });
         
-      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Successfully triggered next step.');
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Successfully triggered parallel completion check.');
     } else if (isIsolatedTest) {
-      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Isolated test mode - skipping orchestration trigger');
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: ✅ Isolated test mode - skipping parallel completion check');
     }
 
     // Return appropriate response for isolated vs normal mode

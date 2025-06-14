@@ -1311,12 +1311,18 @@ export default function ToolTesterView({
 
                       {/* Finalize Button - Only show if we have TCC data from layout/state/style agents */}
                       {(() => {
-                        const tccData = (testJob.result as any).updatedTcc;
-                        const canFinalize = tccData && (
-                          (tccData.jsxLayout && tccData.stateLogic) || // Layout + State completed
-                          (tccData.styling) || // Styling completed
-                          (tccData.jsxLayout && tccData.styling) || // Layout + Styling
-                          (tccData.stateLogic && tccData.styling) // State + Styling
+                        // CRITICAL FIX: Check both testJob.result.updatedTcc AND the tccData state
+                        const testJobTccData = (testJob.result as any).updatedTcc;
+                        const currentTccData = tccData;
+                        const activeTccData = testJobTccData || currentTccData;
+                        
+                        const canFinalize = activeTccData && (
+                          (activeTccData.jsxLayout && activeTccData.stateLogic) || // Layout + State completed
+                          (activeTccData.styling) || // Styling completed
+                          (activeTccData.jsxLayout && activeTccData.styling) || // Layout + Styling
+                          (activeTccData.stateLogic && activeTccData.styling) || // State + Styling
+                          (activeTccData.jsxLayout) || // Just layout (can finalize)
+                          (activeTccData.stateLogic) // Just state (can finalize)
                         );
 
                         if (canFinalize) {
@@ -1325,7 +1331,14 @@ export default function ToolTesterView({
                               <Zap className="h-4 w-4 text-blue-600" />
                               <AlertTitle className="text-blue-800 dark:text-blue-200">🎯 Ready for Finalization</AlertTitle>
                               <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
-                                The tool has progressed through layout, state, and/or styling steps. You can now run the final assembly, validation, and finalization stages.
+                                The tool has progressed through one or more agent steps. You can now run the final assembly, validation, and finalization stages.
+                                <br/>
+                                <span className="text-xs mt-1 block">
+                                  TCC Status: 
+                                  {activeTccData.jsxLayout ? ' ✅ Layout' : ' ⏸️ Layout'}
+                                  {activeTccData.stateLogic ? ' ✅ State' : ' ⏸️ State'}  
+                                  {activeTccData.styling ? ' ✅ Styling' : ' ⏸️ Styling'}
+                                </span>
                               </AlertDescription>
                               <div className="mt-3">
                                 <Button 
@@ -1356,37 +1369,41 @@ export default function ToolTesterView({
                       })()}
                       
                       {(() => {
-                        const tccData = (testJob.result as any).updatedTcc;
+                        // ENHANCED: Use the same TCC data source logic for results display
+                        const testJobTccData = (testJob.result as any).updatedTcc;
+                        const currentTccData = tccData;
+                        const activeTccData = testJobTccData || currentTccData;
+                        
                         return (
                           <div className="space-y-4">
                             {/* Agent-specific results */}
-                            {selectedAgent === 'tailwind-styling' && tccData.styling && (
+                            {selectedAgent === 'tailwind-styling' && activeTccData?.styling && (
                               <Card className="border-purple-200">
                                 <CardHeader>
                                   <CardTitle className="text-purple-700 text-lg">🎨 Styling Results</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                   <div className="space-y-3">
-                                    {tccData.styling.styledComponentCode && (
+                                    {activeTccData.styling.styledComponentCode && (
                                       <div>
                                         <Badge variant="outline" className="mb-2">Styled Component Code</Badge>
                                         <pre className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-md text-sm overflow-x-auto max-h-96 overflow-y-auto">
-                                          {tccData.styling.styledComponentCode}
+                                          {activeTccData.styling.styledComponentCode}
                                         </pre>
                                       </div>
                                     )}
-                                    {tccData.styling.activeStyles && (
+                                    {activeTccData.styling.activeStyles && (
                                       <div>
                                         <Badge variant="outline" className="mb-2">Active Style Rules</Badge>
                                         <div className="grid gap-2">
-                                          {Object.entries(tccData.styling.activeStyles).slice(0, 5).map(([key, value]) => (
+                                          {Object.entries(activeTccData.styling.activeStyles).slice(0, 5).map(([key, value]) => (
                                             <div key={key} className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
                                               <span className="font-mono text-purple-700">{key}</span>
                                               <span className="text-purple-600">{String(value)}</span>
                                             </div>
                                           ))}
-                                          {Object.keys(tccData.styling.activeStyles).length > 5 && (
-                                            <div className="text-sm text-purple-600">+ {Object.keys(tccData.styling.activeStyles).length - 5} more styles</div>
+                                          {Object.keys(activeTccData.styling.activeStyles).length > 5 && (
+                                            <div className="text-sm text-purple-600">+ {Object.keys(activeTccData.styling.activeStyles).length - 5} more styles</div>
                                           )}
                                         </div>
                                       </div>
@@ -1396,26 +1413,26 @@ export default function ToolTesterView({
                               </Card>
                             )}
                             
-                            {selectedAgent === 'jsx-layout' && tccData.jsxLayout && (
+                            {selectedAgent === 'jsx-layout' && activeTccData?.jsxLayout && (
                               <Card className="border-green-200">
                                 <CardHeader>
                                   <CardTitle className="text-green-700 text-lg">🏗️ JSX Layout Results</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                   <div className="space-y-3">
-                                    {tccData.jsxLayout.componentStructure && (
+                                    {activeTccData.jsxLayout.componentStructure && (
                                       <div>
                                         <Badge variant="outline" className="mb-2">Component Structure</Badge>
                                         <pre className="p-3 bg-green-50 dark:bg-green-900/20 rounded-md text-sm overflow-x-auto max-h-64">
-                                          {tccData.jsxLayout.componentStructure}
+                                          {activeTccData.jsxLayout.componentStructure}
                                         </pre>
                                       </div>
                                     )}
-                                    {tccData.jsxLayout.layoutDecisions && (
+                                    {activeTccData.jsxLayout.layoutDecisions && (
                                       <div>
                                         <Badge variant="outline" className="mb-2">Layout Decisions</Badge>
                                         <div className="text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded max-h-64 overflow-y-auto">
-                                          {JSON.stringify(tccData.jsxLayout.layoutDecisions, null, 2)}
+                                          {JSON.stringify(activeTccData.jsxLayout.layoutDecisions, null, 2)}
                                         </div>
                                       </div>
                                     )}
@@ -1423,22 +1440,39 @@ export default function ToolTesterView({
                                 </CardContent>
                               </Card>
                             )}
-                            
-                            {selectedAgent === 'function-planner' && tccData.functions && (
+
+                            {selectedAgent === 'state-design' && activeTccData?.stateLogic && (
                               <Card className="border-blue-200">
                                 <CardHeader>
-                                  <CardTitle className="text-blue-700 text-lg">⚙️ Function Planning Results</CardTitle>
+                                  <CardTitle className="text-blue-700 text-lg">🎯 State Design Results</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                   <div className="space-y-3">
-                                    {tccData.functions.plannedFunctions && (
+                                    {activeTccData.stateLogic.stateVariables && (
                                       <div>
-                                        <Badge variant="outline" className="mb-2">Planned Functions ({tccData.functions.plannedFunctions.length} total)</Badge>
+                                        <Badge variant="outline" className="mb-2">State Variables ({activeTccData.stateLogic.stateVariables.length} total)</Badge>
                                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                                          {tccData.functions.plannedFunctions.map((func: any, idx: number) => (
+                                          {activeTccData.stateLogic.stateVariables.map((variable: any, idx: number) => (
+                                            <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-sm">
+                                              <div className="font-semibold text-blue-700">{variable.name}: {variable.type}</div>
+                                              <div className="text-blue-600">{variable.description}</div>
+                                              <div className="text-xs text-blue-500">Default: {variable.defaultValue || 'none'}</div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {activeTccData.stateLogic.stateFunctions && (
+                                      <div>
+                                        <Badge variant="outline" className="mb-2">State Functions ({activeTccData.stateLogic.stateFunctions.length} total)</Badge>
+                                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                                          {activeTccData.stateLogic.stateFunctions.map((func: any, idx: number) => (
                                             <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-sm">
                                               <div className="font-semibold text-blue-700">{func.name}</div>
                                               <div className="text-blue-600">{func.description}</div>
+                                              <div className="text-xs text-blue-500 font-mono">
+                                                {func.parameters?.map((p: any) => `${p.name}: ${p.type}`).join(', ')}
+                                              </div>
                                             </div>
                                           ))}
                                         </div>
@@ -1449,54 +1483,26 @@ export default function ToolTesterView({
                               </Card>
                             )}
                             
-                            {/* TCC Step Status */}
-                            <Card className="border-gray-200">
-                              <CardHeader>
-                                <CardTitle className="text-gray-700 text-lg">📋 TCC Step Status</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="grid gap-2">
-                                  {Object.entries(tccData.stepStatus || {}).map(([step, status]) => (
-                                    <div key={step} className="flex justify-between items-center">
-                                      <span className="text-sm">{step}</span>
-                                      <Badge variant={status === 'completed' ? 'default' : status === 'in_progress' ? 'secondary' : 'outline'}>
-                                        {String(status)}
-                                      </Badge>
-                                    </div>
-                                  ))}
-                                </div>
-                              </CardContent>
-                            </Card>
-                            
-                            {/* Prompt Information (if available) */}
-                            {(testJob.result as any).promptInfo && (
+                            {selectedAgent === 'function-planner' && activeTccData?.definedFunctionSignatures && (
                               <Card className="border-orange-200">
                                 <CardHeader>
-                                  <CardTitle className="text-orange-700 text-lg">🤖 Model Prompts</CardTitle>
+                                  <CardTitle className="text-orange-700 text-lg">⚙️ Function Planning Results</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                   <div className="space-y-3">
-                                    <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-900/20">
-                                      <MessageSquare className="h-4 w-4 text-orange-600" />
-                                      <AlertTitle className="text-orange-800 dark:text-orange-200">Prompt Preview</AlertTitle>
-                                      <AlertDescription className="text-orange-700 dark:text-orange-300 text-sm">
-                                        System: {(testJob.result as any).promptInfo.systemPromptPreview}<br/>
-                                        User: {(testJob.result as any).promptInfo.userPromptPreview}
-                                      </AlertDescription>
-                                    </Alert>
-                                    
                                     <div>
-                                      <Badge variant="outline" className="mb-2">Full System Prompt</Badge>
-                                      <pre className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                        {(testJob.result as any).promptInfo.fullSystemPrompt}
-                                      </pre>
-                                    </div>
-                                    
-                                    <div>
-                                      <Badge variant="outline" className="mb-2">Full User Prompt</Badge>
-                                      <pre className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-md text-sm overflow-x-auto max-h-32">
-                                        {(testJob.result as any).promptInfo.fullUserPrompt}
-                                      </pre>
+                                      <Badge variant="outline" className="mb-2">Defined Functions ({activeTccData.definedFunctionSignatures.length} total)</Badge>
+                                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {activeTccData.definedFunctionSignatures.map((func: any, idx: number) => (
+                                          <div key={idx} className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded text-sm">
+                                            <div className="font-semibold text-orange-700">{func.name}</div>
+                                            <div className="text-orange-600">{func.description}</div>
+                                            <div className="text-xs text-orange-500 font-mono">
+                                              Parameters: {func.parameters?.length || 0} | Returns: {func.returnType || 'void'}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
                                     </div>
                                   </div>
                                 </CardContent>

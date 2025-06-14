@@ -472,10 +472,21 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           endTime: Date.now()
         });
         
+        // CRITICAL FIX: Update TCC data from isolated agent test results
         if (result.data?.updatedTcc) {
           setTccData(result.data.updatedTcc);
+          addDetailedWSLog('debug', '✅ TCC data updated from isolated agent test', {
+            agentId: selectedAgent,
+            tccKeys: Object.keys(result.data.updatedTcc)
+          });
+          
+          // Update assembled code if available from different agent types
           if (result.data.updatedTcc.styling?.styledComponentCode) {
             setAssembledCode(result.data.updatedTcc.styling.styledComponentCode);
+            addDetailedWSLog('debug', '✅ Assembled code updated from styling agent');
+          } else if (result.data.updatedTcc.assembledComponentCode) {
+            setAssembledCode(result.data.updatedTcc.assembledComponentCode);
+            addDetailedWSLog('debug', '✅ Assembled code updated from component assembler');
           }
         }
         
