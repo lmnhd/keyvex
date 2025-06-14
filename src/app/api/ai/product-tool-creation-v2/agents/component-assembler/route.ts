@@ -53,21 +53,20 @@ export async function POST(request: NextRequest) {
     if (!isActuallyIsolatedTest && result.success && result.updatedTcc) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step.');
 
-      // Trigger the next step by calling the centralized orchestrator endpoint
-      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
+      // CRITICAL FIX: Use same endpoint as other agents for consistency
+      const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', request.nextUrl.origin);
       fetch(triggerUrl.toString(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId,
-          nextStep: result.updatedTcc.currentOrchestrationStep,
           tcc: result.updatedTcc,
         }),
       }).catch(error => {
-        logger.error({ jobId, error: error.message }, '🔧 ComponentAssembler Route: Failed to trigger next step orchestration endpoint');
+        logger.error({ jobId, error: error.message }, '🔧 ComponentAssembler Route: Failed to trigger orchestration endpoint');
       });
         
-      logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered next step.');
+      logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered orchestration step.');
     } else if (isActuallyIsolatedTest) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Isolated test mode - NOT triggering next step');
     }
