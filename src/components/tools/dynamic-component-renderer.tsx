@@ -60,6 +60,30 @@ import { Progress } from '@/components/ui/progress';
 import { AlertCircle, Loader2, Info } from 'lucide-react';
 import { trackValidationIssue } from '@/lib/validation/validation-tracker';
 
+// Recharts components for data visualization
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+  RadialBarChart,
+  RadialBar,
+  ComposedChart,
+  Scatter,
+  ScatterChart
+} from 'recharts';
+
 interface DynamicComponentRendererProps {
   componentCode: string;
   metadata: {
@@ -451,6 +475,10 @@ export default function DynamicComponentRenderer({
         'Tooltip', 'TooltipContent', 'TooltipProvider', 'TooltipTrigger',
         'Progress',
         'AlertCircle', 'Loader2', 'Info',
+        // Recharts components for data visualization
+        'BarChart', 'Bar', 'LineChart', 'Line', 'PieChart', 'Pie', 'Cell', 'AreaChart', 'Area',
+        'XAxis', 'YAxis', 'CartesianGrid', 'RechartsTooltip', 'Legend', 'ResponsiveContainer',
+        'RadialBarChart', 'RadialBar', 'ComposedChart', 'Scatter', 'ScatterChart',
         `
         "use strict";
         try {
@@ -480,7 +508,11 @@ export default function DynamicComponentRenderer({
         Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
         Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
         Progress,
-        AlertCircle, Loader2, Info
+        AlertCircle, Loader2, Info,
+        // Recharts components for data visualization
+        BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
+        XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer,
+        RadialBarChart, RadialBar, ComposedChart, Scatter, ScatterChart
       );
       
       console.log('🔍 TRACE: ✅ Component compilation successful');

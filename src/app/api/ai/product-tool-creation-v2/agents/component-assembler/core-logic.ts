@@ -343,7 +343,10 @@ Textarea, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch,
 Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
 Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
-Progress, AlertCircle, Info, Loader2
+Progress, AlertCircle, Info, Loader2,
+BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
+XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer,
+RadialBarChart, RadialBar, ComposedChart, Scatter, ScatterChart
 
 RULES:
 1. Start with 'use client';

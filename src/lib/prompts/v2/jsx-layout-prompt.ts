@@ -129,6 +129,13 @@ ${CORE_LAYOUT_RULES}
             - Green for good ratios
             - Yellow for caution
             - Red for concerning ratios
+
+            **🚨 USE CHARTS FOR RESULTS**: When displaying calculation results, strongly consider using charts:
+            - BarChart for comparing multiple metrics (e.g., different financial ratios)
+            - PieChart for showing breakdowns (e.g., expense categories, asset allocation)
+            - LineChart for trends or projections (e.g., growth forecasts)
+            - RadialBarChart for single scores or ratings (e.g., overall health score)
+            - Charts make results more engaging and easier to understand than plain numbers
         </calculation-display-requirements>
 
         <progressive-disclosure>
@@ -179,6 +186,15 @@ ${CORE_LAYOUT_RULES}
         - Progress (show completion status)
         - Tooltip, TooltipProvider, TooltipTrigger, TooltipContent (contextual help)
 
+        **CHARTS & VISUALIZATION:**
+        - BarChart, Bar (comparing values, showing rankings)
+        - LineChart, Line (trends over time, progress tracking)
+        - PieChart, Pie, Cell (proportions, percentages, breakdowns)
+        - AreaChart, Area (cumulative data, filled line charts)
+        - RadialBarChart, RadialBar (circular progress, gauges)
+        - ScatterChart, Scatter (correlations, data points)
+        - XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer
+
         **VISUAL ELEMENTS:**
         - Label (form field labels)
         - AlertCircle, Info, Loader2 (icons from Lucide)
@@ -191,6 +207,15 @@ ${CORE_LAYOUT_RULES}
         - Use Accordion for: "Advanced Options", "Help & Examples", "Detailed Explanations"
         - Use Progress for: "Assessment Completion", "Score Visualization"
         - Use Tooltip for: Explaining technical terms, providing examples, showing help text
+        
+        **CHART USAGE EXAMPLES:**
+        - Use BarChart for: "Revenue by Quarter", "Expense Categories", "Performance Metrics", "Comparison Data"
+        - Use LineChart for: "Growth Trends", "Performance Over Time", "Progress Tracking", "Forecasting"
+        - Use PieChart for: "Budget Allocation", "Market Share", "Category Breakdown", "Percentage Distribution"
+        - Use AreaChart for: "Cumulative Revenue", "Stacked Categories", "Filled Trend Data"
+        - Use RadialBarChart for: "Score Gauges", "Completion Percentage", "Rating Displays"
+        - Always wrap charts in ResponsiveContainer for proper sizing
+        - Include XAxis, YAxis, CartesianGrid, RechartsTooltip, and Legend for complete charts
     </available-shadcn-components>
 
     <layout-examples>
