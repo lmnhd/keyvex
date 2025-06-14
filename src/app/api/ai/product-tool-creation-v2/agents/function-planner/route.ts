@@ -21,43 +21,35 @@ export async function POST(request: NextRequest) {
   console.log('📋 FunctionPlanner Route: Request received at:', new Date().toISOString());
 
   try {
-    const body: { 
-      jobId: string; 
-      selectedModel?: string; 
-      tcc: ToolConstructionContext; 
-      mockTcc?: ToolConstructionContext;
-      editMode?: z.infer<typeof EditModeContextSchema>;
-    } = await request.json();
+    // ADD Zod schema validation:
+    const functionPlannerRequestSchema = z.object({
+      jobId: z.string(),
+      selectedModel: z.string().optional(),
+      model: z.string().optional(),                    // ✅ Alternative parameter name
+      tcc: z.custom<ToolConstructionContext>().optional(),
+      mockTcc: z.custom<ToolConstructionContext>().optional(),
+      editMode: EditModeContextSchema.optional(),
+      isEditMode: z.boolean().optional(),              // ✅ Simple edit mode
+      editInstructions: z.string().optional(),         // ✅ Simple edit mode
+      isIsolatedTest: z.boolean().optional(),
+    });
+
+    const body = await request.json();
+    const parsedRequest = functionPlannerRequestSchema.parse(body);
+    const { jobId, selectedModel, model, tcc, mockTcc, editMode, isEditMode, editInstructions, isIsolatedTest } = parsedRequest;
+    const effectiveModel = selectedModel || model;    // ✅ Accept both
     
-    const { jobId, selectedModel, tcc, mockTcc, editMode } = body;
-    
-    // Phase 2: Validate edit mode context if provided
-    let validatedEditMode: z.infer<typeof EditModeContextSchema> | undefined;
-    if (editMode) {
-      try {
-        validatedEditMode = EditModeContextSchema.parse(editMode);
-        console.log('📋 FunctionPlanner Route: Edit mode validated:', {
-          isEditMode: validatedEditMode?.isEditMode,
-          instructionCount: validatedEditMode?.instructions?.length || 0
-        });
-      } catch (error) {
-        console.error('📋 FunctionPlanner Route: Edit mode validation failed:', error);
-        return NextResponse.json({ 
-          success: false, 
-          error: 'Invalid edit mode context provided' 
-        }, { status: 400 });
-      }
-    }
-    
-    const parsedRequest = { jobId, selectedModel, tcc, mockTcc, editMode: validatedEditMode };
-    const isIsolatedTest = !!parsedRequest.mockTcc;
+    // Phase 2: Edit mode handling - merge simple and complex edit modes
+    const isEditModeActive = isEditMode || editMode?.isEditMode || false;
+    const editInstructionsArray = editInstructions ? [editInstructions] : (editMode?.instructions || []);
+    const isIsolatedTestActive = isIsolatedTest || !!mockTcc;
 
     console.log('📋 FunctionPlanner Route: ✅ Request body parsed:', {
       jobId: jobId,
-      selectedModel: selectedModel || 'default',
+      selectedModel: effectiveModel || 'default',
       hasTcc: !!tcc,
       hasMockTcc: !!mockTcc,
-      isIsolatedTest,
+      isIsolatedTest: isIsolatedTestActive,
       tccStatus: tcc?.status,
       bodyKeys: Object.keys(body)
     });
@@ -69,16 +61,16 @@ export async function POST(request: NextRequest) {
     // Pass the received TCC directly to the core logic
     const result = await planFunctionSignatures({
       jobId,
-      selectedModel,
+      selectedModel: effectiveModel,
       tcc, // Pass the in-memory TCC
       mockTcc,
-      isIsolatedTest,
-      editMode: validatedEditMode
+      isIsolatedTest: isIsolatedTestActive,
+      editMode: editMode
     });
 
     if (result.success && result.updatedTcc) {
       // Only trigger orchestration if not in isolated test mode
-      if (!isIsolatedTest) {
+      if (!isIsolatedTestActive) {
       // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
       const baseUrl = request.nextUrl.origin;
       
