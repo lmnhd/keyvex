@@ -610,7 +610,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   // ...
 
   const handleTccFinalization = async () => {
-    if (!testJob?.result || !('updatedTcc' in testJob.result)) {
+    // CRITICAL FIX: Check both testJob.result.updatedTcc AND tccData state for isolated agent tests
+    const tccFromTestJob = testJob?.result && 'updatedTcc' in testJob.result ? (testJob.result as any).updatedTcc : null;
+    const activeTccData = tccFromTestJob || tccData;
+    
+    if (!activeTccData) {
       setError('No TCC data available for finalization. Run an agent test first.');
       return;
     }
@@ -619,10 +623,13 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setIsLoading(true);
       setError(null);
       addWSLog(`Starting TCC Finalization - running final 3 steps...`);
-      connect(testJob.jobId, userId);
+      
+      // Only connect WebSocket if we have a real job ID (not for isolated agent tests)
+      if (testJob?.jobId && !testJob.jobId.startsWith('debug-')) {
+        connect(testJob.jobId, userId);
+      }
 
-      const tccData = (testJob.result as any).updatedTcc;
-      const result = await runTccFinalizationSteps(tccData, agentModelMapping);
+      const result = await runTccFinalizationSteps(activeTccData, agentModelMapping);
 
       if (result.success && result.finalProduct) {
         // Update the test job with the final product
