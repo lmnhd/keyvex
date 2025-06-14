@@ -249,7 +249,7 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
   const userPrompt = getUserPrompt(tcc, functionSignatures, editMode);
 
   // Get the enhanced system prompt from the v2 prompts directory  
-  const systemPrompt = getStateDesignSystemPrompt();
+  const systemPrompt = getStateDesignSystemPrompt(false); // false = creation mode (not edit)
 
   // ✅ FIXED: Using generateObject with proper schema validation! 🎯
   const { object } = await generateObject({
@@ -297,7 +297,7 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
  * ✅ ADDED: Generate user prompt for AI
  */
 function getUserPrompt(tcc: ToolConstructionContext, functionSignatures: DefinedFunctionSignature[], editMode?: EditModeContext): string {
-  const brainstormData = tcc.brainstormResult;
+  const brainstormData = tcc.brainstormData;
   const isEditMode = editMode?.isEditMode || false;
   
   if (isEditMode) {
@@ -317,7 +317,7 @@ Tool Type: ${brainstormData?.toolType || 'Unknown'}
 Core Concept: ${brainstormData?.coreConcept || 'N/A'}
 
 FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(f => `- ${f.name}(${f.parameters?.join(', ') || ''}): ${f.description || 'No description'}`).join('\n')}
+${functionSignatures.map(f => `- ${f.name}(): ${f.description || 'No description'}`).join('\n')}
 
 SPECIFIC REQUIREMENTS:
 ${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label}: ${input.type}`).join('\n') || 'No specific inputs defined'}
@@ -333,7 +333,7 @@ TOOL DETAILS:
 - Target Audience: ${brainstormData?.targetAudience || 'General'}
 
 FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(f => `- ${f.name}(${f.parameters?.join(', ') || ''}): ${f.description || 'No description'}`).join('\n')}
+${functionSignatures.map(f => `- ${f.name}(): ${f.description || 'No description'}`).join('\n')}
 
 SUGGESTED INPUTS:
 ${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label} (${input.type}): ${input.placeholder || input.description || ''}`).join('\n') || 'No specific inputs defined'}
