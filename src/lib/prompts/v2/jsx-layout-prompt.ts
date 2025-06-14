@@ -54,7 +54,34 @@ ${CORE_LAYOUT_RULES}
         <mandate>USE HORIZONTAL GROUPING - Group related inputs side-by-side using grid layouts.</mandate>
         <mandate>MAXIMIZE SPACE EFFICIENCY - Utilize horizontal space and minimize vertical scrolling.</mandate>
         <mandate>CREATE VISUAL SOPHISTICATION - Modern tools use dashboard-style layouts, not simple forms.</mandate>
+        <mandate>🚨 SEPARATE CONCERNS - Keep inputs, actions, and results in distinct visual sections.</mandate>
+        <mandate>🚨 LOGICAL FLOW - Arrange sections in a logical top-to-bottom flow: Header → Inputs → Actions → Results.</mandate>
     </critical-mandates>
+
+    <space-organization-principles>
+        **VISUAL HIERARCHY & FLOW:**
+        - Header section: Tool title, description, info popup (top)
+        - Input section: All user inputs in organized grids (middle-top)
+        - Action section: Primary buttons and lead capture (middle-bottom)
+        - Results section: Calculations and visualizations (bottom)
+        
+        **SECTION SEPARATION:**
+        - Use distinct Card components for each major section
+        - Apply different background colors to create visual separation
+        - Add proper spacing between sections (space-y-6 or similar)
+        - Use borders or shadows to define section boundaries
+        
+        **HORIZONTAL SPACE UTILIZATION:**
+        - Input grids: 2-3 columns on desktop (grid-cols-1 md:grid-cols-2 lg:grid-cols-3)
+        - Results grids: 2-4 columns depending on content (grid-cols-1 md:grid-cols-2 lg:grid-cols-4)
+        - Action buttons: Horizontal layout on larger screens (flex-row)
+        - Never waste horizontal space with single-column layouts on desktop
+        
+        **RESPONSIVE BREAKPOINTS:**
+        - Mobile (default): Single column, stacked layout
+        - Tablet (md:): 2-column grids, side-by-side buttons
+        - Desktop (lg:): 3+ column grids, full horizontal utilization
+    </space-organization-principles>
 
     <container-hierarchy>
         - The entire tool should be wrapped in a main container.
@@ -65,6 +92,40 @@ ${CORE_LAYOUT_RULES}
             3. 'results-card': For displaying outputs, metrics, and calculations in a dashboard-like grid.
             4. 'lead-card': (If applicable) for lead capture forms.
     </container-hierarchy>
+
+    <layout-problems-to-avoid>
+        **❌ COMMON MISTAKES:**
+        
+        **Problem 1: Mixed Action/Input Sections**
+        - DON'T mix primary action buttons with input fields in the same card
+        - DON'T put lead capture forms in the footer with action buttons
+        - FIX: Separate inputs, actions, and lead capture into distinct sections
+        
+        **Problem 2: Poor Visual Separation**
+        - DON'T use the same background color for all sections
+        - DON'T rely only on padding for section separation
+        - FIX: Use different background colors (bg-white, bg-gray-50, bg-blue-50) and borders
+        
+        **Problem 3: Inefficient Space Usage**
+        - DON'T stack everything vertically on desktop
+        - DON'T use single-column layouts when you have 2-3 inputs
+        - FIX: Use grid layouts (grid-cols-2, grid-cols-3) for horizontal organization
+        
+        **Problem 4: Results Placement Issues**
+        - DON'T put empty result placeholders above action buttons
+        - DON'T mix results with inputs in the same visual section
+        - FIX: Results should be in a separate, visually distinct section at the bottom
+        
+                    **✅ CORRECT STRUCTURE:**
+            
+            1. Header Section: CardHeader with title, description, info popup
+            2. Input Section: CardContent with grid layout for inputs
+            3. Action Section: CardFooter with primary buttons (bg-gray-50)
+            4. Lead Capture Section: CardContent with lead form (bg-blue-50, border-t)
+            5. Results Section: CardContent with results grid (bg-green-50, border-t)
+            
+            Each section should have distinct styling and proper spacing.
+    </layout-problems-to-avoid>
 
     <ux-enhancement-requirements>
         🚨 **CRITICAL UX MANDATES** - These are NOT optional:
@@ -216,6 +277,14 @@ ${CORE_LAYOUT_RULES}
         - Use RadialBarChart for: "Score Gauges", "Completion Percentage", "Rating Displays"
         - Always wrap charts in ResponsiveContainer for proper sizing
         - Include XAxis, YAxis, CartesianGrid, RechartsTooltip, and Legend for complete charts
+
+        **🚨 LAYOUT ORGANIZATION RULES:**
+        - NEVER mix action buttons with input fields in the same section
+        - NEVER put results above action buttons - results should be at the bottom
+        - ALWAYS separate concerns: Header → Inputs → Actions → Lead Capture → Results
+        - ALWAYS use different background colors for visual section separation
+        - ALWAYS use grid layouts for horizontal space utilization (grid-cols-2, grid-cols-3)
+        - ALWAYS put lead capture in its own section, not mixed with primary actions
     </available-shadcn-components>
 
     <layout-examples>
