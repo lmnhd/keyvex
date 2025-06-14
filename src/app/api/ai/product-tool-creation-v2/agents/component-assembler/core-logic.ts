@@ -348,6 +348,40 @@ BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
 XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer,
 RadialBarChart, RadialBar, ComposedChart, Scatter, ScatterChart
 
+🚨 CRITICAL SELECT COMPONENT PATTERN:
+// CORRECT Select component with onValueChange (NOT onChange):
+React.createElement(Select, {
+  value: stateValue,
+  onValueChange: setStateValue,  // ✅ CORRECT - onValueChange
+  key: 'select-key'
+}, [
+  React.createElement(SelectTrigger, { 
+    'data-style-id': 'select-trigger',
+    key: 'trigger' 
+  }, React.createElement(SelectValue, { 
+    placeholder: 'Select option',
+    key: 'value' 
+  })),
+  React.createElement(SelectContent, { key: 'content' }, [
+    React.createElement(SelectItem, { 
+      value: 'option1', 
+      key: 'item1' 
+    }, 'Option 1'),
+    React.createElement(SelectItem, { 
+      value: 'option2', 
+      key: 'item2' 
+    }, 'Option 2')
+  ])
+])
+
+❌ WRONG PATTERNS TO AVOID:
+- onChange: (e) => setState(e.target.value)  // HTML pattern - WRONG for Select components!
+- onChange: setState  // Still wrong for Select components!
+
+✅ CORRECT PATTERNS FOR SELECT:
+- onValueChange: setState  // Direct setter function
+- onValueChange: (value) => setState(value)  // With parameter
+
 RULES:
 1. Start with 'use client';
 2. Use React.createElement() for ALL elements

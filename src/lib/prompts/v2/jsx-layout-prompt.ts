@@ -354,6 +354,23 @@ ${CORE_LAYOUT_RULES}
         - Slider (numeric range selection - PERFECT for amounts, percentages, ratings!)
         - Switch (toggle on/off states)
 
+        **🚨 CRITICAL SELECT COMPONENT PATTERN:**
+        ```jsx
+        <Select value={stateValue} onValueChange={setStateValue}>
+          <SelectTrigger data-style-id="select-trigger">
+            <SelectValue placeholder="Select an option" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Options</SelectLabel>
+              <SelectItem value="option1">Option 1</SelectItem>
+              <SelectItem value="option2">Option 2</SelectItem>
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        ```
+        **NEVER use onChange with Select components - ALWAYS use onValueChange!**
+
         **INTERACTIVE & FEEDBACK:**
         - Button (primary actions)
         - Progress (show completion status)
