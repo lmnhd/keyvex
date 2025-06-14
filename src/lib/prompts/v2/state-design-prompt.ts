@@ -54,6 +54,19 @@ const commonGuidelines = `
     🔥 IMPLEMENT EXACT BUSINESS FORMULAS based on the tool's specific domain!
 </critical-requirements>
 
+<select-field-handling>
+    🚨 CRITICAL: When dealing with SELECT fields that have text values, you MUST map them to numeric values:
+    
+    ❌ WRONG:
+    - "const systemCost = parseFloat(statePreferredSystemSize) * 1000;" // 'small' * 1000 = NaN!
+    
+    ✅ CORRECT:
+    - "const systemSizeKW = statePreferredSystemSize === 'small' ? 4 : statePreferredSystemSize === 'medium' ? 7 : statePreferredSystemSize === 'large' ? 10 : 0;"
+    - "const systemCost = systemSizeKW * 3000;" // $3000 per kW
+    
+    🔥 ALWAYS convert text selections to meaningful numeric values for calculations!
+</select-field-handling>
+
 <state-management-best-practices>
     ✅ Keep input state as strings for form control
     ✅ Convert to numbers ONLY during calculations
@@ -62,13 +75,16 @@ const commonGuidelines = `
     ✅ Store calculation results in separate state variables
     ✅ Handle division by zero and edge cases
     ✅ Use TypeScript for better error catching
+    ✅ Map select field text to numeric values for calculations
 </state-management-best-practices>
 
 <example-patterns>
     For SOLAR PANEL tools:
-    - Annual savings = monthlyBill * 12 * (1 - degradationRate)
+    - System size mapping: small=4kW, medium=7kW, large=10kW
+    - Annual savings = monthlyBill * 12 * 0.9 (90% grid offset)
+    - System cost = systemSizeKW * 3000 (per kW installed)
     - Payback period = systemCost / annualSavings
-    - Tax incentive = systemCost * taxCreditRate
+    - Tax incentive = systemCost * 0.30 (federal tax credit)
     
     For FINANCIAL tools:
     - ROI = (gain - cost) / cost * 100

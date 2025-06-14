@@ -348,6 +348,43 @@ BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
 XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer,
 RadialBarChart, RadialBar, ComposedChart, Scatter, ScatterChart
 
+🚨 CRITICAL CHART DATA PATTERNS:
+// Charts need data arrays with proper structure:
+React.createElement(RadialBarChart, {
+  data: [{ name: 'Savings', value: annualSavings, fill: '#10B981' }], // ✅ CONNECT STATE TO DATA
+  className: 'w-full h-64',
+  key: 'savings-chart'
+}, [
+  React.createElement(RadialBar, {
+    dataKey: 'value', // ✅ CORRECT - matches data structure
+    fill: '#10B981',
+    key: 'savings-bar'
+  }),
+  React.createElement(RechartsTooltip, { key: 'savings-tooltip' }),
+  React.createElement(Legend, { key: 'savings-legend' })
+])
+
+// For multiple data points:
+React.createElement(BarChart, {
+  data: [
+    { name: 'Current', value: currentValue },
+    { name: 'Target', value: targetValue },
+    { name: 'Best Case', value: bestCaseValue }
+  ],
+  key: 'comparison-chart'
+}, [...children])
+
+❌ WRONG CHART PATTERNS - CHARTS WITH NO DATA:
+- RadialBarChart without data prop
+- Charts with empty data arrays
+- dataKey that doesn't match data structure
+
+✅ CORRECT CHART PATTERNS:
+- Always include data prop with state values
+- dataKey must match object keys in data array
+- Use state variables for dynamic values
+- Include Tooltip and Legend components
+
 🚨 CRITICAL SELECT COMPONENT PATTERN:
 // CORRECT Select component with onValueChange (NOT onChange):
 React.createElement(Select, {

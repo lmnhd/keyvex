@@ -355,7 +355,7 @@ ${CORE_LAYOUT_RULES}
         - Switch (toggle on/off states)
 
         **🚨 CRITICAL SELECT COMPONENT PATTERN:**
-        ```jsx
+        '''jsx'''
         <Select value={stateValue} onValueChange={setStateValue}>
           <SelectTrigger data-style-id="select-trigger">
             <SelectValue placeholder="Select an option" />
@@ -368,7 +368,7 @@ ${CORE_LAYOUT_RULES}
             </SelectGroup>
           </SelectContent>
         </Select>
-        ```
+        '''end jsx'''
         **NEVER use onChange with Select components - ALWAYS use onValueChange!**
 
         **INTERACTIVE & FEEDBACK:**
