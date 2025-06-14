@@ -259,77 +259,10 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
   console.log('🎯 StateDesign: ✅ Model instance created successfully');
 
-  const systemPrompt = `You are a React state design specialist. Create state variables and functions for a React component.
-
-🚨 CRITICAL MISSION: You MUST implement the EXACT calculations and inputs specified in the brainstorm data. 
-DO NOT create generic placeholders. DO NOT use generic formulas like "numericValue * 2".
-
-CRITICAL: Generate ONLY state logic - NO JSX or HTML.
-Design TypeScript interfaces, useState hooks, and function implementations.
-Use modern React patterns and proper error handling.
-
-🚨 MANDATORY REQUIREMENTS:
-1. IMPLEMENT EXACT FORMULAS: Use the precise mathematical formulas provided in CALCULATION LOGIC
-2. MULTI-INPUT SUPPORT: Create separate state variables for each input field specified  
-3. SPECIFIC VALIDATION: Validate each input according to its business context
-4. ACTUAL BUSINESS LOGIC: No generic calculations - implement real business rules
-5. DESCRIPTIVE RESULTS: Calculate and display meaningful business insights
-
-🔢 FORMULA IMPLEMENTATION RULES:
-- Liquidity Ratio = currentAssets / currentLiabilities
-- Profit Margin = (netIncome / revenue) * 100  
-- Debt to Equity = totalLiabilities / shareholdersEquity
-- ROI = (gain - cost) / cost * 100
-- Quick Ratio = (currentAssets - inventory) / currentLiabilities
-
-🚨 TYPE SAFETY RULES:
-1. INPUT STATE: Always keep input fields as strings for form control
-2. CALCULATIONS: Convert strings to numbers ONLY when doing calculations
-3. VALIDATION: Check for NaN and invalid values BEFORE calculations
-4. RESULTS: Never store NaN values - use null or proper defaults instead
-5. DIVISION BY ZERO: Always check denominators before dividing
-
-🚨 STATE VARIABLE NAMING CONVENTION:
-- Input state variables: Use 'state' prefix (stateRevenue, stateNetIncome, stateCurrentAssets)
-- Local calculation variables: Use simple names (revenue, income, assets)
-- This prevents variable name collisions and scope issues
-
-EXAMPLE CORRECT FINANCIAL IMPLEMENTATION:
-\`\`\`typescript
-const [stateCurrentAssets, setStateCurrentAssets] = useState('');
-const [stateCurrentLiabilities, setStateCurrentLiabilities] = useState('');
-const [liquidityRatio, setLiquidityRatio] = useState<number | null>(null);
-
-const handleCalculateLiquidityRatio = () => {
-  const assets = Number(stateCurrentAssets);     // ✅ No collision!
-  const liabilities = Number(stateCurrentLiabilities); // ✅ Clear!
+  // 🚨 FIX: Import and use proper prompt from v2 directory
+  const { getStateDesignSystemPrompt } = await import('@/lib/prompts/v2/state-design-prompt');
+  const systemPrompt = getStateDesignSystemPrompt(!!editMode?.isEditMode);
   
-  if (isNaN(assets) || isNaN(liabilities) || assets < 0 || liabilities <= 0) {
-    setError('Please enter valid positive numbers for assets and liabilities');
-    setLiquidityRatio(null);
-    return;
-  }
-  
-  const ratio = assets / liabilities; // SPECIFIC FORMULA - NOT numericValue * 2
-  setLiquidityRatio(ratio);
-  setError(null);
-};
-\`\`\`
-
-❌ WRONG - GENERIC PLACEHOLDER:
-const result = numericValue * 2; // NEVER DO THIS
-
-✅ RIGHT - SPECIFIC BUSINESS FORMULA:  
-const liquidityRatio = currentAssets / currentLiabilities; // ALWAYS DO THIS
-
-Return structured JSON with:
-{
-  "stateVariables": [{"name": "...", "type": "...", "initialValue": "...", "description": "..."}],
-  "functions": [{"name": "...", "parameters": ["..."], "logic": "...", "description": "..."}],
-  "imports": ["..."],
-  "hooks": ["..."]
-}`;
-
   // 🚨 FIX: Use brainstorm data for tool description instead of fallback
   let toolDescription = tcc.userInput?.description;
   if (!toolDescription && tcc.brainstormData) {
@@ -544,237 +477,69 @@ ${(tcc.definedFunctionSignatures || tcc.functionSignatures)?.map(sig => {
   if (!content) throw new Error('No response from AI model');
 
   // AI FIRST: Parse the response
-  return parseStateResponse(content, tcc.definedFunctionSignatures || tcc.functionSignatures || []);
+  return parseStateResponse(content, tcc.definedFunctionSignatures || tcc.functionSignatures || [], tcc.brainstormData);
 }
 
 /**
  * AI FIRST: Parse AI response for state logic
  */
-function parseStateResponse(content: string, functionSignatures: DefinedFunctionSignature[]) {
-  // Try to extract JSON from AI response
+function parseStateResponse(content: string, functionSignatures: DefinedFunctionSignature[], brainstormData?: any) {
+  // Debug: Log the actual AI response for troubleshooting
+  logger.info({ 
+    contentLength: content.length,
+    contentPreview: content.substring(0, 500) + (content.length > 500 ? '...' : ''),
+    hasJsonBlock: content.includes('```json'),
+    hasVariables: content.includes('"variables"') || content.includes('"stateVariables"')
+  }, '🎯 StateDesign: [DEBUG] Raw AI response analysis');
+
+  // 🚨 FIXED: Corrected regex patterns (removed double escaping)
   const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || 
+                   content.match(/\{[\s\S]*"variables"[\s\S]*\}/) ||
                    content.match(/\{[\s\S]*"stateVariables"[\s\S]*\}/);
   
   if (jsonMatch) {
     try {
-      const parsed = JSON.parse(jsonMatch[1] || jsonMatch[0]);
-      logger.info({ hasStateVariables: !!parsed.stateVariables, hasFunctions: !!parsed.functions }, '🎯 StateDesign: AI FIRST - Using AI JSON');
+      const jsonStr = jsonMatch[1] || jsonMatch[0];
+      
+      // Debug: Log the extracted JSON string
+      logger.info({ 
+        jsonStrLength: jsonStr.length,
+        jsonStrPreview: jsonStr.substring(0, 300) + (jsonStr.length > 300 ? '...' : '')
+      }, '🎯 StateDesign: [DEBUG] Extracted JSON string');
+      
+      const parsed = JSON.parse(jsonStr);
+      
+      // ✅ AI SUCCESS: Use the AI-generated JSON
+      logger.info({ 
+        hasVariables: !!(parsed.variables || parsed.stateVariables), 
+        hasFunctions: !!parsed.functions,
+        variableCount: (parsed.variables || parsed.stateVariables || []).length,
+        functionCount: (parsed.functions || []).length
+      }, '🎯 StateDesign: ✅ AI SUCCESS - Using AI-generated JSON');
       
       return {
-        stateVariables: parsed.stateVariables || generateDefaultStateVariables(functionSignatures),
-        functions: parsed.functions || generateDefaultFunctions(functionSignatures),
+        stateVariables: parsed.variables || parsed.stateVariables || [],
+        functions: parsed.functions || [],
         imports: parsed.imports || ["import React, { useState, useEffect } from 'react';"],
         hooks: parsed.hooks || ['useState', 'useEffect']
       };
     } catch (parseError) {
-      logger.warn({ parseError: parseError instanceof Error ? parseError.message : String(parseError) }, '🎯 StateDesign: Failed to parse AI JSON');
+      logger.error({ 
+        parseError: parseError instanceof Error ? parseError.message : String(parseError),
+        jsonPreview: (jsonMatch[1] || jsonMatch[0])?.substring(0, 200) + '...'
+      }, '🚨 StateDesign: JSON parsing failed - AI generated invalid JSON');
     }
-  }
-
-  // Fallback: Generate basic structure
-  logger.warn('🎯 StateDesign: No AI JSON found, using fallback');
-  return {
-    stateVariables: generateDefaultStateVariables(functionSignatures),
-    functions: generateDefaultFunctions(functionSignatures),
-    imports: ["import React, { useState, useEffect } from 'react';"],
-    hooks: ['useState', 'useEffect']
-  };
-}
-
-/**
- * Generate default state variables when AI parsing fails
- * Updated to create specific financial input variables instead of generic ones
- */
-function generateDefaultStateVariables(functionSignatures: DefinedFunctionSignature[]) {
-  // Base financial state variables with 'state' prefix to prevent variable collision
-  // This allows local variables to safely use: revenue, netIncome, currentAssets, etc.
-  const baseVars = [
-    { name: 'stateCurrentAssets', type: 'string', initialValue: "''", description: 'Current assets input (string for form control)' },
-    { name: 'stateCurrentLiabilities', type: 'string', initialValue: "''", description: 'Current liabilities input (string for form control)' },
-    { name: 'stateNetIncome', type: 'string', initialValue: "''", description: 'Net income input (string for form control)' },
-    { name: 'stateRevenue', type: 'string', initialValue: "''", description: 'Revenue input (string for form control)' },
-    { name: 'stateTotalLiabilities', type: 'string', initialValue: "''", description: 'Total liabilities input (string for form control)' },
-    { name: 'stateShareholdersEquity', type: 'string', initialValue: "''", description: 'Shareholders equity input (string for form control)' },
-    
-    // Result state variables (no collision risk)
-    { name: 'liquidityRatio', type: 'number | null', initialValue: 'null', description: 'Calculated liquidity ratio result' },
-    { name: 'profitMargin', type: 'number | null', initialValue: 'null', description: 'Calculated profit margin result' },
-    { name: 'debtToEquityRatio', type: 'number | null', initialValue: 'null', description: 'Calculated debt to equity ratio result' },
-    
-    // Control state variables (no collision risk)
-    { name: 'error', type: 'string | null', initialValue: 'null', description: 'Current error message' },
-    { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state indicator' }
-  ];
-
-  // Add generic fallback if no specific financial functions are detected
-  const functionNames = functionSignatures.map(sig => sig.name.toLowerCase()).join(' ');
-  const hasFinancialFunctions = functionNames.includes('liquidity') || 
-                                functionNames.includes('profit') || 
-                                functionNames.includes('debt') ||
-                                functionNames.includes('ratio') ||
-                                functionNames.includes('margin');
-
-  if (!hasFinancialFunctions) {
-    // Fallback to simpler structure for non-financial tools
-    return [
-      { name: 'stateInput', type: 'string', initialValue: "''", description: 'Primary input field (always string for form control)' },
-      { name: 'result', type: 'number | null', initialValue: 'null', description: 'Calculation result (null when no calculation)' },
-      { name: 'error', type: 'string | null', initialValue: 'null', description: 'Current error message' },
-      { name: 'isLoading', type: 'boolean', initialValue: 'false', description: 'Loading state indicator' }
-    ];
-  }
-
-  return baseVars;
-}
-
-/**
- * Generate default functions when AI parsing fails
- * Updated to create specific implementations based on function names and business context
- */
-function generateDefaultFunctions(functionSignatures: DefinedFunctionSignature[]) {
-  return functionSignatures.map(sig => {
-    const safeName = sig.name.toLowerCase();
-    let logic = '';
-    
-    // Financial calculation patterns
-    if (safeName.includes('liquidity') && safeName.includes('ratio')) {
-      logic = `
-  // Liquidity Ratio = Current Assets / Current Liabilities
-  const assets = Number(stateCurrentAssets);
-  const liabilities = Number(stateCurrentLiabilities);
-  if (stateCurrentAssets === '' || stateCurrentLiabilities === '' || isNaN(assets) || isNaN(liabilities) || assets < 0 || liabilities <= 0) {
-    setError('Please enter valid positive numbers for current assets and current liabilities');
-    setLiquidityRatio(null);
-    return;
-  }
-  setError(null);
-  setIsLoading(true);
-  try {
-    const ratio = assets / liabilities;
-    setLiquidityRatio(ratio);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Calculation failed');
-    setLiquidityRatio(null);
-  } finally {
-    setIsLoading(false);
-  }`;
-    } else if (safeName.includes('profit') && safeName.includes('margin')) {
-      logic = `
-  // Profit Margin = (Net Income / Revenue) * 100
-  const income = Number(stateNetIncome);
-  const revenue = Number(stateRevenue);
-  if (stateNetIncome === '' || stateRevenue === '' || isNaN(income) || isNaN(revenue) || revenue <= 0) {
-    setError('Please enter valid numbers for net income and revenue (revenue must be positive)');
-    setProfitMargin(null);
-    return;
-  }
-  setError(null);
-  setIsLoading(true);
-  try {
-    const margin = (income / revenue) * 100;
-    setProfitMargin(margin);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Calculation failed');
-    setProfitMargin(null);
-  } finally {
-    setIsLoading(false);
-  }`;
-    } else if (safeName.includes('debt') && (safeName.includes('equity') || safeName.includes('ratio'))) {
-      logic = `
-  // Debt to Equity Ratio = Total Liabilities / Shareholders' Equity
-  const liabilities = Number(stateTotalLiabilities);
-  const equity = Number(stateShareholdersEquity);
-  if (stateTotalLiabilities === '' || stateShareholdersEquity === '' || isNaN(liabilities) || isNaN(equity) || liabilities < 0 || equity <= 0) {
-    setError('Please enter valid positive numbers for total liabilities and shareholders equity');
-    setDebtToEquityRatio(null);
-    return;
-  }
-  setError(null);
-  setIsLoading(true);
-  try {
-    const ratio = liabilities / equity;
-    setDebtToEquityRatio(ratio);
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Calculation failed');
-    setDebtToEquityRatio(null);
-  } finally {
-    setIsLoading(false);
-  }`;
-    } else if (safeName.includes('calculate') || safeName.includes('compute')) {
-      // Generic calculation pattern for other calculations
-      logic = `
-  setError(null);
-  setIsLoading(true);
-  try {
-    console.log('${sig.name} called');
-    // TODO: Implement specific ${sig.description || sig.name} calculation
-    // This should be replaced with actual business logic based on the tool requirements
-    setError('This calculation is not yet implemented');
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Calculation failed');
-  } finally {
-    setIsLoading(false);
-  }`;
-    } else if (safeName.includes('input') || safeName.includes('change')) {
-      // Determine which input field this handles based on the function name
-      const inputFieldName = safeName.includes('assets') ? 'Assets' :
-                            safeName.includes('liabilities') ? 'Liabilities' :
-                            safeName.includes('income') ? 'Income' :
-                            safeName.includes('revenue') ? 'Revenue' :
-                            safeName.includes('equity') ? 'Equity' : 'Input';
-                            
-      logic = `
-  // Safe input handling for ${inputFieldName} - always store as string
-  const value = event.target.value;
-  setInput(value); // Keep as string for form control
-  setError(null); // Clear previous errors`;
-    } else if (safeName.includes('reset') || safeName.includes('clear')) {
-      logic = `
-  // Safe reset - return to initial safe values for all financial inputs
-  setStateCurrentAssets('');
-  setStateCurrentLiabilities('');
-  setStateNetIncome('');
-  setStateRevenue('');
-  setStateTotalLiabilities('');
-  setStateShareholdersEquity('');
-  setLiquidityRatio(null);
-  setProfitMargin(null);
-  setDebtToEquityRatio(null);
-  setError(null);
-  setIsLoading(false);`;
-    } else if (safeName.includes('format') || safeName.includes('display')) {
-      logic = `
-  // Safe formatting for financial results - handle null/undefined gracefully
-  if (result === null || result === undefined) return 'No calculation performed';
-  if (typeof result !== 'number' || isNaN(result)) return 'Invalid result';
-  
-  // Format based on the type of financial metric
-  if (Math.abs(result) < 1) {
-    return result.toFixed(4); // High precision for ratios
-  } else if (Math.abs(result) > 100) {
-    return result.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   } else {
-    return result.toFixed(2) + '%'; // Percentage format
-  }`;
-    } else {
-      logic = `
-  setIsLoading(true);
-  try {
-    console.log('${sig.name} called');
-    // TODO: Implement ${sig.description || sig.name}
-    // Add specific business logic implementation here
-  } catch (error) {
-    setError(error instanceof Error ? error.message : 'Error occurred');
-  } finally {
-    setIsLoading(false);
-  }`;
-    }
+    // Log when no JSON pattern is found
+    logger.error({ 
+      contentHasJson: content.includes('json'),
+      contentHasBraces: content.includes('{') && content.includes('}'),
+      firstBraceIndex: content.indexOf('{'),
+      lastBraceIndex: content.lastIndexOf('}')
+    }, '🚨 StateDesign: No JSON pattern matched in AI response');
+  }
 
-    return {
-      name: sig.name,
-      parameters: safeName.includes('input') || safeName.includes('change') ? ['event: React.ChangeEvent<HTMLInputElement>'] : [],
-      logic,
-      description: sig.description || `Handler for ${sig.name}`
-    };
-  });
+  // 🚨 NO FALLBACKS! - Fail cleanly if AI doesn't generate proper JSON
+  logger.error('🚨 StateDesign: CRITICAL - AI failed to generate proper JSON response. NO FALLBACKS ALLOWED!');
+  throw new Error('State Design Agent failed to generate proper JSON response. AI must provide valid state logic - no fallbacks allowed.');
 } 
