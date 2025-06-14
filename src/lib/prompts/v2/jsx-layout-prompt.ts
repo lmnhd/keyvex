@@ -18,6 +18,7 @@ const CORE_LAYOUT_RULES = `
     - **Use Placeholder IDs**: Assign a unique \`"data-style-id"\` attribute to every element that needs styling. Use descriptive IDs (e.g., "main-container", "title-heading", "submit-button").
     - **🚨 CRITICAL: React Keys**: When creating multiple similar elements or mapping over arrays, you MUST provide unique \`key\` props. Use descriptive keys like \`key="input-current-assets"\`, \`key="result-liquidity-ratio"\`, etc. EVERY element that could be in an array needs a unique key to prevent React rendering errors.
     - **ShadCN/UI Components**: You MUST use component names from the provided list (e.g., 'Card', 'Button', 'Input'). Do not invent component names.
+    - **🚨 USE RICH COMPONENT LIBRARY**: Take full advantage of the extensive ShadCN component library available. Use interactive components like Slider, Switch, RadioGroup, Checkbox, Accordion, Dialog, Tooltip, Progress, etc. to create engaging and modern user experiences.
     - **Accessibility**: Include \`htmlFor\` on 'Label' components, linking them to the \`id\` of an 'Input'. Use ARIA attributes where appropriate.
     - **Semantic HTML**: Use proper HTML5 semantic elements (header, main, section, etc.).
     - **Info Popup**: Every tool MUST include the mandatory info popup structure.
@@ -155,6 +156,42 @@ ${CORE_LAYOUT_RULES}
     <data-style-id-requirements>
         - Assign descriptive IDs like 'main-container', 'input-revenue', 'submit-button', 'results-grid'.
     </data-style-id-requirements>
+
+    <available-shadcn-components>
+        **COMPREHENSIVE COMPONENT LIBRARY** - Use these components to create rich, interactive experiences:
+
+        **LAYOUT & CONTAINERS:**
+        - Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter
+        - Accordion, AccordionContent, AccordionItem, AccordionTrigger
+        - Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription
+
+        **FORM INPUTS:**
+        - Input (text, number, email, etc.)
+        - Textarea (multi-line text)
+        - Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup, SelectLabel
+        - RadioGroup, RadioGroupItem (single choice from options)
+        - Checkbox (multiple selections)
+        - Slider (numeric range selection - PERFECT for amounts, percentages, ratings!)
+        - Switch (toggle on/off states)
+
+        **INTERACTIVE & FEEDBACK:**
+        - Button (primary actions)
+        - Progress (show completion status)
+        - Tooltip, TooltipProvider, TooltipTrigger, TooltipContent (contextual help)
+
+        **VISUAL ELEMENTS:**
+        - Label (form field labels)
+        - AlertCircle, Info, Loader2 (icons from Lucide)
+
+        **USAGE EXAMPLES:**
+        - Use Slider for: "Budget Range: $1,000 - $50,000", "Risk Tolerance: 1-10", "Years of Experience: 0-30"
+        - Use Switch for: "Include Optional Calculations", "Advanced Mode", "Email Notifications"
+        - Use RadioGroup for: "Business Type", "Industry Category", "Experience Level"
+        - Use Checkbox for: "Include Marketing Costs", "Factor in Taxes", "Show Detailed Breakdown"
+        - Use Accordion for: "Advanced Options", "Help & Examples", "Detailed Explanations"
+        - Use Progress for: "Assessment Completion", "Score Visualization"
+        - Use Tooltip for: Explaining technical terms, providing examples, showing help text
+    </available-shadcn-components>
 
     <layout-examples>
         <example name="Space Utilization">

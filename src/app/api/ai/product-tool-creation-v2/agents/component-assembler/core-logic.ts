@@ -335,7 +335,15 @@ const ComponentName = () => {
 \`\`\`
 
 AVAILABLE COMPONENTS (use directly):
-React, useState, useEffect, useCallback, useMemo, Card, CardHeader, CardContent, CardTitle, Button, Input, Label, Select, Textarea, AlertCircle, Info, Loader2
+React, useState, useEffect, useCallback, useMemo, 
+Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter,
+Button, Input, Label, 
+Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectLabel, SelectSeparator,
+Textarea, RadioGroup, RadioGroupItem, Checkbox, Slider, Switch,
+Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
+Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+Progress, AlertCircle, Info, Loader2
 
 RULES:
 1. Start with 'use client';
