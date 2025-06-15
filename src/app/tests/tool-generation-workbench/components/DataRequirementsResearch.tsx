@@ -42,7 +42,7 @@ interface ResearchResults {
     priority: string;
     locationDependent: boolean;
   }>;
-  mockData: Record<string, any>;
+  dummyData: Record<string, any>;
   userInstructions: {
     summary: string;
     dataNeeded: string[];
@@ -77,7 +77,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: selectedBrainstorm.brainstormData.dataRequirements.hasExternalDataNeeds || false,
         requiredDataTypes: selectedBrainstorm.brainstormData.dataRequirements.requiredDataTypes || [],
         researchQueries: selectedBrainstorm.brainstormData.dataRequirements.researchQueries || [],
-        mockData: selectedBrainstorm.brainstormData.mockData || {},
+        dummyData: selectedBrainstorm.brainstormData.researchData || selectedBrainstorm.brainstormData.mockData || {},
         userInstructions: selectedBrainstorm.brainstormData.userDataInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -169,7 +169,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
         requiredDataTypes: researchData.requiredDataTypes || [],
         researchQueries: researchData.researchQueries || [],
-        mockData: researchData.mockData || {},
+        dummyData: researchData.researchData || researchData.mockData || {},
         userInstructions: researchData.userInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -192,7 +192,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 requiredDataTypes: researchData.requiredDataTypes,
                 researchQueries: researchData.researchQueries
               },
-              mockData: researchData.mockData,
+              researchData: researchData.researchData,
               userDataInstructions: researchData.userInstructions
             }
           };
@@ -249,7 +249,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
           ...selectedBrainstorm.brainstormData,
           // Remove existing research data to force fresh analysis
           dataRequirements: undefined,
-          mockData: undefined,
+          researchData: undefined,
           userDataInstructions: undefined
         }
       };
@@ -280,7 +280,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
         requiredDataTypes: researchData.requiredDataTypes || [],
         researchQueries: researchData.researchQueries || [],
-        mockData: researchData.mockData || {},
+        dummyData: researchData.researchData || researchData.mockData || {},
         userInstructions: researchData.userInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -300,6 +300,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
               requiredDataTypes: researchData.requiredDataTypes,
               researchQueries: researchData.researchQueries
             },
+            researchData: researchData.researchData,
             mockData: researchData.mockData,
             userDataInstructions: researchData.userInstructions
           }
@@ -610,16 +611,16 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
             <Separator />
 
-            {/* Generated Research Data */}
-            {researchResults.mockData && Object.keys(researchResults.mockData).length > 0 && (
+            {/* Generated Dummy Data */}
+            {researchResults.dummyData && Object.keys(researchResults.dummyData).length > 0 && (
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Database className="h-4 w-4" />
-                  Generated Research Data ({researchResults.mockData ? Object.keys(researchResults.mockData).length : 0} categories)
+                  Generated Dummy Data ({researchResults.dummyData ? Object.keys(researchResults.dummyData).length : 0} categories)
                 </h4>
                 <ScrollArea className="h-40">
                   <div className="space-y-3">
-                    {Object.entries(researchResults.mockData || {}).map(([category, data]) => (
+                    {Object.entries(researchResults.dummyData || {}).map(([category, data]) => (
                       <div key={category} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
