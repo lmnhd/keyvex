@@ -1155,9 +1155,45 @@ export default function ToolTesterView({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result && (testJob.result as any).updatedTcc ? (
-                    // For debug mode, try to create a preview from TCC data
-                    (() => {
+                  {(() => {
+                    // UNIFIED PREVIEW LOGIC - Fix for inconsistent rendering between tabs
+                    // Priority order: 1) Final tool result, 2) TCC assembled code, 3) TCC intermediate data
+                    
+                    let previewTool = null;
+                    let previewSource = '';
+                    
+                    // PRIORITY 1: Use final tool result if available (V2 orchestration complete)
+                    if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
+                      previewTool = testJob.result;
+                      previewSource = 'Final Tool Result';
+                    }
+                    // PRIORITY 2: Use TCC assembled component code (component assembler completed)
+                    else if (assembledCode && tccData?.assembledComponentCode) {
+                      previewTool = {
+                        id: tccData.jobId || `preview-${Date.now()}`,
+                        slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
+                        componentCode: tccData.assembledComponentCode,
+                        metadata: {
+                          id: tccData.jobId || `preview-${Date.now()}`,
+                          slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
+                          title: tccData.userInput?.description || 'Generated Tool Preview',
+                          type: tccData.userInput?.toolType || 'Tool',
+                          description: tccData.userInput?.description || 'Tool preview from TCC assembled code',
+                          userInstructions: 'This is a preview of the generated tool.',
+                          developerNotes: 'Generated from TCC assembled component code.',
+                          dependencies: ['react'],
+                          source: 'tcc-assembled-preview',
+                          version: '1.0.0-preview'
+                        },
+                        initialStyleMap: tccData.styling?.styleMap || {},
+                        currentStyleMap: tccData.styling?.styleMap || {},
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                      };
+                      previewSource = 'TCC Assembled Code';
+                    }
+                    // PRIORITY 3: Use TCC intermediate data for debug mode (agent testing)
+                    else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
                       const tccData = (testJob.result as any).updatedTcc;
                       const originalTool = (testJob.result as any).originalTool;
                       const hasAssembledCode = tccData.assembledComponentCode;
@@ -1165,8 +1201,7 @@ export default function ToolTesterView({
                       const hasJsxLayout = tccData.jsxLayout?.componentStructure;
                       
                       if (hasAssembledCode || hasStyledCode || hasJsxLayout) {
-                        // Create a complete ProductToolDefinition for preview
-                        const previewTool = {
+                        previewTool = {
                           id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                           slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
                           componentCode: hasAssembledCode || hasStyledCode || hasJsxLayout || '<div>No component code available</div>',
@@ -1187,9 +1222,31 @@ export default function ToolTesterView({
                           createdAt: originalTool?.createdAt || Date.now(),
                           updatedAt: Date.now()
                         };
-                        
-                        return (
-                          <div className="space-y-4">
+                        previewSource = `Debug Agent: ${selectedAgent}`;
+                      }
+                    }
+                    
+                    // Render the preview
+                    if (previewTool) {
+                      return (
+                        <div className="space-y-4">
+                          {/* Preview source indicator */}
+                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{previewSource}</Badge>
+                              <span className="text-sm text-gray-600">
+                                {workflowMode === 'debug' ? 'Agent testing preview' : 'Tool generation preview'}
+                              </span>
+                            </div>
+                            {workflowMode === 'debug' && (
+                              <Badge variant="secondary" className="text-xs">
+                                🔍 Debug Mode
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {/* Debug mode alert */}
+                          {workflowMode === 'debug' && previewSource.includes('Debug') && (
                             <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
                               <Eye className="h-4 w-4 text-blue-600" />
                               <AlertTitle className="text-blue-800 dark:text-blue-200">🔍 Debug Preview</AlertTitle>
@@ -1197,38 +1254,37 @@ export default function ToolTesterView({
                                 This preview is generated from the TCC data updated by the isolated agent. It shows how the tool would look with the current agent's output.
                               </AlertDescription>
                             </Alert>
-                            <CanvasTool productToolDefinition={previewTool as any} isDarkMode={isDarkMode} />
+                          )}
+                          
+                          {/* Component preview */}
+                          <CanvasTool productToolDefinition={previewTool as any} isDarkMode={isDarkMode} />
+                        </div>
+                      );
+                    }
+                    // No preview available
+                    else if (workflowMode === 'debug') {
+                      return (
+                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50">
+                          <div className="text-center">
+                            <Eye className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                            <p className="text-blue-600 font-medium">AGENT PREVIEW NOT AVAILABLE</p>
+                            <p className="text-blue-500 text-sm">This agent doesn't produce visual components.</p>
+                            <p className="text-blue-500 text-sm">Check the "Agent Results" tab for detailed output.</p>
                           </div>
-                        );
-                      } else {
-                        return (
-                          <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50">
-                            <div className="text-center">
-                              <Eye className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                              <p className="text-blue-600 font-medium">AGENT PREVIEW NOT AVAILABLE</p>
-                              <p className="text-blue-500 text-sm">This agent doesn't produce visual components.</p>
-                              <p className="text-blue-500 text-sm">Check the "Agent Results" tab for detailed output.</p>
-                            </div>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
+                          <div className="text-center">
+                            <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500 font-medium">No Component Preview Available</p>
+                            <p className="text-gray-400 text-sm">Run a tool generation to see the preview</p>
                           </div>
-                        );
-                      }
-                    })()
-                  ) : assembledCode && testJob?.result ? (
-                    <CanvasTool productToolDefinition={testJob.result} isDarkMode={isDarkMode} />
-                  ) : assembledCode ? (
-                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-red-500 bg-red-50">
-                      <div className="text-center">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                        <p className="text-red-600 font-medium">NO TOOL DATA AVAILABLE</p>
-                        <p className="text-red-500 text-sm">Component code exists but tool definition is missing.</p>
-                        <p className="text-red-500 text-sm">This indicates a problem with the generation process.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                      <p className="text-gray-500">Waiting for component code...</p>
-                    </div>
-                  )}
+                        </div>
+                      );
+                    }
+                  })()}
                 </CardContent>
               </Card>
             </TabsContent>
