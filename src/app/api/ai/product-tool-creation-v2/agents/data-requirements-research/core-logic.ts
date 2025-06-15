@@ -7,6 +7,7 @@ import { generateObject, generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 import { web_search } from '../../../../../../lib/ai/web-search';
+import { getDataRequirementsResearchSystemPrompt, getDataRequirementsResearchUserPrompt } from '@/lib/prompts/v2';
 
 // Schema for research queries that need to be executed
 const ResearchQuerySchema = z.object({
@@ -214,78 +215,8 @@ async function generateDataRequirementsAnalysis(brainstormData: BrainstormData, 
     }, 'DataRequirementsResearch: 🔍 DEBUGGING - Calculation logic details');
   }
 
-  const analysisSystemPrompt = `You are a data requirements analyst. You must analyze tool requirements and return a JSON response that matches the exact schema provided.
-
-CRITICAL: You must respond with a valid JSON object that includes ALL required fields:
-- hasExternalDataNeeds (boolean)
-- requiredDataTypes (array of strings)  
-- researchQueries (array of objects with query, domain, dataType, priority, locationDependent, expectedDataStructure)
-- researchData (object with any structure)
-- userInstructions (object with summary, dataNeeded array, format string)
-
-IMPORTANT: The userInstructions field is for the APP USER (the person creating the tool), NOT for the end users of the generated tool. These instructions should tell the app user what external data they need to provide to make their tool work properly.
-
-EXTERNAL DATA INDICATORS (set hasExternalDataNeeds=true):
-- Tax rates, regulations, compliance requirements (e.g., "federal tax rate", "state tax", "sales tax")
-- Market prices, rates, industry benchmarks (e.g., "average home price", "mortgage rates", "electricity rates")
-- Geographic data (weather, demographics, regulations) (e.g., "solar hours by state", "local regulations")
-- Industry standards, certification requirements (e.g., "building codes", "safety standards")
-- Statistical data, averages, trends (e.g., "industry averages", "market trends", "demographic data")
-- Real-time pricing, exchange rates (e.g., "current stock prices", "currency rates", "commodity prices")
-
-SELF-CONTAINED TOOLS (set hasExternalDataNeeds=false):
-- Simple mathematical calculations using only user inputs
-- User input validation and formatting
-- Basic conversions and transformations
-- Personal finance calculations with user-provided data only
-- Simple assessments and quizzes
-
-ANALYSIS APPROACH:
-1. Look for keywords indicating external data needs in calculations, formulas, and descriptions
-2. Check if calculations reference rates, averages, standards, or benchmarks not provided by user
-3. Identify if tool needs location-specific data (tax rates, regulations, market prices)
-4. Determine if calculations require industry-specific data or standards
-
-RESPONSE FORMAT: Return ONLY a valid JSON object matching the schema. Do not include any explanatory text.`;
-
-  const analysisUserPrompt = `Analyze this tool concept and return a JSON response:
-
-TOOL CONCEPT:
-Core Concept: ${brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified'}
-Value Proposition: ${brainstormData.valueProposition || 'Not specified'}
-
-KEY CALCULATIONS:
-${brainstormData.keyCalculations?.map(calc => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No specific calculations defined'}
-
-CALCULATION LOGIC:
-${brainstormData.calculationLogic?.map(logic => `- ${logic.name}: ${logic.formula}`).join('\n') || 'No detailed logic provided'}
-
-SUGGESTED INPUTS:
-${brainstormData.suggestedInputs?.map(input => `- ${input.label} (${input.type}): ${input.description || ''}`).join('\n') || 'No specific inputs defined'}
-
-INTERACTION FLOW:
-${brainstormData.interactionFlow?.map(step => `${step.step}. ${step.title}: ${step.userAction}`).join('\n') || 'No interaction flow defined'}
-
-ANALYSIS INSTRUCTIONS:
-Look carefully at the calculations, formulas, and descriptions above. If any calculation references:
-- Tax rates, regulations, or compliance data
-- Market prices, industry rates, or benchmarks  
-- Geographic/location-specific data
-- Industry standards or averages
-- Real-time pricing or external data sources
-
-Then set hasExternalDataNeeds=true and generate appropriate research queries.
-
-If all calculations can be performed using only user-provided inputs, set hasExternalDataNeeds=false.
-
-USER INSTRUCTIONS GUIDANCE:
-The userInstructions field should provide guidance to the APP USER (the person creating this tool) about what external data they need to provide to make the tool functional. Examples:
-- "You need to provide current federal and state tax rates for accurate calculations"
-- "Please obtain current electricity rates for your target market area"
-- "Industry-specific pricing data will be required for accurate estimates"
-- "Current market rates and regulatory information for your state"
-
-Do NOT provide instructions for the end users of the generated tool.`;
+  const analysisSystemPrompt = getDataRequirementsResearchSystemPrompt(false);
+  const analysisUserPrompt = getDataRequirementsResearchUserPrompt(brainstormData);
 
   // 🔍 DEBUG: Log the complete prompt being sent to AI
   console.log('\n' + '='.repeat(80));
