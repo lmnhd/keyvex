@@ -74,7 +74,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     // When brainstorm changes, check if it already has research results
     if (selectedBrainstorm?.brainstormData?.dataRequirements) {
       setResearchResults({
-        hasExternalDataNeeds: selectedBrainstorm.brainstormData.dataRequirements.hasExternalDataNeeds,
+        hasExternalDataNeeds: selectedBrainstorm.brainstormData.dataRequirements.hasExternalDataNeeds || false,
         requiredDataTypes: selectedBrainstorm.brainstormData.dataRequirements.requiredDataTypes || [],
         researchQueries: selectedBrainstorm.brainstormData.dataRequirements.researchQueries || [],
         mockData: selectedBrainstorm.brainstormData.mockData || {},
@@ -164,7 +164,18 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       }
 
       // Update local state with results
-      setResearchResults(data.dataRequirementsResearch);
+      const researchData = data.dataRequirementsResearch || {};
+      setResearchResults({
+        hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
+        requiredDataTypes: researchData.requiredDataTypes || [],
+        researchQueries: researchData.researchQueries || [],
+        mockData: researchData.mockData || {},
+        userInstructions: researchData.userInstructions || {
+          summary: 'No user instructions available',
+          dataNeeded: [],
+          format: 'Not specified'
+        }
+      });
       setShowResults(true);
 
       if (data.wasPersistedToDB) {
@@ -177,12 +188,12 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             brainstormData: {
               ...selectedBrainstorm.brainstormData,
               dataRequirements: {
-                hasExternalDataNeeds: data.dataRequirementsResearch.hasExternalDataNeeds,
-                requiredDataTypes: data.dataRequirementsResearch.requiredDataTypes,
-                researchQueries: data.dataRequirementsResearch.researchQueries
+                hasExternalDataNeeds: researchData.hasExternalDataNeeds,
+                requiredDataTypes: researchData.requiredDataTypes,
+                researchQueries: researchData.researchQueries
               },
-              mockData: data.dataRequirementsResearch.mockData,
-              userDataInstructions: data.dataRequirementsResearch.userInstructions
+              mockData: researchData.mockData,
+              userDataInstructions: researchData.userInstructions
             }
           };
           
@@ -264,7 +275,18 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       }
 
       // Update local state with new results
-      setResearchResults(data.dataRequirementsResearch);
+      const researchData = data.dataRequirementsResearch || {};
+      setResearchResults({
+        hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
+        requiredDataTypes: researchData.requiredDataTypes || [],
+        researchQueries: researchData.researchQueries || [],
+        mockData: researchData.mockData || {},
+        userInstructions: researchData.userInstructions || {
+          summary: 'No user instructions available',
+          dataNeeded: [],
+          format: 'Not specified'
+        }
+      });
       setShowResults(true);
 
       if (data.wasPersistedToDB) {
@@ -274,12 +296,12 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
           brainstormData: {
             ...selectedBrainstorm.brainstormData,
             dataRequirements: {
-              hasExternalDataNeeds: data.dataRequirementsResearch.hasExternalDataNeeds,
-              requiredDataTypes: data.dataRequirementsResearch.requiredDataTypes,
-              researchQueries: data.dataRequirementsResearch.researchQueries
+              hasExternalDataNeeds: researchData.hasExternalDataNeeds,
+              requiredDataTypes: researchData.requiredDataTypes,
+              researchQueries: researchData.researchQueries
             },
-            mockData: data.dataRequirementsResearch.mockData,
-            userDataInstructions: data.dataRequirementsResearch.userInstructions
+            mockData: researchData.mockData,
+            userDataInstructions: researchData.userInstructions
           }
         };
         
@@ -532,24 +554,24 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             <div className="space-y-3">
               <h4 className="font-medium">Data Requirements Summary</h4>
               <div className="flex items-center gap-2">
-                <Badge variant={researchResults.hasExternalDataNeeds ? "destructive" : "secondary"}>
-                  {researchResults.hasExternalDataNeeds ? 'Requires External Data' : 'Self-Contained Tool'}
+                <Badge variant={researchResults?.hasExternalDataNeeds ? "destructive" : "secondary"}>
+                  {researchResults?.hasExternalDataNeeds ? 'Requires External Data' : 'Self-Contained Tool'}
                 </Badge>
-                {researchResults.requiredDataTypes.length > 0 && (
+                {researchResults?.requiredDataTypes && researchResults.requiredDataTypes.length > 0 && (
                   <Badge variant="outline">
                     {researchResults.requiredDataTypes.length} Data Types
                   </Badge>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                {researchResults.userInstructions.summary}
+                {researchResults?.userInstructions?.summary || 'No summary available'}
               </p>
             </div>
 
             <Separator />
 
             {/* Research Queries */}
-            {researchResults.researchQueries.length > 0 && (
+            {researchResults.researchQueries && researchResults.researchQueries.length > 0 && (
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <ExternalLink className="h-4 w-4" />
@@ -561,16 +583,16 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                       <div key={index} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
-                            {query.domain}
+                            {query.domain || 'Unknown'}
                           </Badge>
                           <Badge variant={query.priority === 'high' ? 'destructive' : 'secondary'} className="text-xs">
-                            {query.priority}
+                            {query.priority || 'medium'}
                           </Badge>
                         </div>
-                        <p className="text-sm font-medium text-slate-100">{query.query}</p>
+                        <p className="text-sm font-medium text-slate-100">{query.query || 'No query specified'}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
-                            {query.dataType}
+                            {query.dataType || 'unknown'}
                           </Badge>
                           {query.locationDependent && (
                             <Badge variant="outline" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
@@ -589,22 +611,22 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             <Separator />
 
             {/* Generated Research Data */}
-            {Object.keys(researchResults.mockData).length > 0 && (
+            {researchResults.mockData && Object.keys(researchResults.mockData).length > 0 && (
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Database className="h-4 w-4" />
-                  Generated Research Data ({Object.keys(researchResults.mockData).length} categories)
+                  Generated Research Data ({researchResults.mockData ? Object.keys(researchResults.mockData).length : 0} categories)
                 </h4>
                 <ScrollArea className="h-40">
                   <div className="space-y-3">
-                    {Object.entries(researchResults.mockData).map(([category, data]) => (
+                    {Object.entries(researchResults.mockData || {}).map(([category, data]) => (
                       <div key={category} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
                             {category}
                           </Badge>
                           <span className="text-xs text-slate-300">
-                            {typeof data === 'object' ? Object.keys(data).length : 1} items
+                            {typeof data === 'object' && data ? Object.keys(data).length : 1} items
                           </span>
                         </div>
                         <pre className="text-xs bg-slate-900 text-slate-200 p-2 rounded border border-slate-600 overflow-x-auto">
@@ -622,7 +644,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             {/* User Instructions */}
             <div className="space-y-3">
               <h4 className="font-medium">User Data Instructions</h4>
-              {researchResults.userInstructions.dataNeeded.length > 0 && (
+              {researchResults.userInstructions?.dataNeeded && researchResults.userInstructions.dataNeeded.length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-2">Required Data:</p>
                   <ul className="text-sm text-muted-foreground space-y-1">
@@ -637,7 +659,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
               )}
               <div>
                 <p className="text-sm font-medium mb-1">Expected Format:</p>
-                <p className="text-sm text-muted-foreground">{researchResults.userInstructions.format}</p>
+                <p className="text-sm text-muted-foreground">{researchResults.userInstructions?.format || 'Not specified'}</p>
               </div>
             </div>
           </CardContent>
