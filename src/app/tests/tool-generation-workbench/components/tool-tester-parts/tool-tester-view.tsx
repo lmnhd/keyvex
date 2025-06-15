@@ -1257,7 +1257,11 @@ export default function ToolTesterView({
                           )}
                           
                           {/* Component preview */}
-                          <CanvasTool productToolDefinition={previewTool as any} isDarkMode={isDarkMode} />
+                          <CanvasTool 
+                            key={`${workflowMode}-${previewSource}-${previewTool?.id || previewTool?.metadata?.id || 'no-tool'}-${previewTool?.componentCode?.length || 0}`}
+                            productToolDefinition={previewTool as any} 
+                            isDarkMode={isDarkMode} 
+                          />
                         </div>
                       );
                     }

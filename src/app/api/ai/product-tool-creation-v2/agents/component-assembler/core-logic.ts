@@ -419,6 +419,43 @@ React.createElement(Select, {
 - onValueChange: setState  // Direct setter function
 - onValueChange: (value) => setState(value)  // With parameter
 
+🚨 CRITICAL SLIDER COMPONENT PATTERN:
+// CORRECT Slider component with value and onValueChange:
+React.createElement(Slider, {
+  value: [stateValue],  // ✅ CRITICAL - Must be array even for single value
+  onValueChange: (values) => setStateValue(values[0]),  // ✅ CORRECT - receives array, extract first value
+  min: 0,
+  max: 10,
+  step: 1,
+  className: 'w-full',
+  'data-style-id': 'slider-element',
+  key: 'slider-key'
+})
+
+// For range sliders (two values):
+React.createElement(Slider, {
+  value: [minValue, maxValue],  // ✅ Array with two values
+  onValueChange: (values) => {
+    setMinValue(values[0]);
+    setMaxValue(values[1]);
+  },
+  min: 0,
+  max: 100,
+  key: 'range-slider'
+})
+
+❌ WRONG SLIDER PATTERNS - WILL CAUSE INVISIBLE SLIDERS:
+- value: stateValue  // WRONG - must be array!
+- onChange: setState  // WRONG - use onValueChange!
+- No value prop  // WRONG - slider will have no position!
+- defaultValue without value  // WRONG - not reactive!
+
+✅ CORRECT SLIDER PATTERNS:
+- value: [stateValue]  // Always array, even for single value
+- onValueChange: (values) => setState(values[0])  // Extract from array
+- Include min, max, step props for proper range
+- Connect to state variables for reactivity
+
 RULES:
 1. Start with 'use client';
 2. Use React.createElement() for ALL elements
