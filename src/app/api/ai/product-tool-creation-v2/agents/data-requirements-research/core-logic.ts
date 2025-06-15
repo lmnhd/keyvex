@@ -25,10 +25,10 @@ const DataRequirementsResearchOutputSchema = z.object({
   researchQueries: z.array(ResearchQuerySchema).default([]).describe('Specific research queries to execute'),
   researchData: z.record(z.any()).default({}).describe('Generated research data organized by category'),
   userInstructions: z.object({
-    summary: z.string().min(1).describe('Summary of data requirements for the user'),
-    dataNeeded: z.array(z.string()).default([]).describe('List of data the user needs to provide'),
-    format: z.string().min(1).describe('Expected format for user data')
-  }).describe('Instructions for the user about data requirements')
+    summary: z.string().min(1).describe('Summary of what data the app user (tool creator) needs to provide to make this tool work'),
+    dataNeeded: z.array(z.string()).default([]).describe('List of specific data the app user needs to provide (e.g., "Current tax rates for your state", "Industry-specific pricing data")'),
+    format: z.string().min(1).describe('Instructions on how the app user should format or obtain the required data')
+  }).describe('Instructions for the app user (tool creator) about what data they need to provide to make the tool functional')
 });
 
 export type DataRequirementsResearchOutput = z.infer<typeof DataRequirementsResearchOutputSchema>;
@@ -223,6 +223,8 @@ CRITICAL: You must respond with a valid JSON object that includes ALL required f
 - researchData (object with any structure)
 - userInstructions (object with summary, dataNeeded array, format string)
 
+IMPORTANT: The userInstructions field is for the APP USER (the person creating the tool), NOT for the end users of the generated tool. These instructions should tell the app user what external data they need to provide to make their tool work properly.
+
 EXTERNAL DATA INDICATORS (set hasExternalDataNeeds=true):
 - Tax rates, regulations, compliance requirements (e.g., "federal tax rate", "state tax", "sales tax")
 - Market prices, rates, industry benchmarks (e.g., "average home price", "mortgage rates", "electricity rates")
@@ -274,7 +276,16 @@ Look carefully at the calculations, formulas, and descriptions above. If any cal
 
 Then set hasExternalDataNeeds=true and generate appropriate research queries.
 
-If all calculations can be performed using only user-provided inputs, set hasExternalDataNeeds=false.`;
+If all calculations can be performed using only user-provided inputs, set hasExternalDataNeeds=false.
+
+USER INSTRUCTIONS GUIDANCE:
+The userInstructions field should provide guidance to the APP USER (the person creating this tool) about what external data they need to provide to make the tool functional. Examples:
+- "You need to provide current federal and state tax rates for accurate calculations"
+- "Please obtain current electricity rates for your target market area"
+- "Industry-specific pricing data will be required for accurate estimates"
+- "Current market rates and regulatory information for your state"
+
+Do NOT provide instructions for the end users of the generated tool.`;
 
   // 🔍 DEBUG: Log the complete prompt being sent to AI
   console.log('\n' + '='.repeat(80));

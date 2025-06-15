@@ -84,10 +84,10 @@ export const BrainstormDataSchema = z.object({
   researchData: z.record(z.any()).optional().describe('Generated research data organized by category'),
   
   userDataInstructions: z.object({
-    summary: z.string().describe('Summary of data requirements for the user'),
-    dataNeeded: z.array(z.string()).describe('List of data the user needs to provide'),
-    format: z.string().describe('Expected format for user data')
-  }).optional().describe('Instructions for the user about data requirements'),
+    summary: z.string().describe('Summary of what data the app user (tool creator) needs to provide to make this tool work'),
+    dataNeeded: z.array(z.string()).describe('List of specific data the app user needs to provide (e.g., "Current tax rates for your state", "Industry-specific pricing data")'),
+    format: z.string().describe('Instructions on how the app user should format or obtain the required data')
+  }).optional().describe('Instructions for the app user (tool creator) about what data they need to provide to make the tool functional'),
 
 }).passthrough(); // Allow additional fields for future brainstorm enhancements
 
