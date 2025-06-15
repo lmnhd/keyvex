@@ -1262,7 +1262,7 @@ export default function ToolTesterView({
                           
                           {/* Component preview */}
                           <CanvasTool 
-                            key={`${workflowMode}-${previewSource}-${previewTool?.id || previewTool?.metadata?.id || 'no-tool'}-${previewTool?.componentCode?.length || 0}`}
+                            key={`canvas-tool-${previewTool?.id || previewTool?.metadata?.id || 'no-tool'}-${previewTool?.componentCode?.length || 0}-${previewTool?.componentCode?.substring(0, 100).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20) || 'no-code'}`}
                             productToolDefinition={previewTool as any} 
                             isDarkMode={isDarkMode} 
                           />

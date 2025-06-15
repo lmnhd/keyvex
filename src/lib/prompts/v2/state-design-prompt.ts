@@ -67,6 +67,41 @@ const commonGuidelines = `
     🔥 ALWAYS convert text selections to meaningful numeric values for calculations!
 </select-field-handling>
 
+<slider-field-handling>
+    🚨 CRITICAL SLIDER PATTERN - PREVENTS INVISIBLE SLIDERS:
+    
+    When an input is a SLIDER component, its state MUST be a number array, never a single number.
+    
+    ✅ CORRECT STATE FOR SLIDERS (ALWAYS ARRAYS):
+    - "name": "loanTerm", "type": "number[]", "defaultValue": [30]
+    - "name": "investmentAmount", "type": "number[]", "defaultValue": [10000]  
+    - "name": "riskTolerance", "type": "number[]", "defaultValue": [5]
+    - "name": "interestRate", "type": "number[]", "defaultValue": [3.5]
+
+    ❌ WRONG STATE FOR SLIDERS (CAUSES INVISIBLE SLIDERS):
+    - "name": "loanTerm", "type": "number", "defaultValue": 30
+    - "name": "investmentAmount", "type": "number", "defaultValue": 10000
+
+    🔥 SLIDER DETECTION RULES - Use number[] if input represents:
+    - Years, months, terms, periods (e.g., "loanTerm", "investmentPeriod")
+    - Amounts, values with ranges (e.g., "loanAmount", "investmentAmount")  
+    - Percentages, rates (e.g., "interestRate", "riskTolerance")
+    - Ratings, scores, scales (e.g., "creditScore", "satisfactionRating")
+    - Any input with min/max constraints or step values
+    
+    ✅ CORRECT SLIDER VALUE USAGE IN CALCULATIONS:
+    - "const termYears = loanTerm[0];"
+    - "const principal = investmentAmount[0];"
+    - "const rate = interestRate[0] / 100;"
+    - "const risk = riskTolerance[0];"
+    
+    ❌ WRONG SLIDER VALUE USAGE (CAUSES NaN IN CALCULATIONS):
+    - "const termYears = loanTerm;" // This is an array [30], not number 30!
+    - "const principal = investmentAmount;" // This is an array [10000], not number 10000!
+    
+    🚨 REMEMBER: Radix UI Slider components become INVISIBLE if value prop is not an array!
+</slider-field-handling>
+
 <state-management-best-practices>
     ✅ Keep input state as strings for form control
     ✅ Convert to numbers ONLY during calculations
