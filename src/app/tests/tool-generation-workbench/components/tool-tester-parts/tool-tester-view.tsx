@@ -201,15 +201,19 @@ export default function ToolTesterView({
                 onValueChange={setSelectedBrainstormId} 
                 disabled={isLoading || savedBrainstormsContent.length === 0}
               >
-                <SelectTrigger id="selectedBrainstorm">
+                <SelectTrigger id="selectedBrainstorm" className="max-w-md">
                   <SelectValue placeholder={savedBrainstormsContent.length === 0 ? "No brainstorms saved" : "Choose a brainstorm"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {savedBrainstormsContent.map(bs => (
-                    <SelectItem key={bs.id} value={bs.id}>
-                      {bs.userInput.toolType} for {bs.userInput.targetAudience} (Saved: {new Date(bs.timestamp).toLocaleDateString()})
-                    </SelectItem>
-                  ))}
+                  {savedBrainstormsContent.map(bs => {
+                    const fullText = `${bs.userInput.toolType} for ${bs.userInput.targetAudience} (Saved: ${new Date(bs.timestamp).toLocaleDateString()})`;
+                    const truncatedText = fullText.length > 100 ? fullText.substring(0, 100) + '...' : fullText;
+                    return (
+                      <SelectItem key={bs.id} value={bs.id} title={fullText}>
+                        {truncatedText}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
