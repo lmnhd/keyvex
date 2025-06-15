@@ -224,10 +224,86 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     
     if (!confirmed) return;
 
-    // Clear existing results and run fresh research
-    setResearchResults(null);
-    setShowResults(false);
-    await handleRunResearch();
+    try {
+      setIsLoading(true);
+      
+      // Clear existing results first
+      setResearchResults(null);
+      setShowResults(false);
+      
+      // Create a temporary brainstorm without research data to force fresh research
+      const brainstormForRerun = {
+        ...selectedBrainstorm,
+        brainstormData: {
+          ...selectedBrainstorm.brainstormData,
+          // Remove existing research data to force fresh analysis
+          dataRequirements: undefined,
+          mockData: undefined,
+          userDataInstructions: undefined
+        }
+      };
+      
+      toast.info('🔄 Re-running research analysis...');
+      
+      const response = await fetch('/api/ai/data-requirements-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brainstormData: brainstormForRerun.brainstormData,
+          brainstormId: selectedBrainstorm.id,
+          selectedModel,
+          userLocation,
+          persistToBrainstorm: true,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Research analysis failed');
+      }
+
+      // Update local state with new results
+      setResearchResults(data.dataRequirementsResearch);
+      setShowResults(true);
+
+      if (data.wasPersistedToDB) {
+        // Update the brainstorm in IndexedDB with new research data
+        const updatedBrainstorm = {
+          ...selectedBrainstorm,
+          brainstormData: {
+            ...selectedBrainstorm.brainstormData,
+            dataRequirements: {
+              hasExternalDataNeeds: data.dataRequirementsResearch.hasExternalDataNeeds,
+              requiredDataTypes: data.dataRequirementsResearch.requiredDataTypes,
+              researchQueries: data.dataRequirementsResearch.researchQueries
+            },
+            mockData: data.dataRequirementsResearch.mockData,
+            userDataInstructions: data.dataRequirementsResearch.userInstructions
+          }
+        };
+        
+        try {
+          const { saveLogicResultToDB } = await import('../../ui/db-utils');
+          await saveLogicResultToDB(updatedBrainstorm);
+          setSelectedBrainstorm(updatedBrainstorm);
+          await loadSavedBrainstorms();
+          
+          toast.success('✅ Research re-run complete and saved!');
+        } catch (dbError) {
+          console.error('❌ Failed to save re-run research data to IndexedDB:', dbError);
+          toast.error('Research completed but failed to save to local database');
+        }
+      } else {
+        toast.success('✅ Research re-run complete!');
+      }
+
+    } catch (error) {
+      console.error('Research re-run error:', error);
+      toast.error(error instanceof Error ? error.message : 'Research re-run failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -239,7 +315,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             Data Requirements & Research Analysis
           </CardTitle>
           <CardDescription>
-            Analyze brainstorm data to identify external data needs, conduct research via Perplexity, and generate mock data.
+            Analyze brainstorm data to identify external data needs, conduct research via Perplexity, and generate enhanced data.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -365,7 +441,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <Info className="h-5 w-5 text-blue-600" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-blue-900">Ready to Research</p>
-                  <p className="text-xs text-blue-700">This will analyze the brainstorm and conduct web research via Perplexity.</p>
+                  <p className="text-xs text-blue-700">Analyzing brainstorm → Calling Perplexity → Generating enhanced data</p>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-blue-600">
                   <DollarSign className="h-3 w-3" />
@@ -429,7 +505,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <Clock className="h-6 w-6 animate-spin text-blue-500" />
                 <div className="text-center">
                   <p className="text-sm font-medium text-blue-900">Running AI Research Analysis</p>
-                  <p className="text-xs text-blue-700">Analyzing brainstorm → Calling Perplexity → Generating mock data</p>
+                  <p className="text-xs text-blue-700">Analyzing brainstorm → Calling Perplexity → Generating enhanced data</p>
                   <p className="text-xs text-blue-600 mt-1">This may take 30-60 seconds...</p>
                 </div>
               </div>
@@ -512,12 +588,12 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
             <Separator />
 
-            {/* Mock Data Generated */}
+            {/* Generated Research Data */}
             {Object.keys(researchResults.mockData).length > 0 && (
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Database className="h-4 w-4" />
-                  Generated Mock Data ({Object.keys(researchResults.mockData).length} categories)
+                  Generated Research Data ({Object.keys(researchResults.mockData).length} categories)
                 </h4>
                 <ScrollArea className="h-40">
                   <div className="space-y-3">

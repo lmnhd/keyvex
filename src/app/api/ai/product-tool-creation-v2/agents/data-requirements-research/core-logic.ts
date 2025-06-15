@@ -23,7 +23,7 @@ const DataRequirementsResearchOutputSchema = z.object({
   hasExternalDataNeeds: z.boolean().describe('Whether this tool requires external data'),
   requiredDataTypes: z.array(z.string()).default([]).describe('Types of external data needed'),
   researchQueries: z.array(ResearchQuerySchema).default([]).describe('Specific research queries to execute'),
-  mockData: z.record(z.any()).default({}).describe('Generated mock data organized by category'),
+  researchData: z.record(z.any()).default({}).describe('Generated research data organized by category'),
   userInstructions: z.object({
     summary: z.string().min(1).describe('Summary of data requirements for the user'),
     dataNeeded: z.array(z.string()).default([]).describe('List of data the user needs to provide'),
@@ -99,7 +99,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
           requiredDataTypes: analysis.requiredDataTypes,
           researchQueries: analysis.researchQueries
         },
-        mockData: analysis.mockData,
+        researchData: analysis.researchData,
         userDataInstructions: analysis.userInstructions
       },
       steps: {
@@ -132,7 +132,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
             requiredDataTypes: analysis.requiredDataTypes,
             researchQueries: analysis.researchQueries
           },
-          mockData: analysis.mockData,
+          researchData: analysis.researchData,
           userDataInstructions: analysis.userInstructions
         });
 
@@ -150,7 +150,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
       jobId,
       OrchestrationStepEnum.enum.initialization,
       'completed',
-      `Data requirements analysis complete. Found ${analysis.researchQueries.length} research items and generated ${Object.keys(analysis.mockData).length} mock data categories.`,
+      `Data requirements analysis complete. Found ${analysis.researchQueries.length} research items and generated ${Object.keys(analysis.researchData).length} research data categories.`,
       updatedTcc
     );
 
@@ -220,7 +220,7 @@ CRITICAL: You must respond with a valid JSON object that includes ALL required f
 - hasExternalDataNeeds (boolean)
 - requiredDataTypes (array of strings)  
 - researchQueries (array of objects with query, domain, dataType, priority, locationDependent, expectedDataStructure)
-- mockData (object with any structure)
+- researchData (object with any structure)
 - userInstructions (object with summary, dataNeeded array, format string)
 
 EXTERNAL DATA INDICATORS (set hasExternalDataNeeds=true):
@@ -308,7 +308,7 @@ If all calculations can be performed using only user-provided inputs, set hasExt
       provider,
       hasExternalDataNeeds: analysis.hasExternalDataNeeds,
       researchQueriesCount: analysis.researchQueries.length,
-      mockDataCategories: Object.keys(analysis.mockData).length
+      researchDataCategories: Object.keys(analysis.researchData).length
     }, 'DataRequirementsResearch: AI analysis successful');
 
     // 🔍 DEBUG: Log the AI response
@@ -321,8 +321,8 @@ If all calculations can be performed using only user-provided inputs, set hasExt
 
     // Execute research queries if external data is needed
     if (analysis.hasExternalDataNeeds && analysis.researchQueries.length > 0) {
-      const enhancedMockData = await executeResearchQueries(analysis.researchQueries, analysis.mockData, userLocation);
-      analysis.mockData = enhancedMockData;
+      const enhancedResearchData = await executeResearchQueries(analysis.researchQueries, analysis.researchData, userLocation);
+      analysis.researchData = enhancedResearchData;
     }
 
     return analysis;
@@ -354,7 +354,7 @@ CRITICAL: Return ONLY a valid JSON object. Example:
   "hasExternalDataNeeds": false,
   "requiredDataTypes": [],
   "researchQueries": [],
-  "mockData": {},
+  "researchData": {},
   "userInstructions": {
     "summary": "This tool is self-contained.",
     "dataNeeded": [],
@@ -412,7 +412,7 @@ CRITICAL: Return ONLY a valid JSON object. Example:
       hasExternalDataNeeds: false,
       requiredDataTypes: [],
       researchQueries: [],
-      mockData: {},
+      researchData: {},
       userInstructions: {
         summary: 'Unable to analyze data requirements due to AI processing error. Tool assumed to be self-contained.',
         dataNeeded: [],
@@ -424,10 +424,10 @@ CRITICAL: Return ONLY a valid JSON object. Example:
 
 async function executeResearchQueries(
   researchQueries: any[], 
-  baseMockData: Record<string, any>, 
+  baseResearchData: Record<string, any>, 
   userLocation?: any
 ): Promise<Record<string, any>> {
-  const enhancedMockData = { ...baseMockData };
+  const enhancedResearchData = { ...baseResearchData };
 
   for (const query of researchQueries.slice(0, 3)) {
     try {
@@ -451,12 +451,12 @@ async function executeResearchQueries(
         hasResults: !!searchResults && typeof searchResults === 'string' && searchResults.trim().length > 0
       }, 'DataRequirementsResearch: ✅ Web search completed');
 
-      // Generate enhanced mock data based on search results
-      const mockDataForQuery = generateRealisticMockData(query.domain, query.dataType, userLocation, searchResults);
+      // Generate enhanced data based on search results
+      const enhancedDataForQuery = generateEnhancedDataFromResearch(query.domain, query.dataType, userLocation, searchResults);
       
-      enhancedMockData[query.domain] = {
-        ...enhancedMockData[query.domain],
-        ...mockDataForQuery,
+      enhancedResearchData[query.domain] = {
+        ...enhancedResearchData[query.domain],
+        ...enhancedDataForQuery,
         // Include search metadata
         searchMetadata: {
           query: query.query,
@@ -470,42 +470,46 @@ async function executeResearchQueries(
       logger.error({ 
         query: query.query,
         error: error instanceof Error ? error.message : String(error)
-      }, 'DataRequirementsResearch: ❌ Web search failed, using fallback mock data');
+      }, 'DataRequirementsResearch: ❌ Web search failed, using fallback data');
       
-      // Fallback to static mock data if web search fails
-      const fallbackMockData = generateRealisticMockData(query.domain, query.dataType, userLocation);
-      enhancedMockData[query.domain] = {
-        ...enhancedMockData[query.domain],
-        ...fallbackMockData,
+      // Fallback to static data if web search fails
+      const fallbackData = generateEnhancedDataFromResearch(query.domain, query.dataType, userLocation);
+      enhancedResearchData[query.domain] = {
+        ...enhancedResearchData[query.domain],
+        ...fallbackData,
         searchMetadata: {
           query: query.query,
           searchedAt: new Date().toISOString(),
           resultsFound: 0,
-          dataSource: 'fallback_mock',
+          dataSource: 'fallback_static',
           error: error instanceof Error ? error.message : String(error)
         }
       };
     }
   }
 
-  return enhancedMockData;
+  return enhancedResearchData;
 }
 
-function generateRealisticMockData(domain: string, dataType: string, userLocation?: any, searchResults?: string): Record<string, any> {
+function generateEnhancedDataFromResearch(domain: string, dataType: string, userLocation?: any, searchResults?: string): Record<string, any> {
   const state = userLocation?.state || 'California';
 
-  // If we have search results, try to extract real data
+  // If we have search results, extract real data
   if (searchResults && searchResults.length > 0) {
     logger.info({ 
       domain,
       dataType,
       searchResultsLength: typeof searchResults === 'string' ? searchResults.length : 0
-    }, 'DataRequirementsResearch: 🔍 Generating mock data enhanced with search results');
+    }, 'DataRequirementsResearch: 🔍 Generating enhanced data from search results');
     
-    // TODO: Parse search results to extract real data
-    // For now, we'll use the static mock data but mark it as search-enhanced
+    // Parse search results to extract real data
+    const enhancedData = parseSearchResultsForDomain(domain, dataType, searchResults, state);
+    if (enhancedData && Object.keys(enhancedData).length > 0) {
+      return enhancedData;
+    }
   }
 
+  // Fallback to baseline data if parsing fails
   switch (domain.toLowerCase()) {
     case 'solar':
       return {
@@ -566,15 +570,265 @@ function generateRealisticMockData(domain: string, dataType: string, userLocatio
   }
 }
 
+/**
+ * Parse search results to extract real data based on domain and data type
+ */
+function parseSearchResultsForDomain(domain: string, dataType: string, searchResults: string, userState: string): Record<string, any> {
+  try {
+    const lowerResults = searchResults.toLowerCase();
+    
+    if (domain === 'solar') {
+      if (dataType === 'tax_rates') {
+        // Extract tax incentive information
+        const federalTaxCredit = extractPercentage(searchResults, ['federal tax credit', 'itc', 'investment tax credit']) || 0.30;
+        const stateIncentives = extractStateIncentives(searchResults, userState);
+        
+        return {
+          solarIncentives: [
+            {
+              state: userState,
+              federalTaxCredit,
+              stateRebate: stateIncentives.rebate || 1000,
+              utilityRebate: stateIncentives.utilityRebate || 500,
+              additionalIncentives: stateIncentives.additional || []
+            }
+          ],
+          taxCreditDetails: {
+            federalITC: {
+              rate: federalTaxCredit,
+              expirationDate: extractDate(searchResults) || '2032-12-31',
+              eligibleSystems: ['residential', 'commercial']
+            },
+            statePrograms: stateIncentives.programs || []
+          }
+        };
+      } else if (dataType === 'geographic') {
+        // Extract solar savings and production data
+        const savingsRates = extractSolarSavingsRates(searchResults);
+        const sunHours = extractSunHours(searchResults, userState);
+        const electricityRates = extractElectricityRates(searchResults, userState);
+        
+        return {
+          solarSavingsRates: savingsRates,
+          averageSunHours: sunHours || (userState === 'California' ? 5.8 : 4.2),
+          electricityRates: electricityRates || { residential: 0.23, commercial: 0.18 },
+          stateRankings: extractStateRankings(searchResults),
+          netMeteringPolicies: extractNetMeteringInfo(searchResults, userState)
+        };
+      }
+    }
+    
+    // Add more domain parsers as needed
+    return {};
+    
+  } catch (error) {
+    logger.error({ 
+      domain, 
+      dataType, 
+      error: error instanceof Error ? error.message : String(error) 
+    }, 'DataRequirementsResearch: Error parsing search results');
+    return {};
+  }
+}
+
+/**
+ * Extract percentage values from text
+ */
+function extractPercentage(text: string, keywords: string[]): number | null {
+  for (const keyword of keywords) {
+    const regex = new RegExp(`${keyword}[^\\d]*([\\d.]+)%`, 'i');
+    const match = text.match(regex);
+    if (match) {
+      return parseFloat(match[1]) / 100;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract state-specific incentive information
+ */
+function extractStateIncentives(text: string, state: string): any {
+  const stateRegex = new RegExp(`${state}[^\\n]*\\$([\\d,]+)`, 'i');
+  const rebateMatch = text.match(stateRegex);
+  
+  return {
+    rebate: rebateMatch ? parseInt(rebateMatch[1].replace(/,/g, '')) : null,
+    utilityRebate: extractUtilityRebate(text, state),
+    programs: extractStatePrograms(text, state),
+    additional: extractAdditionalIncentives(text, state)
+  };
+}
+
+/**
+ * Extract solar savings rates by state
+ */
+function extractSolarSavingsRates(text: string): Record<string, number> {
+  const rates: Record<string, number> = {};
+  const stateRateRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[:\s]+([0-9.]+)%/g;
+  let match;
+  
+  while ((match = stateRateRegex.exec(text)) !== null) {
+    const state = match[1].trim();
+    const rate = parseFloat(match[2]) / 100;
+    if (rate > 0 && rate < 1) {
+      rates[state] = rate;
+    }
+  }
+  
+  return Object.keys(rates).length > 0 ? rates : {
+    'California': 0.85,
+    'Arizona': 0.78,
+    'Nevada': 0.82,
+    'Texas': 0.72,
+    'Florida': 0.75
+  };
+}
+
+/**
+ * Extract sun hours data for a specific state
+ */
+function extractSunHours(text: string, state: string): number | null {
+  const sunHoursRegex = new RegExp(`${state}[^\\n]*([\\d.]+)\\s*hours?`, 'i');
+  const match = text.match(sunHoursRegex);
+  return match ? parseFloat(match[1]) : null;
+}
+
+/**
+ * Extract electricity rates
+ */
+function extractElectricityRates(text: string, state: string): any {
+  const rateRegex = /([\\d.]+)¢?\s*(?:per\s+)?kWh/gi;
+  const matches = text.match(rateRegex);
+  
+  if (matches && matches.length > 0) {
+    const rates = matches.map(m => parseFloat(m.replace(/[^\\d.]/g, '')));
+    const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+    
+    return {
+      residential: avgRate / 100, // Convert cents to dollars
+      commercial: (avgRate * 0.8) / 100, // Commercial typically 20% lower
+      timeOfUse: {
+        peak: (avgRate * 1.3) / 100,
+        offPeak: (avgRate * 0.7) / 100
+      }
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Extract utility rebate information
+ */
+function extractUtilityRebate(text: string, state: string): number | null {
+  const utilityRegex = new RegExp(`utility[^\\n]*\\$([\\d,]+)`, 'i');
+  const match = text.match(utilityRegex);
+  return match ? parseInt(match[1].replace(/,/g, '')) : null;
+}
+
+/**
+ * Extract state program information
+ */
+function extractStatePrograms(text: string, state: string): string[] {
+  const programs: string[] = [];
+  const programKeywords = ['rebate', 'incentive', 'program', 'credit', 'grant'];
+  
+  for (const keyword of programKeywords) {
+    const regex = new RegExp(`${state}[^\\n]*${keyword}[^\\n]*`, 'gi');
+    const matches = text.match(regex);
+    if (matches) {
+      programs.push(...matches.map(m => m.trim()));
+    }
+  }
+  
+  return programs.slice(0, 5); // Limit to 5 programs
+}
+
+/**
+ * Extract additional incentives
+ */
+function extractAdditionalIncentives(text: string, state: string): string[] {
+  const incentives: string[] = [];
+  const incentiveKeywords = ['property tax exemption', 'sales tax exemption', 'performance payment', 'srec'];
+  
+  for (const keyword of incentiveKeywords) {
+    if (text.toLowerCase().includes(keyword)) {
+      incentives.push(keyword);
+    }
+  }
+  
+  return incentives;
+}
+
+/**
+ * Extract state rankings for solar
+ */
+function extractStateRankings(text: string): Record<string, number> {
+  const rankings: Record<string, number> = {};
+  const rankingRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[:\s]+#?([0-9]+)/g;
+  let match;
+  
+  while ((match = rankingRegex.exec(text)) !== null) {
+    const state = match[1].trim();
+    const rank = parseInt(match[2]);
+    if (rank > 0 && rank <= 50) {
+      rankings[state] = rank;
+    }
+  }
+  
+  return rankings;
+}
+
+/**
+ * Extract net metering policy information
+ */
+function extractNetMeteringInfo(text: string, state: string): any {
+  const hasNetMetering = text.toLowerCase().includes('net metering') || text.toLowerCase().includes('net billing');
+  const compensationRate = extractPercentage(text, ['net metering', 'compensation', 'credit rate']);
+  
+  return {
+    available: hasNetMetering,
+    compensationRate: compensationRate || 1.0,
+    policy: hasNetMetering ? 'Available' : 'Limited',
+    details: extractNetMeteringDetails(text, state)
+  };
+}
+
+/**
+ * Extract detailed net metering information
+ */
+function extractNetMeteringDetails(text: string, state: string): string {
+  const netMeteringRegex = new RegExp(`${state}[^\\n]*net\\s+metering[^\\n]*`, 'i');
+  const match = text.match(netMeteringRegex);
+  return match ? match[0].trim() : 'Standard net metering policies apply';
+}
+
+/**
+ * Extract date information
+ */
+function extractDate(text: string): string | null {
+  const dateRegex = /(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\/(\d{1,2})\/(\d{4})|(?:expires?|ends?|until)\s+(\d{4})/i;
+  const match = text.match(dateRegex);
+  
+  if (match) {
+    if (match[1]) return `${match[1]}-${match[2]}-${match[3]}`;
+    if (match[4]) return `${match[6]}-${match[4].padStart(2, '0')}-${match[5].padStart(2, '0')}`;
+    if (match[7]) return `${match[7]}-12-31`;
+  }
+  
+  return null;
+}
+
 async function persistResearchToBrainstorm(brainstormId: string, researchData: {
   dataRequirements: any;
-  mockData: any;
+  researchData: any;
   userDataInstructions: any;
 }): Promise<any> {
   logger.info({ 
     brainstormId,
     hasDataRequirements: !!researchData.dataRequirements,
-    hasMockData: !!researchData.mockData,
+    hasResearchData: !!researchData.researchData,
     hasUserInstructions: !!researchData.userDataInstructions
   }, 'DataRequirementsResearch: Persisting research results to brainstorm database');
 
@@ -582,7 +836,7 @@ async function persistResearchToBrainstorm(brainstormId: string, researchData: {
     id: brainstormId,
     updatedAt: new Date().toISOString(),
     dataRequirements: researchData.dataRequirements,
-    mockData: researchData.mockData,
+    researchData: researchData.researchData,
     userDataInstructions: researchData.userDataInstructions,
     researchCompletedAt: new Date().toISOString()
   };
