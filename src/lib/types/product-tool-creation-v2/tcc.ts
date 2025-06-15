@@ -81,6 +81,7 @@ export const BrainstormDataSchema = z.object({
   }).optional().describe('Analysis of external data requirements'),
 
   mockData: z.record(z.any()).optional().describe('Generated mock data organized by category'),
+  researchData: z.record(z.any()).optional().describe('Generated research data organized by category'),
   
   userDataInstructions: z.object({
     summary: z.string().describe('Summary of data requirements for the user'),
