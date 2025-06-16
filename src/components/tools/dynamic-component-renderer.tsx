@@ -475,6 +475,7 @@ export default function DynamicComponentRenderer({
       }
       
       console.log('🔍 TRACE: Modified component code for direct return');
+      console.log('🔍 TRACE: Modified code preview:', modifiedComponentCode.substring(0, 500));
       
       const componentFunction = new Function(
         'React', 'useState', 'useEffect', 'useCallback', 'useMemo',
@@ -508,6 +509,7 @@ export default function DynamicComponentRenderer({
       `);
 
       console.log('🔍 TRACE: Component function created successfully');
+      console.log('🔍 TRACE: About to execute component function with dependencies...');
 
       // Get the component with all required dependencies
       const ComponentImpl = componentFunction(

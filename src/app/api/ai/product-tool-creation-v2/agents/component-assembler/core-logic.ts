@@ -323,16 +323,23 @@ const ComponentName = () => {
     // NOT: const state = Number(state);
   };
   
-  return React.createElement('div', { 
+  return React.createElement('main', { 
     className: 'styles',
-    'data-style-id': 'element-id',
-    key: 'unique-key'
+    'data-style-id': 'main-container',
+    'data-tool-container': 'true',  // ✅ CRITICAL - Required for debug system
+    key: 'main-container'
   }, [
     React.createElement(Card, { key: 'card-main' }, 'content'),
     React.createElement(Input, { key: 'input-primary' })
   ]);
 };
 \`\`\`
+
+🚨 CRITICAL DEBUG SYSTEM REQUIREMENT:
+- The ROOT/MAIN container element MUST include 'data-tool-container': 'true'
+- This attribute enables the debug system to monitor tool interactions
+- Without this attribute, calculation events, button clicks, and state changes will NOT be logged
+- Use 'main' or 'div' as the root element with this attribute
 
 AVAILABLE COMPONENTS (use directly):
 React, useState, useEffect, useCallback, useMemo, 
@@ -455,6 +462,96 @@ React.createElement(Slider, {
 - onValueChange: (values) => setState(values[0])  // Extract from array
 - Include min, max, step props for proper range
 - Connect to state variables for reactivity
+
+🚨 CRITICAL BUTTON COMPONENT PATTERN WITH DEBUGGING:
+// DEBUGGING PATTERN (use this to verify function scope):
+React.createElement(Button, {
+  onClick: () => {
+    console.log('🎯 BUTTON CLICKED: Starting function execution...', typeof handleFunction);
+    try {
+      handleFunction();
+      console.log('🎯 BUTTON SUCCESS: Function completed successfully');
+    } catch (error) {
+      console.error('🎯 BUTTON ERROR: Function failed:', error);
+    }
+  },
+  className: 'button-styles',
+  'data-style-id': 'button-element',
+  key: 'button-key'
+}, 'Button Text')
+
+// STANDARD PATTERN (use after debugging):
+React.createElement(Button, {
+  onClick: handleFunction,  // ✅ CORRECT - Direct function reference
+  className: 'button-styles',
+  'data-style-id': 'button-element',
+  key: 'button-key'
+}, 'Button Text')
+
+// For buttons with parameters:
+React.createElement(Button, {
+  onClick: () => handleFunctionWithParams(param1, param2),  // ✅ CORRECT - Arrow function wrapper
+  className: 'button-styles',
+  key: 'button-key'
+}, 'Button Text')
+
+❌ WRONG BUTTON PATTERNS - WILL CAUSE NON-FUNCTIONAL BUTTONS:
+- onClick: 'handleFunction'  // WRONG - String instead of function!
+- onclick: handleFunction  // WRONG - lowercase 'c'!
+- onSubmit: handleFunction  // WRONG - onSubmit is for forms, not buttons!
+- Missing onClick entirely  // WRONG - Button won't respond to clicks!
+
+✅ CORRECT BUTTON PATTERNS:
+- onClick: functionName  // Direct function reference
+- onClick: () => functionName(params)  // Arrow function for parameters
+- onClick: (e) => { /* logic */ }  // Inline function with event parameter
+- Always include onClick prop for interactive buttons
+- Use descriptive key props for button identification
+
+🚨 CRITICAL BUTTON DEBUG LOGGING - MANDATORY FOR ALL BUTTONS:
+Every Button component MUST include comprehensive debug logging to diagnose click handler issues.
+Use this EXACT pattern for ALL buttons to enable proper debugging:
+
+React.createElement(Button, {
+  onClick: () => {
+    console.log('🎯 BUTTON CLICKED: [ButtonName] - Starting function execution...', typeof functionName);
+    try {
+      functionName();
+      console.log('✅ BUTTON SUCCESS: [ButtonName] - Function executed successfully');
+    } catch (error) {
+      console.error('❌ BUTTON ERROR: [ButtonName] - Function execution failed:', error);
+    }
+  },
+  className: 'button-styles-here',
+  'data-style-id': 'button-style-id',
+  key: 'button-key'
+}, 'Button Text'),
+
+// For buttons with parameters:
+React.createElement(Button, {
+  onClick: () => {
+    console.log('🎯 BUTTON CLICKED: [ButtonName] - Starting function with params...', typeof functionName);
+    try {
+      const result = functionName(param1, param2);
+      console.log('✅ BUTTON SUCCESS: [ButtonName] - Function executed successfully. Result:', result);
+    } catch (error) {
+      console.error('❌ BUTTON ERROR: [ButtonName] - Function execution failed:', error);
+    }
+  },
+  className: 'button-styles-here',
+  key: 'button-key'
+}, 'Button Text'),
+
+// This debug pattern helps identify:
+// 1. Whether button clicks are being detected
+// 2. Whether function references are valid (typeof check)
+// 3. Whether functions execute successfully or throw errors
+// 4. The actual results of function execution
+
+❌ NEVER USE THESE BUTTON PATTERNS - THEY BREAK FUNCTIONALITY:
+- onClick: "functionName"  // String instead of function reference - BROKEN!
+- onClick: functionName()  // Immediate execution instead of reference - BROKEN!
+- onclick: functionName  // Lowercase 'c' - HTML attribute, not React prop - BROKEN!
 
 RULES:
 1. Start with 'use client';

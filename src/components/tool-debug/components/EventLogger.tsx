@@ -58,7 +58,7 @@ export default function EventLogger({
   };
 
   const getEventTypeIcon = (type: DebugEventType) => {
-    const icons = {
+    const icons: Record<string, React.ReactElement> = {
       'click': <MousePointer className="h-3 w-3" />,
       'input_change': <Edit className="h-3 w-3" />,
       'state_change': <RefreshCw className="h-3 w-3" />,

@@ -351,79 +351,370 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       }
     };
 
-    // Monitor calculation-related functions that are commonly generated
-    const calculationFunctionNames = [
-      'calculateMortgage', 'calculateLoan', 'calculateROI', 'calculateInvestment',
-      'calculateBudget', 'calculateSavings', 'calculateTax', 'calculateMargin',
-      'calculateProfit', 'calculateInterest', 'calculatePayment', 'calculateTotal',
-      'calculateScore', 'calculateRatio', 'calculatePercentage', 'calculateGrowth',
-      'calculate', 'compute', 'estimate', 'analyze', 'evaluate', 'assess',
-      'handleCalculate', 'handleSubmit', 'handleGenerate', 'processCalculation',
-      'performCalculation', 'runCalculation', 'executeCalculation'
-    ];
+    // DYNAMIC FUNCTION DETECTION - Find calculation-related functions (with filtering)
+    const findCalculationFunctions = (obj: any, contextName: string) => {
+      if (!obj || typeof obj !== 'object') return;
+      
+      // CRITICAL: Exclude browser built-in functions that cause infinite loops
+      const excludedFunctions = new Set([
+        'getcomputedstyle', 'queryselector', 'queryselectorall', 'addeventlistener',
+        'removeeventlistener', 'settimeout', 'setinterval', 'requestanimationframe',
+        'getboundingclientrect', 'scrollto', 'scrollintoview', 'focus', 'blur',
+        'click', 'dispatchevent', 'createelement', 'createtextnode', 'append',
+        'remove', 'setattribute', 'getattribute', 'classlist', 'style',
+        'offsetwidth', 'offsetheight', 'clientwidth', 'clientheight'
+      ]);
+      
+      Object.getOwnPropertyNames(obj).forEach(propName => {
+        if (typeof obj[propName] === 'function') {
+          const funcName = propName.toLowerCase();
+          
+          // Skip browser built-ins and system functions
+          if (excludedFunctions.has(funcName) || 
+              funcName.startsWith('webkit') || 
+              funcName.startsWith('moz') || 
+              funcName.startsWith('ms') ||
+              funcName.includes('internal') ||
+              funcName.includes('prototype')) {
+            return;
+          }
+          
+          // Check if function name suggests it's calculation-related
+          const isCalculationFunction = 
+            funcName.includes('calculate') ||
+            funcName.includes('compute') ||
+            funcName.includes('process') ||
+            funcName.includes('estimate') ||
+            funcName.includes('analyze') ||
+            funcName.includes('evaluate') ||
+            funcName.includes('assess') ||
+            funcName.includes('determine') ||
+            funcName.includes('generate') ||
+            funcName.includes('total') ||
+            funcName.includes('sum') ||
+            funcName.includes('score') ||
+            funcName.includes('rating') ||
+            funcName.includes('ranking') ||
+            funcName.includes('budget') ||
+            funcName.includes('payment') ||
+            funcName.includes('loan') ||
+            funcName.includes('mortgage') ||
+            funcName.includes('interest') ||
+            funcName.includes('roi') ||
+            funcName.includes('profit') ||
+            funcName.includes('savings') ||
+            funcName.includes('tax') ||
+            funcName.includes('afford') ||
+            (funcName.startsWith('handle') && (
+              funcName.includes('submit') ||
+              funcName.includes('calc') ||
+              funcName.includes('run') ||
+              funcName.includes('exec')
+            ));
 
-    // Check for these functions on window object
-    calculationFunctionNames.forEach(funcName => {
-      if (typeof (window as any)[funcName] === 'function') {
-        wrapFunction(window as any, funcName, 'window');
+          if (isCalculationFunction && !originalFunctions.has(`${contextName}.${propName}`)) {
+            console.log('🎯 DEBUG: Auto-detected calculation function:', `${contextName}.${propName}`);
+            wrapFunction(obj, propName, contextName);
+          }
+        }
+      });
+    };
+
+    // Check window object for calculation functions (limited scope to avoid infinite loops)
+    // Only check specific properties that might contain user-defined calculation functions
+    const windowCalculationProps = [
+      'calculateNeighborhoodScore', 'calculateMortgage', 'calculateLoan', 'calculateROI',
+      'handleCalculate', 'handleSubmit', 'processCalculation', 'runCalculation'
+    ];
+    
+    windowCalculationProps.forEach(propName => {
+      if (typeof (window as any)[propName] === 'function' && !originalFunctions.has(`window.${propName}`)) {
+        console.log('🎯 DEBUG: Found specific calculation function on window:', propName);
+        wrapFunction(window, propName, 'window');
       }
     });
 
     // Monitor React component instances - Look for calculation functions in tool container
     const checkForCalculationFunctions = () => {
       const toolContainer = document.querySelector('[data-tool-container="true"]');
-      if (toolContainer) {
-        // Check for React fiber data that might contain function references
-        const reactFiber = (toolContainer as any)._reactInternalFiber || 
-                          (toolContainer as any).__reactInternalInstance ||
-                          (toolContainer as any)._reactInternals;
+      if (!toolContainer) return;
+
+      // ENHANCED: Check for React component instances and their methods
+      const walkReactTree = (fiber: any, depth = 0) => {
+        if (!fiber || depth > 5) return; // Prevent infinite recursion
         
-        if (reactFiber && reactFiber.memoizedProps) {
-          // Look for onClick handlers and other function props
-          const props = reactFiber.memoizedProps;
-          Object.keys(props).forEach(key => {
-            if (key.startsWith('onClick') || key.startsWith('on') || key.includes('calculate') || key.includes('handle')) {
-              if (typeof props[key] === 'function' && !originalFunctions.has(`component.${key}`)) {
-                wrapFunction(props, key, 'component');
+        try {
+          // Check component instance for calculation methods
+          if (fiber.stateNode && typeof fiber.stateNode === 'object') {
+            const instance = fiber.stateNode;
+            
+            // Look for calculation methods on the component instance
+            Object.getOwnPropertyNames(Object.getPrototypeOf(instance) || {}).forEach(methodName => {
+              if (typeof instance[methodName] === 'function') {
+                const funcName = methodName.toLowerCase();
+                const isCalculationMethod = 
+                  funcName.includes('calculate') ||
+                  funcName.includes('compute') ||
+                  funcName.includes('process') ||
+                  funcName.includes('handle') && (
+                    funcName.includes('submit') ||
+                    funcName.includes('calc') ||
+                    funcName.includes('run')
+                  );
+
+                if (isCalculationMethod && !originalFunctions.has(`component.${methodName}`)) {
+                  console.log('🎯 DEBUG: Auto-detected React component method:', methodName);
+                  wrapFunction(instance, methodName, 'component');
+                }
+              }
+            });
+          }
+
+          // Check memoizedProps for function handlers
+          if (fiber.memoizedProps) {
+            Object.keys(fiber.memoizedProps).forEach(propName => {
+              if (typeof fiber.memoizedProps[propName] === 'function') {
+                const funcName = propName.toLowerCase();
+                const isCalculationHandler = 
+                  funcName.includes('calculate') ||
+                  funcName.includes('onclick') ||
+                  funcName.includes('onsubmit') ||
+                  funcName.includes('handle');
+
+                if (isCalculationHandler && !originalFunctions.has(`props.${propName}`)) {
+                  console.log('🎯 DEBUG: Auto-detected prop handler:', propName);
+                  // Note: We can't easily wrap props functions as they're recreated on each render
+                  // But we can log their detection for debugging
+                }
+              }
+            });
+          }
+
+          // Recursively check child and sibling fibers
+          if (fiber.child) walkReactTree(fiber.child, depth + 1);
+          if (fiber.sibling) walkReactTree(fiber.sibling, depth + 1);
+        } catch (error) {
+          console.warn('🐛 DEBUG: Error walking React tree:', error);
+        }
+      };
+
+      // Start walking from the tool container's React fiber
+      const reactFiber = (toolContainer as any)._reactInternalFiber || 
+                        (toolContainer as any).__reactInternalInstance ||
+                        (toolContainer as any)._reactInternals;
+      
+      if (reactFiber) {
+        walkReactTree(reactFiber);
+      }
+
+      // ENHANCED: Look for React component functions by examining button onClick handlers
+      try {
+        const toolContainer = document.querySelector('[data-tool-container="true"]');
+        if (toolContainer) {
+          // Find all buttons that might trigger calculations
+          const buttons = toolContainer.querySelectorAll('button');
+          buttons.forEach(button => {
+            const buttonText = button.textContent?.toLowerCase() || '';
+            const isCalculationButton = ['calculate', 'compute', 'submit', 'start', 'quiz', 'run'].some(keyword => 
+              buttonText.includes(keyword)
+            );
+
+            if (isCalculationButton) {
+              // Get the React Fiber node for this button to access its props
+              const fiberKey = Object.keys(button).find(key => 
+                key.startsWith('__reactFiber') || key.startsWith('__reactInternalInstance')
+              );
+              
+              if (fiberKey) {
+                const fiber = (button as any)[fiberKey];
+                let currentFiber = fiber;
+                
+                // Walk up the fiber tree to find the component that contains calculation functions
+                while (currentFiber) {
+                  if (currentFiber.memoizedProps && currentFiber.memoizedProps.onClick) {
+                    const onClickHandler = currentFiber.memoizedProps.onClick;
+                    
+                    // Try to extract function name from the handler
+                    const handlerString = onClickHandler.toString();
+                    const calculateMatches = handlerString.match(/(\w*[Cc]alculate\w*)\s*\(/g);
+                    
+                    if (calculateMatches) {
+                      calculateMatches.forEach((match: string) => {
+                        const funcName = match.replace(/\s*\(.*$/, '');
+                        console.log('🎯 DEBUG: Found calculation function in onClick handler:', funcName);
+                        
+                        // Try to patch the function by monkey-patching the onClick handler
+                        if (!originalFunctions.has(`component.${funcName}`)) {
+                          try {
+                            // Create a wrapper for the onClick handler that logs the calculation
+                            const originalOnClick = currentFiber.memoizedProps.onClick;
+                            const wrappedOnClick = function(this: any, ...args: any[]) {
+                              console.log('🎯 DEBUG: Button click triggering calculation functions');
+                              
+                              // Log before execution
+                              const event = createEvent('function_call', {
+                                functionName: funcName,
+                                triggeredBy: 'button_click',
+                                buttonText: button.textContent,
+                                handlerDetected: true,
+                              }, 'info', `Detected calculation: ${funcName} triggered by button`);
+                              
+                              addEvent(event);
+                              
+                              // Execute original handler and capture any errors
+                              try {
+                                const result = originalOnClick.apply(this, args);
+                                
+                                // Log successful execution
+                                const successEvent = createEvent('calculation', {
+                                  functionName: funcName,
+                                  success: true,
+                                  executionComplete: true,
+                                }, 'success', `Calculation ${funcName} completed successfully`);
+                                
+                                addEvent(successEvent);
+                                
+                                return result;
+                              } catch (error) {
+                                // Log any errors during calculation
+                                const errorEvent = createEvent('error', {
+                                  functionName: funcName,
+                                  error: error instanceof Error ? error.message : String(error),
+                                  stack: error instanceof Error ? error.stack : undefined,
+                                }, 'error', `Error in calculation ${funcName}: ${error}`);
+                                
+                                addEvent(errorEvent);
+                                throw error;
+                              }
+                            };
+                            
+                            // Replace the onClick handler (this is aggressive but necessary for detection)
+                            currentFiber.memoizedProps.onClick = wrappedOnClick;
+                            originalFunctions.set(`component.${funcName}`, originalOnClick);
+                            
+                            console.log('🎯 DEBUG: Successfully wrapped onClick handler for:', funcName);
+                          } catch (wrapError) {
+                            console.warn('🐛 DEBUG: Could not wrap onClick handler:', wrapError);
+                          }
+                        }
+                      });
+                    }
+                  }
+                  
+                  currentFiber = currentFiber.return;
+                }
               }
             }
           });
         }
+      } catch (error) {
+        console.warn('🐛 DEBUG: Error checking React component functions:', error);
       }
     };
 
-    // Set up periodic monitoring for new functions
-    const functionMonitorInterval = setInterval(() => {
-      // Re-check for new calculation functions
-      calculationFunctionNames.forEach(funcName => {
-        if (typeof (window as any)[funcName] === 'function' && !originalFunctions.has(`window.${funcName}`)) {
-          wrapFunction(window as any, funcName, 'window');
+    // Initial check for functions (run once, not periodically to prevent loops)
+    setTimeout(() => {
+      // Check specific window properties once
+      windowCalculationProps.forEach(propName => {
+        if (typeof (window as any)[propName] === 'function' && !originalFunctions.has(`window.${propName}`)) {
+          console.log('🎯 DEBUG: Found calculation function on window:', propName);
+          wrapFunction(window, propName, 'window');
         }
       });
 
-      // Check React components
-      checkForCalculationFunctions();
-    }, 1000);
+      // Check React components once
+      try {
+        checkForCalculationFunctions();
+      } catch (error) {
+        console.warn('🐛 DEBUG: Error during function check:', error);
+      }
+          }, 1000); // Run once after 1 second
 
     // Immediate check
     checkForCalculationFunctions();
 
+    // ENHANCED: Monitor React state changes to detect calculation results
+    // This is more reliable than function interception for React components
+    let lastStateSnapshot: Record<string, any> = {};
+    const monitorStateChanges = () => {
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer) return;
+
+      // Look for elements that might display calculation results
+      const resultElements = toolContainer.querySelectorAll('[data-style-id*="result"], [data-style-id*="score"], [data-style-id*="total"], [data-style-id*="calculation"]');
+      const currentSnapshot: Record<string, any> = {};
+
+      resultElements.forEach((element, index) => {
+        const text = element.textContent?.trim() || '';
+        const elementKey = element.getAttribute('data-style-id') || `element-${index}`;
+        currentSnapshot[elementKey] = text;
+
+        // Check if this element's content changed and contains calculation-like data
+        if (lastStateSnapshot[elementKey] !== text && text) {
+          // Look for numeric patterns that suggest calculation results
+          const numericPattern = /(\d+(?:\.\d+)?)/g;
+          const numbers = text.match(numericPattern);
+          
+          if (numbers && numbers.length > 0) {
+            console.log('🎯 DEBUG: Detected calculation result via state change:', elementKey, text);
+            
+            const event = createEvent('calculation', {
+              elementId: elementKey,
+              resultText: text,
+              detectedNumbers: numbers,
+              changeType: 'state_update',
+              previousValue: lastStateSnapshot[elementKey] || 'empty',
+              newValue: text,
+            }, 'success', `Calculation result: ${text.substring(0, 50)}`);
+            
+            addEvent(event);
+          }
+        }
+      });
+
+      // Also monitor for any text content that changes and contains score/calculation keywords
+      const allElements = toolContainer.querySelectorAll('*');
+      allElements.forEach((element, index) => {
+        const text = element.textContent?.trim() || '';
+        const elementKey = `content-${index}`;
+        
+        if (text !== lastStateSnapshot[elementKey] && text) {
+          const hasCalculationKeywords = ['score', 'total', 'result', 'calculation', 'neighborhood'].some(keyword => 
+            text.toLowerCase().includes(keyword)
+          );
+          
+          const hasNumbers = /\d+/.test(text);
+          
+          // Skip content change detection to prevent infinite loops
+          // This was causing the debug system to detect its own event additions
+          // and create new events continuously
+        }
+        
+        currentSnapshot[elementKey] = text;
+      });
+
+      lastStateSnapshot = currentSnapshot;
+    };
+
+    // Set up state monitoring interval
+    const stateMonitorInterval = setInterval(monitorStateChanges, 500);
+
     // Monitor console for calculation results (common pattern in generated tools)
-    const originalSetState = console.log;
+    const originalConsoleLogForCalculations = console.log;
     console.log = function(...args: any[]) {
       // Look for calculation patterns in console output
       const message = args.join(' ');
-      if (message.includes('calculate') || message.includes('result') || message.includes('total')) {
+      if (message.includes('calculate') || message.includes('result') || message.includes('total') || message.includes('score')) {
         const event = createEvent('calculation', {
           consoleOutput: args,
           detectedCalculation: true,
-        }, 'info', `Calculation detected: ${message.substring(0, 100)}`);
+        }, 'info', `Calculation detected in console: ${message.substring(0, 100)}`);
         
         addEvent(event);
       }
       
       // Call original console.log
-      return originalConsoleLog.apply(console, args);
+      return originalConsoleLogForCalculations.apply(console, args);
     };
 
     // Cleanup
@@ -439,322 +730,12 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       });
 
       // Restore console.log
-      console.log = originalConsoleLog;
+      console.log = originalConsoleLogForCalculations;
 
-      // Clear interval
-      clearInterval(functionMonitorInterval);
+      // Clear intervals
+      clearInterval(stateMonitorInterval);
       
       originalFunctions.clear();
-    };
-  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
-
-  // Enhanced calculation detection via DOM observation and button analysis
-  useEffect(() => {
-    if (!isEnabled || !config.enabled) return;
-
-    console.log('🐛 DEBUG: Setting up enhanced calculation detection for toolId:', toolId);
-
-    // Monitor DOM changes that might indicate calculation results
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        // Only monitor changes within the tool container
-        const toolContainer = document.querySelector('[data-tool-container="true"]');
-        if (!toolContainer || !toolContainer.contains(mutation.target as Node)) return;
-
-        if (mutation.type === 'characterData' || mutation.type === 'childList') {
-          const target = mutation.target as HTMLElement;
-          const textContent = target.textContent || '';
-          
-          // Detect calculation result patterns
-          const calculationPatterns = [
-            /\$[\d,]+\.?\d*/g, // Currency values
-            /\d+\.?\d*%/g,     // Percentages  
-            /[\d,]+\.?\d*/g,   // Numbers with decimals
-          ];
-
-          let hasCalculationPattern = false;
-          let detectedValues: string[] = [];
-
-          calculationPatterns.forEach(pattern => {
-            const matches = textContent.match(pattern);
-            if (matches && matches.length > 0) {
-              hasCalculationPattern = true;
-              detectedValues.push(...matches);
-            }
-          });
-
-          // Look for result-related text
-          const resultKeywords = ['result', 'total', 'calculation', 'amount', 'payment', 'savings', 'profit', 'loss', 'balance', 'score', 'rating', 'percentage'];
-          const hasResultKeyword = resultKeywords.some(keyword => 
-            textContent.toLowerCase().includes(keyword)
-          );
-
-          if (hasCalculationPattern && hasResultKeyword && detectedValues.length > 0) {
-            const event = createEvent('calculation', {
-              detectedValues,
-              resultText: textContent.substring(0, 200),
-              elementType: target.tagName.toLowerCase(),
-              elementId: target.id || undefined,
-              elementClasses: target.className || undefined,
-              mutationType: mutation.type,
-            }, 'success', `Calculation result detected: ${detectedValues.join(', ')}`);
-            
-            addEvent(event);
-            console.log('🐛 DEBUG: Detected calculation result:', detectedValues, 'in element:', target);
-          }
-        }
-      });
-    });
-
-    // Start observing the tool container
-    const toolContainer = document.querySelector('[data-tool-container="true"]');
-    if (toolContainer) {
-      observer.observe(toolContainer, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        characterDataOldValue: true,
-      });
-    }
-
-    // Enhanced button click detection for calculations
-    const enhancedClickHandler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only capture events from within the tool renderer area
-      const toolContainer = document.querySelector('[data-tool-container="true"]');
-      if (!toolContainer || !toolContainer.contains(target)) return;
-
-      // Detect calculation-related buttons
-      const buttonText = target.textContent?.toLowerCase() || '';
-      const buttonId = target.id?.toLowerCase() || '';
-      const buttonClasses = target.className?.toLowerCase() || '';
-      
-      const calculationKeywords = [
-        'calculate', 'compute', 'submit', 'generate', 'analyze', 'process',
-        'total', 'estimate', 'determine', 'evaluate', 'run', 'execute',
-        'get result', 'show result', 'find', 'check'
-      ];
-
-      const isCalculationButton = calculationKeywords.some(keyword => 
-        buttonText.includes(keyword) || buttonId.includes(keyword) || buttonClasses.includes(keyword)
-      );
-
-      if (isCalculationButton && (target.tagName.toLowerCase() === 'button' || target.getAttribute('role') === 'button')) {
-        // Capture form data before calculation
-        const formData: Record<string, any> = {};
-        const inputs = toolContainer.querySelectorAll('input, select, textarea');
-        
-        inputs.forEach(input => {
-          const element = input as HTMLInputElement;
-          const name = element.name || element.id || `input-${Array.from(inputs).indexOf(input)}`;
-          
-          if (element.type === 'checkbox' || element.type === 'radio') {
-            formData[name] = element.checked;
-          } else {
-            formData[name] = element.value;
-          }
-        });
-
-        const event = createEvent('function_call', {
-          functionName: 'calculationButtonClick',
-          buttonText: target.textContent,
-          buttonId: target.id,
-          formData,
-          inputCount: inputs.length,
-          triggeredBy: 'click',
-        }, 'info', `Calculation triggered: "${buttonText}" button with ${inputs.length} inputs`);
-        
-        addEvent(event);
-
-        // Set up a delayed check for results (common pattern is immediate DOM update)
-        setTimeout(() => {
-          const resultElements = toolContainer.querySelectorAll('[class*="result"], [id*="result"], [data-style-id*="result"]');
-          if (resultElements.length > 0) {
-            resultElements.forEach(element => {
-              const text = element.textContent || '';
-              if (text.trim()) {
-                const resultEvent = createEvent('calculation', {
-                  resultElement: {
-                    text: text.substring(0, 200),
-                    elementId: element.id,
-                    elementClasses: element.className,
-                  },
-                  calculationTriggeredBy: buttonText,
-                  delayMs: 100,
-                }, 'success', `Result displayed: ${text.substring(0, 50)}`);
-                
-                addEvent(resultEvent);
-              }
-            });
-          }
-        }, 100);
-      }
-    };
-
-    // Add the enhanced click handler
-    document.addEventListener('click', enhancedClickHandler, true);
-
-    // Cleanup
-    return () => {
-      console.log('🐛 DEBUG: Cleaning up enhanced calculation detection for toolId:', toolId);
-      observer.disconnect();
-      document.removeEventListener('click', enhancedClickHandler, true);
-    };
-  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
-
-  // Enhanced calculation detection via DOM observation and button analysis
-  useEffect(() => {
-    if (!isEnabled || !config.enabled) return;
-
-    console.log('🐛 DEBUG: Setting up enhanced calculation detection for toolId:', toolId);
-
-    // Monitor DOM changes that might indicate calculation results
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        // Only monitor changes within the tool container
-        const toolContainer = document.querySelector('[data-tool-container="true"]');
-        if (!toolContainer || !toolContainer.contains(mutation.target as Node)) return;
-
-        if (mutation.type === 'characterData' || mutation.type === 'childList') {
-          const target = mutation.target as HTMLElement;
-          const textContent = target.textContent || '';
-          
-          // Detect calculation result patterns
-          const calculationPatterns = [
-            /\$[\d,]+\.?\d*/g, // Currency values
-            /\d+\.?\d*%/g,     // Percentages  
-            /[\d,]+\.?\d*/g,   // Numbers with decimals
-          ];
-
-          let hasCalculationPattern = false;
-          let detectedValues: string[] = [];
-
-          calculationPatterns.forEach(pattern => {
-            const matches = textContent.match(pattern);
-            if (matches && matches.length > 0) {
-              hasCalculationPattern = true;
-              detectedValues.push(...matches);
-            }
-          });
-
-          // Look for result-related text
-          const resultKeywords = ['result', 'total', 'calculation', 'amount', 'payment', 'savings', 'profit', 'loss', 'balance', 'score', 'rating', 'percentage'];
-          const hasResultKeyword = resultKeywords.some(keyword => 
-            textContent.toLowerCase().includes(keyword)
-          );
-
-          if (hasCalculationPattern && hasResultKeyword && detectedValues.length > 0) {
-            const event = createEvent('calculation', {
-              detectedValues,
-              resultText: textContent.substring(0, 200),
-              elementType: target.tagName.toLowerCase(),
-              elementId: target.id || undefined,
-              elementClasses: target.className || undefined,
-              mutationType: mutation.type,
-            }, 'success', `Calculation result detected: ${detectedValues.join(', ')}`);
-            
-            addEvent(event);
-            console.log('🐛 DEBUG: Detected calculation result:', detectedValues, 'in element:', target);
-          }
-        }
-      });
-    });
-
-    // Start observing the tool container
-    const toolContainer = document.querySelector('[data-tool-container="true"]');
-    if (toolContainer) {
-      observer.observe(toolContainer, {
-        childList: true,
-        subtree: true,
-        characterData: true,
-        characterDataOldValue: true,
-      });
-    }
-
-    // Enhanced button click detection for calculations
-    const enhancedClickHandler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      
-      // Only capture events from within the tool renderer area
-      const toolContainer = document.querySelector('[data-tool-container="true"]');
-      if (!toolContainer || !toolContainer.contains(target)) return;
-
-      // Detect calculation-related buttons
-      const buttonText = target.textContent?.toLowerCase() || '';
-      const buttonId = target.id?.toLowerCase() || '';
-      const buttonClasses = target.className?.toLowerCase() || '';
-      
-      const calculationKeywords = [
-        'calculate', 'compute', 'submit', 'generate', 'analyze', 'process',
-        'total', 'estimate', 'determine', 'evaluate', 'run', 'execute',
-        'get result', 'show result', 'find', 'check'
-      ];
-
-      const isCalculationButton = calculationKeywords.some(keyword => 
-        buttonText.includes(keyword) || buttonId.includes(keyword) || buttonClasses.includes(keyword)
-      );
-
-      if (isCalculationButton && (target.tagName.toLowerCase() === 'button' || target.getAttribute('role') === 'button')) {
-        // Capture form data before calculation
-        const formData: Record<string, any> = {};
-        const inputs = toolContainer.querySelectorAll('input, select, textarea');
-        
-        inputs.forEach(input => {
-          const element = input as HTMLInputElement;
-          const name = element.name || element.id || `input-${Array.from(inputs).indexOf(input)}`;
-          
-          if (element.type === 'checkbox' || element.type === 'radio') {
-            formData[name] = element.checked;
-          } else {
-            formData[name] = element.value;
-          }
-        });
-
-        const event = createEvent('function_call', {
-          functionName: 'calculationButtonClick',
-          buttonText: target.textContent,
-          buttonId: target.id,
-          formData,
-          inputCount: inputs.length,
-          triggeredBy: 'click',
-        }, 'info', `Calculation triggered: "${buttonText}" button with ${inputs.length} inputs`);
-        
-        addEvent(event);
-
-        // Set up a delayed check for results (common pattern is immediate DOM update)
-        setTimeout(() => {
-          const resultElements = toolContainer.querySelectorAll('[class*="result"], [id*="result"], [data-style-id*="result"]');
-          if (resultElements.length > 0) {
-            resultElements.forEach(element => {
-              const text = element.textContent || '';
-              if (text.trim()) {
-                const resultEvent = createEvent('calculation', {
-                  resultElement: {
-                    text: text.substring(0, 200),
-                    elementId: element.id,
-                    elementClasses: element.className,
-                  },
-                  calculationTriggeredBy: buttonText,
-                  delayMs: 100,
-                }, 'success', `Result displayed: ${text.substring(0, 50)}`);
-                
-                addEvent(resultEvent);
-              }
-            });
-          }
-        }, 100);
-      }
-    };
-
-    // Add the enhanced click handler
-    document.addEventListener('click', enhancedClickHandler, true);
-
-    // Cleanup
-    return () => {
-      console.log('🐛 DEBUG: Cleaning up enhanced calculation detection for toolId:', toolId);
-      observer.disconnect();
-      document.removeEventListener('click', enhancedClickHandler, true);
     };
   }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
 

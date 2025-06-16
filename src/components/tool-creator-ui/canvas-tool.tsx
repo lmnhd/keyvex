@@ -102,7 +102,7 @@ export function CanvasTool({
 
   if (productToolDefinition && productToolDefinition.componentCode) {
     return (
-      <div className={`p-6 ${className}`} data-tool-container="true" data-tool-id={productToolDefinition.id}>
+      <div className={`p-6 ${className}`} data-tool-id={productToolDefinition.id}>
         <DynamicComponentRenderer
           componentCode={productToolDefinition.componentCode}
           metadata={{
