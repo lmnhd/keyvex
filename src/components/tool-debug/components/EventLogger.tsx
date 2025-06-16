@@ -53,13 +53,13 @@ export default function EventLogger({
   const getSeverityDisplay = (severity: DebugSeverity) => {
     switch (severity) {
       case 'error':
-        return { icon: '❌', color: 'bg-red-100 text-red-800 border-red-200' };
+        return { icon: '❌', color: 'bg-red-500 text-white border-red-600' };
       case 'warning':
-        return { icon: '⚠️', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' };
+        return { icon: '⚠️', color: 'bg-yellow-500 text-white border-yellow-600' };
       case 'success':
-        return { icon: '✅', color: 'bg-green-100 text-green-800 border-green-200' };
+        return { icon: '✅', color: 'bg-green-500 text-white border-green-600' };
       default:
-        return { icon: 'ℹ️', color: 'bg-blue-100 text-blue-800 border-blue-200' };
+        return { icon: 'ℹ️', color: 'bg-blue-500 text-white border-blue-600' };
     }
   };
 
@@ -222,7 +222,7 @@ export default function EventLogger({
                 >
                   <div className="flex items-start gap-2">
                     {/* Timestamp */}
-                    <span className="text-gray-500 font-mono text-xs shrink-0">
+                    <span className="text-gray-300 font-mono text-xs shrink-0">
                       {formatTimestamp(event.timestamp)}
                     </span>
                     
@@ -245,7 +245,7 @@ export default function EventLogger({
                   {/* Additional data (expandable for complex events) */}
                   {Object.keys(event.data).length > 0 && (
                     <details className="mt-1 ml-4">
-                      <summary className="text-gray-500 cursor-pointer text-xs hover:text-gray-700">
+                      <summary className="text-gray-200 cursor-pointer text-xs hover:text-white">
                         View details
                       </summary>
                       <pre className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto">
@@ -256,7 +256,7 @@ export default function EventLogger({
                   
                   {/* Element info for UI events */}
                   {event.elementInfo && (
-                    <div className="mt-1 ml-4 text-xs text-gray-600">
+                    <div className="mt-1 ml-4 text-xs text-gray-200">
                       Element: {event.elementInfo.tagName.toLowerCase()}
                       {event.elementInfo.id && `#${event.elementInfo.id}`}
                       {event.elementInfo.className && ` .${event.elementInfo.className.split(' ').join('.')}`}
