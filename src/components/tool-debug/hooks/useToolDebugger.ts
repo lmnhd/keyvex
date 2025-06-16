@@ -16,215 +16,272 @@ const DEFAULT_CONFIG: DebugConfig = {
   enabled: true,
   eventTypes: ['click', 'input_change', 'state_change', 'function_call', 'error', 'calculation'],
   maxEvents: 1000,
-  autoScroll: true,
-  showTimestamps: true,
-  highlightErrors: true,
-  collectPerformance: true,
+  captureStackTrace: true,
+  enablePerformanceMonitoring: true,
   exportEnabled: true,
-};
-
-// Default state
-const DEFAULT_STATE: ToolState = {
-  variables: {},
-  errors: [],
-  performance: {
-    renderCount: 0,
-    lastRenderTime: 0,
-    averageRenderTime: 0,
-    eventCount: 0,
-    errorCount: 0,
-    warningCount: 0,
-  },
-  lastActivity: Date.now(),
+  autoStart: true,
 };
 
 export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   const [events, setEvents] = useState<DebugEvent[]>([]);
-  const [currentState, setCurrentState] = useState<ToolState>(DEFAULT_STATE);
+  const [currentState, setCurrentState] = useState<ToolState>({
+    variables: {},
+    lastUpdated: Date.now(),
+    performance: {
+      renderCount: 0,
+      eventCount: 0,
+      errorCount: 0,
+      warningCount: 0,
+      memoryUsage: 0,
+      lastRenderTime: Date.now(),
+    },
+  });
   const [config, setConfig] = useState<DebugConfig>(DEFAULT_CONFIG);
-  const sessionStartTime = useRef<number>(Date.now());
-  const eventCounter = useRef<number>(0);
+  const [isEnabled, setIsEnabled] = useState(true);
+  
+  const eventsRef = useRef<DebugEvent[]>([]);
+  const performanceRef = useRef<PerformanceMetrics>(currentState.performance);
 
-  // Generate unique event ID
-  const generateEventId = useCallback(() => {
-    eventCounter.current += 1;
-    return `${toolId}-event-${eventCounter.current}-${Date.now()}`;
-  }, [toolId]);
-
-  // Log a new debug event
-  const logEvent = useCallback((eventData: Omit<DebugEvent, 'id' | 'timestamp'>) => {
-    if (!config.enabled) return;
-    if (!config.eventTypes.includes(eventData.type)) return;
-
-    const event: DebugEvent = {
-      ...eventData,
-      id: generateEventId(),
+  // Create a debug event
+  const createEvent = useCallback((
+    type: DebugEventType,
+    data: any,
+    severity: 'info' | 'warning' | 'error' = 'info',
+    source?: string
+  ): DebugEvent => {
+    return {
+      id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type,
       timestamp: Date.now(),
+      data,
+      severity,
+      source: source || 'tool',
+      stackTrace: config.captureStackTrace ? new Error().stack : undefined,
     };
+  }, [config.captureStackTrace]);
 
+  // Add event to the queue
+  const addEvent = useCallback((event: DebugEvent) => {
+    if (!config.enabled) return;
+    
     setEvents(prevEvents => {
       const newEvents = [...prevEvents, event];
-      
-      // Enforce max events limit
+      // Limit events to prevent memory issues
       if (newEvents.length > config.maxEvents) {
-        return newEvents.slice(-config.maxEvents);
+        newEvents.splice(0, newEvents.length - config.maxEvents);
       }
-      
+      eventsRef.current = newEvents;
       return newEvents;
     });
 
-    // Update state based on event type
+    // Update performance metrics
     setCurrentState(prevState => {
-      const newState = { ...prevState };
-      newState.lastActivity = event.timestamp;
-      
-      // Update performance metrics
-      newState.performance = {
+      const newPerformance = {
         ...prevState.performance,
         eventCount: prevState.performance.eventCount + 1,
+        errorCount: event.severity === 'error' ? prevState.performance.errorCount + 1 : prevState.performance.errorCount,
+        warningCount: event.severity === 'warning' ? prevState.performance.warningCount + 1 : prevState.performance.warningCount,
+      };
+      performanceRef.current = newPerformance;
+      
+      return {
+        ...prevState,
+        performance: newPerformance,
+        lastUpdated: Date.now(),
+      };
+    });
+  }, [config.enabled, config.maxEvents]);
+
+  // GLOBAL EVENT CAPTURE - Monitor the entire document for events
+  useEffect(() => {
+    if (!isEnabled || !config.enabled) return;
+
+    console.log('🐛 DEBUG: Starting global event monitoring for toolId:', toolId);
+
+    // Create event listeners that capture events globally
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only capture events from within the tool renderer area
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer || !toolContainer.contains(target)) return;
+
+      const event = createEvent('click', {
+        elementType: target.tagName.toLowerCase(),
+        elementId: target.id || undefined,
+        elementClass: target.className || undefined,
+        elementText: target.textContent?.substring(0, 50) || undefined,
+        coordinates: { x: e.clientX, y: e.clientY },
+        button: e.button,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+      }, 'info', 'global-click');
+      
+      addEvent(event);
+      console.log('🐛 DEBUG: Captured click event:', event);
+    };
+
+    const handleGlobalInput = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      
+      // Only capture events from within the tool renderer area
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer || !toolContainer.contains(target)) return;
+
+      const event = createEvent('input_change', {
+        elementType: target.type || target.tagName.toLowerCase(),
+        elementId: target.id || undefined,
+        elementName: target.name || undefined,
+        value: target.value,
+        checked: target.checked,
+        selectedIndex: (target as HTMLSelectElement).selectedIndex,
+      }, 'info', 'global-input');
+      
+      addEvent(event);
+      console.log('🐛 DEBUG: Captured input event:', event);
+    };
+
+    const handleGlobalChange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      
+      // Only capture events from within the tool renderer area
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer || !toolContainer.contains(target)) return;
+
+      const event = createEvent('input_change', {
+        elementType: target.type || target.tagName.toLowerCase(),
+        elementId: target.id || undefined,
+        elementName: target.name || undefined,
+        value: target.value,
+        checked: target.checked,
+        selectedIndex: (target as HTMLSelectElement).selectedIndex,
+        eventType: 'change',
+      }, 'info', 'global-change');
+      
+      addEvent(event);
+      console.log('🐛 DEBUG: Captured change event:', event);
+    };
+
+    // Add global event listeners
+    document.addEventListener('click', handleGlobalClick, true); // Use capture phase
+    document.addEventListener('input', handleGlobalInput, true);
+    document.addEventListener('change', handleGlobalChange, true);
+
+    // Cleanup
+    return () => {
+      console.log('🐛 DEBUG: Cleaning up global event monitoring for toolId:', toolId);
+      document.removeEventListener('click', handleGlobalClick, true);
+      document.removeEventListener('input', handleGlobalInput, true);
+      document.removeEventListener('change', handleGlobalChange, true);
+    };
+  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
+
+  // API for manually logging events (can be called from components)
+  const logEvent = useCallback((type: DebugEventType, data: any, severity: 'info' | 'warning' | 'error' = 'info') => {
+    const event = createEvent(type, data, severity, 'manual');
+    addEvent(event);
+  }, [createEvent, addEvent]);
+
+  // State variable tracking
+  const trackStateVariable = useCallback((name: string, value: any, type?: string) => {
+    setCurrentState(prevState => {
+      const newVariables = {
+        ...prevState.variables,
+        [name]: {
+          value,
+          type: type || typeof value,
+          lastUpdated: Date.now(),
+          changeCount: (prevState.variables[name]?.changeCount || 0) + 1,
+        },
       };
 
-      switch (event.type) {
-        case 'error':
-          newState.errors = [...prevState.errors, event as any];
-          newState.performance.errorCount += 1;
-          break;
-          
-        case 'state_change':
-          if (event.data?.variableName) {
-            const varName = event.data.variableName;
-            const existingVar = prevState.variables[varName];
-            newState.variables = {
-              ...prevState.variables,
-              [varName]: {
-                value: event.data.newValue,
-                type: typeof event.data.newValue,
-                lastChanged: event.timestamp,
-                changeCount: (existingVar?.changeCount || 0) + 1,
-              },
-            };
-          }
-          break;
-          
-        case 'render':
-          if (config.collectPerformance && event.data?.renderTime) {
-            const renderCount = prevState.performance.renderCount + 1;
-            const totalTime = (prevState.performance.averageRenderTime * prevState.performance.renderCount) + event.data.renderTime;
-            newState.performance = {
-              ...prevState.performance,
-              renderCount,
-              lastRenderTime: event.data.renderTime,
-              averageRenderTime: totalTime / renderCount,
-            };
-          }
-          break;
-          
-        default:
-          if (event.severity === 'warning') {
-            newState.performance.warningCount += 1;
-          }
-          break;
-      }
+      // Log state change event
+      const event = createEvent('state_change', {
+        variableName: name,
+        oldValue: prevState.variables[name]?.value,
+        newValue: value,
+        type: type || typeof value,
+      }, 'info', 'state-tracker');
       
-      return newState;
+      addEvent(event);
+
+      return {
+        ...prevState,
+        variables: newVariables,
+        lastUpdated: Date.now(),
+      };
     });
+  }, [createEvent, addEvent]);
 
-    // Auto-scroll if enabled (this would be handled by the UI components)
-    if (config.autoScroll) {
-      setTimeout(() => {
-        const debugContainer = document.querySelector('[data-debug-events-container]');
-        if (debugContainer) {
-          debugContainer.scrollTop = debugContainer.scrollHeight;
-        }
-      }, 100);
-    }
-  }, [config, generateEventId]);
-
-  // Clear all events and reset state
+  // Clear all events
   const clearEvents = useCallback(() => {
     setEvents([]);
-    setCurrentState({
-      ...DEFAULT_STATE,
-      lastActivity: Date.now(),
-    });
-    eventCounter.current = 0;
-  }, []);
+    eventsRef.current = [];
+    
+    const clearEvent = createEvent('system', {
+      action: 'clear_events',
+      timestamp: Date.now(),
+    }, 'info', 'system');
+    
+    setEvents([clearEvent]);
+    eventsRef.current = [clearEvent];
+  }, [createEvent]);
 
-  // Export current session data
+  // Export session data
   const exportSession = useCallback((): DebugSession => {
-    const now = Date.now();
     return {
-      sessionId: `${toolId}-session-${sessionStartTime.current}`,
       toolId,
-      toolMetadata: {
-        title: toolId,
-        type: 'generated-tool',
-        generatedAt: sessionStartTime.current,
-      },
-      startTime: sessionStartTime.current,
-      endTime: now,
-      events,
+      sessionStart: events[0]?.timestamp || Date.now(),
+      sessionEnd: Date.now(),
+      events: eventsRef.current,
       finalState: currentState,
       config,
-      userAgent: typeof window !== 'undefined' ? window.navigator.userAgent : 'unknown',
-      browserInfo: typeof window !== 'undefined' ? {
-        viewport: {
-          width: window.innerWidth,
-          height: window.innerHeight,
-        },
-        browser: navigator.userAgent.includes('Chrome') ? 'Chrome' : 
-                navigator.userAgent.includes('Firefox') ? 'Firefox' : 
-                navigator.userAgent.includes('Safari') ? 'Safari' : 'Unknown',
-        version: 'unknown',
-      } : undefined,
+      metadata: {
+        totalEvents: eventsRef.current.length,
+        errorCount: currentState.performance.errorCount,
+        warningCount: currentState.performance.warningCount,
+        sessionDuration: Date.now() - (events[0]?.timestamp || Date.now()),
+      },
     };
   }, [toolId, events, currentState, config]);
 
   // Update configuration
   const updateConfig = useCallback((newConfig: Partial<DebugConfig>) => {
     setConfig(prevConfig => ({ ...prevConfig, ...newConfig }));
-  }, []);
-
-  // Cleanup old events periodically
-  useEffect(() => {
-    const cleanup = setInterval(() => {
-      const now = Date.now();
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-      
-      setEvents(prevEvents => 
-        prevEvents.filter(event => now - event.timestamp < maxAge)
-      );
-    }, 60 * 60 * 1000); // Run every hour
-
-    return () => clearInterval(cleanup);
-  }, []);
-
-  // Performance monitoring
-  useEffect(() => {
-    if (!config.collectPerformance) return;
-
-    const startTime = performance.now();
     
-    return () => {
-      const renderTime = performance.now() - startTime;
-      logEvent({
-        type: 'render',
-        severity: 'info',
-        message: `Component render completed in ${renderTime.toFixed(2)}ms`,
-        data: { renderTime },
-      });
-    };
-  });
+    const configEvent = createEvent('system', {
+      action: 'config_update',
+      changes: newConfig,
+    }, 'info', 'config');
+    
+    addEvent(configEvent);
+  }, [createEvent, addEvent]);
+
+  // Initialize
+  useEffect(() => {
+    if (config.autoStart) {
+      const initEvent = createEvent('system', {
+        action: 'debugger_start',
+        toolId,
+        config,
+      }, 'info', 'system');
+      
+      addEvent(initEvent);
+      setIsEnabled(true);
+    }
+  }, [toolId, config.autoStart, createEvent, addEvent]);
 
   return {
     events,
     currentState,
     config,
+    isEnabled,
     logEvent,
+    trackStateVariable,
     clearEvents,
     exportSession,
     updateConfig,
-    isEnabled: config.enabled,
   };
 }
 

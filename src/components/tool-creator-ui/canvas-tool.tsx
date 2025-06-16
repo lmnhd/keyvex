@@ -102,7 +102,7 @@ export function CanvasTool({
 
   if (productToolDefinition && productToolDefinition.componentCode) {
     return (
-      <div className={`p-6 ${className}`}>
+      <div className={`p-6 ${className}`} data-tool-container="true" data-tool-id={productToolDefinition.id}>
         <DynamicComponentRenderer
           componentCode={productToolDefinition.componentCode}
           metadata={{
@@ -113,7 +113,7 @@ export function CanvasTool({
           }}
           currentStyleMap={productToolDefinition.currentStyleMap}
           onValidationIssues={onValidationIssues}
-          isLoading={isGenerating}
+          isLoading={false}
           onError={(error: Error) => console.error('Canvas render error:', error)}
         />
       </div>
