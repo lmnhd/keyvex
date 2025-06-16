@@ -16,17 +16,18 @@ const DEFAULT_CONFIG: DebugConfig = {
   enabled: true,
   eventTypes: ['click', 'input_change', 'state_change', 'function_call', 'error', 'calculation'],
   maxEvents: 1000,
-  captureStackTrace: true,
-  enablePerformanceMonitoring: true,
+  autoScroll: true,
+  showTimestamps: true,
+  highlightErrors: true,
+  collectPerformance: true,
   exportEnabled: true,
-  autoStart: true,
 };
 
 export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   const [events, setEvents] = useState<DebugEvent[]>([]);
   const [currentState, setCurrentState] = useState<ToolState>({
     variables: {},
-    lastUpdated: Date.now(),
+    errors: [],
     performance: {
       renderCount: 0,
       eventCount: 0,
@@ -34,7 +35,9 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       warningCount: 0,
       memoryUsage: 0,
       lastRenderTime: Date.now(),
+      averageRenderTime: 0,
     },
+    lastActivity: Date.now(),
   });
   const [config, setConfig] = useState<DebugConfig>(DEFAULT_CONFIG);
   const [isEnabled, setIsEnabled] = useState(true);
@@ -46,8 +49,8 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   const createEvent = useCallback((
     type: DebugEventType,
     data: any,
-    severity: 'info' | 'warning' | 'error' = 'info',
-    source?: string
+    severity: 'info' | 'warning' | 'error' | 'success' = 'info',
+    message?: string
   ): DebugEvent => {
     return {
       id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -55,10 +58,9 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       timestamp: Date.now(),
       data,
       severity,
-      source: source || 'tool',
-      stackTrace: config.captureStackTrace ? new Error().stack : undefined,
+      message: message || `${type.replace('_', ' ')} event`,
     };
-  }, [config.captureStackTrace]);
+  }, []);
 
   // Add event to the queue
   const addEvent = useCallback((event: DebugEvent) => {
@@ -87,7 +89,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       return {
         ...prevState,
         performance: newPerformance,
-        lastUpdated: Date.now(),
+        lastActivity: Date.now(),
       };
     });
   }, [config.enabled, config.maxEvents]);
@@ -116,7 +118,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
         ctrlKey: e.ctrlKey,
         shiftKey: e.shiftKey,
         altKey: e.altKey,
-      }, 'info', 'global-click');
+      }, 'info', `Click on ${target.tagName.toLowerCase()}${target.id ? `#${target.id}` : ''}`);
       
       addEvent(event);
       console.log('🐛 DEBUG: Captured click event:', event);
@@ -129,14 +131,27 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       const toolContainer = document.querySelector('[data-tool-container="true"]');
       if (!toolContainer || !toolContainer.contains(target)) return;
 
-      const event = createEvent('input_change', {
+      // Handle different input types
+      const inputData: any = {
         elementType: target.type || target.tagName.toLowerCase(),
         elementId: target.id || undefined,
         elementName: target.name || undefined,
         value: target.value,
-        checked: target.checked,
-        selectedIndex: (target as HTMLSelectElement).selectedIndex,
-      }, 'info', 'global-input');
+      };
+
+      // Add type-specific data
+      if (target.type === 'checkbox' || target.type === 'radio') {
+        inputData.checked = target.checked;
+      }
+
+      // Handle select elements
+      if (target.tagName.toLowerCase() === 'select') {
+        const selectElement = target as unknown as HTMLSelectElement;
+        inputData.selectedIndex = selectElement.selectedIndex;
+      }
+
+      const event = createEvent('input_change', inputData, 'info', 
+        `Input changed: ${target.name || target.id || 'input'} = "${target.value}"`);
       
       addEvent(event);
       console.log('🐛 DEBUG: Captured input event:', event);
@@ -149,15 +164,25 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       const toolContainer = document.querySelector('[data-tool-container="true"]');
       if (!toolContainer || !toolContainer.contains(target)) return;
 
-      const event = createEvent('input_change', {
+      const changeData: any = {
         elementType: target.type || target.tagName.toLowerCase(),
         elementId: target.id || undefined,
         elementName: target.name || undefined,
         value: target.value,
-        checked: target.checked,
-        selectedIndex: (target as HTMLSelectElement).selectedIndex,
         eventType: 'change',
-      }, 'info', 'global-change');
+      };
+
+      if (target.type === 'checkbox' || target.type === 'radio') {
+        changeData.checked = target.checked;
+      }
+
+      if (target.tagName.toLowerCase() === 'select') {
+        const selectElement = target as unknown as HTMLSelectElement;
+        changeData.selectedIndex = selectElement.selectedIndex;
+      }
+
+      const event = createEvent('input_change', changeData, 'info',
+        `Change event: ${target.name || target.id || 'input'} = "${target.value}"`);
       
       addEvent(event);
       console.log('🐛 DEBUG: Captured change event:', event);
@@ -177,11 +202,15 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     };
   }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
 
-  // API for manually logging events (can be called from components)
-  const logEvent = useCallback((type: DebugEventType, data: any, severity: 'info' | 'warning' | 'error' = 'info') => {
-    const event = createEvent(type, data, severity, 'manual');
-    addEvent(event);
-  }, [createEvent, addEvent]);
+  // API for manually logging events (using correct signature)
+  const logEvent = useCallback((event: Omit<DebugEvent, 'id' | 'timestamp'>) => {
+    const fullEvent: DebugEvent = {
+      id: `${event.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      ...event,
+    };
+    addEvent(fullEvent);
+  }, [addEvent]);
 
   // State variable tracking
   const trackStateVariable = useCallback((name: string, value: any, type?: string) => {
@@ -191,7 +220,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
         [name]: {
           value,
           type: type || typeof value,
-          lastUpdated: Date.now(),
+          lastChanged: Date.now(),
           changeCount: (prevState.variables[name]?.changeCount || 0) + 1,
         },
       };
@@ -199,17 +228,17 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       // Log state change event
       const event = createEvent('state_change', {
         variableName: name,
-        oldValue: prevState.variables[name]?.value,
+        previousValue: prevState.variables[name]?.value,
         newValue: value,
-        type: type || typeof value,
-      }, 'info', 'state-tracker');
+        changeType: 'update' as const,
+      }, 'info', `State: ${name} = ${JSON.stringify(value)}`);
       
       addEvent(event);
 
       return {
         ...prevState,
         variables: newVariables,
-        lastUpdated: Date.now(),
+        lastActivity: Date.now(),
       };
     });
   }, [createEvent, addEvent]);
@@ -219,30 +248,40 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     setEvents([]);
     eventsRef.current = [];
     
-    const clearEvent = createEvent('system', {
-      action: 'clear_events',
+    const clearEvent: DebugEvent = {
+      id: `clear_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now(),
-    }, 'info', 'system');
+      type: 'function_call',
+      severity: 'info',
+      message: 'Events cleared',
+      data: {
+        functionName: 'clearEvents',
+        parameters: [],
+        returnValue: null,
+        executionTime: 0,
+        success: true,
+      },
+    };
     
     setEvents([clearEvent]);
     eventsRef.current = [clearEvent];
-  }, [createEvent]);
+  }, []);
 
   // Export session data
   const exportSession = useCallback((): DebugSession => {
     return {
+      sessionId: `session_${Date.now()}`,
       toolId,
-      sessionStart: events[0]?.timestamp || Date.now(),
-      sessionEnd: Date.now(),
+      toolMetadata: {
+        title: 'Debug Session',
+        type: 'tool',
+        generatedAt: Date.now(),
+      },
+      startTime: events[0]?.timestamp || Date.now(),
       events: eventsRef.current,
       finalState: currentState,
       config,
-      metadata: {
-        totalEvents: eventsRef.current.length,
-        errorCount: currentState.performance.errorCount,
-        warningCount: currentState.performance.warningCount,
-        sessionDuration: Date.now() - (events[0]?.timestamp || Date.now()),
-      },
+      userAgent: navigator.userAgent,
     };
   }, [toolId, events, currentState, config]);
 
@@ -250,27 +289,44 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   const updateConfig = useCallback((newConfig: Partial<DebugConfig>) => {
     setConfig(prevConfig => ({ ...prevConfig, ...newConfig }));
     
-    const configEvent = createEvent('system', {
-      action: 'config_update',
-      changes: newConfig,
-    }, 'info', 'config');
+    const configEvent: DebugEvent = {
+      id: `config_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      type: 'function_call',
+      severity: 'info',
+      message: 'Configuration updated',
+      data: {
+        functionName: 'updateConfig',
+        parameters: [newConfig],
+        returnValue: null,
+        executionTime: 0,
+        success: true,
+      },
+    };
     
     addEvent(configEvent);
-  }, [createEvent, addEvent]);
+  }, [addEvent]);
 
   // Initialize
   useEffect(() => {
-    if (config.autoStart) {
-      const initEvent = createEvent('system', {
-        action: 'debugger_start',
-        toolId,
-        config,
-      }, 'info', 'system');
-      
-      addEvent(initEvent);
-      setIsEnabled(true);
-    }
-  }, [toolId, config.autoStart, createEvent, addEvent]);
+    const initEvent: DebugEvent = {
+      id: `init_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      type: 'function_call',
+      severity: 'info',
+      message: 'Debugger initialized',
+      data: {
+        functionName: 'initializeDebugger',
+        parameters: [toolId],
+        returnValue: null,
+        executionTime: 0,
+        success: true,
+      },
+    };
+    
+    addEvent(initEvent);
+    setIsEnabled(true);
+  }, [toolId, addEvent]);
 
   return {
     events,
@@ -278,7 +334,6 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     config,
     isEnabled,
     logEvent,
-    trackStateVariable,
     clearEvents,
     exportSession,
     updateConfig,

@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Trash2, Download, Search, Filter } from 'lucide-react';
+import { Trash2, Download, Search, Filter, ArrowUpDown } from 'lucide-react';
 import { DebugEvent, DebugEventType, DebugSeverity } from '../types/debug-types';
 
 interface EventLoggerProps {
@@ -28,8 +28,9 @@ export default function EventLogger({
   const [searchText, setSearchText] = useState('');
   const [filterTypes, setFilterTypes] = useState<Set<DebugEventType>>(new Set());
   const [filterSeverity, setFilterSeverity] = useState<Set<DebugSeverity>>(new Set());
+  const [newestFirst, setNewestFirst] = useState(true); // Default to newest first
 
-  // Filter events based on search and filters
+  // Filter and sort events based on search, filters, and sort order
   const filteredEvents = events.filter(event => {
     // Search text filter
     if (searchText && !event.message.toLowerCase().includes(searchText.toLowerCase())) {
@@ -47,19 +48,22 @@ export default function EventLogger({
     }
     
     return true;
+  }).sort((a, b) => {
+    // Sort by timestamp based on newestFirst preference
+    return newestFirst ? b.timestamp - a.timestamp : a.timestamp - b.timestamp;
   });
 
   // Get severity icon and color
   const getSeverityDisplay = (severity: DebugSeverity) => {
     switch (severity) {
       case 'error':
-        return { icon: '❌', color: 'bg-red-500 text-white border-red-600' };
+        return { icon: '❌', color: 'bg-red-800 text-white border-red-600' };
       case 'warning':
-        return { icon: '⚠️', color: 'bg-yellow-500 text-white border-yellow-600' };
+        return { icon: '⚠️', color: 'bg-yellow-800 text-white border-yellow-600' };
       case 'success':
-        return { icon: '✅', color: 'bg-green-500 text-white border-green-600' };
+        return { icon: '✅', color: 'bg-green-800 text-white border-green-600' };
       default:
-        return { icon: 'ℹ️', color: 'bg-blue-500 text-white border-blue-600' };
+        return { icon: 'ℹ️', color: 'bg-blue-800 text-white border-blue-600' };
     }
   };
 
@@ -137,6 +141,16 @@ export default function EventLogger({
               Export
             </Button>
           )}
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={() => setNewestFirst(!newestFirst)}
+            className="text-xs h-7"
+            title={newestFirst ? "Switch to oldest first" : "Switch to newest first"}
+          >
+            <ArrowUpDown className="h-3 w-3 mr-1" />
+            {newestFirst ? "Newest" : "Oldest"}
+          </Button>
           <Button 
             size="sm" 
             variant="outline" 
