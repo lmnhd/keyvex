@@ -527,31 +527,78 @@ React.createElement(Button, {
   key: 'button-key'
 }, 'Button Text'),
 
-// For buttons with parameters:
-React.createElement(Button, {
-  onClick: () => {
-    console.log('🎯 BUTTON CLICKED: [ButtonName] - Starting function with params...', typeof functionName);
-    try {
-      const result = functionName(param1, param2);
-      console.log('✅ BUTTON SUCCESS: [ButtonName] - Function executed successfully. Result:', result);
-    } catch (error) {
-      console.error('❌ BUTTON ERROR: [ButtonName] - Function execution failed:', error);
-    }
-  },
-  className: 'button-styles-here',
-  key: 'button-key'
-}, 'Button Text'),
+🚨 CRITICAL CALCULATION RESULT LOGGING - MANDATORY FOR ALL CALCULATIONS:
+Every calculation function MUST include result logging to enable debug system detection.
+Add these patterns to ALL calculation functions:
 
-// This debug pattern helps identify:
-// 1. Whether button clicks are being detected
-// 2. Whether function references are valid (typeof check)
-// 3. Whether functions execute successfully or throw errors
-// 4. The actual results of function execution
+const calculateFunction = () => {
+  // ... calculation logic ...
+  const result = someCalculation;
+  
+  // MANDATORY: Log calculation results for debug system detection
+  console.log('🔢 CALCULATION RESULT:', 'calculateFunction', 'calculated:', result);
+  console.log('📊 CALCULATION SCORE:', result); // Debug system detects 'score' keyword
+  console.log('💰 CALCULATION TOTAL:', result); // Debug system detects 'total' keyword
+  
+  // Set state
+  setState(result);
+  return result;
+};
 
-❌ NEVER USE THESE BUTTON PATTERNS - THEY BREAK FUNCTIONALITY:
-- onClick: "functionName"  // String instead of function reference - BROKEN!
-- onClick: functionName()  // Immediate execution instead of reference - BROKEN!
-- onclick: functionName  // Lowercase 'c' - HTML attribute, not React prop - BROKEN!
+EXAMPLE - Neighborhood Score Calculation:
+const calculateNeighborhoodScore = () => {
+  const result = (schoolsWeight * 0.3) + (priceWeight * 0.4) + (commuteWeight * 0.3);
+  
+  // MANDATORY: Debug system detection logging
+  console.log('🔢 CALCULATION RESULT: calculateNeighborhoodScore calculated:', result);
+  console.log('📊 NEIGHBORHOOD SCORE:', result);
+  
+  setNeighborhoodScore(result);
+  return result;
+};
+
+// This debug pattern helps the debug system detect:
+// 1. When calculations are executed
+// 2. What the calculated results are
+// 3. Provides keywords (score, total, result) for automatic detection
+
+🚨 CRITICAL CALCULATION RESULT DISPLAY - MANDATORY FOR ALL CALCULATIONS:
+Every calculation result MUST be displayed in the UI for debug system detection.
+Create result display elements with calculation-related data-style-id attributes:
+
+// Display calculation results in UI for debug system detection
+React.createElement('div', {
+  'data-style-id': 'calculation-result-display',
+  className: 'calculation-results-section',
+  key: 'calculation-results'
+}, [
+  React.createElement('h3', {
+    'data-style-id': 'calculation-title',
+    key: 'calc-title'
+  }, 'Calculation Results'),
+  
+  React.createElement('div', {
+    'data-style-id': 'neighborhood-score-result',
+    className: 'score-display',
+    key: 'score-display'
+  }, \`Neighborhood Score: \${neighborhoodScore}\`),
+  
+  React.createElement('div', {
+    'data-style-id': 'affordability-result', 
+    className: 'affordability-display',
+    key: 'afford-display'
+  }, \`Affordability Index: \${affordabilityIndex}\`)
+])
+
+// MANDATORY: Include result display elements that show calculated values
+// Use data-style-id attributes with keywords: 'result', 'score', 'total', 'calculation'
+// The debug system monitors elements with these attributes for content changes
+
+EXAMPLES of proper result display:
+- data-style-id="mortgage-payment-result"
+- data-style-id="loan-total-display" 
+- data-style-id="tax-calculation-output"
+- data-style-id="score-result-section"
 
 RULES:
 1. Start with 'use client';
