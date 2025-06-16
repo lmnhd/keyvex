@@ -202,6 +202,519 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     };
   }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
 
+  // Function call interception - Monitor calculation functions
+  useEffect(() => {
+    if (!isEnabled || !config.enabled) return;
+
+    console.log('🐛 DEBUG: Setting up function call monitoring for toolId:', toolId);
+
+    // Store original console.log to avoid infinite loops
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+
+    // Track original function implementations
+    const originalFunctions = new Map<string, Function>();
+
+    // Function to wrap and monitor function calls
+    const wrapFunction = (obj: any, funcName: string, contextName: string = 'window') => {
+      if (typeof obj[funcName] === 'function' && !originalFunctions.has(`${contextName}.${funcName}`)) {
+        const originalFunc = obj[funcName];
+        originalFunctions.set(`${contextName}.${funcName}`, originalFunc);
+
+        obj[funcName] = function(...args: any[]) {
+          const startTime = performance.now();
+          let returnValue: any;
+          let success = true;
+          let errorMessage: string | undefined;
+
+          try {
+            // Call original function
+            returnValue = originalFunc.apply(this, args);
+            
+            // Handle promises
+            if (returnValue && typeof returnValue.then === 'function') {
+              returnValue.then((result: any) => {
+                const endTime = performance.now();
+                const event = createEvent('function_call', {
+                  functionName: funcName,
+                  contextName,
+                  arguments: args.length > 0 ? args : undefined,
+                  returnValue: result,
+                  executionTime: endTime - startTime,
+                  success: true,
+                  isAsync: true,
+                }, 'success', `Called: ${funcName} (${args.length} args) → ${JSON.stringify(result)?.substring(0, 50)}`);
+                
+                addEvent(event);
+                originalConsoleLog('🐛 DEBUG: Async function call:', funcName, 'returned:', result);
+              }).catch((error: any) => {
+                const endTime = performance.now();
+                const event = createEvent('function_call', {
+                  functionName: funcName,
+                  contextName,
+                  arguments: args.length > 0 ? args : undefined,
+                  error: error.message || String(error),
+                  executionTime: endTime - startTime,
+                  success: false,
+                  isAsync: true,
+                }, 'error', `Error in ${funcName}: ${error.message || String(error)}`);
+                
+                addEvent(event);
+                originalConsoleError('🐛 DEBUG: Async function error:', funcName, error);
+              });
+            } else {
+              // Synchronous function
+              const endTime = performance.now();
+              const event = createEvent('function_call', {
+                functionName: funcName,
+                contextName,
+                arguments: args.length > 0 ? args : undefined,
+                returnValue,
+                executionTime: endTime - startTime,
+                success: true,
+                isAsync: false,
+              }, 'success', `Called: ${funcName} (${args.length} args)${returnValue !== undefined ? ` → ${JSON.stringify(returnValue)?.substring(0, 50)}` : ''}`);
+              
+              addEvent(event);
+              originalConsoleLog('🐛 DEBUG: Function call:', funcName, 'args:', args, 'returned:', returnValue);
+            }
+
+          } catch (error: any) {
+            success = false;
+            errorMessage = error.message || String(error);
+            const endTime = performance.now();
+            
+            const event = createEvent('function_call', {
+              functionName: funcName,
+              contextName,
+              arguments: args.length > 0 ? args : undefined,
+              error: errorMessage,
+              executionTime: endTime - startTime,
+              success: false,
+              isAsync: false,
+            }, 'error', `Error in ${funcName}: ${errorMessage}`);
+            
+            addEvent(event);
+            originalConsoleError('🐛 DEBUG: Function error:', funcName, error);
+            
+            // Re-throw the error to maintain original behavior
+            throw error;
+          }
+
+          return returnValue;
+        };
+
+        originalConsoleLog('🐛 DEBUG: Wrapped function:', `${contextName}.${funcName}`);
+      }
+    };
+
+    // Monitor calculation-related functions that are commonly generated
+    const calculationFunctionNames = [
+      'calculateMortgage', 'calculateLoan', 'calculateROI', 'calculateInvestment',
+      'calculateBudget', 'calculateSavings', 'calculateTax', 'calculateMargin',
+      'calculateProfit', 'calculateInterest', 'calculatePayment', 'calculateTotal',
+      'calculateScore', 'calculateRatio', 'calculatePercentage', 'calculateGrowth',
+      'calculate', 'compute', 'estimate', 'analyze', 'evaluate', 'assess',
+      'handleCalculate', 'handleSubmit', 'handleGenerate', 'processCalculation',
+      'performCalculation', 'runCalculation', 'executeCalculation'
+    ];
+
+    // Check for these functions on window object
+    calculationFunctionNames.forEach(funcName => {
+      if (typeof (window as any)[funcName] === 'function') {
+        wrapFunction(window as any, funcName, 'window');
+      }
+    });
+
+    // Monitor React component instances - Look for calculation functions in tool container
+    const checkForCalculationFunctions = () => {
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (toolContainer) {
+        // Check for React fiber data that might contain function references
+        const reactFiber = (toolContainer as any)._reactInternalFiber || 
+                          (toolContainer as any).__reactInternalInstance ||
+                          (toolContainer as any)._reactInternals;
+        
+        if (reactFiber && reactFiber.memoizedProps) {
+          // Look for onClick handlers and other function props
+          const props = reactFiber.memoizedProps;
+          Object.keys(props).forEach(key => {
+            if (key.startsWith('onClick') || key.startsWith('on') || key.includes('calculate') || key.includes('handle')) {
+              if (typeof props[key] === 'function' && !originalFunctions.has(`component.${key}`)) {
+                wrapFunction(props, key, 'component');
+              }
+            }
+          });
+        }
+      }
+    };
+
+    // Set up periodic monitoring for new functions
+    const functionMonitorInterval = setInterval(() => {
+      // Re-check for new calculation functions
+      calculationFunctionNames.forEach(funcName => {
+        if (typeof (window as any)[funcName] === 'function' && !originalFunctions.has(`window.${funcName}`)) {
+          wrapFunction(window as any, funcName, 'window');
+        }
+      });
+
+      // Check React components
+      checkForCalculationFunctions();
+    }, 1000);
+
+    // Immediate check
+    checkForCalculationFunctions();
+
+    // Monitor console for calculation results (common pattern in generated tools)
+    const originalSetState = console.log;
+    console.log = function(...args: any[]) {
+      // Look for calculation patterns in console output
+      const message = args.join(' ');
+      if (message.includes('calculate') || message.includes('result') || message.includes('total')) {
+        const event = createEvent('calculation', {
+          consoleOutput: args,
+          detectedCalculation: true,
+        }, 'info', `Calculation detected: ${message.substring(0, 100)}`);
+        
+        addEvent(event);
+      }
+      
+      // Call original console.log
+      return originalConsoleLog.apply(console, args);
+    };
+
+    // Cleanup
+    return () => {
+      originalConsoleLog('🐛 DEBUG: Cleaning up function call monitoring for toolId:', toolId);
+      
+      // Restore original functions
+      originalFunctions.forEach((originalFunc, key) => {
+        const [contextName, funcName] = key.split('.');
+        if (contextName === 'window' && (window as any)[funcName]) {
+          (window as any)[funcName] = originalFunc;
+        }
+      });
+
+      // Restore console.log
+      console.log = originalConsoleLog;
+
+      // Clear interval
+      clearInterval(functionMonitorInterval);
+      
+      originalFunctions.clear();
+    };
+  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
+
+  // Enhanced calculation detection via DOM observation and button analysis
+  useEffect(() => {
+    if (!isEnabled || !config.enabled) return;
+
+    console.log('🐛 DEBUG: Setting up enhanced calculation detection for toolId:', toolId);
+
+    // Monitor DOM changes that might indicate calculation results
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        // Only monitor changes within the tool container
+        const toolContainer = document.querySelector('[data-tool-container="true"]');
+        if (!toolContainer || !toolContainer.contains(mutation.target as Node)) return;
+
+        if (mutation.type === 'characterData' || mutation.type === 'childList') {
+          const target = mutation.target as HTMLElement;
+          const textContent = target.textContent || '';
+          
+          // Detect calculation result patterns
+          const calculationPatterns = [
+            /\$[\d,]+\.?\d*/g, // Currency values
+            /\d+\.?\d*%/g,     // Percentages  
+            /[\d,]+\.?\d*/g,   // Numbers with decimals
+          ];
+
+          let hasCalculationPattern = false;
+          let detectedValues: string[] = [];
+
+          calculationPatterns.forEach(pattern => {
+            const matches = textContent.match(pattern);
+            if (matches && matches.length > 0) {
+              hasCalculationPattern = true;
+              detectedValues.push(...matches);
+            }
+          });
+
+          // Look for result-related text
+          const resultKeywords = ['result', 'total', 'calculation', 'amount', 'payment', 'savings', 'profit', 'loss', 'balance', 'score', 'rating', 'percentage'];
+          const hasResultKeyword = resultKeywords.some(keyword => 
+            textContent.toLowerCase().includes(keyword)
+          );
+
+          if (hasCalculationPattern && hasResultKeyword && detectedValues.length > 0) {
+            const event = createEvent('calculation', {
+              detectedValues,
+              resultText: textContent.substring(0, 200),
+              elementType: target.tagName.toLowerCase(),
+              elementId: target.id || undefined,
+              elementClasses: target.className || undefined,
+              mutationType: mutation.type,
+            }, 'success', `Calculation result detected: ${detectedValues.join(', ')}`);
+            
+            addEvent(event);
+            console.log('🐛 DEBUG: Detected calculation result:', detectedValues, 'in element:', target);
+          }
+        }
+      });
+    });
+
+    // Start observing the tool container
+    const toolContainer = document.querySelector('[data-tool-container="true"]');
+    if (toolContainer) {
+      observer.observe(toolContainer, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        characterDataOldValue: true,
+      });
+    }
+
+    // Enhanced button click detection for calculations
+    const enhancedClickHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only capture events from within the tool renderer area
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer || !toolContainer.contains(target)) return;
+
+      // Detect calculation-related buttons
+      const buttonText = target.textContent?.toLowerCase() || '';
+      const buttonId = target.id?.toLowerCase() || '';
+      const buttonClasses = target.className?.toLowerCase() || '';
+      
+      const calculationKeywords = [
+        'calculate', 'compute', 'submit', 'generate', 'analyze', 'process',
+        'total', 'estimate', 'determine', 'evaluate', 'run', 'execute',
+        'get result', 'show result', 'find', 'check'
+      ];
+
+      const isCalculationButton = calculationKeywords.some(keyword => 
+        buttonText.includes(keyword) || buttonId.includes(keyword) || buttonClasses.includes(keyword)
+      );
+
+      if (isCalculationButton && (target.tagName.toLowerCase() === 'button' || target.getAttribute('role') === 'button')) {
+        // Capture form data before calculation
+        const formData: Record<string, any> = {};
+        const inputs = toolContainer.querySelectorAll('input, select, textarea');
+        
+        inputs.forEach(input => {
+          const element = input as HTMLInputElement;
+          const name = element.name || element.id || `input-${Array.from(inputs).indexOf(input)}`;
+          
+          if (element.type === 'checkbox' || element.type === 'radio') {
+            formData[name] = element.checked;
+          } else {
+            formData[name] = element.value;
+          }
+        });
+
+        const event = createEvent('function_call', {
+          functionName: 'calculationButtonClick',
+          buttonText: target.textContent,
+          buttonId: target.id,
+          formData,
+          inputCount: inputs.length,
+          triggeredBy: 'click',
+        }, 'info', `Calculation triggered: "${buttonText}" button with ${inputs.length} inputs`);
+        
+        addEvent(event);
+
+        // Set up a delayed check for results (common pattern is immediate DOM update)
+        setTimeout(() => {
+          const resultElements = toolContainer.querySelectorAll('[class*="result"], [id*="result"], [data-style-id*="result"]');
+          if (resultElements.length > 0) {
+            resultElements.forEach(element => {
+              const text = element.textContent || '';
+              if (text.trim()) {
+                const resultEvent = createEvent('calculation', {
+                  resultElement: {
+                    text: text.substring(0, 200),
+                    elementId: element.id,
+                    elementClasses: element.className,
+                  },
+                  calculationTriggeredBy: buttonText,
+                  delayMs: 100,
+                }, 'success', `Result displayed: ${text.substring(0, 50)}`);
+                
+                addEvent(resultEvent);
+              }
+            });
+          }
+        }, 100);
+      }
+    };
+
+    // Add the enhanced click handler
+    document.addEventListener('click', enhancedClickHandler, true);
+
+    // Cleanup
+    return () => {
+      console.log('🐛 DEBUG: Cleaning up enhanced calculation detection for toolId:', toolId);
+      observer.disconnect();
+      document.removeEventListener('click', enhancedClickHandler, true);
+    };
+  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
+
+  // Enhanced calculation detection via DOM observation and button analysis
+  useEffect(() => {
+    if (!isEnabled || !config.enabled) return;
+
+    console.log('🐛 DEBUG: Setting up enhanced calculation detection for toolId:', toolId);
+
+    // Monitor DOM changes that might indicate calculation results
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        // Only monitor changes within the tool container
+        const toolContainer = document.querySelector('[data-tool-container="true"]');
+        if (!toolContainer || !toolContainer.contains(mutation.target as Node)) return;
+
+        if (mutation.type === 'characterData' || mutation.type === 'childList') {
+          const target = mutation.target as HTMLElement;
+          const textContent = target.textContent || '';
+          
+          // Detect calculation result patterns
+          const calculationPatterns = [
+            /\$[\d,]+\.?\d*/g, // Currency values
+            /\d+\.?\d*%/g,     // Percentages  
+            /[\d,]+\.?\d*/g,   // Numbers with decimals
+          ];
+
+          let hasCalculationPattern = false;
+          let detectedValues: string[] = [];
+
+          calculationPatterns.forEach(pattern => {
+            const matches = textContent.match(pattern);
+            if (matches && matches.length > 0) {
+              hasCalculationPattern = true;
+              detectedValues.push(...matches);
+            }
+          });
+
+          // Look for result-related text
+          const resultKeywords = ['result', 'total', 'calculation', 'amount', 'payment', 'savings', 'profit', 'loss', 'balance', 'score', 'rating', 'percentage'];
+          const hasResultKeyword = resultKeywords.some(keyword => 
+            textContent.toLowerCase().includes(keyword)
+          );
+
+          if (hasCalculationPattern && hasResultKeyword && detectedValues.length > 0) {
+            const event = createEvent('calculation', {
+              detectedValues,
+              resultText: textContent.substring(0, 200),
+              elementType: target.tagName.toLowerCase(),
+              elementId: target.id || undefined,
+              elementClasses: target.className || undefined,
+              mutationType: mutation.type,
+            }, 'success', `Calculation result detected: ${detectedValues.join(', ')}`);
+            
+            addEvent(event);
+            console.log('🐛 DEBUG: Detected calculation result:', detectedValues, 'in element:', target);
+          }
+        }
+      });
+    });
+
+    // Start observing the tool container
+    const toolContainer = document.querySelector('[data-tool-container="true"]');
+    if (toolContainer) {
+      observer.observe(toolContainer, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        characterDataOldValue: true,
+      });
+    }
+
+    // Enhanced button click detection for calculations
+    const enhancedClickHandler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      
+      // Only capture events from within the tool renderer area
+      const toolContainer = document.querySelector('[data-tool-container="true"]');
+      if (!toolContainer || !toolContainer.contains(target)) return;
+
+      // Detect calculation-related buttons
+      const buttonText = target.textContent?.toLowerCase() || '';
+      const buttonId = target.id?.toLowerCase() || '';
+      const buttonClasses = target.className?.toLowerCase() || '';
+      
+      const calculationKeywords = [
+        'calculate', 'compute', 'submit', 'generate', 'analyze', 'process',
+        'total', 'estimate', 'determine', 'evaluate', 'run', 'execute',
+        'get result', 'show result', 'find', 'check'
+      ];
+
+      const isCalculationButton = calculationKeywords.some(keyword => 
+        buttonText.includes(keyword) || buttonId.includes(keyword) || buttonClasses.includes(keyword)
+      );
+
+      if (isCalculationButton && (target.tagName.toLowerCase() === 'button' || target.getAttribute('role') === 'button')) {
+        // Capture form data before calculation
+        const formData: Record<string, any> = {};
+        const inputs = toolContainer.querySelectorAll('input, select, textarea');
+        
+        inputs.forEach(input => {
+          const element = input as HTMLInputElement;
+          const name = element.name || element.id || `input-${Array.from(inputs).indexOf(input)}`;
+          
+          if (element.type === 'checkbox' || element.type === 'radio') {
+            formData[name] = element.checked;
+          } else {
+            formData[name] = element.value;
+          }
+        });
+
+        const event = createEvent('function_call', {
+          functionName: 'calculationButtonClick',
+          buttonText: target.textContent,
+          buttonId: target.id,
+          formData,
+          inputCount: inputs.length,
+          triggeredBy: 'click',
+        }, 'info', `Calculation triggered: "${buttonText}" button with ${inputs.length} inputs`);
+        
+        addEvent(event);
+
+        // Set up a delayed check for results (common pattern is immediate DOM update)
+        setTimeout(() => {
+          const resultElements = toolContainer.querySelectorAll('[class*="result"], [id*="result"], [data-style-id*="result"]');
+          if (resultElements.length > 0) {
+            resultElements.forEach(element => {
+              const text = element.textContent || '';
+              if (text.trim()) {
+                const resultEvent = createEvent('calculation', {
+                  resultElement: {
+                    text: text.substring(0, 200),
+                    elementId: element.id,
+                    elementClasses: element.className,
+                  },
+                  calculationTriggeredBy: buttonText,
+                  delayMs: 100,
+                }, 'success', `Result displayed: ${text.substring(0, 50)}`);
+                
+                addEvent(resultEvent);
+              }
+            });
+          }
+        }, 100);
+      }
+    };
+
+    // Add the enhanced click handler
+    document.addEventListener('click', enhancedClickHandler, true);
+
+    // Cleanup
+    return () => {
+      console.log('🐛 DEBUG: Cleaning up enhanced calculation detection for toolId:', toolId);
+      observer.disconnect();
+      document.removeEventListener('click', enhancedClickHandler, true);
+    };
+  }, [isEnabled, config.enabled, toolId, createEvent, addEvent]);
+
   // API for manually logging events (using correct signature)
   const logEvent = useCallback((event: Omit<DebugEvent, 'id' | 'timestamp'>) => {
     const fullEvent: DebugEvent = {
@@ -212,9 +725,13 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     addEvent(fullEvent);
   }, [addEvent]);
 
-  // State variable tracking
+  // Enhanced state variable tracking with calculation detection
   const trackStateVariable = useCallback((name: string, value: any, type?: string) => {
     setCurrentState(prevState => {
+      const previousValue = prevState.variables[name]?.value;
+      const isNewVariable = previousValue === undefined;
+      const hasValueChanged = !isNewVariable && previousValue !== value;
+      
       const newVariables = {
         ...prevState.variables,
         [name]: {
@@ -225,15 +742,59 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
         },
       };
 
+      // Detect if this looks like a calculation result
+      const isCalculationResult = (() => {
+        // Check if variable name suggests it's a result
+        const resultNames = ['result', 'total', 'calculation', 'amount', 'payment', 'savings', 'profit', 'score', 'rating', 'percentage', 'balance', 'interest', 'tax', 'income', 'expense'];
+        const nameContainsResult = resultNames.some(keyword => name.toLowerCase().includes(keyword));
+        
+        // Check if value looks like a calculation result (numeric)
+        const isNumeric = typeof value === 'number' || (typeof value === 'string' && !isNaN(parseFloat(value)));
+        
+        // Check if this is a significant change (not just input tracking)
+        const isSignificantChange = hasValueChanged && isNumeric && Math.abs(parseFloat(String(value)) || 0) > 0;
+        
+        return nameContainsResult || (isSignificantChange && !name.toLowerCase().includes('input'));
+      })();
+
+      // Determine severity and message
+      let severity: 'info' | 'success' | 'warning' | 'error' = 'info';
+      let message = `State: ${name} = ${JSON.stringify(value)}`;
+      
+      if (isCalculationResult) {
+        severity = 'success';
+        message = `Calculation result: ${name} → ${JSON.stringify(value)}`;
+      } else if (hasValueChanged) {
+        message = `State updated: ${name} → ${JSON.stringify(value)}`;
+      } else if (isNewVariable) {
+        message = `State initialized: ${name} = ${JSON.stringify(value)}`;
+      }
+
       // Log state change event
       const event = createEvent('state_change', {
         variableName: name,
-        previousValue: prevState.variables[name]?.value,
+        previousValue,
         newValue: value,
-        changeType: 'update' as const,
-      }, 'info', `State: ${name} = ${JSON.stringify(value)}`);
+        changeType: isNewVariable ? 'initialize' : 'update' as const,
+        isCalculationResult,
+        isNumericValue: typeof value === 'number',
+        valueType: typeof value,
+      }, severity, message);
       
       addEvent(event);
+
+      // If this looks like a calculation result, also log as a calculation event
+      if (isCalculationResult && hasValueChanged) {
+        const calculationEvent = createEvent('calculation', {
+          resultVariable: name,
+          calculatedValue: value,
+          previousValue,
+          detectedVia: 'stateTracking',
+          valueType: typeof value,
+        }, 'success', `Calculated: ${name} = ${JSON.stringify(value)}`);
+        
+        addEvent(calculationEvent);
+      }
 
       return {
         ...prevState,
