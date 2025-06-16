@@ -231,9 +231,41 @@ export default function EventLogger({
                       {typeIcon}
                     </span>
                     
-                    {/* Message */}
+                    {/* Enhanced Message with Key Info */}
                     <span className="flex-1 break-words">
-                      {event.message}
+                      {(() => {
+                        // Create enhanced message based on event type
+                        let enhancedMessage = event.message || event.type.replace('_', ' ');
+                        
+                        // Add key info based on event type
+                        if (event.type === 'click' && event.data) {
+                          const target = event.data.elementType || 'element';
+                          const text = event.data.elementText ? ` "${event.data.elementText.substring(0, 20)}"` : '';
+                          enhancedMessage = `Click on ${target}${text}`;
+                          if (event.data.elementId) enhancedMessage += ` #${event.data.elementId}`;
+                        } else if (event.type === 'input_change' && event.data) {
+                          const inputType = event.data.elementType || 'input';
+                          const value = event.data.value !== undefined ? ` → "${event.data.value}"` : '';
+                          const name = event.data.elementName ? ` (${event.data.elementName})` : '';
+                          enhancedMessage = `${inputType.charAt(0).toUpperCase() + inputType.slice(1)} changed${name}${value}`;
+                        } else if (event.type === 'state_change' && event.data) {
+                          const varName = event.data.variableName || 'variable';
+                          const newValue = event.data.newValue !== undefined ? ` → ${JSON.stringify(event.data.newValue)}` : '';
+                          enhancedMessage = `State: ${varName}${newValue}`;
+                        } else if (event.type === 'function_call' && event.data) {
+                          const funcName = event.data.functionName || 'function';
+                          const args = event.data.arguments ? ` (${Object.keys(event.data.arguments).length} args)` : '';
+                          enhancedMessage = `Called: ${funcName}${args}`;
+                        } else if (event.type === 'calculation' && event.data) {
+                          const result = event.data.result !== undefined ? ` → ${event.data.result}` : '';
+                          enhancedMessage = `Calculation${result}`;
+                        } else if (event.type === 'error' && event.data) {
+                          const errorMsg = event.data.message || event.data.error || 'Unknown error';
+                          enhancedMessage = `Error: ${errorMsg.substring(0, 50)}${errorMsg.length > 50 ? '...' : ''}`;
+                        }
+                        
+                        return enhancedMessage;
+                      })()}
                     </span>
                     
                     {/* Severity */}
