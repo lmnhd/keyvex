@@ -1553,19 +1553,38 @@ export default function ToolTesterView({
                                         </pre>
                                       </div>
                                     )}
-                                    {activeTccData.styling.activeStyles && (
+                                    {activeTccData.styling.styleMap && (
                                       <div>
-                                        <Badge variant="outline" className="mb-2">Active Style Rules</Badge>
+                                        <Badge variant="outline" className="mb-2">Style Map (Element → Classes)</Badge>
                                         <div className="grid gap-2">
-                                          {Object.entries(activeTccData.styling.activeStyles).slice(0, 5).map(([key, value]) => (
+                                          {Object.entries(activeTccData.styling.styleMap).slice(0, 5).map(([key, value]) => (
                                             <div key={key} className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
                                               <span className="font-mono text-purple-700">{key}</span>
                                               <span className="text-purple-600">{String(value)}</span>
                                             </div>
                                           ))}
-                                          {Object.keys(activeTccData.styling.activeStyles).length > 5 && (
-                                            <div className="text-sm text-purple-600">+ {Object.keys(activeTccData.styling.activeStyles).length - 5} more styles</div>
+                                          {Object.keys(activeTccData.styling.styleMap).length > 5 && (
+                                            <div className="text-sm text-purple-600">+ {Object.keys(activeTccData.styling.styleMap).length - 5} more styles</div>
                                           )}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {activeTccData.styling.colorScheme && (
+                                      <div>
+                                        <Badge variant="outline" className="mb-2">Color Scheme</Badge>
+                                        <div className="grid gap-2">
+                                          <div className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
+                                            <span className="font-mono text-purple-700">Primary</span>
+                                            <span className="text-purple-600">{activeTccData.styling.colorScheme.primary}</span>
+                                          </div>
+                                          <div className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
+                                            <span className="font-mono text-purple-700">Secondary</span>
+                                            <span className="text-purple-600">{activeTccData.styling.colorScheme.secondary}</span>
+                                          </div>
+                                          <div className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
+                                            <span className="font-mono text-purple-700">Background</span>
+                                            <span className="text-purple-600">{activeTccData.styling.colorScheme.background}</span>
+                                          </div>
                                         </div>
                                       </div>
                                     )}
