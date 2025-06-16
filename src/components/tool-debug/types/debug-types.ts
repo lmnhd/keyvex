@@ -188,6 +188,7 @@ export interface ToolDebugPanelProps {
     description?: string;
     type?: string;
     version?: string;
+    slug?: string;
   };
   onDebugEvent?: (event: DebugEvent) => void;
   className?: string;

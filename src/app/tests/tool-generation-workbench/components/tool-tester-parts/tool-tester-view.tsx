@@ -18,6 +18,7 @@ import { ToolCreationJob } from '../tool-tester-core-logic';
 import { ConnectionStatus, StepProgress } from '../../hooks/useToolGenerationStream';
 import ProgressLog from '../ProgressLog';
 import TCCVisualizer from '../TCCVisualizer';
+import ToolDebugPanel from '@/components/tool-debug/ToolDebugPanel';
 import { CanvasTool } from '@/components/tool-creator-ui/canvas-tool';
 import { ScrollBar } from '@/components/ui/scroll-area';
 import { 
@@ -1159,183 +1160,231 @@ export default function ToolTesterView({
             <TabsContent value="preview" className="mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5"/>Component Preview</CardTitle>
+                  <CardTitle className="flex items-center"><Eye className="mr-2 h-5 w-5"/>Live Preview with Debug Console</CardTitle>
                   <CardDescription>
-                    {workflowMode === 'debug' ? 'Live preview of the agent\'s work - shows how the tool would look with current agent output' : 'Live preview of the generated component. Interact with it to test functionality.'}
+                    {workflowMode === 'debug' ? 'Live preview of the agent\'s work with real-time debugging. Interact with the tool above to see debug events below.' : 'Live preview of the generated component with real-time debugging. Interact with the tool to see debug events.'}
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {(() => {
-                    // UNIFIED PREVIEW LOGIC - FIXED: Only use assembled code sources
-                    // This prevents fallback to intermediate code that bypasses our slider fixes
-                    
-                    console.log('🔍 PREVIEW LOGIC TRACE =======================================');
-                    console.log('🔍 SOURCES AVAILABLE:');
-                    console.log('🔍   testJob?.result:', !!testJob?.result);
-                    console.log('🔍   testJob?.result.componentCode length:', testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result ? (testJob.result as any).componentCode?.length : 'N/A');
-                    console.log('🔍   assembledCode length:', assembledCode?.length || 'N/A');
-                    console.log('🔍   tccData?.assembledComponentCode length:', tccData?.assembledComponentCode?.length || 'N/A');
-                    console.log('🔍   workflowMode:', workflowMode);
-                    console.log('🔍   timestamp:', new Date().toISOString());
-                    
-                    let previewTool = null;
-                    let previewSource = '';
-                    
-                    // PRIORITY 1: Use final tool result if available (V2 orchestration complete)
-                    if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
-                      previewTool = testJob.result;
-                      previewSource = 'Final Tool Result';
-                      console.log('🔍 ✅ USING PRIORITY 1: Final Tool Result');
-                      console.log('🔍     Tool ID:', (testJob.result as any).id);
-                      console.log('🔍     Code length:', (testJob.result as any).componentCode?.length);
-                      console.log('🔍     Code hash:', (testJob.result as any).componentCode ? safeHash((testJob.result as any).componentCode) : 'NO-CODE');
-                      console.log('🔍     Contains sliders?:', (testJob.result as any).componentCode?.includes('Slider'));
-                    }
-                    // PRIORITY 2: Use TCC assembled component code (component assembler completed)
-                    else if (tccData?.assembledComponentCode) {
-                      previewTool = {
-                        id: tccData.jobId || `preview-${Date.now()}`,
-                        slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
-                        componentCode: tccData.assembledComponentCode,
-                        metadata: {
+                <CardContent className="space-y-6">
+                  {/* Tool Preview Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center">
+                      <Eye className="mr-2 h-4 w-4" />
+                      Tool Preview
+                    </h3>
+                    {(() => {
+                      // UNIFIED PREVIEW LOGIC - FIXED: Only use assembled code sources
+                      // This prevents fallback to intermediate code that bypasses our slider fixes
+                      
+                      console.log('🔍 PREVIEW LOGIC TRACE =======================================');
+                      console.log('🔍 SOURCES AVAILABLE:');
+                      console.log('🔍   testJob?.result:', !!testJob?.result);
+                      console.log('🔍   testJob?.result.componentCode length:', testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result ? (testJob.result as any).componentCode?.length : 'N/A');
+                      console.log('🔍   assembledCode length:', assembledCode?.length || 'N/A');
+                      console.log('🔍   tccData?.assembledComponentCode length:', tccData?.assembledComponentCode?.length || 'N/A');
+                      console.log('🔍   workflowMode:', workflowMode);
+                      console.log('🔍   timestamp:', new Date().toISOString());
+                      
+                      let previewTool = null;
+                      let previewSource = '';
+                      
+                      // PRIORITY 1: Use final tool result if available (V2 orchestration complete)
+                      if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
+                        previewTool = testJob.result;
+                        previewSource = 'Final Tool Result';
+                        console.log('🔍 ✅ USING PRIORITY 1: Final Tool Result');
+                        console.log('🔍     Tool ID:', (testJob.result as any).id);
+                        console.log('🔍     Code length:', (testJob.result as any).componentCode?.length);
+                        console.log('🔍     Code hash:', (testJob.result as any).componentCode ? safeHash((testJob.result as any).componentCode) : 'NO-CODE');
+                        console.log('🔍     Contains sliders?:', (testJob.result as any).componentCode?.includes('Slider'));
+                      }
+                      // PRIORITY 2: Use TCC assembled component code (component assembler completed)
+                      else if (tccData?.assembledComponentCode) {
+                        previewTool = {
                           id: tccData.jobId || `preview-${Date.now()}`,
                           slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
-                          title: tccData.userInput?.description || 'Generated Tool Preview',
-                          type: tccData.userInput?.toolType || 'Tool',
-                          description: tccData.userInput?.description || 'Tool preview from TCC assembled code',
-                          userInstructions: 'This is a preview of the generated tool.',
-                          developerNotes: 'Generated from TCC assembled component code.',
-                          dependencies: ['react'],
-                          source: 'tcc-assembled-preview',
-                          version: '1.0.0-preview'
-                        },
-                        initialStyleMap: tccData.styling?.styleMap || {},
-                        currentStyleMap: tccData.styling?.styleMap || {},
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                      };
-                      previewSource = 'TCC Assembled Code';
-                                              console.log('🔍 ✅ USING PRIORITY 2: TCC Assembled Code');
-                        console.log('🔍     TCC Job ID:', tccData.jobId);
-                        console.log('🔍     Code length:', tccData.assembledComponentCode.length);
-                        console.log('🔍     Code hash:', safeHash(tccData.assembledComponentCode));
-                        console.log('🔍     Contains sliders?:', tccData.assembledComponentCode.includes('Slider'));
-                    }
-                    // PRIORITY 3: Use debug mode assembled code from isolated agent tests
-                    else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
-                      const debugTccData = (testJob.result as any).updatedTcc;
-                      const originalTool = (testJob.result as any).originalTool;
-                      
-                      console.log('🔍 📋 DEBUG MODE - Checking for assembled code...');
-                      console.log('🔍     debugTccData.assembledComponentCode length:', debugTccData.assembledComponentCode?.length || 'N/A');
-                      
-                      // CRITICAL FIX: Only use assembledComponentCode in debug mode
-                      // Do NOT fall back to styled or JSX code that bypasses our fixes
-                      if (debugTccData.assembledComponentCode) {
-                        previewTool = {
-                          id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                          slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: debugTccData.assembledComponentCode,
+                          componentCode: tccData.assembledComponentCode,
                           metadata: {
-                            id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                            slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                            title: originalTool?.metadata?.title || debugTccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
-                            type: originalTool?.metadata?.type || debugTccData.userInput?.toolType || 'Debug Tool',
-                            description: originalTool?.metadata?.description || debugTccData.userInput?.description || 'Tool created from isolated agent testing',
-                            userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
-                            developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
-                            dependencies: originalTool?.metadata?.dependencies || ['react'],
-                            source: 'debug-isolated-agent',
-                            version: originalTool?.metadata?.version || '1.0.0-debug'
+                            id: tccData.jobId || `preview-${Date.now()}`,
+                            slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
+                            title: tccData.userInput?.description || 'Generated Tool Preview',
+                            type: tccData.userInput?.toolType || 'Tool',
+                            description: tccData.userInput?.description || 'Tool preview from TCC assembled code',
+                            userInstructions: 'This is a preview of the generated tool.',
+                            developerNotes: 'Generated from TCC assembled component code.',
+                            dependencies: ['react'],
+                            source: 'tcc-assembled-preview',
+                            version: '1.0.0-preview'
                           },
-                          initialStyleMap: originalTool?.initialStyleMap || debugTccData.styling?.styleMap || {},
-                          currentStyleMap: debugTccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
-                          createdAt: originalTool?.createdAt || Date.now(),
+                          initialStyleMap: tccData.styling?.styleMap || {},
+                          currentStyleMap: tccData.styling?.styleMap || {},
+                          createdAt: Date.now(),
                           updatedAt: Date.now()
                         };
-                        previewSource = `Debug Agent: ${selectedAgent} (Assembled)`;
-                        console.log('🔍 ✅ USING PRIORITY 3: Debug Mode Assembled Code');
-                        console.log('🔍     Debug TCC Job ID:', debugTccData.jobId);
-                        console.log('🔍     Code length:', debugTccData.assembledComponentCode.length);
-                        console.log('🔍     Code hash:', safeHash(debugTccData.assembledComponentCode));
-                        console.log('🔍     Contains sliders?:', debugTccData.assembledComponentCode.includes('Slider'));
-                      } else {
-                        console.log('🔍 ❌ DEBUG MODE: No assembled code available - preview will be empty');
+                        previewSource = 'TCC Assembled Code';
+                                                console.log('🔍 ✅ USING PRIORITY 2: TCC Assembled Code');
+                          console.log('🔍     TCC Job ID:', tccData.jobId);
+                          console.log('🔍     Code length:', tccData.assembledComponentCode.length);
+                          console.log('🔍     Code hash:', safeHash(tccData.assembledComponentCode));
+                          console.log('🔍     Contains sliders?:', tccData.assembledComponentCode.includes('Slider'));
                       }
-                    } else {
-                      console.log('🔍 ❌ NO PREVIEW SOURCE AVAILABLE');
-                      console.log('🔍     All conditions failed - no preview will be shown');
-                    }
-                    
-                    console.log('🔍 FINAL SELECTION:');
-                    console.log('🔍   previewSource:', previewSource);
-                    console.log('🔍   previewTool?.id:', previewTool?.id);
-                    console.log('🔍   previewTool?.componentCode length:', previewTool?.componentCode?.length || 'N/A');
-                    console.log('🔍 =========================================================');
-                    
-                    // Render the preview
-                    if (previewTool) {
-                      return (
-                        <div className="space-y-4">
-                          {/* Preview source indicator */}
-                          <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline">{previewSource}</Badge>
-                              <span className="text-sm text-gray-600">
-                                {workflowMode === 'debug' ? 'Agent testing preview' : 'Tool generation preview'}
-                              </span>
+                      // PRIORITY 3: Use debug mode assembled code from isolated agent tests
+                      else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
+                        const debugTccData = (testJob.result as any).updatedTcc;
+                        const originalTool = (testJob.result as any).originalTool;
+                        
+                        console.log('🔍 📋 DEBUG MODE - Checking for assembled code...');
+                        console.log('🔍     debugTccData.assembledComponentCode length:', debugTccData.assembledComponentCode?.length || 'N/A');
+                        
+                        // CRITICAL FIX: Only use assembledComponentCode in debug mode
+                        // Do NOT fall back to styled or JSX code that bypasses our fixes
+                        if (debugTccData.assembledComponentCode) {
+                          previewTool = {
+                            id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                            slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                            componentCode: debugTccData.assembledComponentCode,
+                            metadata: {
+                              id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                              slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                              title: originalTool?.metadata?.title || debugTccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
+                              type: originalTool?.metadata?.type || debugTccData.userInput?.toolType || 'Debug Tool',
+                              description: originalTool?.metadata?.description || debugTccData.userInput?.description || 'Tool created from isolated agent testing',
+                              userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
+                              developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
+                              dependencies: originalTool?.metadata?.dependencies || ['react'],
+                              source: 'debug-isolated-agent',
+                              version: originalTool?.metadata?.version || '1.0.0-debug'
+                            },
+                            initialStyleMap: originalTool?.initialStyleMap || debugTccData.styling?.styleMap || {},
+                            currentStyleMap: debugTccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
+                            createdAt: originalTool?.createdAt || Date.now(),
+                            updatedAt: Date.now()
+                          };
+                          previewSource = `Debug Agent: ${selectedAgent} (Assembled)`;
+                          console.log('🔍 ✅ USING PRIORITY 3: Debug Mode Assembled Code');
+                          console.log('🔍     Debug TCC Job ID:', debugTccData.jobId);
+                          console.log('🔍     Code length:', debugTccData.assembledComponentCode.length);
+                          console.log('🔍     Code hash:', safeHash(debugTccData.assembledComponentCode));
+                          console.log('🔍     Contains sliders?:', debugTccData.assembledComponentCode.includes('Slider'));
+                        } else {
+                          console.log('🔍 ❌ DEBUG MODE: No assembled code available - preview will be empty');
+                        }
+                      } else {
+                        console.log('🔍 ❌ NO PREVIEW SOURCE AVAILABLE');
+                        console.log('🔍     All conditions failed - no preview will be shown');
+                      }
+                      
+                      console.log('🔍 FINAL SELECTION:');
+                      console.log('🔍   previewSource:', previewSource);
+                      console.log('🔍   previewTool?.id:', previewTool?.id);
+                      console.log('🔍   previewTool?.componentCode length:', previewTool?.componentCode?.length || 'N/A');
+                      console.log('🔍 =========================================================');
+                      
+                      // Render the preview
+                      if (previewTool) {
+                        return (
+                          <div className="space-y-4">
+                            {/* Preview source indicator */}
+                            <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">{previewSource}</Badge>
+                                <span className="text-sm text-gray-600">
+                                  {workflowMode === 'debug' ? 'Agent testing preview' : 'Tool generation preview'}
+                                </span>
+                              </div>
+                              {workflowMode === 'debug' && (
+                                <Badge variant="secondary" className="text-xs">
+                                  🔍 Debug Mode
+                                </Badge>
+                              )}
                             </div>
-                            {workflowMode === 'debug' && (
-                              <Badge variant="secondary" className="text-xs">
-                                🔍 Debug Mode
-                              </Badge>
+                            
+                            {/* Debug mode alert */}
+                            {workflowMode === 'debug' && previewSource.includes('Debug') && (
+                              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+                                <Eye className="h-4 w-4 text-blue-600" />
+                                <AlertTitle className="text-blue-800 dark:text-blue-200">🔍 Debug Preview</AlertTitle>
+                                <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                                  This preview is generated from the TCC data updated by the isolated agent. It shows how the tool would look with the current agent's output.
+                                </AlertDescription>
+                              </Alert>
                             )}
+                            
+                            {/* Component preview */}
+                            <CanvasTool 
+                              key={`canvas-tool-${previewTool?.id || previewTool?.metadata?.id || 'no-tool'}-${previewTool?.componentCode?.length || 0}-${previewTool?.componentCode?.substring(0, 100).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20) || 'no-code'}`}
+                              productToolDefinition={previewTool as any} 
+                              isDarkMode={isDarkMode} 
+                            />
                           </div>
-                          
-                          {/* Debug mode alert */}
-                          {workflowMode === 'debug' && previewSource.includes('Debug') && (
-                            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
-                              <Eye className="h-4 w-4 text-blue-600" />
-                              <AlertTitle className="text-blue-800 dark:text-blue-200">🔍 Debug Preview</AlertTitle>
-                              <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
-                                This preview is generated from the TCC data updated by the isolated agent. It shows how the tool would look with the current agent's output.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          
-                          {/* Component preview */}
-                          <CanvasTool 
-                            key={`canvas-tool-${previewTool?.id || previewTool?.metadata?.id || 'no-tool'}-${previewTool?.componentCode?.length || 0}-${previewTool?.componentCode?.substring(0, 100).replace(/[^a-zA-Z0-9]/g, '').substring(0, 20) || 'no-code'}`}
-                            productToolDefinition={previewTool as any} 
-                            isDarkMode={isDarkMode} 
+                        );
+                      }
+                      // No preview available
+                      else if (workflowMode === 'debug') {
+                        return (
+                          <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50">
+                            <div className="text-center">
+                              <Eye className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                              <p className="text-blue-600 font-medium">AGENT PREVIEW NOT AVAILABLE</p>
+                              <p className="text-blue-500 text-sm">This agent doesn't produce visual components.</p>
+                              <p className="text-blue-500 text-sm">Check the "Agent Results" tab for detailed output.</p>
+                            </div>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
+                            <div className="text-center">
+                              <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-500 font-medium">No Component Preview Available</p>
+                              <p className="text-gray-400 text-sm">Run a tool generation to see the preview</p>
+                            </div>
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+
+                  {/* Debug Panel Section */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center">
+                      <Bug className="mr-2 h-4 w-4" />
+                      Debug Panel
+                    </h3>
+                    {(() => {
+                      // Get the component code for debugging
+                      const componentCode = assembledCode || (tccData?.assembledComponentCode) || '';
+                      const toolId = testJob?.jobId || 'debug-tool';
+                      
+                      if (componentCode) {
+                        return (
+                          <ToolDebugPanel
+                            toolId={toolId}
+                            componentCode={componentCode}
+                            metadata={{
+                              title: testJob?.result?.metadata?.title || 'Generated Tool',
+                              description: testJob?.result?.metadata?.description || 'Debug session for generated tool',
+                              slug: testJob?.result?.metadata?.slug || 'debug-tool'
+                            }}
+                            onDebugEvent={(event) => {
+                              console.log('Debug event captured:', event);
+                            }}
+                            className="h-[500px]"
                           />
-                        </div>
-                      );
-                    }
-                    // No preview available
-                    else if (workflowMode === 'debug') {
-                      return (
-                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50">
-                          <div className="text-center">
-                            <Eye className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                            <p className="text-blue-600 font-medium">AGENT PREVIEW NOT AVAILABLE</p>
-                            <p className="text-blue-500 text-sm">This agent doesn't produce visual components.</p>
-                            <p className="text-blue-500 text-sm">Check the "Agent Results" tab for detailed output.</p>
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center justify-center h-48 p-6">
+                            <div className="text-center">
+                              <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                              <p className="text-gray-500 font-medium">Tool Debug Not Available</p>
+                              <p className="text-gray-400 text-sm">Generate a tool to enable interactive debugging</p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="flex items-center justify-center h-48 rounded-lg border-2 border-dashed">
-                          <div className="text-center">
-                            <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500 font-medium">No Component Preview Available</p>
-                            <p className="text-gray-400 text-sm">Run a tool generation to see the preview</p>
-                          </div>
-                        </div>
-                      );
-                    }
-                  })()}
+                        );
+                      }
+                    })()}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
