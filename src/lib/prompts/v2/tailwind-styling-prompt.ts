@@ -10,10 +10,12 @@ const CRITICAL_STYLING_PROHIBITIONS = `
 🚨🚨🚨 ABSOLUTE STYLING PROHIBITIONS - THESE CAUSE FAILURES 🚨🚨🚨
 
 <critical-styling-failures>
-    ❌ NEVER USE INVISIBLE INPUT TEXT:
-    - MANDATORY: ALL Input components MUST include 'text-gray-900' in className
-    - FORBIDDEN: Inputs without explicit dark text color (causes invisible text)
-    - EXAMPLE: className: 'w-full h-10 px-4 text-gray-900 border-2...'
+    ❌ NEVER USE INVISIBLE INPUT TEXT - #1 USER COMPLAINT:
+    - DARK THEME TOOLS: ALL Input components MUST include 'text-gray-100' or 'text-white'
+    - LIGHT THEME TOOLS: ALL Input components MUST include 'text-gray-900'
+    - FORBIDDEN: Inputs without explicit text color (causes invisible text)
+    - EXAMPLE DARK: className: 'w-full h-10 px-4 text-gray-100 bg-slate-700 border-2...'
+    - EXAMPLE LIGHT: className: 'w-full h-10 px-4 text-gray-900 bg-white border-2...'
     - This is the #1 reason users can't see their input text!
     
     ❌ NEVER USE POOR CONTRAST COMBINATIONS:
@@ -21,6 +23,12 @@ const CRITICAL_STYLING_PROHIBITIONS = `
     - FORBIDDEN: Dark text on dark backgrounds  
     - FORBIDDEN: text-white on light Card backgrounds
     - REQUIRED: Always specify explicit text colors for sufficient contrast
+    
+    ❌ NEVER CREATE TINY UNUSABLE CHARTS:
+    - FORBIDDEN: Charts smaller than 300x300px (users can't read them)
+    - FORBIDDEN: Charts without descriptive context and metrics
+    - REQUIRED: Professional results displays with large charts and supporting data
+    - REQUIRED: Minimum chart size 400x400px for readability
     
     ❌ NEVER IGNORE INDUSTRY CONTEXT:
     - FORBIDDEN: Using identical color schemes for different industries
@@ -170,24 +178,126 @@ const FUTURISTIC_DEVICE_STYLING = `
 </input-styling-precision>
 
 <results-display-styling>
-    **📊 SOPHISTICATED RESULTS STYLING:**
+    **📊 PROFESSIONAL RESULTS DISPLAY SYSTEM:**
     
-    **Metric Display Cards:**
-    'bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-slate-400 rounded-lg p-4 shadow-xl transform hover:scale-105 transition-all duration-200'
+    🚨 CRITICAL: CHARTS MUST BE LARGE AND READABLE - NO TINY CHARTS!
+    - MINIMUM chart size: 400x400px (width: 400px, height: 400px)
+    - PREFERRED chart size: 500x500px for optimal readability
+    - FORBIDDEN: Charts smaller than 300x300px (users can't read them)
+    
+    **Professional Results Layout Pattern:**
+    '''jsx'''
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Left: Large Chart */}
+      <div className="bg-slate-800 p-6 rounded-lg shadow-xl">
+        <h3 className="text-xl font-semibold text-slate-200 mb-6">Primary Analysis</h3>
+        <div className="mx-auto" style={{width: '500px', height: '500px'}}>
+          {/* Chart component with large size */}
+        </div>
+      </div>
+      
+      {/* Right: Supporting Metrics */}
+      <div className="space-y-6">
+        <div className="bg-slate-800 p-6 rounded-lg shadow-xl">
+          <h4 className="text-lg font-semibold text-slate-200 mb-4">Key Metrics</h4>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-300">Total Score</span>
+              <span className="text-2xl font-bold text-emerald-400">85%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-300">Performance</span>
+              <span className="text-lg font-semibold text-blue-400">Excellent</span>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-slate-800 p-6 rounded-lg shadow-xl">
+          <h4 className="text-lg font-semibold text-slate-200 mb-4">Breakdown</h4>
+          <div className="space-y-3">
+            <div className="flex justify-between">
+              <span className="text-slate-300">Category A</span>
+              <span className="text-slate-200">$12,500</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-300">Category B</span>
+              <span className="text-slate-200">$8,750</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    
+    **Large Metric Display Cards:**
+    'bg-gradient-to-br from-slate-700 to-slate-800 border-2 border-slate-400 rounded-lg p-6 shadow-xl'
 
-    **Large Metric Values:**
-    'text-3xl font-black text-emerald-400 mb-2 font-mono tracking-tight'
+    **Prominent Metric Values:**
+    'text-4xl font-black text-emerald-400 mb-3 font-mono tracking-tight'
 
     **Metric Labels:**
-    'text-sm font-semibold uppercase tracking-wide text-slate-300 mb-1'
+    'text-lg font-semibold uppercase tracking-wide text-slate-200 mb-2'
+
+    **Supporting Text:**
+    'text-slate-300 text-base leading-relaxed'
 
     **Status Indicators:**
-    - Good: 'text-emerald-400 bg-emerald-900/30 px-2 py-1 rounded-full text-xs font-semibold'
-    - Warning: 'text-amber-400 bg-amber-900/30 px-2 py-1 rounded-full text-xs font-semibold'
-    - Poor: 'text-red-400 bg-red-900/30 px-2 py-1 rounded-full text-xs font-semibold'
+    - Excellent: 'text-emerald-400 bg-emerald-900/30 px-3 py-2 rounded-full text-sm font-semibold'
+    - Good: 'text-blue-400 bg-blue-900/30 px-3 py-2 rounded-full text-sm font-semibold'
+    - Warning: 'text-amber-400 bg-amber-900/30 px-3 py-2 rounded-full text-sm font-semibold'
+    - Poor: 'text-red-400 bg-red-900/30 px-3 py-2 rounded-full text-sm font-semibold'
 
     **Chart Container Styling:**
-    'bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-500 rounded-lg p-4 shadow-2xl'
+    'bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-slate-500 rounded-lg p-6 shadow-2xl'
+    
+    **Chart Size Requirements:**
+    - RadialBarChart: width={500} height={500} (MINIMUM 400x400)
+    - PieChart: width={500} height={500} (MINIMUM 400x400)
+    - BarChart: width={600} height={400} (MINIMUM 500x350)
+    - LineChart: width={600} height={400} (MINIMUM 500x350)
+    
+    **Professional Chart Examples:**
+    '''jsx'''
+    // CORRECT: Large, readable chart with context
+    <div className="bg-slate-800 p-6 rounded-lg shadow-xl">
+      <h3 className="text-xl font-semibold text-slate-200 mb-4">Investment Performance</h3>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-3xl font-bold text-emerald-400">$127,500</p>
+          <p className="text-slate-300">Total Portfolio Value</p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-semibold text-emerald-400">+15.2%</p>
+          <p className="text-slate-300">YTD Return</p>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={500}>
+        <PieChart>
+          {/* Chart content */}
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-blue-400">65%</p>
+          <p className="text-slate-300">Stocks</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-green-400">35%</p>
+          <p className="text-slate-300">Bonds</p>
+        </div>
+      </div>
+    </div>
+    
+    // WRONG: Tiny chart without context
+    <div className="bg-slate-800 p-4 rounded-lg">
+      <h3 className="text-xl font-semibold text-slate-200 mb-4">Score</h3>
+      <div style={{width: '200px', height: '200px'}}>
+        <PieChart width={200} height={200}>
+          {/* Chart content */}
+        </PieChart>
+      </div>
+    </div>
+    '''end jsx'''
 </results-display-styling>
 </futuristic-device-styling>
 `;

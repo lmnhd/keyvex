@@ -309,7 +309,212 @@ ${CORE_LAYOUT_RULES}
             - LineChart for trends or projections (e.g., growth forecasts)
             - RadialBarChart for single scores or ratings (e.g., overall health score)
             - Charts make results more engaging and easier to understand than plain numbers
+            
+            **🚨 PROFESSIONAL RESULTS DISPLAY REQUIREMENTS:**
+            - MINIMUM chart size: 400x400px (width={400} height={400})
+            - PREFERRED chart size: 500x500px for optimal readability
+            - FORBIDDEN: Charts smaller than 300x300px (users can't read them)
+            - REQUIRED: Supporting metrics and context around charts
+            - REQUIRED: Professional layout with chart + metrics side-by-side
         </calculation-display-requirements>
+
+        <professional-results-layout-patterns>
+            **📊 CRITICAL: PROFESSIONAL RESULTS DISPLAY LAYOUTS**
+            
+            🚨 NEVER create tiny, isolated charts! Results must be comprehensive and readable.
+            
+            **PATTERN 1: Large Chart with Side Metrics**
+            '''jsx'''
+            <Card data-style-id="results-card">
+              <CardHeader>
+                <CardTitle data-style-id="results-title">Analysis Results</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Left: Large Chart */}
+                  <div data-style-id="chart-container">
+                    <h3 data-style-id="chart-title">Portfolio Breakdown</h3>
+                    <div data-style-id="chart-wrapper" style={{width: '500px', height: '500px'}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={portfolioData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={180}>
+                            <Cell key="stocks" fill="#4ade80" />
+                            <Cell key="bonds" fill="#60a5fa" />
+                            <Cell key="cash" fill="#fbbf24" />
+                          </Pie>
+                          <RechartsTooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  
+                  {/* Right: Supporting Metrics */}
+                  <div data-style-id="metrics-panel" className="space-y-6">
+                    <div data-style-id="primary-metric">
+                      <h4 data-style-id="metric-label">Total Portfolio Value</h4>
+                      <p data-style-id="metric-value">\${totalValue.toLocaleString()}</p>
+                      <p data-style-id="metric-change">+15.2% YTD</p>
+                    </div>
+                    
+                    <div data-style-id="breakdown-metrics" className="space-y-4">
+                      <div data-style-id="metric-row" className="flex justify-between">
+                        <span data-style-id="metric-name">Stocks (65%)</span>
+                        <span data-style-id="metric-amount">$127,500</span>
+                      </div>
+                      <div data-style-id="metric-row" className="flex justify-between">
+                        <span data-style-id="metric-name">Bonds (30%)</span>
+                        <span data-style-id="metric-amount">$58,800</span>
+                      </div>
+                      <div data-style-id="metric-row" className="flex justify-between">
+                        <span data-style-id="metric-name">Cash (5%)</span>
+                        <span data-style-id="metric-amount">$9,800</span>
+                      </div>
+                    </div>
+                    
+                    <div data-style-id="performance-indicators">
+                      <h4 data-style-id="performance-title">Performance Indicators</h4>
+                      <div data-style-id="indicator-grid" className="grid grid-cols-2 gap-4">
+                        <div data-style-id="indicator-item">
+                          <p data-style-id="indicator-value">8.5%</p>
+                          <p data-style-id="indicator-label">Annual Return</p>
+                        </div>
+                        <div data-style-id="indicator-item">
+                          <p data-style-id="indicator-value">0.85</p>
+                          <p data-style-id="indicator-label">Sharpe Ratio</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            '''end jsx'''
+            
+            **PATTERN 2: Multiple Charts with Context**
+            '''jsx'''
+            <Card data-style-id="results-card">
+              <CardHeader>
+                <CardTitle data-style-id="results-title">Comprehensive Analysis</CardTitle>
+                <div data-style-id="summary-stats" className="grid grid-cols-3 gap-4 mt-4">
+                  <div data-style-id="stat-item">
+                    <p data-style-id="stat-value">$156,000</p>
+                    <p data-style-id="stat-label">Total Value</p>
+                  </div>
+                  <div data-style-id="stat-item">
+                    <p data-style-id="stat-value">+12.8%</p>
+                    <p data-style-id="stat-label">Growth Rate</p>
+                  </div>
+                  <div data-style-id="stat-item">
+                    <p data-style-id="stat-value">A+</p>
+                    <p data-style-id="stat-label">Risk Rating</p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div data-style-id="chart-section-1">
+                    <h3 data-style-id="chart-1-title">Performance Over Time</h3>
+                    <div data-style-id="chart-1-wrapper" style={{width: '100%', height: '400px'}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={performanceData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="month" />
+                          <YAxis />
+                          <RechartsTooltip />
+                          <Legend />
+                          <Line type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={3} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  
+                  <div data-style-id="chart-section-2">
+                    <h3 data-style-id="chart-2-title">Risk Assessment</h3>
+                    <div data-style-id="chart-2-wrapper" style={{width: '100%', height: '400px'}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadialBarChart data={riskData}>
+                          <RadialBar dataKey="score" cornerRadius={10} fill="#60a5fa" />
+                          <RechartsTooltip />
+                        </RadialBarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div data-style-id="risk-details" className="mt-4">
+                      <p data-style-id="risk-score">Risk Score: 7.2/10</p>
+                      <p data-style-id="risk-description">Moderate-High Risk Profile</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            '''end jsx'''
+            
+            **PATTERN 3: Dashboard-Style Results Grid**
+            '''jsx'''
+            <Card data-style-id="results-card">
+              <CardHeader>
+                <CardTitle data-style-id="results-title">Business Health Dashboard</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Top: Key Metrics Row */}
+                <div data-style-id="key-metrics" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                  <div data-style-id="metric-card-1">
+                    <h4 data-style-id="metric-1-label">Revenue</h4>
+                    <p data-style-id="metric-1-value">$2.4M</p>
+                    <p data-style-id="metric-1-change">+18% vs last year</p>
+                  </div>
+                  <div data-style-id="metric-card-2">
+                    <h4 data-style-id="metric-2-label">Profit Margin</h4>
+                    <p data-style-id="metric-2-value">23.5%</p>
+                    <p data-style-id="metric-2-change">+2.1% improvement</p>
+                  </div>
+                  <div data-style-id="metric-card-3">
+                    <h4 data-style-id="metric-3-label">Cash Flow</h4>
+                    <p data-style-id="metric-3-value">$485K</p>
+                    <p data-style-id="metric-3-change">Healthy</p>
+                  </div>
+                  <div data-style-id="metric-card-4">
+                    <h4 data-style-id="metric-4-label">Health Score</h4>
+                    <p data-style-id="metric-4-value">8.7/10</p>
+                    <p data-style-id="metric-4-change">Excellent</p>
+                  </div>
+                </div>
+                
+                {/* Bottom: Large Chart */}
+                <div data-style-id="main-chart-section">
+                  <h3 data-style-id="main-chart-title">Revenue Breakdown by Category</h3>
+                  <div data-style-id="main-chart-wrapper" style={{width: '100%', height: '500px'}}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={revenueData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="category" />
+                        <YAxis />
+                        <RechartsTooltip />
+                        <Legend />
+                        <Bar dataKey="amount" fill="#4ade80" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            '''end jsx'''
+            
+            **🚨 CRITICAL REQUIREMENTS FOR ALL RESULTS DISPLAYS:**
+            1. **Large Charts**: Minimum 400x400px, prefer 500x500px
+            2. **Supporting Context**: Always include metrics, labels, and explanations
+            3. **Professional Layout**: Use grid layouts to organize chart + metrics
+            4. **Comprehensive Data**: Show totals, breakdowns, and key insights
+            5. **Visual Hierarchy**: Clear titles, sections, and data organization
+            6. **Responsive Design**: Charts adapt to screen size with ResponsiveContainer
+            
+            **FORBIDDEN PATTERNS:**
+            - ❌ Tiny charts without context (200x200px or smaller)
+            - ❌ Charts without supporting metrics or explanations
+            - ❌ Single chart floating alone without additional data
+            - ❌ Poor layout that doesn't utilize horizontal space
+            - ❌ Missing titles, labels, or context for chart data
+        </professional-results-layout-patterns>
 
         <progressive-disclosure>
             **STEP-BY-STEP APPROACH**: For complex tools, consider:

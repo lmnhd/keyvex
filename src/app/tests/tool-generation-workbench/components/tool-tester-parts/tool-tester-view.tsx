@@ -170,6 +170,12 @@ export default function ToolTesterView({
 }) {
   const [activeRightTab, setActiveRightTab] = useState('progress');
 
+  // Safe hash function that doesn't fail on Unicode characters
+  const safeHash = (str: string): string => {
+    if (!str) return 'NO-CODE';
+    return str.length.toString() + '-' + str.substring(0, 50).replace(/[^\w]/g, '').substring(0, 16);
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -1160,8 +1166,17 @@ export default function ToolTesterView({
                 </CardHeader>
                 <CardContent>
                   {(() => {
-                    // UNIFIED PREVIEW LOGIC - Fix for inconsistent rendering between tabs
-                    // Priority order: 1) Final tool result, 2) TCC assembled code, 3) TCC intermediate data
+                    // UNIFIED PREVIEW LOGIC - FIXED: Only use assembled code sources
+                    // This prevents fallback to intermediate code that bypasses our slider fixes
+                    
+                    console.log('🔍 PREVIEW LOGIC TRACE =======================================');
+                    console.log('🔍 SOURCES AVAILABLE:');
+                    console.log('🔍   testJob?.result:', !!testJob?.result);
+                    console.log('🔍   testJob?.result.componentCode length:', testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result ? (testJob.result as any).componentCode?.length : 'N/A');
+                    console.log('🔍   assembledCode length:', assembledCode?.length || 'N/A');
+                    console.log('🔍   tccData?.assembledComponentCode length:', tccData?.assembledComponentCode?.length || 'N/A');
+                    console.log('🔍   workflowMode:', workflowMode);
+                    console.log('🔍   timestamp:', new Date().toISOString());
                     
                     let previewTool = null;
                     let previewSource = '';
@@ -1170,9 +1185,14 @@ export default function ToolTesterView({
                     if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
                       previewTool = testJob.result;
                       previewSource = 'Final Tool Result';
+                      console.log('🔍 ✅ USING PRIORITY 1: Final Tool Result');
+                      console.log('🔍     Tool ID:', (testJob.result as any).id);
+                      console.log('🔍     Code length:', (testJob.result as any).componentCode?.length);
+                      console.log('🔍     Code hash:', (testJob.result as any).componentCode ? safeHash((testJob.result as any).componentCode) : 'NO-CODE');
+                      console.log('🔍     Contains sliders?:', (testJob.result as any).componentCode?.includes('Slider'));
                     }
                     // PRIORITY 2: Use TCC assembled component code (component assembler completed)
-                    else if (assembledCode && tccData?.assembledComponentCode) {
+                    else if (tccData?.assembledComponentCode) {
                       previewTool = {
                         id: tccData.jobId || `preview-${Date.now()}`,
                         slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
@@ -1195,40 +1215,63 @@ export default function ToolTesterView({
                         updatedAt: Date.now()
                       };
                       previewSource = 'TCC Assembled Code';
+                                              console.log('🔍 ✅ USING PRIORITY 2: TCC Assembled Code');
+                        console.log('🔍     TCC Job ID:', tccData.jobId);
+                        console.log('🔍     Code length:', tccData.assembledComponentCode.length);
+                        console.log('🔍     Code hash:', safeHash(tccData.assembledComponentCode));
+                        console.log('🔍     Contains sliders?:', tccData.assembledComponentCode.includes('Slider'));
                     }
-                    // PRIORITY 3: Use TCC intermediate data for debug mode (agent testing)
+                    // PRIORITY 3: Use debug mode assembled code from isolated agent tests
                     else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
-                      const tccData = (testJob.result as any).updatedTcc;
+                      const debugTccData = (testJob.result as any).updatedTcc;
                       const originalTool = (testJob.result as any).originalTool;
-                      const hasAssembledCode = tccData.assembledComponentCode;
-                      const hasStyledCode = tccData.styling?.styledComponentCode;
-                      const hasJsxLayout = tccData.jsxLayout?.componentStructure;
                       
-                      if (hasAssembledCode || hasStyledCode || hasJsxLayout) {
+                      console.log('🔍 📋 DEBUG MODE - Checking for assembled code...');
+                      console.log('🔍     debugTccData.assembledComponentCode length:', debugTccData.assembledComponentCode?.length || 'N/A');
+                      
+                      // CRITICAL FIX: Only use assembledComponentCode in debug mode
+                      // Do NOT fall back to styled or JSX code that bypasses our fixes
+                      if (debugTccData.assembledComponentCode) {
                         previewTool = {
-                          id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                          slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: hasAssembledCode || hasStyledCode || hasJsxLayout || '<div>No component code available</div>',
+                          id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                          slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                          componentCode: debugTccData.assembledComponentCode,
                           metadata: {
-                            id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
-                            slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                            title: originalTool?.metadata?.title || tccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
-                            type: originalTool?.metadata?.type || tccData.userInput?.toolType || 'Debug Tool',
-                            description: originalTool?.metadata?.description || tccData.userInput?.description || 'Tool created from isolated agent testing',
+                            id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
+                            slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
+                            title: originalTool?.metadata?.title || debugTccData.userInput?.description || `Debug Tool: ${selectedAgent}`,
+                            type: originalTool?.metadata?.type || debugTccData.userInput?.toolType || 'Debug Tool',
+                            description: originalTool?.metadata?.description || debugTccData.userInput?.description || 'Tool created from isolated agent testing',
                             userInstructions: originalTool?.metadata?.userInstructions || 'Instructions not available in debug mode.',
                             developerNotes: originalTool?.metadata?.developerNotes || `Debug tool created from isolated ${selectedAgent} agent testing.`,
                             dependencies: originalTool?.metadata?.dependencies || ['react'],
                             source: 'debug-isolated-agent',
                             version: originalTool?.metadata?.version || '1.0.0-debug'
                           },
-                          initialStyleMap: originalTool?.initialStyleMap || tccData.styling?.styleMap || {},
-                          currentStyleMap: tccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
+                          initialStyleMap: originalTool?.initialStyleMap || debugTccData.styling?.styleMap || {},
+                          currentStyleMap: debugTccData.styling?.styleMap || originalTool?.currentStyleMap || originalTool?.initialStyleMap || {},
                           createdAt: originalTool?.createdAt || Date.now(),
                           updatedAt: Date.now()
                         };
-                        previewSource = `Debug Agent: ${selectedAgent}`;
+                        previewSource = `Debug Agent: ${selectedAgent} (Assembled)`;
+                        console.log('🔍 ✅ USING PRIORITY 3: Debug Mode Assembled Code');
+                        console.log('🔍     Debug TCC Job ID:', debugTccData.jobId);
+                        console.log('🔍     Code length:', debugTccData.assembledComponentCode.length);
+                        console.log('🔍     Code hash:', safeHash(debugTccData.assembledComponentCode));
+                        console.log('🔍     Contains sliders?:', debugTccData.assembledComponentCode.includes('Slider'));
+                      } else {
+                        console.log('🔍 ❌ DEBUG MODE: No assembled code available - preview will be empty');
                       }
+                    } else {
+                      console.log('🔍 ❌ NO PREVIEW SOURCE AVAILABLE');
+                      console.log('🔍     All conditions failed - no preview will be shown');
                     }
+                    
+                    console.log('🔍 FINAL SELECTION:');
+                    console.log('🔍   previewSource:', previewSource);
+                    console.log('🔍   previewTool?.id:', previewTool?.id);
+                    console.log('🔍   previewTool?.componentCode length:', previewTool?.componentCode?.length || 'N/A');
+                    console.log('🔍 =========================================================');
                     
                     // Render the preview
                     if (previewTool) {
@@ -1324,19 +1367,14 @@ export default function ToolTesterView({
                       componentCode = (testJob.result as any).componentCode;
                       codeSource = 'Tool Definition componentCode';
                     }
-                    // Try to get from TCC data (debug/agent results)
+                    // Try to get from TCC data (debug/agent results) - ONLY ASSEMBLED CODE
                     else if (testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
                       const tccData = (testJob.result as any).updatedTcc;
                       if (tccData.assembledComponentCode) {
                         componentCode = tccData.assembledComponentCode;
                         codeSource = 'TCC assembledComponentCode';
-                      } else if (tccData.styling?.styledComponentCode) {
-                        componentCode = tccData.styling.styledComponentCode;
-                        codeSource = 'TCC styled component code';
-                      } else if (tccData.jsxLayout?.componentStructure) {
-                        componentCode = tccData.jsxLayout.componentStructure;
-                        codeSource = 'TCC JSX layout structure';
                       }
+                      // REMOVED: No fallback to styled or JSX code that bypasses slider fixes
                     }
 
                     if (componentCode) {
@@ -1733,7 +1771,7 @@ export default function ToolTesterView({
                         const transformedResult = {
                           id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                           slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: tccData.assembledComponentCode || tccData.styling?.styledComponentCode || originalTool?.componentCode || '<div>Component code not available</div>',
+                          componentCode: tccData.assembledComponentCode || originalTool?.componentCode || '<div>Component code not available</div>',
                           metadata: {
                             id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                             slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',

@@ -6,8 +6,8 @@ import logger from '@/lib/logger';
 export async function GET(request: NextRequest) {
   // Environment variable diagnostic check
   const clerkKeyLoaded = !!process.env.CLERK_SECRET_KEY;
-  const awsAccessKeyLoaded = !!process.env.DYNAMODB_AWS_ACCESS_KEY_ID;
-  const awsSecretKeyLoaded = !!process.env.DYNAMODB_AWS_SECRET_ACCESS_KEY;
+  const awsAccessKeyLoaded = false;
+  const awsSecretKeyLoaded = false;
   const dbTableNameLoaded = !!process.env.DYNAMODB_TABLE_NAME;
 
   logger.info({

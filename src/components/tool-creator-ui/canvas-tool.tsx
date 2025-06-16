@@ -26,6 +26,11 @@ interface CanvasToolProps {
   }>) => void;
 }
 
+const safeHash = (str: string): string => {
+  if (!str) return 'NO-CODE';
+  return str.length.toString() + '-' + str.substring(0, 50).replace(/[^\w]/g, '').substring(0, 16);
+};
+
 export function CanvasTool({ 
   isDarkMode, 
   className = '', 
@@ -34,6 +39,27 @@ export function CanvasTool({
   generatingMessage, 
   onValidationIssues 
 }: CanvasToolProps) {
+  // 🔧 CANVAS TOOL TRACE - Log what we receive
+  console.log('🎨 CANVAS TOOL TRACE =====================================');
+  console.log('🎨 RECEIVED PRODUCT TOOL:', {
+    hasDefinition: !!productToolDefinition,
+    id: productToolDefinition?.id,
+    slug: productToolDefinition?.slug,
+    title: productToolDefinition?.metadata?.title,
+    codeLength: productToolDefinition?.componentCode?.length || 0,
+    codeHash: productToolDefinition?.componentCode ? safeHash(productToolDefinition.componentCode) : 'NO-CODE',
+    hasStyleMap: !!productToolDefinition?.currentStyleMap,
+    styleMapKeys: productToolDefinition?.currentStyleMap ? Object.keys(productToolDefinition.currentStyleMap).length : 0,
+    isGenerating,
+    timestamp: new Date().toISOString()
+  });
+  if (productToolDefinition?.componentCode) {
+    console.log('🎨 CODE PREVIEW (first 200 chars):', productToolDefinition.componentCode.substring(0, 200));
+    console.log('🎨 CODE CONTAINS SLIDERS?:', productToolDefinition.componentCode.includes('Slider'));
+    console.log('🎨 CODE CONTAINS useState arrays?:', productToolDefinition.componentCode.includes('useState(['));
+  }
+  console.log('🎨 ===================================================');
+  
   if (isGenerating && generatingMessage) {
     return (
       <div className={`relative p-6 ${isDarkMode ? 'text-gray-200' : 'text-gray-800'} ${className} min-h-[400px]`}>

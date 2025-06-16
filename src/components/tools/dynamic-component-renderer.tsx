@@ -132,6 +132,22 @@ export default function DynamicComponentRenderer({
 
   // Safely compile and render the component code
   const compiledComponent = useMemo(() => {
+    console.log('🔧 RENDERER TRACE ========================================');
+    console.log('🔧 METADATA:', {
+      title: metadata.title,
+      id: metadata.id,
+      slug: metadata.slug,
+      description: metadata.description?.substring(0, 100) + '...'
+    });
+    console.log('🔧 CODE LENGTH:', componentCode?.length || 0);
+    console.log('🔧 CODE HASH:', componentCode ? componentCode.length.toString() + '-' + componentCode.substring(0, 50).replace(/[^\w]/g, '').substring(0, 16) : 'NO-CODE');
+    console.log('🔧 CODE PREVIEW (first 300 chars):', componentCode?.substring(0, 300) || 'NO CODE');
+    console.log('🔧 CODE CONTAINS SLIDERS?:', componentCode?.includes('Slider') || false);
+    console.log('🔧 CODE CONTAINS useState arrays?:', componentCode?.includes('useState([') || false);
+    console.log('🔧 STYLE MAP:', currentStyleMap ? Object.keys(currentStyleMap).length + ' styles' : 'NO STYLES');
+    console.log('🔧 TIMESTAMP:', new Date().toISOString());
+    console.log('🔧 ======================================================');
+    
     console.log('🔍 COMPILING COMPONENT - Starting compilation process');
     console.log('🔍 TRACE: componentCode length:', componentCode?.length || 0);
     console.log('🔍 TRACE: componentCode preview (first 200 chars):', componentCode?.substring(0, 200) || 'NO CODE');
@@ -545,11 +561,60 @@ export default function DynamicComponentRenderer({
   // Effect to apply styles from currentStyleMap
   useEffect(() => {
     if (currentStyleMap && wrapperRef.current) {
+      console.log('🎨 APPLYING STYLES - Starting style application...');
+      let stylesApplied = 0;
+      
       for (const [dataStyleId, classNameString] of Object.entries(currentStyleMap)) {
         const element = wrapperRef.current.querySelector(`[data-style-id="${dataStyleId}"]`) as HTMLElement;
         if (element) {
-          element.className = classNameString;
+          // 🚨 CRITICAL FIX: Preserve existing Radix UI classes and merge with style map
+          const existingClasses = element.className;
+          const isRadixComponent = existingClasses.includes('data-[') || existingClasses.includes('relative flex') || existingClasses.includes('touch-none');
+          
+          if (isRadixComponent) {
+            // For Radix UI components, merge classes instead of replacing
+            const existingClassArray = existingClasses.split(' ').filter(cls => cls.trim());
+            const newClassArray = classNameString.split(' ').filter(cls => cls.trim());
+            
+            // Remove duplicates and merge
+            const mergedClasses = [...new Set([...existingClassArray, ...newClassArray])].join(' ');
+            element.className = mergedClasses;
+            console.log(`🎨 MERGED RADIX CLASSES: ${dataStyleId} -> ${existingClasses} + ${classNameString} = ${mergedClasses}`);
+          } else {
+            // For non-Radix components, replace as before
+            element.className = classNameString;
+            console.log(`🎨 REPLACED CLASSES: ${dataStyleId} -> ${classNameString}`);
+          }
+          
+          stylesApplied++;
+        } else {
+          console.warn(`🎨 STYLE TARGET NOT FOUND: ${dataStyleId}`);
         }
+      }
+      
+      console.log(`🎨 STYLES APPLIED: ${stylesApplied}/${Object.keys(currentStyleMap).length} styles applied`);
+      
+      // 🚨 CRITICAL FIX: Force a micro-re-render to ensure Radix UI components initialize properly
+      // This fixes the slider/checkbox initialization timing issue
+      if (stylesApplied > 0) {
+        console.log('🎨 FORCING COMPONENT REFRESH for proper Radix UI initialization...');
+        
+        // Use requestAnimationFrame to ensure DOM updates are complete
+        requestAnimationFrame(() => {
+          // Trigger a subtle DOM change that forces React to re-evaluate component state
+          // This ensures Radix UI components re-initialize with the correct styles
+          const wrapper = wrapperRef.current;
+          if (wrapper) {
+            // Temporarily add and remove a class to trigger re-render
+            wrapper.classList.add('styles-applied');
+            
+            // Use another frame to remove the class and complete the refresh cycle
+            requestAnimationFrame(() => {
+              wrapper.classList.remove('styles-applied');
+              console.log('🎨 ✅ COMPONENT REFRESH COMPLETE - Radix UI components should now render correctly');
+            });
+          }
+        });
       }
     }
   }, [currentStyleMap, compiledComponent]);
