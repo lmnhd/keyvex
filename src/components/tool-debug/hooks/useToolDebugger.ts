@@ -46,6 +46,46 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   const performanceRef = useRef<PerformanceMetrics>(currentState.performance);
 
   // Create a debug event
+  // Sanitize data to avoid circular references
+  const sanitizeData = useCallback((data: any): any => {
+    try {
+      // First pass - handle known problematic objects
+      const sanitized = JSON.parse(JSON.stringify(data, (key, value) => {
+        // Handle DOM elements
+        if (value instanceof Element) {
+          return {
+            type: 'DOM_ELEMENT',
+            tagName: value.tagName?.toLowerCase(),
+            id: value.id || undefined,
+            className: value.className || undefined,
+            textContent: value.textContent?.substring(0, 100) || undefined,
+          };
+        }
+        
+        // Handle React Fiber nodes
+        if (value && typeof value === 'object' && value.constructor && value.constructor.name === 'FiberNode') {
+          return '[REACT_FIBER]';
+        }
+        
+        // Handle functions
+        if (typeof value === 'function') {
+          return `[FUNCTION: ${value.name || 'anonymous'}]`;
+        }
+        
+        // Skip problematic React internal properties
+        if (typeof key === 'string' && (key.startsWith('__react') || key.startsWith('_'))) {
+          return '[INTERNAL_PROPERTY]';
+        }
+        
+        return value;
+      }));
+      
+      return sanitized;
+    } catch (error) {
+      return { error: 'Data serialization failed', originalType: typeof data };
+    }
+  }, []);
+
   const createEvent = useCallback((
     type: DebugEventType,
     data: any,
@@ -56,42 +96,45 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       id: `${type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type,
       timestamp: Date.now(),
-      data,
+      data: sanitizeData(data),
       severity,
       message: message || `${type.replace('_', ' ')} event`,
     };
-  }, []);
+  }, [sanitizeData]);
 
-  // Add event to the queue
+  // Add event to the queue - use flushSync to ensure immediate update but avoid render issues
   const addEvent = useCallback((event: DebugEvent) => {
     if (!config.enabled) return;
     
-    setEvents(prevEvents => {
-      const newEvents = [...prevEvents, event];
-      // Limit events to prevent memory issues
-      if (newEvents.length > config.maxEvents) {
-        newEvents.splice(0, newEvents.length - config.maxEvents);
-      }
-      eventsRef.current = newEvents;
-      return newEvents;
-    });
+    // Use setTimeout to avoid setState during render
+    setTimeout(() => {
+      setEvents(prevEvents => {
+        const newEvents = [...prevEvents, event];
+        // Limit events to prevent memory issues
+        if (newEvents.length > config.maxEvents) {
+          newEvents.splice(0, newEvents.length - config.maxEvents);
+        }
+        eventsRef.current = newEvents;
+        return newEvents;
+      });
 
-    // Update performance metrics
-    setCurrentState(prevState => {
-      const newPerformance = {
-        ...prevState.performance,
-        eventCount: prevState.performance.eventCount + 1,
-        errorCount: event.severity === 'error' ? prevState.performance.errorCount + 1 : prevState.performance.errorCount,
-        warningCount: event.severity === 'warning' ? prevState.performance.warningCount + 1 : prevState.performance.warningCount,
-      };
-      performanceRef.current = newPerformance;
-      
-      return {
-        ...prevState,
-        performance: newPerformance,
-        lastActivity: Date.now(),
-      };
-    });
+      // Update performance metrics
+      setCurrentState(prevState => {
+        const newPerformance = {
+          ...prevState.performance,
+          eventCount: prevState.performance.eventCount + 1,
+          errorCount: event.severity === 'error' ? prevState.performance.errorCount + 1 : prevState.performance.errorCount,
+          warningCount: event.severity === 'warning' ? prevState.performance.warningCount + 1 : prevState.performance.warningCount,
+        };
+        performanceRef.current = newPerformance;
+        
+        return {
+          ...prevState,
+          performance: newPerformance,
+          lastActivity: Date.now(),
+        };
+      });
+    }, 0);
   }, [config.enabled, config.maxEvents]);
 
   // GLOBAL EVENT CAPTURE - Monitor the entire document for events

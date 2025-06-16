@@ -1367,7 +1367,10 @@ export default function ToolTesterView({
                               slug: testJob?.result?.metadata?.slug || 'debug-tool'
                             }}
                             onDebugEvent={(event) => {
-                              console.log('Debug event captured:', event);
+                              // Use setTimeout to avoid setState during render
+                              setTimeout(() => {
+                                console.log('Debug event captured:', event);
+                              }, 0);
                             }}
                             className="h-[500px]"
                           />

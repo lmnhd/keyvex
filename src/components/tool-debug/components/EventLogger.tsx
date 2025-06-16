@@ -1,12 +1,28 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Trash2, Download, Search, Filter, ArrowUpDown } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { 
+  Trash2, 
+  Download, 
+  Search,
+  ArrowUpDown,
+  MousePointer,
+  Edit,
+  RefreshCw,
+  Phone,
+  AlertTriangle,
+  Calculator,
+  Info,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
 import { DebugEvent, DebugEventType, DebugSeverity } from '../types/debug-types';
+import { sanitizeEventData } from '../utils/serialization';
 
 interface EventLoggerProps {
   events: DebugEvent[];
@@ -28,63 +44,34 @@ export default function EventLogger({
   const [searchText, setSearchText] = useState('');
   const [filterTypes, setFilterTypes] = useState<Set<DebugEventType>>(new Set());
   const [filterSeverity, setFilterSeverity] = useState<Set<DebugSeverity>>(new Set());
-  const [newestFirst, setNewestFirst] = useState(true); // Default to newest first
+  const [newestFirst, setNewestFirst] = useState(true);
 
-  // Filter and sort events based on search, filters, and sort order
-  const filteredEvents = events.filter(event => {
-    // Search text filter
-    if (searchText && !event.message.toLowerCase().includes(searchText.toLowerCase())) {
-      return false;
-    }
-    
-    // Event type filter
-    if (filterTypes.size > 0 && !filterTypes.has(event.type)) {
-      return false;
-    }
-    
-    // Severity filter
-    if (filterSeverity.size > 0 && !filterSeverity.has(event.severity)) {
-      return false;
-    }
-    
-    return true;
-  }).sort((a, b) => {
-    // Sort by timestamp based on newestFirst preference
-    return newestFirst ? b.timestamp - a.timestamp : a.timestamp - b.timestamp;
-  });
-
-  // Get severity icon and color
+  // Helper functions
   const getSeverityDisplay = (severity: DebugSeverity) => {
-    switch (severity) {
-      case 'error':
-        return { icon: '❌', color: 'bg-red-800 text-white border-red-600' };
-      case 'warning':
-        return { icon: '⚠️', color: 'bg-yellow-800 text-white border-yellow-600' };
-      case 'success':
-        return { icon: '✅', color: 'bg-green-800 text-white border-green-600' };
-      default:
-        return { icon: 'ℹ️', color: 'bg-blue-800 text-white border-blue-600' };
-    }
+    const displays = {
+      'info': { icon: <Info className="h-3 w-3" />, color: 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' },
+      'success': { icon: <CheckCircle className="h-3 w-3" />, color: 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' },
+      'warning': { icon: <AlertTriangle className="h-3 w-3" />, color: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800' },
+      'error': { icon: <AlertCircle className="h-3 w-3" />, color: 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800' },
+    };
+    return displays[severity] || displays.info;
   };
 
-  // Get event type icon
   const getEventTypeIcon = (type: DebugEventType) => {
-    switch (type) {
-      case 'click': return '🖱️';
-      case 'input_change': return '📝';
-      case 'state_change': return '🔄';
-      case 'function_call': return '⚙️';
-      case 'error': return '💥';
-      case 'render': return '🎨';
-      case 'calculation': return '🧮';
-      default: return '📋';
-    }
+    const icons = {
+      'click': <MousePointer className="h-3 w-3" />,
+      'input_change': <Edit className="h-3 w-3" />,
+      'state_change': <RefreshCw className="h-3 w-3" />,
+      'function_call': <Phone className="h-3 w-3" />,
+      'error': <AlertTriangle className="h-3 w-3" />,
+      'calculation': <Calculator className="h-3 w-3" />,
+    };
+    return icons[type] || <Info className="h-3 w-3" />;
   };
 
-  // Format timestamp
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { 
+    return date.toLocaleTimeString('en-US', { 
       hour12: false, 
       hour: '2-digit', 
       minute: '2-digit', 
@@ -93,30 +80,59 @@ export default function EventLogger({
     });
   };
 
-  // Toggle filter
   const toggleTypeFilter = (type: DebugEventType) => {
-    setFilterTypes(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(type)) {
-        newSet.delete(type);
-      } else {
-        newSet.add(type);
-      }
-      return newSet;
-    });
+    const newFilters = new Set(filterTypes);
+    if (newFilters.has(type)) {
+      newFilters.delete(type);
+    } else {
+      newFilters.add(type);
+    }
+    setFilterTypes(newFilters);
   };
 
   const toggleSeverityFilter = (severity: DebugSeverity) => {
-    setFilterSeverity(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(severity)) {
-        newSet.delete(severity);
-      } else {
-        newSet.add(severity);
-      }
-      return newSet;
-    });
+    const newFilters = new Set(filterSeverity);
+    if (newFilters.has(severity)) {
+      newFilters.delete(severity);
+    } else {
+      newFilters.add(severity);
+    }
+    setFilterSeverity(newFilters);
   };
+
+  // Filter and sort events
+  const filteredEvents = useMemo(() => {
+    let filtered = events.filter(event => {
+      // Search filter
+      if (searchText) {
+        const searchLower = searchText.toLowerCase();
+        const matchesSearch = 
+          event.message?.toLowerCase().includes(searchLower) ||
+          event.type.toLowerCase().includes(searchLower) ||
+          event.severity.toLowerCase().includes(searchLower) ||
+          JSON.stringify(event.data).toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Type filter
+      if (filterTypes.size > 0 && !filterTypes.has(event.type)) {
+        return false;
+      }
+
+      // Severity filter
+      if (filterSeverity.size > 0 && !filterSeverity.has(event.severity)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Sort by timestamp
+    filtered.sort((a, b) => newestFirst ? b.timestamp - a.timestamp : a.timestamp - b.timestamp);
+
+    return filtered;
+  }, [events, searchText, filterTypes, filterSeverity, newestFirst]);
 
   return (
     <div className={`space-y-3 ${className}`}>
@@ -295,7 +311,7 @@ export default function EventLogger({
                         View details
                       </summary>
                       <pre className="mt-1 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                        {JSON.stringify(event.data, null, 2)}
+                        {JSON.stringify(sanitizeEventData(event.data), null, 2)}
                       </pre>
                     </details>
                   )}
