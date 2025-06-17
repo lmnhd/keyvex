@@ -1,0 +1,124 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2025-01-29",
+  "description": "Quality validation checklist for interactive tool brainstorming",
+  
+  "checklistItems": [
+    {
+      "id": "unique_value",
+      "category": "value_proposition",
+      "title": "Unique & Useful Results",
+      "description": "Does this tool provide a unique and useful result to the user that is more than just a simple figure with no surrounding context to highlight its true value?",
+      "weight": 0.3,
+      "criticalThresholds": {
+        "passing": 7,
+        "excellent": 9
+      },
+      "evaluationCriteria": [
+        "Results include contextual insights beyond raw numbers",
+        "Provides benchmarking or comparative analysis", 
+        "Offers actionable recommendations based on results",
+        "Delivers 'aha moments' that justify time investment",
+        "Results tell a story, not just present data"
+      ]
+    },
+    {
+      "id": "business_demonstration",
+      "category": "business_value",
+      "title": "Service/Product/Value Demonstration",
+      "description": "Does this tool effectively demonstrate or highlight a unique 'Service', 'Product', or 'Value' on behalf of the owner?",
+      "weight": 0.25,
+      "criticalThresholds": {
+        "passing": 7,
+        "excellent": 9
+      },
+      "evaluationCriteria": [
+        "Showcases domain expertise and knowledge",
+        "Positions tool owner as trusted advisor/expert",
+        "Creates natural opportunities for service upselling",
+        "Demonstrates unique methodology or approach",
+        "Builds credibility through sophisticated analysis"
+      ]
+    },
+    {
+      "id": "visual_feedback",
+      "category": "user_experience",
+      "title": "Comprehensive Visual Feedback", 
+      "description": "Does this tool thoroughly provide visual feedback through all of the steps?",
+      "weight": 0.2,
+      "criticalThresholds": {
+        "passing": 6,
+        "excellent": 8
+      },
+      "evaluationCriteria": [
+        "Progress indicators throughout multi-step process",
+        "Real-time calculation updates and previews",
+        "Visual charts, graphs, or infographics for results",
+        "Interactive elements that respond to user input",
+        "Clear visual hierarchy and information flow"
+      ]
+    },
+    {
+      "id": "lead_capture",
+      "category": "lead_generation",
+      "title": "Strategic Lead Information Collection",
+      "description": "Does this tool collect the needed lead information before the user disengages?",
+      "weight": 0.25,
+      "criticalThresholds": {
+        "passing": 8,
+        "excellent": 10
+      },
+      "evaluationCriteria": [
+        "Clear value exchange for contact information",
+        "Optimal timing for lead capture (not too early/late)",
+        "Multiple touchpoints for engagement",
+        "Compelling incentive for information sharing",
+        "Low-friction capture process"
+      ]
+    }
+  ],
+  
+  "scoringSystem": {
+    "scale": "1-10",
+    "passingThreshold": 7.0,
+    "excellenceThreshold": 8.5,
+    "weights": {
+      "value_proposition": 0.3,
+      "business_value": 0.25, 
+      "user_experience": 0.2,
+      "lead_generation": 0.25
+    }
+  },
+  
+  "iterationGuidelines": {
+    "maxIterations": 3,
+    "improvementThreshold": 0.5,
+    "requiresResearch": [
+      "Industry-specific insights needed",
+      "Market data or benchmarks required",
+      "Regulatory compliance considerations",
+      "Technical feasibility questions",
+      "Current trends and best practices",
+      "Competitive landscape analysis"
+    ]
+  },
+  
+  "qualityIndicators": {
+    "excellent": {
+      "minScore": 8.5,
+      "description": "Tool exceeds expectations in all areas"
+    },
+    "good": {
+      "minScore": 7.0,
+      "description": "Tool meets quality standards and is ready for deployment"
+    },
+    "needsImprovement": {
+      "minScore": 5.0,
+      "description": "Tool has potential but requires refinement"
+    },
+    "poor": {
+      "minScore": 0.0,
+      "description": "Tool requires significant rework"
+    }
+  }
+}

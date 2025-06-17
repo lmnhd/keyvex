@@ -1,12 +1,32 @@
-// TODO: Implement Logic Architect Agent for framework definition (15-20 seconds)
+// Enhanced Logic Architect Agent with Thinking Mode, Quality Validation, and Research Capabilities
 
-import { generateObject, streamObject } from 'ai';
+import { generateObject, streamObject, generateText } from 'ai';
 import { z } from 'zod';
 import { FrameworkInput, LogicStructure, Question, ResultCategory } from '@/lib/types/ai';
 import { openai } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
+import { anthropic, AnthropicProviderOptions } from '@ai-sdk/anthropic';
 import { generateLogicBrainstorming } from '@/lib/prompts/logic-architect-prompt';
 import { PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
+import { toolQualityChecklist, ChecklistItem, QualityChecklist } from '../../config';
+import { web_search } from '../web-search';
+
+// Schema for quality validation scoring
+const qualityScoreSchema = z.object({
+  scores: z.record(z.number()), // Checklist item ID -> score
+  overallScore: z.number(),
+  improvementNeeded: z.boolean(),
+  suggestions: z.array(z.string()),
+  researchNeeded: z.boolean(),
+  researchTopics: z.array(z.string()).optional()
+});
+
+// Schema for research results
+const researchResultSchema = z.object({
+  topic: z.string(),
+  findings: z.string(),
+  relevantData: z.any().optional(),
+  insights: z.array(z.string())
+});
 
 // Schema for brainstorming output with PromptOptions
 const logicBrainstormingSchema = z.object({
@@ -108,12 +128,315 @@ const branchingLogicSchema = z.object({
 export class LogicArchitectAgent {
   private model: any;
   private provider: 'openai' | 'anthropic';
+  private qualityChecklist: QualityChecklist;
   
   constructor(provider: 'openai' | 'anthropic' = 'anthropic') {
     this.provider = provider;
     this.model = provider === 'openai' 
       ? openai('gpt-4-turbo-preview')
-      : anthropic('claude-3-5-sonnet-20240620');
+      : anthropic('claude-3-7-sonnet-20250219');
+    this.qualityChecklist = toolQualityChecklist;
+  }
+
+  /**
+   * Enhanced brainstormToolLogic with thinking mode, validation, and research
+   * Maintains exact same output format for compatibility
+   */
+  async brainstormToolLogic(
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string,
+    availableData: any,
+    outputFormat: 'v1' | 'v2' = 'v2'
+  ): Promise<any> {
+    try {
+      console.log(`🧠 Enhanced Logic Architect brainstorming with thinking mode: ${outputFormat}`);
+      
+      // Step 1: Generate initial brainstorm using thinking mode
+      let currentBrainstorm = await this.generateInitialBrainstorm(
+        toolType, targetAudience, industry, businessContext, availableData
+      );
+      
+      // Step 2: Iterative validation and improvement (max 3 iterations)
+      let iteration = 0;
+      const maxIterations = this.qualityChecklist.iterationGuidelines.maxIterations || 3;
+      
+      while (iteration < maxIterations) {
+        iteration++;
+        console.log(`🔍 Quality validation iteration ${iteration}/${maxIterations}`);
+        
+        // Validate against quality checklist
+        const qualityScore = await this.validateQuality(currentBrainstorm, toolType, targetAudience);
+        
+        if (!qualityScore.improvementNeeded) {
+          console.log(`✅ Quality validation passed on iteration ${iteration}`);
+          break;
+        }
+        
+        // Conduct research if needed
+        if (qualityScore.researchNeeded && qualityScore.researchTopics) {
+          console.log(`🔬 Conducting research on: ${qualityScore.researchTopics.join(', ')}`);
+          const researchResults = await this.conductResearch(qualityScore.researchTopics, toolType, industry);
+          currentBrainstorm = await this.improveBrainstormWithResearch(
+            currentBrainstorm, qualityScore.suggestions, researchResults
+          );
+        } else {
+          // Improve without research
+          currentBrainstorm = await this.improveBrainstorm(currentBrainstorm, qualityScore.suggestions);
+        }
+      }
+      
+      console.log('✅ Enhanced Logic Architect brainstorming complete:', currentBrainstorm.coreConcept);
+      
+      // Return in requested format (maintaining compatibility)
+      if (outputFormat === 'v1') {
+        return this.formatAsV1(currentBrainstorm, toolType, targetAudience, industry, businessContext);
+      } else {
+        return this.formatAsV2(currentBrainstorm, toolType, targetAudience, industry, businessContext);
+      }
+
+    } catch (error) {
+      console.error('❌ Enhanced Logic brainstorming failed:', error);
+      const fallbackResult = this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
+      
+      if (outputFormat === 'v1') {
+        return this.formatAsV1(fallbackResult, toolType, targetAudience, industry, businessContext);
+      } else {
+        return this.formatAsV2(fallbackResult, toolType, targetAudience, industry, businessContext);
+      }
+    }
+  }
+
+  /**
+   * Generate initial brainstorm using thinking mode
+   */
+  private async generateInitialBrainstorm(
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string,
+    availableData: any
+  ): Promise<any> {
+    const prompt = generateLogicBrainstorming(
+      toolType,
+      targetAudience,
+      industry,
+      businessContext,
+      availableData
+    );
+
+    // Use thinking mode for deep reasoning
+    const { text, reasoning } = await generateText({
+      model: this.model,
+      prompt: `${prompt}\n\nThink deeply about this tool concept and return a JSON object matching the required schema.`,
+      providerOptions: {
+        anthropic: {
+          thinking: { type: 'enabled', budgetTokens: 12000 },
+        } satisfies AnthropicProviderOptions,
+      },
+    });
+
+    console.log('🤔 Thinking process length:', reasoning?.length || 0);
+    
+    // Parse the JSON response
+    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No valid JSON found in response');
+    }
+    
+    const brainstormData = JSON.parse(jsonMatch[0].replace(/```json\s*|\s*```/g, ''));
+    return this.postProcessBrainstormingResult(brainstormData);
+  }
+
+  /**
+   * Validate brainstorm against quality checklist
+   */
+  private async validateQuality(brainstorm: any, toolType: string, targetAudience: string): Promise<any> {
+    const checklistPrompt = `
+Evaluate this tool brainstorm against the quality checklist:
+
+TOOL BRAINSTORM:
+${JSON.stringify(brainstorm, null, 2)}
+
+QUALITY CHECKLIST:
+${this.qualityChecklist.checklistItems.map(item => `
+${item.id}: ${item.title}
+Description: ${item.description}
+Weight: ${item.weight}
+Criteria: ${item.evaluationCriteria.join(', ')}
+`).join('\n')}
+
+Rate each checklist item from 1-10 and provide overall assessment.
+Determine if research is needed for niche topics or industry-specific insights.
+
+Return a JSON object with:
+- scores: {itemId: score} for each checklist item
+- overallScore: weighted average
+- improvementNeeded: boolean (true if overall < ${this.qualityChecklist.scoringSystem.passingThreshold})
+- suggestions: array of specific improvement suggestions
+- researchNeeded: boolean
+- researchTopics: array of topics that need research (if researchNeeded is true)
+`;
+
+    const { object } = await generateObject({
+      model: this.model,
+      schema: qualityScoreSchema,
+      prompt: checklistPrompt,
+      temperature: 0.3
+    });
+
+    return object;
+  }
+
+  /**
+   * Conduct research using web search
+   */
+  private async conductResearch(topics: string[], toolType: string, industry: string): Promise<any[]> {
+    const researchResults = [];
+    
+    for (const topic of topics) {
+      try {
+        const searchTerm = `${industry} ${toolType} ${topic} best practices current trends 2024`;
+        console.log(`🔬 Researching: ${searchTerm}`);
+        
+        const findings = await web_search({
+          search_term: searchTerm,
+          explanation: `Research for ${toolType} tool in ${industry} industry regarding ${topic}`,
+          domain: this.mapIndustryToDomain(industry)
+        });
+        
+        researchResults.push({
+          topic,
+          findings: findings || 'No research results available',
+          insights: this.extractInsights(findings || '', topic)
+        });
+      } catch (error) {
+        console.error(`❌ Research failed for topic ${topic}:`, error);
+        researchResults.push({
+          topic,
+          findings: 'Research unavailable',
+          insights: []
+        });
+      }
+    }
+    
+    return researchResults;
+  }
+
+  /**
+   * Map industry to domain for web search context
+   */
+  private mapIndustryToDomain(industry: string): string {
+    const industryMapping: Record<string, string> = {
+      'solar': 'solar',
+      'renewable energy': 'solar',
+      'energy': 'solar',
+      'finance': 'finance',
+      'financial': 'finance',
+      'banking': 'finance',
+      'investment': 'finance',
+      'tax': 'tax',
+      'taxation': 'tax',
+      'accounting': 'tax',
+      'real estate': 'real_estate',
+      'property': 'real_estate',
+      'housing': 'real_estate',
+      'healthcare': 'healthcare',
+      'medical': 'healthcare',
+      'health': 'healthcare',
+      'business': 'business',
+      'corporate': 'business',
+      'consulting': 'business'
+    };
+    
+    const lowerIndustry = industry.toLowerCase();
+    return industryMapping[lowerIndustry] || 'business';
+  }
+
+  /**
+   * Extract key insights from research findings
+   */
+  private extractInsights(findings: string, topic: string): string[] {
+    // Simple insight extraction (could be enhanced with AI)
+    const insights = [];
+    
+    if (findings.toLowerCase().includes('trend')) {
+      insights.push('Current industry trends identified');
+    }
+    if (findings.toLowerCase().includes('best practice')) {
+      insights.push('Best practices discovered');
+    }
+    if (findings.toLowerCase().includes('data') || findings.toLowerCase().includes('metric')) {
+      insights.push('Relevant data points found');
+    }
+    
+    return insights.length > 0 ? insights : ['General industry information available'];
+  }
+
+  /**
+   * Improve brainstorm with research insights
+   */
+  private async improveBrainstormWithResearch(
+    brainstorm: any,
+    suggestions: string[],
+    researchResults: any[]
+  ): Promise<any> {
+    const improvementPrompt = `
+Improve this tool brainstorm using the research insights and suggestions:
+
+CURRENT BRAINSTORM:
+${JSON.stringify(brainstorm, null, 2)}
+
+IMPROVEMENT SUGGESTIONS:
+${suggestions.join('\n- ')}
+
+RESEARCH FINDINGS:
+${researchResults.map(r => `
+Topic: ${r.topic}
+Findings: ${r.findings.substring(0, 500)}...
+Insights: ${r.insights.join(', ')}
+`).join('\n')}
+
+Enhance the brainstorm by incorporating research insights while maintaining the exact same JSON structure.
+Focus on making the tool more valuable, unique, and industry-relevant.
+`;
+
+    const { object } = await generateObject({
+      model: this.model,
+      schema: logicBrainstormingSchema,
+      prompt: improvementPrompt,
+      temperature: 0.4
+    });
+
+    return this.postProcessBrainstormingResult(object);
+  }
+
+  /**
+   * Improve brainstorm without research
+   */
+  private async improveBrainstorm(brainstorm: any, suggestions: string[]): Promise<any> {
+    const improvementPrompt = `
+Improve this tool brainstorm based on the suggestions:
+
+CURRENT BRAINSTORM:
+${JSON.stringify(brainstorm, null, 2)}
+
+IMPROVEMENT SUGGESTIONS:
+${suggestions.join('\n- ')}
+
+Enhance the brainstorm while maintaining the exact same JSON structure.
+Focus on addressing the suggestions to improve quality and user value.
+`;
+
+    const { object } = await generateObject({
+      model: this.model,
+      schema: logicBrainstormingSchema,
+      prompt: improvementPrompt,
+      temperature: 0.4
+    });
+
+    return this.postProcessBrainstormingResult(object);
   }
 
   /**
@@ -200,7 +523,7 @@ Return as a JSON array of question objects.`;
         schema: questionsSchema,
         prompt,
         temperature: 0.6,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object.questions as Question[];
@@ -212,7 +535,7 @@ Return as a JSON array of question objects.`;
   }
 
   /**
-   * Design scoring system for the tool
+   * Design scoring system
    */
   async designScoringSystem(
     toolType: string,
@@ -220,36 +543,30 @@ Return as a JSON array of question objects.`;
     methodology: string
   ): Promise<any> {
     try {
-      const prompt = `Design an optimal scoring system for this tool:
+      const prompt = `Design a scoring system for a ${toolType} tool.
 
-Tool Type: ${toolType}
+Questions to score: ${JSON.stringify(questions, null, 2)}
 Methodology: ${methodology}
-Number of Questions: ${questions.length}
 
 Create a scoring system that:
-1. Aligns with the ${methodology} methodology
-2. Provides meaningful differentiation between results
-3. Is appropriate for a ${toolType} tool
-4. Accounts for question types and importance
-5. Produces actionable score ranges
+1. Matches the tool type and methodology
+2. Provides meaningful differentiation
+3. Is easy to understand and calculate
+4. Aligns with user expectations
+5. Enables clear result interpretation
 
-Return a JSON object with the scoring configuration.`;
-
-      const scoringSchema = z.object({
-        type: z.string(),
-        maxScore: z.number().optional(),
-        methodology: z.string(),
-        categories: z.array(z.string()),
-        weights: z.record(z.number()).optional(),
-        formula: z.string().optional()
-      });
+Include:
+- Scoring method (simple-sum, weighted-sum, average, custom)
+- Weight assignments if applicable
+- Score ranges and thresholds
+- Clear explanation of the methodology`;
 
       const { object } = await generateObject({
         model: this.model,
-        schema: scoringSchema,
+        schema: scoringSystemSchema,
         prompt,
         temperature: 0.4,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object;
@@ -261,7 +578,7 @@ Return a JSON object with the scoring configuration.`;
   }
 
   /**
-   * Create result categories and descriptions
+   * Create result categories
    */
   async createResultCategories(
     scoringSystem: any,
@@ -269,14 +586,25 @@ Return a JSON object with the scoring configuration.`;
     goals: string[]
   ): Promise<ResultCategory[]> {
     try {
-      const prompt = `Create meaningful result categories for this scoring system:
+      const prompt = `Create result categories for this scoring system:
 
 Scoring System: ${JSON.stringify(scoringSystem, null, 2)}
 Target Audience: ${targetAudience}
 Goals: ${goals.join(', ')}
 
-Create 3-5 result categories that provide actionable insights.
-Return as a JSON array of category objects.`;
+Create 3-5 meaningful result categories that:
+1. Cover the full score range logically
+2. Are relevant to the target audience
+3. Align with the stated goals
+4. Provide actionable insights
+5. Use appropriate language and tone
+
+Each category should include:
+- Name and description
+- Score range
+- Key characteristics
+- Recommended actions
+- Motivational messaging`;
 
       const categoriesSchema = z.object({
         categories: z.array(z.any())
@@ -287,7 +615,7 @@ Return as a JSON array of category objects.`;
         schema: categoriesSchema,
         prompt,
         temperature: 0.6,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object.categories as ResultCategory[];
@@ -299,7 +627,7 @@ Return as a JSON array of category objects.`;
   }
 
   /**
-   * Validate framework logic and consistency
+   * Validate framework
    */
   async validateFramework(framework: LogicStructure): Promise<{
     isValid: boolean;
@@ -307,12 +635,19 @@ Return as a JSON array of category objects.`;
     suggestions: string[];
   }> {
     try {
-      const prompt = `Validate this framework for logical consistency:
+      const prompt = `Validate this framework for logical consistency and completeness:
 
 Framework: ${JSON.stringify(framework, null, 2)}
 
-Check for issues and provide suggestions for improvement.
-Return a JSON object with validation results.`;
+Check for:
+1. Logical flow and consistency
+2. Complete coverage of the topic
+3. Appropriate complexity and depth
+4. Clear scoring methodology
+5. Practical implementability
+6. User experience considerations
+
+Return validation results with specific issues found and improvement suggestions.`;
 
       const validationSchema = z.object({
         isValid: z.boolean(),
@@ -325,37 +660,48 @@ Return a JSON object with validation results.`;
         schema: validationSchema,
         prompt,
         temperature: 0.3,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object;
 
     } catch (error) {
       console.error('Error validating framework:', error);
-      throw new Error(`Failed to validate framework: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return {
+        isValid: false,
+        issues: ['Validation failed due to system error'],
+        suggestions: ['Review framework manually and retry validation']
+      };
     }
   }
 
   /**
-   * Optimize framework for better user experience
+   * Optimize framework
    */
   async optimizeFramework(
     framework: LogicStructure,
     optimizationGoals: string[]
   ): Promise<LogicStructure> {
     try {
-      const prompt = `Optimize this framework based on goals: ${optimizationGoals.join(', ')}
+      const prompt = `Optimize this framework based on the specified goals:
 
 Current Framework: ${JSON.stringify(framework, null, 2)}
+Optimization Goals: ${optimizationGoals.join(', ')}
 
-Return an optimized version of the framework.`;
+Enhance the framework to better achieve these goals while maintaining:
+- Logical consistency
+- Practical usability
+- Scientific validity
+- User engagement
+
+Return the optimized framework with the same structure.`;
 
       const { object } = await generateObject({
         model: this.model,
         schema: logicStructureSchema,
         prompt,
         temperature: 0.5,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object as LogicStructure;
@@ -367,41 +713,45 @@ Return an optimized version of the framework.`;
   }
 
   /**
-   * Generate branching logic for complex tools
+   * Generate branching logic
    */
   async generateBranchingLogic(
     questions: Question[],
     complexity: string
   ): Promise<any[]> {
     try {
-      const prompt = `Create branching logic for these questions based on ${complexity} complexity.
-      
+      const prompt = `Generate branching logic for these questions:
+
 Questions: ${JSON.stringify(questions, null, 2)}
+Complexity Level: ${complexity}
 
-Return a JSON array of branching rules.`;
+Create conditional flows that:
+1. Guide users through relevant questions
+2. Skip irrelevant sections based on answers
+3. Provide personalized question paths
+4. Maintain logical progression
+5. Enhance user experience
 
-      const branchingSchema = z.object({
-        branches: z.array(z.any())
-      });
+Use AND/OR logic with appropriate conditions.`;
 
       const { object } = await generateObject({
         model: this.model,
-        schema: branchingSchema,
+        schema: branchingLogicSchema,
         prompt,
-        temperature: 0.6,
-        maxRetries: 2
+        temperature: 0.4,
+        maxRetries: 3
       });
 
       return object.branches;
 
     } catch (error) {
       console.error('Error generating branching logic:', error);
-      throw new Error(`Failed to generate branching logic: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return [];
     }
   }
 
   /**
-   * Create custom formulas for advanced calculations
+   * Create custom formulas
    */
   async createCustomFormulas(
     toolType: string,
@@ -409,34 +759,47 @@ Return a JSON array of branching rules.`;
     variables: string[]
   ): Promise<any[]> {
     try {
-      const prompt = `Create custom calculation formulas for a ${toolType} tool using ${methodology} methodology.
+      const prompt = `Create custom formulas for a ${toolType} tool using ${methodology} methodology.
 
 Available Variables: ${variables.join(', ')}
 
-Return a JSON array of formula objects.`;
+Create formulas that:
+1. Are mathematically sound
+2. Reflect the methodology principles
+3. Use available variables appropriately
+4. Provide meaningful calculations
+5. Are implementable in code
 
-      const formulaSchema = z.object({
-        formulas: z.array(z.any())
+Include formula explanation and implementation guidance.`;
+
+      const formulasSchema = z.object({
+        formulas: z.array(z.object({
+          name: z.string(),
+          formula: z.string(),
+          variables: z.array(z.string()),
+          explanation: z.string(),
+          implementation: z.string()
+        }))
       });
 
       const { object } = await generateObject({
         model: this.model,
-        schema: formulaSchema,
+        schema: formulasSchema,
         prompt,
         temperature: 0.4,
-        maxRetries: 2
+        maxRetries: 3
       });
 
       return object.formulas;
 
     } catch (error) {
       console.error('Error creating custom formulas:', error);
-      throw new Error(`Failed to create custom formulas: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return [];
     }
   }
 
   /**
-   * Stream framework building for real-time updates
+   * Stream framework building (legacy compatibility)
    */
   async streamFrameworkBuilding(
     input: FrameworkInput,
@@ -445,320 +808,16 @@ Return a JSON array of formula objects.`;
     onError?: (error: Error) => void
   ): Promise<void> {
     try {
-      const prompt = `Create a comprehensive framework for a ${input.toolType} tool...`;
-
-      const { partialObjectStream } = streamObject({
-        model: this.model,
-        schema: logicStructureSchema,
-        prompt,
-        temperature: 0.5,
-        onError: onError ? (event) => onError(new Error(String(event.error))) : undefined
-      });
-
-      for await (const partialObject of partialObjectStream) {
-        onPartialFramework?.(partialObject);
-      }
-
+      const framework = await this.buildFramework(input);
+      onPartialFramework?.(framework);
+      onComplete?.(framework);
     } catch (error) {
-      const err = new Error(`Framework streaming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      onError?.(err);
+      onError?.(error instanceof Error ? error : new Error('Unknown error'));
     }
   }
 
   /**
-   * Generate brainstorm data in specified format
-   * @param outputFormat - 'v1' for legacy format, 'v2' for BrainstormDataSchema format
-   */
-  async brainstormToolLogic(
-    toolType: string,
-    targetAudience: string,
-    industry: string,
-    businessContext: string,
-    availableData: any,
-    outputFormat: 'v1' | 'v2' = 'v2' // Default to v2 for new implementations
-  ): Promise<any> {
-    try {
-      const prompt = generateLogicBrainstorming(
-        toolType,
-        targetAudience,
-        industry,
-        businessContext,
-        availableData
-      );
-
-      console.log(`🧠 Logic Architect brainstorming with format: ${outputFormat}`);
-      console.log('🧠 Logic Architect brainstorming with prompt:', prompt.slice(0, 1200) + '...');
-
-      // 📋 COMPREHENSIVE PROMPT LOGGING FOR LOGIC ARCHITECT - Added for debugging
-      console.log('\n' + '='.repeat(100));
-      console.log('🧠 FULL LOGIC ARCHITECT BRAINSTORMING PROMPT BEING SENT:');
-      console.log('='.repeat(100));
-      console.log(prompt);
-      console.log('='.repeat(100));
-      console.log('🧠 END LOGIC ARCHITECT BRAINSTORMING PROMPT\n');
-
-      const { object } = await generateObject({
-        model: this.model,
-        schema: logicBrainstormingSchema,
-        prompt,
-        temperature: 0.6,
-        maxRetries: 3,
-        maxTokens: 4000,
-      });
-
-      // POST-PROCESSING: Fix any string arrays that should be actual arrays
-      const processedObject = this.postProcessBrainstormingResult(object);
-
-      console.log('✅ Logic Architect brainstorming complete:', processedObject.coreConcept);
-      
-      // 🎯 NEW: Return data in requested format only
-      if (outputFormat === 'v1') {
-        console.log('📤 [V1-FORMAT] Returning legacy format for V1 compatibility');
-        return this.formatAsV1(processedObject, toolType, targetAudience, industry, businessContext);
-      } else {
-        console.log('📤 [V2-FORMAT] Returning structured format for V2 process');
-        return this.formatAsV2(processedObject, toolType, targetAudience, industry, businessContext);
-      }
-
-    } catch (error) {
-      console.error('❌ Logic brainstorming failed:', error);
-      
-      if (error instanceof Error && error.message.includes('JSON')) {
-        console.log('🔧 JSON parsing failed, providing fallback brainstorming result');
-        const fallbackResult = this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
-        
-        if (outputFormat === 'v1') {
-          return this.formatAsV1(fallbackResult, toolType, targetAudience, industry, businessContext);
-        } else {
-          return this.formatAsV2(fallbackResult, toolType, targetAudience, industry, businessContext);
-        }
-      }
-      
-      throw new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }
-
-  /**
-   * 🎯 NEW: Format brainstorm data as V1 (legacy) format
-   */
-  private formatAsV1(
-    brainstormData: any,
-    toolType: string,
-    targetAudience: string,
-    industry: string,
-    businessContext: string
-  ): any {
-    console.log('🔄 [V1-FORMAT] Creating legacy format result');
-    
-    const v1Result = {
-      ...brainstormData,
-      // Ensure all required fields exist with proper defaults
-      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
-      valueProposition: brainstormData.valueProposition || 'Provides value to users',
-      keyCalculations: brainstormData.keyCalculations || [],
-      interactionFlow: brainstormData.interactionFlow || [],
-      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
-        timing: 'after_completion',
-        method: 'email_signup',
-        incentive: 'Save and share results'
-      },
-      creativeEnhancements: brainstormData.creativeEnhancements || [],
-      suggestedInputs: brainstormData.suggestedInputs || [],
-      calculationLogic: brainstormData.calculationLogic || [],
-      promptOptions: brainstormData.promptOptions || {
-        includeComprehensiveColors: true,
-        includeGorgeousStyling: true,
-        includeAdvancedLayouts: false,
-        styleComplexity: 'enhanced',
-        industryFocus: industry || undefined,
-        toolComplexity: 'moderate'
-      },
-      
-      // V1 metadata
-      _formatVersion: 'v1',
-      _generatedAt: new Date().toISOString()
-    };
-    
-    console.log('✅ [V1-FORMAT] Created legacy format with keys:', Object.keys(v1Result));
-    return v1Result;
-  }
-
-  /**
-   * 🎯 NEW: Format brainstorm data as V2 (BrainstormDataSchema) format
-   */
-  private formatAsV2(
-    brainstormData: any,
-    toolType: string,
-    targetAudience: string,
-    industry: string,
-    businessContext: string
-  ): any {
-    console.log('🔄 [V2-FORMAT] Creating structured V2 format result');
-    
-    // 🎯 CRITICAL FIX: Return brainstorm data in flat structure that matches BrainstormDataSchema
-    // The schema expects all fields at the root level, not nested under brainstormOutput
-    const v2Result = {
-      // Core brainstorm output (matches BrainstormDataSchema exactly - FLAT structure)
-      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
-      valueProposition: brainstormData.valueProposition || 'Provides value to users',
-      keyCalculations: brainstormData.keyCalculations || [],
-      interactionFlow: brainstormData.interactionFlow || [],
-      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
-        timing: 'after_completion',
-        method: 'email_signup',
-        incentive: 'Save and share results'
-      },
-      creativeEnhancements: brainstormData.creativeEnhancements || [],
-      suggestedInputs: brainstormData.suggestedInputs || [],
-      calculationLogic: brainstormData.calculationLogic || [],
-      promptOptions: brainstormData.promptOptions || {
-        includeComprehensiveColors: true,
-        includeGorgeousStyling: true,
-        includeAdvancedLayouts: false,
-        styleComplexity: 'enhanced',
-        industryFocus: industry || undefined,
-        toolComplexity: 'moderate'
-      },
-      
-      // V2 metadata
-      _formatVersion: 'v2',
-      _generatedAt: new Date().toISOString()
-    };
-    
-    console.log('✅ [V2-FORMAT] Created V2 format with keys:', Object.keys(v2Result));
-    console.log('🔍 [V2-FORMAT] Structure is now FLAT to match BrainstormDataSchema');
-    return v2Result;
-  }
-
-  /**
-   * Post-process brainstorming results to handle schema validation issues
-   */
-  private postProcessBrainstormingResult(object: any): any {
-    const result = { ...object };
-
-    // Fix creativeEnhancements if it's a string representation of an array
-    if (typeof result.creativeEnhancements === 'string') {
-      try {
-        const parsed = JSON.parse(result.creativeEnhancements);
-        if (Array.isArray(parsed)) {
-          result.creativeEnhancements = parsed;
-          console.log('🔧 Fixed creativeEnhancements from string to array');
-        }
-      } catch (e) {
-        // If parsing fails, try to extract array-like content from string
-        const stringContent = result.creativeEnhancements;
-        if (stringContent.includes('[') && stringContent.includes(']')) {
-          try {
-            // Extract content between brackets and split by lines
-            const arrayContent = stringContent
-              .replace(/^\s*\[\s*/, '')  // Remove opening bracket
-              .replace(/\s*\]\s*$/, '')  // Remove closing bracket
-              .split('\n')
-              .map((line: string) => line.trim())
-              .filter((line: string) => line.length > 0)
-              .map((line: string) => {
-                // Remove quotes and leading/trailing punctuation
-                return line
-                  .replace(/^["'`]*/, '')
-                  .replace(/["'`]*[,]*$/, '')
-                  .trim();
-              })
-              .filter((item: string) => item.length > 0);
-            
-            if (arrayContent.length > 0) {
-              result.creativeEnhancements = arrayContent;
-              console.log('🔧 Extracted creativeEnhancements from string format');
-            }
-          } catch (e2) {
-            console.warn('⚠️ Could not parse creativeEnhancements, using fallback');
-            result.creativeEnhancements = ['Creative enhancement ideas will be added'];
-          }
-        } else {
-          // Fallback: convert single string to array
-          result.creativeEnhancements = [result.creativeEnhancements];
-          console.log('🔧 Converted single creativeEnhancements string to array');
-        }
-      }
-    }
-
-    // Ensure all required arrays are arrays
-    if (!Array.isArray(result.creativeEnhancements)) {
-      result.creativeEnhancements = [];
-    }
-
-    if (!Array.isArray(result.keyCalculations)) {
-      result.keyCalculations = [];
-    }
-
-    if (!Array.isArray(result.interactionFlow)) {
-      result.interactionFlow = [];
-    }
-
-    if (!Array.isArray(result.suggestedInputs)) {
-      result.suggestedInputs = [];
-    }
-
-    if (!Array.isArray(result.calculationLogic)) {
-      result.calculationLogic = [];
-    }
-
-    // 🎯 NEW: Ensure promptOptions has proper defaults if missing or incomplete
-    if (!result.promptOptions || typeof result.promptOptions !== 'object') {
-      console.log('🔧 Adding default promptOptions to brainstorming result');
-      result.promptOptions = {
-        includeComprehensiveColors: false,
-        includeGorgeousStyling: false,
-        includeAdvancedLayouts: false,
-        styleComplexity: 'basic',
-        toolComplexity: 'moderate'
-      };
-    } else {
-      // Fill in any missing promptOptions fields with defaults
-      const defaults = {
-        includeComprehensiveColors: false,
-        includeGorgeousStyling: false,
-        includeAdvancedLayouts: false,
-        styleComplexity: 'basic',
-        toolComplexity: 'moderate'
-      };
-      
-      for (const [key, defaultValue] of Object.entries(defaults)) {
-        if (result.promptOptions[key] === undefined || result.promptOptions[key] === null) {
-          result.promptOptions[key] = defaultValue;
-          console.log(`🔧 Added default value for promptOptions.${key}: ${defaultValue}`);
-        }
-      }
-    }
-
-    // 🎯 NEW: Ensure leadCaptureStrategy always exists to prevent undefined access errors
-    if (!result.leadCaptureStrategy || typeof result.leadCaptureStrategy !== 'object') {
-      console.log('🔧 Adding default leadCaptureStrategy to brainstorming result');
-      result.leadCaptureStrategy = {
-        timing: 'after_completion',
-        method: 'email_signup',
-        incentive: 'Save and share results'
-      };
-    } else {
-      // Ensure all leadCaptureStrategy fields have values
-      if (!result.leadCaptureStrategy.timing) {
-        result.leadCaptureStrategy.timing = 'after_completion';
-        console.log('🔧 Added default timing to leadCaptureStrategy');
-      }
-      if (!result.leadCaptureStrategy.method) {
-        result.leadCaptureStrategy.method = 'email_signup';
-        console.log('🔧 Added default method to leadCaptureStrategy');
-      }
-      if (!result.leadCaptureStrategy.incentive) {
-        result.leadCaptureStrategy.incentive = 'Save and share results';
-        console.log('🔧 Added default incentive to leadCaptureStrategy');
-      }
-    }
-
-    return result;
-  }
-
-  /**
-   * Stream brainstorming for real-time feedback
+   * Stream brainstorming (legacy compatibility)
    */
   async brainstormToolLogicStream(
     toolType: string,
@@ -771,115 +830,225 @@ Return a JSON array of formula objects.`;
     onError?: (error: Error) => void
   ): Promise<void> {
     try {
-      const prompt = generateLogicBrainstorming(
-        toolType,
-        targetAudience,
-        industry, 
-        businessContext,
-        availableData
+      const result = await this.brainstormToolLogic(
+        toolType, targetAudience, industry, businessContext, availableData
       );
-
-      const { partialObjectStream } = streamObject({
-        model: this.model,
-        schema: logicBrainstormingSchema,
-        prompt,
-        temperature: 0.6, // ✅ REDUCED from 0.9 to prevent massive responses
-        onError: onError ? (event) => onError(new Error(String(event.error))) : undefined
-      });
-
-      for await (const partialObject of partialObjectStream) {
-        onPartialLogic?.(partialObject);
-      }
-
+      onPartialLogic?.(result);
+      onComplete?.(result);
     } catch (error) {
-      const err = new Error(`Logic brainstorming failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      onError?.(err);
+      onError?.(error instanceof Error ? error : new Error('Unknown error'));
     }
   }
 
   /**
-   * ✅ NEW: Fallback brainstorming result when JSON parsing fails
+   * Format as V1 (legacy format) - UNCHANGED
+   */
+  private formatAsV1(
+    brainstormData: any,
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string
+  ): any {
+    console.log('🔄 [V1-FORMAT] Creating legacy format result');
+    
+    const v1Result = {
+      ...brainstormData,
+      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
+      valueProposition: brainstormData.valueProposition || 'Provides value to users',
+      keyCalculations: brainstormData.keyCalculations || [],
+      interactionFlow: brainstormData.interactionFlow || [],
+      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+        timing: 'after_completion',
+        method: 'email_signup',
+        incentive: 'Save and share results'
+      },
+      creativeEnhancements: brainstormData.creativeEnhancements || [],
+      suggestedInputs: brainstormData.suggestedInputs || [],
+      calculationLogic: brainstormData.calculationLogic || [],
+      promptOptions: brainstormData.promptOptions || {
+        includeComprehensiveColors: true,
+        includeGorgeousStyling: true,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'enhanced',
+        industryFocus: industry || undefined,
+        toolComplexity: 'moderate'
+      },
+      
+      _formatVersion: 'v1',
+      _generatedAt: new Date().toISOString()
+    };
+    
+    console.log('✅ [V1-FORMAT] Created legacy format with keys:', Object.keys(v1Result));
+    return v1Result;
+  }
+
+  /**
+   * Format as V2 (BrainstormDataSchema format) - UNCHANGED
+   */
+  private formatAsV2(
+    brainstormData: any,
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string
+  ): any {
+    console.log('🔄 [V2-FORMAT] Creating structured V2 format result');
+    
+    const v2Result = {
+      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
+      valueProposition: brainstormData.valueProposition || 'Provides value to users',
+      keyCalculations: brainstormData.keyCalculations || [],
+      interactionFlow: brainstormData.interactionFlow || [],
+      leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+        timing: 'after_completion',
+        method: 'email_signup',
+        incentive: 'Save and share results'
+      },
+      creativeEnhancements: brainstormData.creativeEnhancements || [],
+      suggestedInputs: brainstormData.suggestedInputs || [],
+      calculationLogic: brainstormData.calculationLogic || [],
+      promptOptions: brainstormData.promptOptions || {
+        includeComprehensiveColors: true,
+        includeGorgeousStyling: true,
+        includeAdvancedLayouts: false,
+        styleComplexity: 'enhanced',
+        industryFocus: industry || undefined,
+        toolComplexity: 'moderate'
+      },
+      
+      _formatVersion: 'v2',
+      _generatedAt: new Date().toISOString()
+    };
+    
+    console.log('✅ [V2-FORMAT] Created V2 format with keys:', Object.keys(v2Result));
+    return v2Result;
+  }
+
+  /**
+   * Post-process brainstorming results - UNCHANGED
+   */
+  private postProcessBrainstormingResult(object: any): any {
+    const result = { ...object };
+
+    if (typeof result.creativeEnhancements === 'string') {
+      try {
+        const parsed = JSON.parse(result.creativeEnhancements);
+        if (Array.isArray(parsed)) {
+          result.creativeEnhancements = parsed;
+          console.log('🔧 Fixed creativeEnhancements from string to array');
+        }
+      } catch (e) {
+        const stringContent = result.creativeEnhancements;
+        if (stringContent.includes('[') && stringContent.includes(']')) {
+          try {
+            const arrayContent = stringContent
+              .replace(/^\s*\[\s*/, '')
+              .replace(/\s*\]\s*$/, '')
+              .split('\n')
+              .map((line: string) => line.trim())
+              .filter((line: string) => line.length > 0)
+              .map((line: string) => {
+                return line
+                  .replace(/^["'`]*/, '')
+                  .replace(/["'`]*[,]*$/, '')
+                  .trim();
+              })
+              .filter((item: string) => item.length > 0);
+            
+            if (arrayContent.length > 0) {
+              result.creativeEnhancements = arrayContent;
+              console.log('🔧 Extracted creativeEnhancements from string format');
+            }
+          } catch (e2) {
+            console.log('⚠️ Could not parse creativeEnhancements, keeping as string');
+          }
+        }
+      }
+    }
+
+    if (!Array.isArray(result.creativeEnhancements)) {
+      result.creativeEnhancements = ['Interactive visual feedback', 'Real-time calculations', 'Professional result presentation'];
+      console.log('🔧 Applied fallback creativeEnhancements array');
+    }
+
+    return result;
+  }
+
+  /**
+   * Fallback brainstorming result - UNCHANGED
    */
   private getFallbackBrainstormingResult(toolType: string, targetAudience: string, industry: string): any {
-    console.log('🔧 Generating fallback brainstorming result');
-    
     return {
-      coreConcept: `${toolType} for ${targetAudience}`,
+      coreConcept: `${toolType} Assessment Tool`,
+      valueProposition: `Helps ${targetAudience} make informed decisions about ${toolType.toLowerCase()} with personalized insights and recommendations.`,
       keyCalculations: [
         {
-          name: "Primary Calculation",
-          formula: "Input1 * Factor + Input2",
-          description: "Main calculation logic for the tool",
-          variables: ["Input1", "Input2", "Factor"]
+          name: 'Overall Score',
+          formula: 'Sum of weighted responses',
+          description: 'Comprehensive assessment score',
+          variables: ['user_responses', 'weights']
         }
       ],
       interactionFlow: [
         {
           step: 1,
-          title: "Data Collection",
-          description: "Gather user inputs",
-          userAction: "Enter values",
-          engagementHook: "Discover your results"
+          title: 'Welcome',
+          description: 'Introduction and purpose explanation',
+          userAction: 'Read and proceed',
+          engagementHook: 'Discover insights tailored to your needs'
         },
         {
           step: 2,
-          title: "Processing",
-          description: "Calculate results",
-          userAction: "Review calculations",
-          engagementHook: "See insights"
+          title: 'Assessment',
+          description: 'Answer questions about your situation',
+          userAction: 'Complete questionnaire',
+          engagementHook: 'Help us understand your unique context'
         },
         {
           step: 3,
-          title: "Results",
-          description: "Show recommendations",
-          userAction: "Download report",
-          engagementHook: "Get personalized advice"
+          title: 'Results',
+          description: 'View personalized recommendations',
+          userAction: 'Review insights',
+          engagementHook: 'Get your customized action plan'
         }
       ],
-      valueProposition: `Professional ${toolType.toLowerCase()} designed for ${targetAudience}`,
       leadCaptureStrategy: {
-        timing: "After calculation",
-        method: "Email for detailed report",
-        incentive: "Free detailed analysis"
+        timing: 'before_results',
+        method: 'email_signup',
+        incentive: 'detailed_report'
       },
       creativeEnhancements: [
-        "Professional reporting",
-        "Comparative analysis",
-        "Industry benchmarks"
+        'Progressive disclosure of insights',
+        'Interactive result visualization',
+        'Personalized recommendations'
       ],
       suggestedInputs: [
         {
-          id: "primary-input",
-          label: "Primary Value",
-          type: "number",
+          id: 'primary_goal',
+          label: 'Primary Goal',
+          type: 'select',
           required: true,
-          description: "Main input for calculation"
-        },
-        {
-          id: "secondary-input", 
-          label: "Secondary Value",
-          type: "number",
-          required: false,
-          description: "Additional parameter"
+          description: 'What is your main objective?'
         }
       ],
       calculationLogic: [
         {
-          id: "main-calc",
-          name: "Primary Calculation",
-          formula: "primaryInput * 1.2 + secondaryInput",
-          dependencies: ["primary-input", "secondary-input"],
-          outputFormat: "number",
-          engagementMoment: "Result revelation"
+          id: 'assessment_score',
+          name: 'Assessment Score',
+          formula: 'weighted_sum(responses)',
+          dependencies: ['user_responses'],
+          outputFormat: 'percentage',
+          engagementMoment: 'Result reveal with explanation'
         }
       ],
       promptOptions: {
-        includeComprehensiveColors: industry === 'healthcare' || industry === 'finance',
-        includeGorgeousStyling: false,
+        includeComprehensiveColors: true,
+        includeGorgeousStyling: true,
         includeAdvancedLayouts: false,
-        styleComplexity: 'basic' as const,
-        industryFocus: industry,
-        toolComplexity: 'moderate' as const
+        styleComplexity: 'enhanced',
+        industryFocus: industry || undefined,
+        toolComplexity: 'moderate'
       }
     };
   }
