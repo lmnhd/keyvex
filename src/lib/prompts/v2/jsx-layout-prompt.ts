@@ -697,6 +697,47 @@ ${CORE_LAYOUT_RULES}
         
         **FAILURE TO INCLUDE ALL BRAINSTORM ELEMENTS = INCOMPLETE IMPLEMENTATION**
     </brainstorm-data-compliance>
+
+    🚨 **CRITICAL REQUIREMENT - DYNAMIC RESULT DISPLAYS**:
+    
+    **FORBIDDEN - Static Result Descriptions (NEVER do this):**
+    '''jsx
+    ❌ <p>Calculates a comprehensive score for each neighborhood based on your priorities.</p>
+    ❌ <p>Determines how affordable a neighborhood is relative to your budget.</p>
+    ❌ <p>Shows the monthly payment calculation.</p>
+    '''
+    
+    **REQUIRED - Dynamic Result Values (ALWAYS do this):**
+    '''jsx
+    ✅ <p>Your Neighborhood Score: {neighborhoodRanking}</p>
+    ✅ <p>Affordability Index: {affordabilityIndex}</p>
+    ✅ <p>Monthly Payment: {monthlyPayment}</p>
+    ✅ <p>Total Cost: {totalCost}</p>
+    ✅ <p>Risk Rating: {riskScore}/10</p>
+    '''end jsx'''
+    
+    **MANDATORY PATTERNS FOR CALCULATION RESULTS:**
+    - Use JSX expressions '{variableName}' to display calculated values
+    - Include descriptive labels with actual variable values
+    - Format currency with $ prefix: '{variableName}'
+    - Format percentages: '{percentage}%'
+    - Format ratings: '{score}/10' or '{score}/5'
+    - Use state variable names from the provided state logic
+    
+    **STATE VARIABLE MAPPING:**
+    When you see state variables like 'neighborhoodRanking', 'totalPayment', 'riskScore' in the state logic, 
+    you MUST display them as dynamic values in results sections:
+    '''jsx
+    <div data-style-id="calculation-results">
+      <h3>Your Results</h3>
+      <p>Score: {neighborhoodRanking}</p>
+      <p>Payment: {monthlyPayment}</p>
+      <p>Risk: {riskLevel}</p>
+    </div>
+    '''
+    
+    **CRITICAL:** The debug system requires seeing actual calculated values in the DOM. 
+    Static descriptions prevent the debugging system from detecting calculations!
 </layout-design-guidelines>
 `;
 

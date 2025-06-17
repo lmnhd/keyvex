@@ -415,9 +415,9 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
           if (isCalculationFunction && !originalFunctions.has(`${contextName}.${propName}`)) {
             console.log('🎯 DEBUG: Auto-detected calculation function:', `${contextName}.${propName}`);
             wrapFunction(obj, propName, contextName);
-          }
-        }
-      });
+              }
+            }
+          });
     };
 
     // Check window object for calculation functions (limited scope to avoid infinite loops)
@@ -558,8 +558,8 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
                                 buttonText: button.textContent,
                                 handlerDetected: true,
                               }, 'info', `Detected calculation: ${funcName} triggered by button`);
-                              
-                              addEvent(event);
+            
+            addEvent(event);
                               
                               // Execute original handler and capture any errors
                               try {
@@ -604,9 +604,9 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
                   currentFiber = currentFiber.return;
                 }
               }
-            }
-          });
-        }
+              }
+            });
+          }
       } catch (error) {
         console.warn('🐛 DEBUG: Error checking React component functions:', error);
       }
@@ -637,7 +637,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     // This is more reliable than function interception for React components
     let lastStateSnapshot: Record<string, any> = {};
     const monitorStateChanges = () => {
-      const toolContainer = document.querySelector('[data-tool-container="true"]');
+        const toolContainer = document.querySelector('[data-tool-container="true"]');
       if (!toolContainer) return;
 
       // Look for elements that might display calculation results
