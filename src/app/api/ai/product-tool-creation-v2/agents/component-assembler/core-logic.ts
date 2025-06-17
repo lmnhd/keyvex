@@ -562,43 +562,31 @@ const calculateNeighborhoodScore = () => {
 // 2. What the calculated results are
 // 3. Provides keywords (score, total, result) for automatic detection
 
-🚨 CRITICAL CALCULATION RESULT DISPLAY - MANDATORY FOR ALL CALCULATIONS:
-Every calculation result MUST be displayed in the UI for debug system detection.
-Create result display elements with calculation-related data-style-id attributes:
+🚨 CRITICAL REQUIREMENT - CALCULATION RESULTS MUST BE DISPLAYED:
 
-// Display calculation results in UI for debug system detection
+❌ WRONG - Static descriptions (what you MUST NOT do):
+React.createElement('p', {}, 'Calculates a comprehensive score for neighborhoods')
+
+✅ CORRECT - Dynamic calculated values (what you MUST do):
 React.createElement('div', {
-  'data-style-id': 'calculation-result-display',
-  className: 'calculation-results-section',
-  key: 'calculation-results'
-}, [
-  React.createElement('h3', {
-    'data-style-id': 'calculation-title',
-    key: 'calc-title'
-  }, 'Calculation Results'),
-  
-  React.createElement('div', {
-    'data-style-id': 'neighborhood-score-result',
-    className: 'score-display',
-    key: 'score-display'
-  }, \`Neighborhood Score: \${neighborhoodScore}\`),
-  
-  React.createElement('div', {
-    'data-style-id': 'affordability-result', 
-    className: 'affordability-display',
-    key: 'afford-display'
-  }, \`Affordability Index: \${affordabilityIndex}\`)
-])
+  'data-style-id': 'neighborhood-score-result',
+  className: 'text-2xl font-bold text-green-300',
+  key: 'score-display'
+}, \`Your Neighborhood Score: \${neighborhoodScore}\`)
 
-// MANDATORY: Include result display elements that show calculated values
-// Use data-style-id attributes with keywords: 'result', 'score', 'total', 'calculation'
-// The debug system monitors elements with these attributes for content changes
+🚨 MANDATORY PATTERN FOR ALL CALCULATION RESULTS:
+Replace ANY static result descriptions with ACTUAL calculated values using template literals.
 
-EXAMPLES of proper result display:
-- data-style-id="mortgage-payment-result"
-- data-style-id="loan-total-display" 
-- data-style-id="tax-calculation-output"
-- data-style-id="score-result-section"
+REQUIRED PATTERNS:
+- \`Your Score: \${calculatedScore}\`
+- \`Total Payment: $\${monthlyPayment}\`
+- \`Result: \${calculationResult}\`
+- \`Rating: \${finalRating}\`
+
+❌ FORBIDDEN: "Calculates...", "Determines...", "Shows..."
+✅ REQUIRED: "Your Score: 37.5", "Total: $1,250", "Result: 85%"
+
+The debug system REQUIRES seeing actual calculated values in the DOM!
 
 RULES:
 1. Start with 'use client';

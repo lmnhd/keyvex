@@ -248,7 +248,11 @@ export default function EventLogger({
               return (
                 <div
                   key={event.id}
-                  className={`p-2 rounded text-xs border ${severity.color} hover:opacity-80 transition-opacity`}
+                  className={`p-2 rounded text-xs border ${severity.color} ${
+                    event.type === 'calculation' 
+                      ? 'bg-gradient-to-r from-emerald-50 to-green-50 border-emerald-300 dark:from-emerald-900/30 dark:to-green-900/30 dark:border-emerald-700' 
+                      : ''
+                  } hover:opacity-80 transition-opacity`}
                 >
                   <div className="flex items-start gap-2">
                     {/* Timestamp */}
@@ -287,8 +291,23 @@ export default function EventLogger({
                           const args = event.data.arguments ? ` (${Object.keys(event.data.arguments).length} args)` : '';
                           enhancedMessage = `Called: ${funcName}${args}`;
                         } else if (event.type === 'calculation' && event.data) {
-                          const result = event.data.result !== undefined ? ` → ${event.data.result}` : '';
-                          enhancedMessage = `Calculation${result}`;
+                          // Enhanced calculation message display
+                          if (event.data.consoleOutput) {
+                            // Console-detected calculation (like "Neighborhood Score: 17.5")
+                            const output = Array.isArray(event.data.consoleOutput) 
+                              ? event.data.consoleOutput.join(' ') 
+                              : String(event.data.consoleOutput);
+                            enhancedMessage = `📊 ${output}`;
+                          } else if (event.data.calculatedValue !== undefined) {
+                            // State-tracked calculation
+                            const varName = event.data.resultVariable || 'result';
+                            enhancedMessage = `📊 ${varName}: ${event.data.calculatedValue}`;
+                          } else if (event.data.result !== undefined) {
+                            // Generic calculation result
+                            enhancedMessage = `📊 Calculation → ${event.data.result}`;
+                          } else {
+                            enhancedMessage = `📊 Calculation executed`;
+                          }
                         } else if (event.type === 'error' && event.data) {
                           const errorMsg = event.data.message || event.data.error || 'Unknown error';
                           enhancedMessage = `Error: ${errorMsg.substring(0, 50)}${errorMsg.length > 50 ? '...' : ''}`;
