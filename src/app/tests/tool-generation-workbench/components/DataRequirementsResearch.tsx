@@ -26,6 +26,7 @@ import {
 import { BrainstormResult } from '../types/unified-brainstorm-types';
 import { loadLogicResultsFromDB } from '@/app/tests/ui/db-utils';
 import { toast } from 'sonner';
+import { extractToolTitle } from '@/lib/utils';
 
 interface DataRequirementsResearchProps {
   isDarkMode: boolean;
@@ -357,7 +358,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 {savedBrainstorms.map((brainstorm) => (
                   <SelectItem key={brainstorm.id} value={brainstorm.id}>
                     <div className="flex items-center justify-between w-full">
-                      <span>{brainstorm.brainstormData.coreConcept || brainstorm.brainstormData.coreWConcept || 'Unnamed Tool'}</span>
+                      <span>{extractToolTitle(brainstorm.brainstormData.coreConcept || brainstorm.brainstormData.coreWConcept || 'Unnamed Tool')}</span>
                       <div className="flex items-center gap-2 ml-2">
                         {brainstorm.brainstormData.dataRequirements ? (
                           <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
@@ -388,7 +389,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">
-                      {selectedBrainstorm.brainstormData.coreConcept || selectedBrainstorm.brainstormData.coreWConcept}
+                      {extractToolTitle(selectedBrainstorm.brainstormData.coreConcept || selectedBrainstorm.brainstormData.coreWConcept as string)}
                     </h4>
                     {getStatusBadge()}
                   </div>

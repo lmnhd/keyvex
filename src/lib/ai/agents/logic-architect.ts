@@ -8,7 +8,7 @@ import { anthropic, AnthropicProviderOptions } from '@ai-sdk/anthropic';
 import { generateLogicBrainstorming } from '@/lib/prompts/logic-architect-prompt';
 import { PromptOptions } from '@/lib/prompts/tool-creation-prompt-modular';
 import { toolQualityChecklist, ChecklistItem, QualityChecklist } from '../../config';
-import { web_search } from '../web-search';
+import { perplexity_web_search } from '../web-search';
 
 // Schema for quality validation scoring
 const qualityScoreSchema = z.object({
@@ -300,7 +300,7 @@ Return a JSON object with:
         const searchTerm = `${industry} ${toolType} ${topic} best practices current trends 2024`;
         console.log(`🔬 Researching: ${searchTerm}`);
         
-        const findings = await web_search({
+        const findings = await perplexity_web_search({
           search_term: searchTerm,
           explanation: `Research for ${toolType} tool in ${industry} industry regarding ${topic}`,
           domain: this.mapIndustryToDomain(industry)
@@ -721,7 +721,7 @@ Return the optimized framework with the same structure.`;
   ): Promise<any[]> {
     try {
       const prompt = `Generate branching logic for these questions:
-
+      
 Questions: ${JSON.stringify(questions, null, 2)}
 Complexity Level: ${complexity}
 
@@ -821,7 +821,7 @@ Include formula explanation and implementation guidance.`;
    */
   async brainstormToolLogicStream(
     toolType: string,
-    targetAudience: string, 
+    targetAudience: string,
     industry: string,
     businessContext: string,
     availableData: any,

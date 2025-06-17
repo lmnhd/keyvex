@@ -237,8 +237,8 @@ export default function ToolTesterView({
                 <CardContent className="text-xs space-y-3">
                     {/* Quick Summary */}
                     <div className="space-y-1">
-                      <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.userInput.toolType}</p>
-                      <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.userInput.targetAudience}</p>
+                    <p><strong>Tool Type:</strong> {getSelectedBrainstormDetails()?.userInput.toolType}</p>
+                    <p><strong>Target:</strong> {getSelectedBrainstormDetails()?.userInput.targetAudience}</p>
                       <p><strong>Created:</strong> {new Date(getSelectedBrainstormDetails()!.timestamp).toLocaleString()}</p>
                       {getSelectedBrainstormDetails()?.brainstormData?.keyCalculations && (
                         <p><strong>Calculations:</strong> {getSelectedBrainstormDetails()?.brainstormData?.keyCalculations?.length || 0} key calculations defined</p>
@@ -331,7 +331,7 @@ export default function ToolTesterView({
                                           <div className="bg-white dark:bg-gray-900 p-2 rounded border text-xs">
                                             <pre className="whitespace-pre-wrap text-gray-600 dark:text-gray-400">
                                               {JSON.stringify(data.marketData, null, 2)}
-                                            </pre>
+                        </pre>
                                           </div>
                                         </div>
                                       )}

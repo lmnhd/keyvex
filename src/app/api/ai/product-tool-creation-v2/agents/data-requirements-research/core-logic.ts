@@ -6,7 +6,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { generateObject, generateText } from 'ai';
 import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
-import { web_search } from '../../../../../../lib/ai/web-search';
+import { perplexity_web_search } from '../../../../../../lib/ai/web-search';
 import { getDataRequirementsResearchSystemPrompt, getDataRequirementsResearchUserPrompt } from '@/lib/prompts/v2';
 
 // Schema for research queries that need to be executed
@@ -263,7 +263,7 @@ async function generateDataRequirementsAnalysis(brainstormData: BrainstormData, 
 
     // Execute research queries if external data is needed
     if (analysis.hasExternalDataNeeds && analysis.researchQueries.length > 0) {
-      const enhancedResearchData = await executeResearchQueries(analysis.researchQueries, analysis.researchData, userLocation);
+      const enhancedResearchData = await executeResearchQueries(analysis.researchQueries, analysis.researchData, userLocation, brainstormData);
       analysis.researchData = enhancedResearchData;
     }
 
@@ -367,7 +367,8 @@ CRITICAL: Return ONLY a valid JSON object. Example:
 async function executeResearchQueries(
   researchQueries: any[], 
   baseResearchData: Record<string, any>, 
-  userLocation?: any
+  userLocation?: any,
+  brainstormData?: BrainstormData
 ): Promise<Record<string, any>> {
   const enhancedResearchData = { ...baseResearchData };
 
@@ -379,8 +380,8 @@ async function executeResearchQueries(
         dataType: query.dataType
       }, 'DataRequirementsResearch: 🔍 Executing web search for research query');
 
-      // 🌐 ACTUAL WEB SEARCH: Call Perplexity via web_search function
-      const searchResults = await web_search({
+      // 🌐 ACTUAL WEB SEARCH: Call Perplexity via perplexity_web_search function
+      const searchResults = await perplexity_web_search({
         search_term: query.query,
         explanation: `Research for ${query.domain} domain: ${query.dataType} data needed for tool calculations`,
         domain: query.domain,
@@ -394,7 +395,7 @@ async function executeResearchQueries(
       }, 'DataRequirementsResearch: ✅ Web search completed');
 
       // Generate enhanced data based on search results
-      const enhancedDataForQuery = generateEnhancedDataFromResearch(query.domain, query.dataType, userLocation, searchResults);
+      const enhancedDataForQuery = await parseSearchResultsWithAI(query.domain, query.dataType, searchResults, userLocation, query.expectedDataStructure, query, brainstormData);
       
       enhancedResearchData[query.domain] = {
         ...enhancedResearchData[query.domain],
@@ -404,7 +405,7 @@ async function executeResearchQueries(
           query: query.query,
           searchedAt: new Date().toISOString(),
           resultsFound: searchResults?.length || 0,
-          dataSource: 'web_search'
+          dataSource: 'perplexity_web_search'
         }
       };
 
@@ -415,7 +416,7 @@ async function executeResearchQueries(
       }, 'DataRequirementsResearch: ❌ Web search failed, using fallback data');
       
       // Fallback to static data if web search fails
-      const fallbackData = generateEnhancedDataFromResearch(query.domain, query.dataType, userLocation);
+      const fallbackData = await parseSearchResultsWithAI(query.domain, query.dataType, '', userLocation, query.expectedDataStructure, query, brainstormData);
       enhancedResearchData[query.domain] = {
         ...enhancedResearchData[query.domain],
         ...fallbackData,
@@ -433,333 +434,143 @@ async function executeResearchQueries(
   return enhancedResearchData;
 }
 
-function generateEnhancedDataFromResearch(domain: string, dataType: string, userLocation?: any, searchResults?: string): Record<string, any> {
-  const state = userLocation?.state || 'California';
-
-  // If we have search results, extract real data
-  if (searchResults && searchResults.length > 0) {
-    logger.info({ 
-      domain,
-      dataType,
-      searchResultsLength: typeof searchResults === 'string' ? searchResults.length : 0
-    }, 'DataRequirementsResearch: 🔍 Generating enhanced data from search results');
-    
-    // Parse search results to extract real data
-    const enhancedData = parseSearchResultsForDomain(domain, dataType, searchResults, state);
-    if (enhancedData && Object.keys(enhancedData).length > 0) {
-      return enhancedData;
-    }
-  }
-
-  // Fallback to baseline data if parsing fails
-  switch (domain.toLowerCase()) {
-    case 'solar':
-      return {
-        solarIncentives: [
-          { state, federalTaxCredit: 0.30, stateRebate: 1000, utilityRebate: 500 },
-          { state: 'Texas', federalTaxCredit: 0.30, stateRebate: 0, utilityRebate: 300 }
-        ],
-        averageSunHours: state === 'California' ? 5.8 : 4.2,
-        electricityRates: { residential: 0.23, commercial: 0.18 }
-      };
-
-    case 'finance':
-      return {
-        interestRates: {
-          mortgage30Year: 0.0675,
-          autoLoan: 0.0525,
-          personalLoan: 0.1150
-        },
-        taxRates: {
-          federal: { single: 0.22, marriedJoint: 0.22 },
-          state: state === 'California' ? 0.093 : 0.05
-        }
-      };
-
-    case 'healthcare':
-      return {
-        averageCosts: {
-          doctorVisit: 200,
-          emergencyRoom: 1500,
-          hospitalStay: 3500,
-          prescription: 150
-        },
-        insurancePremiums: {
-          individual: 450,
-          family: 1200
-        }
-      };
-
-    case 'real_estate':
-      return {
-        marketData: {
-          medianHomePrice: state === 'California' ? 750000 : state === 'Texas' ? 350000 : 400000,
-          pricePerSqFt: state === 'California' ? 650 : state === 'Texas' ? 180 : 250,
-          averageDaysOnMarket: 25,
-          mortgageRates: 0.0675
-        }
-      };
-
-    default:
-      return {
-        generalData: {
-          averageValue: 100,
-          standardDeviation: 15,
-          sampleSize: 1000,
-          lastUpdated: new Date().toISOString()
-        }
-      };
-  }
-}
-
 /**
- * Parse search results to extract real data based on domain and data type
+ * AI-POWERED INTELLIGENT DATA STRUCTURE GENERATION
+ * Replaces hardcoded domain parsing with smart AI analysis
  */
-function parseSearchResultsForDomain(domain: string, dataType: string, searchResults: string, userState: string): Record<string, any> {
+async function parseSearchResultsWithAI(
+  domain: string, 
+  dataType: string, 
+  searchResults: string, 
+  userState: string,
+  expectedDataStructure: string,
+  query: any,
+  brainstormData?: BrainstormData
+): Promise<Record<string, any>> {
   try {
-    const lowerResults = searchResults.toLowerCase();
-    
-    if (domain === 'solar') {
-      if (dataType === 'tax_rates') {
-        // Extract tax incentive information
-        const federalTaxCredit = extractPercentage(searchResults, ['federal tax credit', 'itc', 'investment tax credit']) || 0.30;
-        const stateIncentives = extractStateIncentives(searchResults, userState);
-        
-        return {
-          solarIncentives: [
-            {
-              state: userState,
-              federalTaxCredit,
-              stateRebate: stateIncentives.rebate || 1000,
-              utilityRebate: stateIncentives.utilityRebate || 500,
-              additionalIncentives: stateIncentives.additional || []
-            }
-          ],
-          taxCreditDetails: {
-            federalITC: {
-              rate: federalTaxCredit,
-              expirationDate: extractDate(searchResults) || '2032-12-31',
-              eligibleSystems: ['residential', 'commercial']
-            },
-            statePrograms: stateIncentives.programs || []
-          }
-        };
-      } else if (dataType === 'geographic') {
-        // Extract solar savings and production data
-        const savingsRates = extractSolarSavingsRates(searchResults);
-        const sunHours = extractSunHours(searchResults, userState);
-        const electricityRates = extractElectricityRates(searchResults, userState);
-        
-        return {
-          solarSavingsRates: savingsRates,
-          averageSunHours: sunHours || (userState === 'California' ? 5.8 : 4.2),
-          electricityRates: electricityRates || { residential: 0.23, commercial: 0.18 },
-          stateRankings: extractStateRankings(searchResults),
-          netMeteringPolicies: extractNetMeteringInfo(searchResults, userState)
-        };
-      }
+    logger.info({ 
+      domain, 
+      dataType, 
+      searchResultsLength: searchResults?.length || 0,
+      queryIntent: query.query 
+    }, 'DataRequirementsResearch: 🧠 Using AI to intelligently parse search results');
+
+    // Create AI model instance for intelligent parsing
+    const model = createModelInstance('anthropic', 'claude-3-5-sonnet-20241022');
+
+    const aiParsingPrompt = `
+You are an intelligent data structure generator for tool creation. Your job is to analyze search results and create appropriate data structures that match the specific tool's needs.
+
+TOOL CONTEXT:
+- Tool Concept: ${brainstormData?.coreConcept || brainstormData?.coreWConcept || 'Tool concept not specified'}
+- Domain: ${domain}
+- Data Type: ${dataType}
+- Research Query: ${query.query}
+- Expected Structure: ${expectedDataStructure}
+- User Location: ${userState}
+
+SEARCH RESULTS TO ANALYZE:
+${searchResults || 'No search results available - generate realistic mock data'}
+
+KEY CALCULATIONS THAT NEED DATA:
+${JSON.stringify(brainstormData?.keyCalculations || [], null, 2)}
+
+CALCULATION LOGIC THAT NEEDS DATA:
+${JSON.stringify(brainstormData?.calculationLogic || [], null, 2)}
+
+SUGGESTED INPUTS FOR REFERENCE:
+${JSON.stringify(brainstormData?.suggestedInputs || [], null, 2)}
+
+INSTRUCTIONS:
+1. Analyze the tool's keyCalculations and calculationLogic to understand what data points are truly needed
+2. If search results contain relevant data, extract and structure it appropriately  
+3. If search results are insufficient, generate realistic mock data that fits the tool's purpose
+4. Create data structures that directly support the tool's calculations and user experience
+5. Ensure data variety and realistic ranges based on the domain and location
+6. Include metadata about data source and generation method
+
+CRITICAL REQUIREMENTS:
+- Data must be ACTIONABLE for the tool's calculations shown in keyCalculations
+- Include sufficient variety for meaningful comparisons/calculations (8-15 data points when appropriate)
+- Use realistic ranges and values for the domain and location
+- Structure data to match the expectedDataStructure format: ${expectedDataStructure}
+- Generate data that enables the specific calculations shown in calculationLogic
+- Consider the suggestedInputs to understand what users will provide vs what needs to be researched
+
+EXAMPLES OF GOOD DATA STRUCTURES:
+- For neighborhood tools: Array of neighborhoods with multiple attributes (school ratings, safety scores, pricing, demographics)
+- For financial tools: Interest rates, tax brackets, market data with historical trends
+- For comparison tools: Multiple options with varied attributes for meaningful comparisons
+- For calculator tools: Industry benchmarks, standard rates, regional variations
+
+Return a JSON object with the generated data structure.`;
+
+    const result = await generateObject({
+      model,
+      schema: z.object({
+        success: z.boolean(),
+        dataStructure: z.record(z.any()),
+        metadata: z.object({
+          dataSource: z.string(),
+          generationMethod: z.string(),
+          dataPoints: z.number(),
+          relevanceScore: z.number().min(0).max(100),
+          lastUpdated: z.string()
+        }),
+        reasoning: z.string()
+      }),
+      prompt: aiParsingPrompt,
+    });
+
+    if (result.object.success && result.object.dataStructure) {
+      logger.info({ 
+        domain,
+        dataType,
+        relevanceScore: result.object.metadata.relevanceScore,
+        dataPoints: result.object.metadata.dataPoints,
+        reasoning: result.object.reasoning
+      }, 'DataRequirementsResearch: ✅ AI successfully generated intelligent data structure');
+
+      return {
+        ...result.object.dataStructure,
+        searchMetadata: {
+          ...result.object.metadata,
+          query: query.query,
+          searchedAt: new Date().toISOString(),
+          aiGenerated: true,
+          domain,
+          dataType
+        }
+      };
+    } else {
+      throw new Error('AI parsing failed to generate valid data structure');
     }
-    
-    // Add more domain parsers as needed
-    return {};
-    
+
   } catch (error) {
     logger.error({ 
       domain, 
       dataType, 
-      error: error instanceof Error ? error.message : String(error) 
-    }, 'DataRequirementsResearch: Error parsing search results');
-    return {};
-  }
-}
-
-/**
- * Extract percentage values from text
- */
-function extractPercentage(text: string, keywords: string[]): number | null {
-  for (const keyword of keywords) {
-    const regex = new RegExp(`${keyword}[^\\d]*([\\d.]+)%`, 'i');
-    const match = text.match(regex);
-    if (match) {
-      return parseFloat(match[1]) / 100;
-    }
-  }
-  return null;
-}
-
-/**
- * Extract state-specific incentive information
- */
-function extractStateIncentives(text: string, state: string): any {
-  const stateRegex = new RegExp(`${state}[^\\n]*\\$([\\d,]+)`, 'i');
-  const rebateMatch = text.match(stateRegex);
-  
-  return {
-    rebate: rebateMatch ? parseInt(rebateMatch[1].replace(/,/g, '')) : null,
-    utilityRebate: extractUtilityRebate(text, state),
-    programs: extractStatePrograms(text, state),
-    additional: extractAdditionalIncentives(text, state)
-  };
-}
-
-/**
- * Extract solar savings rates by state
- */
-function extractSolarSavingsRates(text: string): Record<string, number> {
-  const rates: Record<string, number> = {};
-  const stateRateRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[:\s]+([0-9.]+)%/g;
-  let match;
-  
-  while ((match = stateRateRegex.exec(text)) !== null) {
-    const state = match[1].trim();
-    const rate = parseFloat(match[2]) / 100;
-    if (rate > 0 && rate < 1) {
-      rates[state] = rate;
-    }
-  }
-  
-  return Object.keys(rates).length > 0 ? rates : {
-    'California': 0.85,
-    'Arizona': 0.78,
-    'Nevada': 0.82,
-    'Texas': 0.72,
-    'Florida': 0.75
-  };
-}
-
-/**
- * Extract sun hours data for a specific state
- */
-function extractSunHours(text: string, state: string): number | null {
-  const sunHoursRegex = new RegExp(`${state}[^\\n]*([\\d.]+)\\s*hours?`, 'i');
-  const match = text.match(sunHoursRegex);
-  return match ? parseFloat(match[1]) : null;
-}
-
-/**
- * Extract electricity rates
- */
-function extractElectricityRates(text: string, state: string): any {
-  const rateRegex = /([\\d.]+)¢?\s*(?:per\s+)?kWh/gi;
-  const matches = text.match(rateRegex);
-  
-  if (matches && matches.length > 0) {
-    const rates = matches.map(m => parseFloat(m.replace(/[^\\d.]/g, '')));
-    const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+      error: error instanceof Error ? error.message : String(error)
+    }, 'DataRequirementsResearch: ❌ AI parsing failed, using fallback');
     
-    return {
-      residential: avgRate / 100, // Convert cents to dollars
-      commercial: (avgRate * 0.8) / 100, // Commercial typically 20% lower
-      timeOfUse: {
-        peak: (avgRate * 1.3) / 100,
-        offPeak: (avgRate * 0.7) / 100
-      }
-    };
+    // Fallback to basic structure if AI fails
+    return generateBasicFallbackData(domain, dataType, userState);
   }
-  
-  return null;
 }
 
-/**
- * Extract utility rebate information
- */
-function extractUtilityRebate(text: string, state: string): number | null {
-  const utilityRegex = new RegExp(`utility[^\\n]*\\$([\\d,]+)`, 'i');
-  const match = text.match(utilityRegex);
-  return match ? parseInt(match[1].replace(/,/g, '')) : null;
-}
-
-/**
- * Extract state program information
- */
-function extractStatePrograms(text: string, state: string): string[] {
-  const programs: string[] = [];
-  const programKeywords = ['rebate', 'incentive', 'program', 'credit', 'grant'];
-  
-  for (const keyword of programKeywords) {
-    const regex = new RegExp(`${state}[^\\n]*${keyword}[^\\n]*`, 'gi');
-    const matches = text.match(regex);
-    if (matches) {
-      programs.push(...matches.map(m => m.trim()));
-    }
-  }
-  
-  return programs.slice(0, 5); // Limit to 5 programs
-}
-
-/**
- * Extract additional incentives
- */
-function extractAdditionalIncentives(text: string, state: string): string[] {
-  const incentives: string[] = [];
-  const incentiveKeywords = ['property tax exemption', 'sales tax exemption', 'performance payment', 'srec'];
-  
-  for (const keyword of incentiveKeywords) {
-    if (text.toLowerCase().includes(keyword)) {
-      incentives.push(keyword);
-    }
-  }
-  
-  return incentives;
-}
-
-/**
- * Extract state rankings for solar
- */
-function extractStateRankings(text: string): Record<string, number> {
-  const rankings: Record<string, number> = {};
-  const rankingRegex = /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)[:\s]+#?([0-9]+)/g;
-  let match;
-  
-  while ((match = rankingRegex.exec(text)) !== null) {
-    const state = match[1].trim();
-    const rank = parseInt(match[2]);
-    if (rank > 0 && rank <= 50) {
-      rankings[state] = rank;
-    }
-  }
-  
-  return rankings;
-}
-
-/**
- * Extract net metering policy information
- */
-function extractNetMeteringInfo(text: string, state: string): any {
-  const hasNetMetering = text.toLowerCase().includes('net metering') || text.toLowerCase().includes('net billing');
-  const compensationRate = extractPercentage(text, ['net metering', 'compensation', 'credit rate']);
+function generateBasicFallbackData(domain: string, dataType: string, userState: string): Record<string, any> {
+  logger.info({ domain, dataType, userState }, 'DataRequirementsResearch: Generating basic fallback data structure');
   
   return {
-    available: hasNetMetering,
-    compensationRate: compensationRate || 1.0,
-    policy: hasNetMetering ? 'Available' : 'Limited',
-    details: extractNetMeteringDetails(text, state)
+    fallbackData: {
+      message: `AI parsing failed for ${domain} ${dataType} data. Using basic fallback structure.`,
+      domain,
+      dataType,
+      userState,
+      generatedAt: new Date().toISOString(),
+      needsManualReview: true
+    }
   };
-}
-
-/**
- * Extract detailed net metering information
- */
-function extractNetMeteringDetails(text: string, state: string): string {
-  const netMeteringRegex = new RegExp(`${state}[^\\n]*net\\s+metering[^\\n]*`, 'i');
-  const match = text.match(netMeteringRegex);
-  return match ? match[0].trim() : 'Standard net metering policies apply';
-}
-
-/**
- * Extract date information
- */
-function extractDate(text: string): string | null {
-  const dateRegex = /(\d{4})-(\d{2})-(\d{2})|(\d{1,2})\/(\d{1,2})\/(\d{4})|(?:expires?|ends?|until)\s+(\d{4})/i;
-  const match = text.match(dateRegex);
-  
-  if (match) {
-    if (match[1]) return `${match[1]}-${match[2]}-${match[3]}`;
-    if (match[4]) return `${match[6]}-${match[4].padStart(2, '0')}-${match[5].padStart(2, '0')}`;
-    if (match[7]) return `${match[7]}-12-31`;
-  }
-  
-  return null;
 }
 
 async function persistResearchToBrainstorm(brainstormId: string, researchData: {

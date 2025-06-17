@@ -4,7 +4,7 @@ import logger from '@/lib/logger';
  * Web search functionality using Perplexity's sonar-pro model
  * Conducts real research for the Data Requirements & Research Agent
  */
-export async function web_search(params: {
+export async function perplexity_web_search(params: {
   search_term: string;
   explanation: string;
   domain?: string;

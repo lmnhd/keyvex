@@ -91,7 +91,7 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
     You must return a valid JSON object with this EXACT structure:
 
     {
-      "coreConcept": "string",
+      "coreConcept": "string (CONCISE TITLE: 3-8 words maximum, tool name only - NOT a description)",
       "keyCalculations": [
         {
           "name": "string",
@@ -156,9 +156,14 @@ export const LOGIC_ARCHITECT_PROMPT = `<purpose>
     Fill gaps creatively, suggest bold concepts, and think beyond conventional calculator logic. The goal is to create tools that users actually WANT to complete and share.
     
     🚨 CRITICAL: Keep your response CONCISE and STRUCTURED. Focus on quality over quantity.
+    
+    TITLE EXAMPLES:
+    ✅ GOOD coreConcept: "Neighborhood Match Finder", "ROI Impact Calculator", "Business Health Scanner"  
+    ❌ BAD coreConcept: "The Neighborhood Match Finder: An interactive quiz that creates personalized scores..."
 </creativity-setting>
 
 <critical-constraints>
+    <constraint>🚨 CRITICAL: coreConcept MUST be a short, catchy tool name (3-8 words max) - NOT a description or explanation</constraint>
     <constraint>🚨 CRITICAL: leadCaptureStrategy MUST ALWAYS be included with valid timing, method, and incentive values - this is essential for business tool success</constraint>
     <constraint>The "creativeEnhancements" field MUST be an array of strings, NOT a JSON string representation of an array</constraint>
     <constraint>Keep calculations business-relevant and credible</constraint>
