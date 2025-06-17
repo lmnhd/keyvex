@@ -9,7 +9,18 @@ import logger from '@/lib/logger';
 import { perplexity_web_search } from '../../../../../../lib/ai/web-search';
 import { getDataRequirementsResearchSystemPrompt, getDataRequirementsResearchUserPrompt } from '@/lib/prompts/v2';
 
-// Schema for research queries that need to be executed
+// STRONGLY TYPED SCHEMAS - NO 'any' TYPES!
+
+// User location type
+const UserLocationSchema = z.object({
+  state: z.string().optional(),
+  country: z.string().optional(),
+  zipCode: z.string().optional()
+});
+
+type UserLocation = z.infer<typeof UserLocationSchema>;
+
+// Research query with strict typing
 const ResearchQuerySchema = z.object({
   query: z.string().min(1).describe('The research query to execute'),
   domain: z.string().min(1).describe('Domain category (e.g., "solar", "finance", "healthcare")'),
@@ -19,18 +30,149 @@ const ResearchQuerySchema = z.object({
   expectedDataStructure: z.string().min(1).describe('Expected structure of the data (e.g., "array of objects with rate and state fields")')
 });
 
-// Main output schema for the agent - made more flexible
+type ResearchQuery = z.infer<typeof ResearchQuerySchema>;
+
+// Search metadata with strict typing
+const SearchMetadataSchema = z.object({
+  query: z.string(),
+  searchedAt: z.string(),
+  resultsFound: z.number(),
+  dataSource: z.string(),
+  aiGenerated: z.boolean().optional(),
+  domain: z.string().optional(),
+  dataType: z.string().optional(),
+  error: z.string().optional()
+});
+
+type SearchMetadata = z.infer<typeof SearchMetadataSchema>;
+
+// AI parsing result metadata
+const AIParsingMetadataSchema = z.object({
+  dataSource: z.string(),
+  generationMethod: z.string(),
+  dataPoints: z.number(),
+  relevanceScore: z.number().min(0).max(100),
+  lastUpdated: z.string()
+});
+
+type AIParsingMetadata = z.infer<typeof AIParsingMetadataSchema>;
+
+// Generic data structure with proper typing
+const DataStructureSchema = z.object({
+  searchMetadata: SearchMetadataSchema.optional()
+}).catchall(z.unknown()); // Allow additional properties but typed as unknown, not any
+
+type DataStructure = z.infer<typeof DataStructureSchema>;
+
+// Research data organized by domain
+const ResearchDataSchema = z.record(z.string(), DataStructureSchema);
+type ResearchData = z.infer<typeof ResearchDataSchema>;
+
+// AI parsing response schema
+const AIParsingResponseSchema = z.object({
+  success: z.boolean(),
+  dataStructure: z.record(z.string(), z.unknown()), // Structured but not 'any'
+  metadata: AIParsingMetadataSchema,
+  reasoning: z.string()
+});
+
+type AIParsingResponse = z.infer<typeof AIParsingResponseSchema>;
+
+// Main output schema for the agent - strongly typed
 const DataRequirementsResearchOutputSchema = z.object({
   hasExternalDataNeeds: z.boolean().describe('Whether this tool requires external data'),
   requiredDataTypes: z.array(z.string()).default([]).describe('Types of external data needed'),
   researchQueries: z.array(ResearchQuerySchema).default([]).describe('Specific research queries to execute'),
-  researchData: z.record(z.any()).default({}).describe('Generated research data organized by category'),
+  researchData: ResearchDataSchema.default({}).describe('Generated research data organized by category'),
   userInstructions: z.object({
     summary: z.string().min(1).describe('Summary of what data the app user (tool creator) needs to provide to make this tool work'),
     dataNeeded: z.array(z.string()).default([]).describe('List of specific data the app user needs to provide (e.g., "Current tax rates for your state", "Industry-specific pricing data")'),
     format: z.string().min(1).describe('Instructions on how the app user should format or obtain the required data')
   }).describe('Instructions for the app user (tool creator) about what data they need to provide to make the tool functional')
 });
+
+// PERSISTENCE INTERFACES - NO 'any' TYPES!
+
+interface PersistenceDataRequirements {
+  hasExternalDataNeeds: boolean;
+  requiredDataTypes: string[];
+  researchQueries: ResearchQuery[];
+}
+
+interface PersistenceResearchData {
+  dataRequirements: PersistenceDataRequirements;
+  researchData: ResearchData;
+  userDataInstructions: {
+    summary: string;
+    dataNeeded: string[];
+    format: string;
+  };
+}
+
+interface PersistenceResult {
+  id: string;
+  updatedAt: string;
+  dataRequirements: PersistenceDataRequirements;
+  researchData: ResearchData;
+  userDataInstructions: {
+    summary: string;
+    dataNeeded: string[];
+    format: string;
+  };
+  researchCompletedAt: string;
+}
+
+// GENERIC FALLBACK DATA INTERFACE
+interface FallbackDataStructure {
+  fallbackData: {
+    message: string;
+    domain: string;
+    dataType: string;
+    userState: string;
+    generatedAt: string;
+    needsManualReview: boolean;
+  };
+}
+
+// AI PARSING RESULT SCHEMA WITH PROPER TYPING
+const AIParsingResultSchema = z.object({
+  success: z.boolean(),
+  dataStructure: z.record(z.string(), z.unknown()), // Structured but not 'any'
+  metadata: AIParsingMetadataSchema,
+  reasoning: z.string()
+});
+
+// PERSISTENCE INTERFACES TO REPLACE 'any' TYPES
+interface BrainstormUpdateResult {
+  id: string;
+  updatedAt: string;
+  dataRequirements: {
+    hasExternalDataNeeds: boolean;
+    requiredDataTypes: string[];
+    researchQueries: ResearchQuery[];
+  };
+  researchData: ResearchData;
+  userDataInstructions: {
+    summary: string;
+    dataNeeded: string[];
+    format: string;
+  };
+  researchCompletedAt: string;
+}
+
+interface ResearchPersistenceData {
+  dataRequirements: {
+    hasExternalDataNeeds: boolean;
+    requiredDataTypes: string[];
+    researchQueries: ResearchQuery[];
+  };
+  researchData: ResearchData;
+  userDataInstructions: {
+    summary: string;
+    dataNeeded: string[];
+    format: string;
+  };
+}
 
 export type DataRequirementsResearchOutput = z.infer<typeof DataRequirementsResearchOutputSchema>;
 
@@ -63,7 +205,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
   dataRequirementsResearch?: DataRequirementsResearchOutput;
   error?: string;
   updatedTcc?: ToolConstructionContext;
-  updatedBrainstorm?: any;
+  updatedBrainstorm?: BrainstormUpdateResult | null;
 }> {
   const { jobId, selectedModel, userLocation, persistToBrainstorm = false, brainstormId } = request;
   const tcc = request.mockTcc || request.tcc;
@@ -174,7 +316,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
   }
 }
 
-async function generateDataRequirementsAnalysis(brainstormData: BrainstormData, selectedModel?: string, userLocation?: any): Promise<DataRequirementsResearchOutput> {
+async function generateDataRequirementsAnalysis(brainstormData: BrainstormData, selectedModel?: string, userLocation?: UserLocation): Promise<DataRequirementsResearchOutput> {
   const modelId = selectedModel || 'gpt-4o';
   const provider = getModelProvider(modelId);
   const modelInstance = createModelInstance(provider, modelId);
@@ -365,11 +507,11 @@ CRITICAL: Return ONLY a valid JSON object. Example:
 }
 
 async function executeResearchQueries(
-  researchQueries: any[], 
-  baseResearchData: Record<string, any>, 
-  userLocation?: any,
+  researchQueries: ResearchQuery[], 
+  baseResearchData: ResearchData, 
+  userLocation?: UserLocation,
   brainstormData?: BrainstormData
-): Promise<Record<string, any>> {
+): Promise<ResearchData> {
   const enhancedResearchData = { ...baseResearchData };
 
   for (const query of researchQueries.slice(0, 3)) {
@@ -444,9 +586,9 @@ async function parseSearchResultsWithAI(
   searchResults: string, 
   userState: string,
   expectedDataStructure: string,
-  query: any,
+  query: ResearchQuery,
   brainstormData?: BrainstormData
-): Promise<Record<string, any>> {
+): Promise<DataStructure> {
   try {
     logger.info({ 
       domain, 
@@ -509,7 +651,7 @@ Return a JSON object with the generated data structure.`;
       model,
       schema: z.object({
         success: z.boolean(),
-        dataStructure: z.record(z.any()),
+        dataStructure: z.record(z.string(), z.unknown()),
         metadata: z.object({
           dataSource: z.string(),
           generationMethod: z.string(),
@@ -558,7 +700,7 @@ Return a JSON object with the generated data structure.`;
   }
 }
 
-function generateBasicFallbackData(domain: string, dataType: string, userState: string): Record<string, any> {
+function generateBasicFallbackData(domain: string, dataType: string, userState: string): FallbackDataStructure {
   logger.info({ domain, dataType, userState }, 'DataRequirementsResearch: Generating basic fallback data structure');
   
   return {
@@ -573,11 +715,7 @@ function generateBasicFallbackData(domain: string, dataType: string, userState: 
   };
 }
 
-async function persistResearchToBrainstorm(brainstormId: string, researchData: {
-  dataRequirements: any;
-  researchData: any;
-  userDataInstructions: any;
-}): Promise<any> {
+async function persistResearchToBrainstorm(brainstormId: string, researchData: ResearchPersistenceData): Promise<BrainstormUpdateResult> {
   logger.info({ 
     brainstormId,
     hasDataRequirements: !!researchData.dataRequirements,
