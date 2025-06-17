@@ -56,7 +56,7 @@ interface BrainstormOutput {
 }
 
 interface DetailedBrainstormViewProps {
-  data: BrainstormOutput | null;
+  data: BrainstormOutput | null | undefined;
 }
 
 const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (

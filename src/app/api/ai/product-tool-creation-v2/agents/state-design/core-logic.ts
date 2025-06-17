@@ -322,6 +322,13 @@ ${functionSignatures.map(f => `- ${f.name}(): ${f.description || 'No description
 SPECIFIC REQUIREMENTS:
 ${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label}: ${input.type}`).join('\n') || 'No specific inputs defined'}
 
+🚨 CRITICAL: KEY CALCULATIONS TO MAINTAIN (ALL REQUIRED):
+${brainstormData?.keyCalculations?.map((calc: any) => `
+- ${calc.name}: ${calc.description}
+  Formula: ${calc.formula}
+  Variables: ${calc.variables ? calc.variables.join(', ') : 'See formula'}
+`).join('\n') || 'No key calculations defined'}
+
 Please modify the existing state logic according to the edit instructions above.`;
   }
 
@@ -338,16 +345,26 @@ ${functionSignatures.map(f => `- ${f.name}(): ${f.description || 'No description
 SUGGESTED INPUTS:
 ${brainstormData?.suggestedInputs?.map((input: any) => `- ${input.label} (${input.type}): ${input.placeholder || input.description || ''}`).join('\n') || 'No specific inputs defined'}
 
-CALCULATION LOGIC (if available):
-${brainstormData?.calculationLogic || 'No specific calculation logic provided'}
+🚨 CRITICAL: KEY CALCULATIONS TO IMPLEMENT (ALL REQUIRED):
+${brainstormData?.keyCalculations?.map((calc: any) => `
+- ${calc.name}: ${calc.description}
+  Formula: ${calc.formula}
+  Variables: ${calc.variables ? calc.variables.join(', ') : 'See formula'}
+`).join('\n') || 'No key calculations defined'}
 
-REQUIREMENTS:
-1. Create state variables for each input field
-2. Create state variables for results/outputs  
-3. Implement actual business logic in functions (NOT empty stubs)
-4. Use specific formulas and calculations based on the tool type
+CALCULATION LOGIC (additional context):
+${brainstormData?.calculationLogic?.map((logic: any) => `- ${logic.name}: ${logic.formula}`).join('\n') || 'No additional calculation logic provided'}
+
+🔥 ABSOLUTE REQUIREMENTS:
+1. Create state variables for EVERY input field listed in suggestedInputs
+2. Create state variables for EVERY calculation result listed in keyCalculations  
+3. Implement COMPLETE business logic for ALL keyCalculations (NOT empty stubs)
+4. Use the EXACT formulas provided in keyCalculations
 5. Include proper error handling and validation
 6. Follow React hooks patterns (useState, useEffect)
+7. ENSURE ALL keyCalculations have corresponding state variables and functions
 
-Generate complete, working state logic that implements the actual business requirements of this ${brainstormData?.toolType || 'tool'}.`;
+🚨 FAILURE TO IMPLEMENT ANY keyCalculation = INCOMPLETE TOOL!
+
+Generate complete, working state logic that implements ALL business requirements of this ${brainstormData?.toolType || 'tool'}.`;
 } 

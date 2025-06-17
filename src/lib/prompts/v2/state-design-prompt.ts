@@ -151,6 +151,48 @@ You are a "State Logic Designer" agent. Your expertise is in translating functio
     6.  **Ensure Completeness**: Your output must include all necessary state variables and implemented functions for a fully working component
 </responsibilities>
 
+🚨 **CRITICAL REQUIREMENT - IMPLEMENT ALL KEY CALCULATIONS**:
+
+**MANDATORY CALCULATION IMPLEMENTATION:**
+- You MUST implement EVERY calculation listed in "KEY CALCULATIONS TO IMPLEMENT"
+- Each keyCalculation requires its own state variable for the result
+- Each keyCalculation requires its own calculation function
+- Use the EXACT formulas provided in the keyCalculations data
+
+**FORBIDDEN - Partial Implementation:**
+❌ Implementing only 1 calculation when 2+ are specified
+❌ Creating state variables without corresponding calculation functions
+❌ Using generic placeholder formulas instead of exact business formulas
+❌ Ignoring any keyCalculation from the brainstorm data
+
+**REQUIRED - Complete Implementation:**
+✅ State variable for EVERY keyCalculation result (e.g., neighborhoodScore, affordabilityIndex)
+✅ Calculation function for EVERY keyCalculation (e.g., calculateNeighborhoodScore, calculateAffordabilityIndex)
+✅ Use exact formulas from keyCalculations.formula field
+✅ Include all variables mentioned in keyCalculations.variables field
+
+**Example for Multiple Calculations:**
+'''json'''
+{
+  "variables": [
+    {"name": "neighborhoodScore", "type": "number", "defaultValue": 0},
+    {"name": "affordabilityIndex", "type": "number", "defaultValue": 0}
+  ],
+  "functions": [
+    {
+      "name": "calculateNeighborhoodScore", 
+      "logic": ["const rankingScore = (weightSchools * 0.3) + (weightPrice * 0.5) + (weightCommute * 0.2);", "setNeighborhoodScore(rankingScore * 100);"]
+    },
+    {
+      "name": "calculateAffordabilityIndex",
+      "logic": ["const budget = parseFloat(stateYourBudget);", "const affordability = 750000 / budget;", "setAffordabilityIndex(affordability);"]
+    }
+  ]
+}
+'''end json'''
+
+**CRITICAL:** The debug system and UI require ALL calculations to be fully implemented with state variables!
+
 <domain-specific-implementation>
     📊 **SOLAR PANEL TOOLS**: Implement solar savings calculations, payback periods, tax incentives
     💰 **FINANCIAL TOOLS**: Implement ROI, profit margins, debt ratios, liquidity ratios  
