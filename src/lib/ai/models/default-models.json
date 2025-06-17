@@ -245,6 +245,22 @@
           },
           "capabilities": ["text", "fast-response", "simple-tasks", "vision"],
           "recommended": ["quick-responses", "simple-analysis", "basic-visual-analysis"]
+        },
+        "claude-3-5-sonnet-thinking": {
+          "id": "claude-3-5-sonnet-20241022",
+          "name": "Claude 3.5 Sonnet (Thinking Mode)",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.003,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision", "thinking-mode", "self-reflection"],
+          "recommended": ["complex-reasoning", "iterative-improvement", "quality-validation", "brainstorming", "deep-analysis"],
+          "thinkingMode": {
+            "enabled": true,
+            "budgetTokens": 12000,
+            "type": "enabled"
+          }
         }
       }
     }
@@ -286,20 +302,33 @@
     },
     
     "logicArchitect": {
-      "description": "Framework and logic structure building",
+      "description": "Enhanced framework and logic structure building with thinking mode, quality validation, and research capabilities",
       "primary": {
-        "provider": "openai",
-        "model": "gpt-4o",
-        "reason": "Superior logical reasoning and structured thinking"
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet-thinking",
+        "reason": "Advanced thinking mode enables deep reasoning, self-reflection, and iterative improvement for superior brainstorming quality"
       },
       "fallback": {
         "provider": "anthropic",
         "model": "claude-3-5-sonnet",
-        "reason": "Good alternative for framework design"
+        "reason": "Fallback to standard Claude 3.5 Sonnet for framework design"
       },
       "streaming": true,
-      "temperature": 0.3,
-      "maxTokens": 6000
+      "temperature": 0.4,
+      "maxTokens": 8000,
+      "thinkingMode": {
+        "enabled": true,
+        "budgetTokens": 12000
+      },
+      "qualityValidation": {
+        "enabled": true,
+        "maxIterations": 3,
+        "passingThreshold": 7.0
+      },
+      "research": {
+        "enabled": true,
+        "usePerplexity": true
+      }
     },
     
     "contentCrafter": {
