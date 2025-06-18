@@ -27,10 +27,12 @@ import { BrainstormResult } from '../types/unified-brainstorm-types';
 import { loadLogicResultsFromDB } from '@/app/tests/ui/db-utils';
 import { toast } from 'sonner';
 import { extractToolTitle } from '@/lib/utils';
+import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 
-interface DataRequirementsResearchProps {
-  isDarkMode: boolean;
-  newBrainstormFlag: number;
+interface ModelOption {
+  id: string;
+  name: string;
+  provider?: string;
 }
 
 interface ResearchResults {
@@ -51,6 +53,11 @@ interface ResearchResults {
   };
 }
 
+interface DataRequirementsResearchProps {
+  isDarkMode: boolean;
+  newBrainstormFlag: number;
+}
+
 const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({ 
   isDarkMode, 
   newBrainstormFlag 
@@ -65,11 +72,59 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     country: 'United States',
     zipCode: ''
   });
-  const [selectedModel, setSelectedModel] = useState('gpt-4o');
+  const [selectedModel, setSelectedModel] = useState('claude-3-7-sonnet-20250219');
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
+  const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
+
+  // Fetch the configured default model from the dataRequirementsResearch API
+  const fetchDefaultModel = async () => {
+    try {
+      const response = await fetch('/api/ai/data-requirements-research/config');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.defaultModel?.primary?.id) {
+          setDefaultPrimaryModel(data.defaultModel.primary.id);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to fetch default model, using fallback:', error);
+    }
+  };
 
   useEffect(() => {
     loadSavedBrainstorms();
-  }, [newBrainstormFlag]);
+    fetchDefaultModel();
+    
+    // Load all available models from default-models.json
+    try {
+      const parsedModels: ModelOption[] = [];
+      for (const providerKey in DEFAULT_MODELS.providers) {
+        const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+        for (const modelKey in provider.models) {
+          if ((provider.models as any)[modelKey].deprecated) continue;
+          parsedModels.push({ 
+            id: (provider.models as any)[modelKey].id, 
+            name: `${(provider.models as any)[modelKey].name} (${provider.name})`,
+            provider: provider.name
+          });
+        }
+      }
+      setAvailableModels(parsedModels);
+      
+      if (parsedModels.length > 0) {
+        // Use the dynamically fetched default model, or fallback to Claude 3.7 Sonnet
+        const targetDefaultId = defaultPrimaryModel || 'claude-3-7-sonnet-20250219';
+        const defaultModel = parsedModels.find(m => m.id === targetDefaultId) || 
+                           parsedModels.find(m => m.id === 'claude-3-7-sonnet-20250219') || 
+                           parsedModels.find(m => m.id === 'claude-3-5-sonnet-20241022') ||
+                           parsedModels[0];
+        setSelectedModel(defaultModel.id);
+      }
+    } catch (err) {
+      console.error('Failed to parse models:', err);
+      toast.error('Failed to load AI models. Using fallback selection.');
+    }
+  }, [newBrainstormFlag, defaultPrimaryModel]);
 
   useEffect(() => {
     // When brainstorm changes, check if it already has research results
@@ -448,17 +503,36 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
           {/* AI Model Selection */}
           <div className="space-y-4">
-            <Label>AI Model</Label>
-            <Select value={selectedModel} onValueChange={setSelectedModel}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gpt-4o">GPT-4O (Recommended)</SelectItem>
-                <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
-                <SelectItem value="gpt-4o-mini">GPT-4O Mini</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>AI Model for Research
+              {defaultPrimaryModel && (
+                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                  Default: {availableModels.find(m => m.id === defaultPrimaryModel)?.name || defaultPrimaryModel}
+                </span>
+              )}
+            </Label>
+            {availableModels.length > 0 ? (
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose an AI model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map(model => (
+                    <SelectItem key={model.id} value={model.id}>
+                      <div className="flex items-center">
+                        {model.name}
+                        {model.id === defaultPrimaryModel && (
+                          <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="text-sm text-gray-500">Loading models...</p>
+            )}
           </div>
 
           {/* Action Buttons */}
