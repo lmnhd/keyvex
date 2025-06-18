@@ -53,6 +53,28 @@ interface BrainstormOutput {
     industryFocus?: string;
     toolComplexity: string;
   };
+  
+  // 🆕 NEW: Research Agent Requirements and Data Fields
+  researchAgentRequirements?: string;
+  dataRequirements?: {
+    hasExternalDataNeeds: boolean;
+    requiredDataTypes: string[];
+    researchQueries: Array<{
+      query: string;
+      domain: string;
+      dataType: string;
+      priority: string;
+      locationDependent: boolean;
+      expectedDataStructure: string;
+    }>;
+  };
+  researchData?: Record<string, any>;
+  mockData?: Record<string, any>;
+  userDataInstructions?: {
+    summary: string;
+    dataNeeded: string[];
+    format: string;
+  };
 }
 
 interface DetailedBrainstormViewProps {
@@ -244,6 +266,145 @@ export const DetailedBrainstormView: React.FC<DetailedBrainstormViewProps> = ({ 
         </section>
 
         <Separator className="my-6" />
+
+        {/* 🆕 NEW: Research Agent Requirements Section */}
+        {data.researchAgentRequirements && (
+          <section>
+            <SectionTitle>🔬 Research Agent Requirements</SectionTitle>
+            <Card className="bg-blue-50 dark:bg-blue-900/20 shadow-sm border-blue-200">
+              <CardContent className="pt-6">
+                <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed whitespace-pre-wrap">{data.researchAgentRequirements}</p>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {data.researchAgentRequirements && <Separator className="my-6" />}
+
+        {/* 🆕 NEW: Data Requirements Section */}
+        {data.dataRequirements && (
+          <section>
+            <SectionTitle>📊 Data Requirements Analysis</SectionTitle>
+            <Card className="bg-green-50 dark:bg-green-900/20 shadow-sm border-green-200">
+              <CardContent className="pt-6 space-y-4">
+                <PropertyDisplay label="Has External Data Needs" value={data.dataRequirements.hasExternalDataNeeds} />
+                {data.dataRequirements.requiredDataTypes && data.dataRequirements.requiredDataTypes.length > 0 && (
+                  <div>
+                    <SubSectionTitle>Required Data Types</SubSectionTitle>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-green-800 dark:text-green-200">
+                      {data.dataRequirements.requiredDataTypes.map((dataType, index) => (
+                        <li key={index}>{dataType}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {data.dataRequirements.researchQueries && data.dataRequirements.researchQueries.length > 0 && (
+                  <div>
+                    <SubSectionTitle>Research Queries ({data.dataRequirements.researchQueries.length})</SubSectionTitle>
+                    <Accordion type="single" collapsible className="w-full mt-2">
+                      {data.dataRequirements.researchQueries.map((query, index) => (
+                        <AccordionItem value={`query-${index}`} key={index} className="border-b dark:border-gray-700">
+                          <AccordionTrigger className="text-sm font-medium text-green-800 dark:text-green-200 hover:no-underline">
+                            {query.query} <Badge variant="outline" className="ml-2 text-xs">{query.domain}</Badge>
+                          </AccordionTrigger>
+                          <AccordionContent className="pt-2 pb-4 space-y-2 bg-green-100 dark:bg-green-800/30 p-4 rounded-md">
+                            <PropertyDisplay label="Data Type" value={query.dataType} />
+                            <PropertyDisplay label="Priority" value={query.priority} />
+                            <PropertyDisplay label="Location Dependent" value={query.locationDependent} />
+                            <PropertyDisplay label="Expected Data Structure" value={query.expectedDataStructure} />
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {data.dataRequirements && <Separator className="my-6" />}
+
+        {/* 🆕 NEW: Research Data Section */}
+        {data.researchData && Object.keys(data.researchData).length > 0 && (
+          <section>
+            <SectionTitle>🔍 Research Data Results</SectionTitle>
+            <Card className="bg-purple-50 dark:bg-purple-900/20 shadow-sm border-purple-200">
+              <CardContent className="pt-6">
+                <p className="text-sm text-purple-800 dark:text-purple-200 mb-4">Research data populated for {Object.keys(data.researchData).length} domain(s)</p>
+                <Accordion type="single" collapsible className="w-full">
+                  {Object.entries(data.researchData).map(([domain, domainData]) => (
+                    <AccordionItem value={`research-${domain}`} key={domain} className="border-b dark:border-gray-700">
+                      <AccordionTrigger className="text-md font-medium text-purple-800 dark:text-purple-200 hover:no-underline capitalize">
+                        {domain} Research Data
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2 pb-4 bg-purple-100 dark:bg-purple-800/30 p-4 rounded-md">
+                        <pre className="text-xs text-purple-700 dark:text-purple-300 whitespace-pre-wrap overflow-x-auto max-h-60">
+                          {JSON.stringify(domainData, null, 2)}
+                        </pre>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {data.researchData && Object.keys(data.researchData).length > 0 && <Separator className="my-6" />}
+
+        {/* 🆕 NEW: Mock Data Section */}
+        {data.mockData && Object.keys(data.mockData).length > 0 && (
+          <section>
+            <SectionTitle>🎭 Mock Data (Research-Based)</SectionTitle>
+            <Card className="bg-orange-50 dark:bg-orange-900/20 shadow-sm border-orange-200">
+              <CardContent className="pt-6">
+                <p className="text-sm text-orange-800 dark:text-orange-200 mb-4">Generated mock data for {Object.keys(data.mockData).length} domain(s)</p>
+                <Accordion type="single" collapsible className="w-full">
+                  {Object.entries(data.mockData).map(([domain, mockData]) => (
+                    <AccordionItem value={`mock-${domain}`} key={domain} className="border-b dark:border-gray-700">
+                      <AccordionTrigger className="text-md font-medium text-orange-800 dark:text-orange-200 hover:no-underline capitalize">
+                        {domain} Mock Data
+                      </AccordionTrigger>
+                      <AccordionContent className="pt-2 pb-4 bg-orange-100 dark:bg-orange-800/30 p-4 rounded-md">
+                        <pre className="text-xs text-orange-700 dark:text-orange-300 whitespace-pre-wrap overflow-x-auto max-h-60">
+                          {JSON.stringify(mockData, null, 2)}
+                        </pre>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {data.mockData && Object.keys(data.mockData).length > 0 && <Separator className="my-6" />}
+
+        {/* 🆕 NEW: User Data Instructions Section */}
+        {data.userDataInstructions && (
+          <section>
+            <SectionTitle>📋 User Data Instructions</SectionTitle>
+            <Card className="bg-indigo-50 dark:bg-indigo-900/20 shadow-sm border-indigo-200">
+              <CardContent className="pt-6 space-y-3">
+                <PropertyDisplay label="Summary" value={data.userDataInstructions.summary} />
+                <PropertyDisplay label="Format" value={data.userDataInstructions.format} />
+                {data.userDataInstructions.dataNeeded && data.userDataInstructions.dataNeeded.length > 0 && (
+                  <div>
+                    <SubSectionTitle>Data Needed</SubSectionTitle>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-indigo-800 dark:text-indigo-200">
+                      {data.userDataInstructions.dataNeeded.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {data.userDataInstructions && <Separator className="my-6" />}
 
         <section>
           <SectionTitle>AI Prompt Options (for Tool Generation)</SectionTitle>
