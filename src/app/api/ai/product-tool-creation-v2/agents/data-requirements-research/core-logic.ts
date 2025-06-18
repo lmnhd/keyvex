@@ -537,7 +537,7 @@ async function executeResearchQueries(
       }, 'DataRequirementsResearch: ✅ Web search completed');
 
       // Generate enhanced data based on search results
-      const enhancedDataForQuery = await parseSearchResultsWithAI(query.domain, query.dataType, searchResults, userLocation, query.expectedDataStructure, query, brainstormData);
+      const enhancedDataForQuery = await parseSearchResultsWithAI(query.domain, query.dataType, searchResults, userLocation as string, query.expectedDataStructure, query, brainstormData);
       
       enhancedResearchData[query.domain] = {
         ...enhancedResearchData[query.domain],
@@ -558,7 +558,7 @@ async function executeResearchQueries(
       }, 'DataRequirementsResearch: ❌ Web search failed, using fallback data');
       
       // Fallback to static data if web search fails
-      const fallbackData = await parseSearchResultsWithAI(query.domain, query.dataType, '', userLocation, query.expectedDataStructure, query, brainstormData);
+      const fallbackData = await parseSearchResultsWithAI(query.domain, query.dataType, '', userLocation as string, query.expectedDataStructure, query, brainstormData);
       enhancedResearchData[query.domain] = {
         ...enhancedResearchData[query.domain],
         ...fallbackData,
@@ -679,6 +679,7 @@ Return a JSON object with the generated data structure.`;
           ...result.object.metadata,
           query: query.query,
           searchedAt: new Date().toISOString(),
+          resultsFound: searchResults?.length || 0,
           aiGenerated: true,
           domain,
           dataType
@@ -700,7 +701,7 @@ Return a JSON object with the generated data structure.`;
   }
 }
 
-function generateBasicFallbackData(domain: string, dataType: string, userState: string): FallbackDataStructure {
+function generateBasicFallbackData(domain: string, dataType: string, userState: string): DataStructure {
   logger.info({ domain, dataType, userState }, 'DataRequirementsResearch: Generating basic fallback data structure');
   
   return {
@@ -711,19 +712,39 @@ function generateBasicFallbackData(domain: string, dataType: string, userState: 
       userState,
       generatedAt: new Date().toISOString(),
       needsManualReview: true
+    },
+    searchMetadata: {
+      query: `${domain} ${dataType} data`,
+      searchedAt: new Date().toISOString(),
+      resultsFound: 0,
+      dataSource: 'fallback_static',
+      aiGenerated: true,
+      domain,
+      dataType,
+      error: 'AI parsing failed, using fallback data'
     }
   };
 }
 
 async function persistResearchToBrainstorm(brainstormId: string, researchData: ResearchPersistenceData): Promise<BrainstormUpdateResult> {
+  // 🚨 IMPORTANT: This function does NOT actually persist to any database!
+  // 
+  // SERVER-SIDE LIMITATION: This API route runs on the server and cannot access IndexedDB
+  // IndexedDB is a client-side browser API and cannot be called from Node.js server code
+  //
+  // ACTUAL PERSISTENCE: The client-side React component handles IndexedDB persistence
+  // after receiving this response using saveLogicResultToDB()
+  
   logger.info({ 
     brainstormId,
     hasDataRequirements: !!researchData.dataRequirements,
     hasResearchData: !!researchData.researchData,
-    hasUserInstructions: !!researchData.userDataInstructions
-  }, 'DataRequirementsResearch: Persisting research results to brainstorm database');
+    hasUserInstructions: !!researchData.userDataInstructions,
+    note: 'SERVER_CANNOT_PERSIST_TO_INDEXEDDB'
+  }, 'DataRequirementsResearch: Returning research data for client-side persistence');
 
-  return {
+  // Return the research data structure for the client to persist to IndexedDB
+  const result: BrainstormUpdateResult = {
     id: brainstormId,
     updatedAt: new Date().toISOString(),
     dataRequirements: researchData.dataRequirements,
@@ -731,4 +752,6 @@ async function persistResearchToBrainstorm(brainstormId: string, researchData: R
     userDataInstructions: researchData.userDataInstructions,
     researchCompletedAt: new Date().toISOString()
   };
+
+  return result;
 }

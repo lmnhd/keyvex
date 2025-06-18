@@ -179,41 +179,41 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       });
       setShowResults(true);
 
-      if (data.wasPersistedToDB) {
-        toast.success('✅ Research complete and saved to database!');
-        
-        // Update the brainstorm in IndexedDB with research data
-        if (selectedBrainstorm) {
-          const updatedBrainstorm = {
-            ...selectedBrainstorm,
-            brainstormData: {
-              ...selectedBrainstorm.brainstormData,
-              dataRequirements: {
-                hasExternalDataNeeds: researchData.hasExternalDataNeeds,
-                requiredDataTypes: researchData.requiredDataTypes,
-                researchQueries: researchData.researchQueries
-              },
-              researchData: researchData.researchData,
-              userDataInstructions: researchData.userInstructions
-            }
-          };
-          
-          try {
-            // Import the save function dynamically to avoid import issues
-            const { saveLogicResultToDB } = await import('../../ui/db-utils');
-            await saveLogicResultToDB(updatedBrainstorm);
-            
-            // Update local state immediately
-            setSelectedBrainstorm(updatedBrainstorm);
-            
-            // Refresh the brainstorms list
-            await loadSavedBrainstorms();
-            
-            console.log('✅ Research data saved to IndexedDB for brainstorm:', selectedBrainstorm.id);
-          } catch (dbError) {
-            console.error('❌ Failed to save research data to IndexedDB:', dbError);
-            toast.error('Research completed but failed to save to local database');
+      // 🔧 CRITICAL FIX: Always save to IndexedDB since server cannot access browser IndexedDB
+      // The server-side persistResearchToBrainstorm function cannot actually persist to IndexedDB
+      // (IndexedDB is a browser-only API), so we must handle persistence client-side
+      
+      if (selectedBrainstorm) {
+        const updatedBrainstorm = {
+          ...selectedBrainstorm,
+          brainstormData: {
+            ...selectedBrainstorm.brainstormData,
+            dataRequirements: {
+              hasExternalDataNeeds: researchData.hasExternalDataNeeds,
+              requiredDataTypes: researchData.requiredDataTypes,
+              researchQueries: researchData.researchQueries
+            },
+            researchData: researchData.researchData,
+            userDataInstructions: researchData.userInstructions
           }
+        };
+        
+        try {
+          // Import the save function dynamically to avoid import issues
+          const { saveLogicResultToDB } = await import('../../ui/db-utils');
+          await saveLogicResultToDB(updatedBrainstorm);
+          
+          // Update local state immediately
+          setSelectedBrainstorm(updatedBrainstorm);
+          
+          // Refresh the brainstorms list
+          await loadSavedBrainstorms();
+          
+          console.log('✅ Research data saved to IndexedDB for brainstorm:', selectedBrainstorm.id);
+          toast.success('✅ Research complete and saved to database!');
+        } catch (dbError) {
+          console.error('❌ Failed to save research data to IndexedDB:', dbError);
+          toast.error('Research completed but failed to save to local database');
         }
       } else {
         toast.success('✅ Research analysis complete!');
@@ -290,8 +290,11 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       });
       setShowResults(true);
 
-      if (data.wasPersistedToDB) {
-        // Update the brainstorm in IndexedDB with new research data
+      // 🔧 CRITICAL FIX: Always save to IndexedDB since server cannot access browser IndexedDB
+      // The server-side persistResearchToBrainstorm function cannot actually persist to IndexedDB
+      // (IndexedDB is a browser-only API), so we must handle persistence client-side
+      
+      if (selectedBrainstorm) {
         const updatedBrainstorm = {
           ...selectedBrainstorm,
           brainstormData: {
