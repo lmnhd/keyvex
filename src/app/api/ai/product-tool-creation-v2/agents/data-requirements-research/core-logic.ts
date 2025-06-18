@@ -317,7 +317,7 @@ export async function analyzeDataRequirementsAndResearch(request: {
 }
 
 async function generateDataRequirementsAnalysis(brainstormData: BrainstormData, selectedModel?: string, userLocation?: UserLocation): Promise<DataRequirementsResearchOutput> {
-  const modelId = selectedModel || 'gpt-4o';
+  const modelId = selectedModel || 'claude-3-7-sonnet-20250219';
   const provider = getModelProvider(modelId);
   const modelInstance = createModelInstance(provider, modelId);
 

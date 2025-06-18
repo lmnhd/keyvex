@@ -322,13 +322,13 @@
       "description": "Enhanced framework and logic structure building with thinking mode, quality validation, and research capabilities",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-4-sonnet",
-        "reason": "Latest Claude 4 model with superior reasoning capabilities for enhanced brainstorming quality"
+        "model": "claude-3-7-sonnet",
+        "reason": "Latest Claude 3.7 model with extended thinking capabilities - perfect balance of performance and reasoning for brainstorming"
       },
       "fallback": {
         "provider": "anthropic",
-        "model": "claude-3-7-sonnet",
-        "reason": "Fallback to Claude 3.7 Sonnet for framework design"
+        "model": "claude-4-sonnet",
+        "reason": "Fallback to Claude 4 Sonnet for complex framework design when needed"
       },
       "streaming": true,
       "temperature": 0.4,
