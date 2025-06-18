@@ -209,7 +209,7 @@ export class LogicArchitectAgent {
   }
 
   /**
-   * Generate initial brainstorm using thinking mode
+   * Generate initial brainstorm using thinking mode with proper object generation
    */
   private async generateInitialBrainstorm(
     toolType: string,
@@ -226,10 +226,11 @@ export class LogicArchitectAgent {
       availableData
     );
 
-    // Use thinking mode for deep reasoning
-    const { text, reasoning } = await generateText({
+    // CRITICAL FIX: Use generateObject with schema validation instead of manual JSON parsing
+    const { object, reasoning } = await generateObject({
       model: this.model,
-      prompt: `${prompt}\n\nThink deeply about this tool concept and return a JSON object matching the required schema.`,
+      schema: logicBrainstormingSchema,
+      prompt: prompt,
       providerOptions: {
         anthropic: {
           thinking: { type: 'enabled', budgetTokens: 12000 },
@@ -239,14 +240,8 @@ export class LogicArchitectAgent {
 
     console.log('🤔 Thinking process length:', reasoning?.length || 0);
     
-    // Parse the JSON response
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No valid JSON found in response');
-    }
-    
-    const brainstormData = JSON.parse(jsonMatch[0].replace(/```json\s*|\s*```/g, ''));
-    return this.postProcessBrainstormingResult(brainstormData);
+    // No need for postProcessBrainstormingResult since generateObject ensures proper schema compliance
+    return object;
   }
 
   /**
@@ -409,7 +404,8 @@ Focus on making the tool more valuable, unique, and industry-relevant.
       temperature: 0.4
     });
 
-    return this.postProcessBrainstormingResult(object);
+    // FIXED: Return object directly since generateObject ensures proper schema compliance
+    return object;
   }
 
   /**
@@ -436,7 +432,8 @@ Focus on addressing the suggestions to improve quality and user value.
       temperature: 0.4
     });
 
-    return this.postProcessBrainstormingResult(object);
+    // FIXED: Return object directly since generateObject ensures proper schema compliance
+    return object;
   }
 
   /**
@@ -965,11 +962,6 @@ Include formula explanation and implementation guidance.`;
           }
         }
       }
-    }
-
-    if (!Array.isArray(result.creativeEnhancements)) {
-      result.creativeEnhancements = ['Interactive visual feedback', 'Real-time calculations', 'Professional result presentation'];
-      console.log('🔧 Applied fallback creativeEnhancements array');
     }
 
     return result;
