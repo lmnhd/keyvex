@@ -76,55 +76,91 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
 
-  // Fetch the configured default model from the dataRequirementsResearch API
-  const fetchDefaultModel = async () => {
-    try {
-      const response = await fetch('/api/ai/data-requirements-research/config');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.defaultModel?.primary?.id) {
-          setDefaultPrimaryModel(data.defaultModel.primary.id);
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to fetch default model, using fallback:', error);
-    }
-  };
-
   useEffect(() => {
+    console.log('🚀 DataRequirementsResearch mounting, loading models...');
+    
+    // Load saved brainstorms
     loadSavedBrainstorms();
+    
+    // Fetch API default model
     fetchDefaultModel();
     
     // Load all available models from default-models.json
-    try {
-      const parsedModels: ModelOption[] = [];
-      for (const providerKey in DEFAULT_MODELS.providers) {
-        const provider = (DEFAULT_MODELS.providers as any)[providerKey];
-        for (const modelKey in provider.models) {
-          if ((provider.models as any)[modelKey].deprecated) continue;
-          parsedModels.push({ 
-            id: (provider.models as any)[modelKey].id, 
-            name: `${(provider.models as any)[modelKey].name} (${provider.name})`,
-            provider: provider.name
-          });
+    const loadModels = () => {
+      try {
+        console.log('🔍 Loading models from DEFAULT_MODELS...');
+        const parsedModels: ModelOption[] = [];
+        
+        // Add some hardcoded models as fallback
+        if (!DEFAULT_MODELS?.providers) {
+          console.warn('⚠️ DEFAULT_MODELS not available, using fallback models');
+          const fallbackModels: ModelOption[] = [
+            { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Anthropic)', provider: 'Anthropic' },
+            { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet v2 (Anthropic)', provider: 'Anthropic' },
+            { id: 'gpt-4o', name: 'GPT-4o (OpenAI)', provider: 'OpenAI' },
+            { id: 'gpt-4o-mini', name: 'GPT-4o Mini (OpenAI)', provider: 'OpenAI' },
+            { id: 'claude-4-sonnet-20250514', name: 'Claude 4 Sonnet (Anthropic)', provider: 'Anthropic' },
+          ];
+          setAvailableModels(fallbackModels);
+          setSelectedModel('claude-3-7-sonnet-20250219');
+          return;
         }
+        
+        // Parse models from DEFAULT_MODELS
+        for (const providerKey in DEFAULT_MODELS.providers) {
+          const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+          if (!provider?.models) continue;
+          
+          for (const modelKey in provider.models) {
+            const model = (provider.models as any)[modelKey];
+            if (model.deprecated) continue;
+            
+            parsedModels.push({ 
+              id: model.id, 
+              name: `${model.name} (${provider.name})`,
+              provider: provider.name
+            });
+          }
+        }
+        
+        console.log('✅ Loaded', parsedModels.length, 'models');
+        setAvailableModels(parsedModels);
+        
+        // Set default model
+        if (parsedModels.length > 0) {
+          const defaultModel = parsedModels.find(m => m.id === 'claude-3-7-sonnet-20250219') || 
+                             parsedModels.find(m => m.id === 'claude-3-5-sonnet-20241022') ||
+                             parsedModels[0];
+          
+          console.log('🎯 Setting default model:', defaultModel.name);
+          setSelectedModel(defaultModel.id);
+        }
+      } catch (err) {
+        console.error('❌ Failed to load models:', err);
+        // Set fallback models
+        const fallbackModels: ModelOption[] = [
+          { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Anthropic)', provider: 'Anthropic' },
+          { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet v2 (Anthropic)', provider: 'Anthropic' },
+          { id: 'gpt-4o', name: 'GPT-4o (OpenAI)', provider: 'OpenAI' },
+        ];
+        setAvailableModels(fallbackModels);
+        setSelectedModel('claude-3-7-sonnet-20250219');
       }
-      setAvailableModels(parsedModels);
-      
-      if (parsedModels.length > 0) {
-        // Use the dynamically fetched default model, or fallback to Claude 3.7 Sonnet
-        const targetDefaultId = defaultPrimaryModel || 'claude-3-7-sonnet-20250219';
-        const defaultModel = parsedModels.find(m => m.id === targetDefaultId) || 
-                           parsedModels.find(m => m.id === 'claude-3-7-sonnet-20250219') || 
-                           parsedModels.find(m => m.id === 'claude-3-5-sonnet-20241022') ||
-                           parsedModels[0];
-        setSelectedModel(defaultModel.id);
+    };
+    
+    loadModels();
+  }, [newBrainstormFlag]);
+
+  // Update selected model when API default is fetched
+  useEffect(() => {
+    if (defaultPrimaryModel && availableModels.length > 0) {
+      const targetModel = availableModels.find(m => m.id === defaultPrimaryModel);
+      if (targetModel) {
+        console.log('🔄 Updating to API default model:', targetModel.name);
+        setSelectedModel(targetModel.id);
       }
-    } catch (err) {
-      console.error('Failed to parse models:', err);
-      toast.error('Failed to load AI models. Using fallback selection.');
     }
-  }, [newBrainstormFlag, defaultPrimaryModel]);
+  }, [defaultPrimaryModel, availableModels]);
 
   useEffect(() => {
     // When brainstorm changes, check if it already has research results
