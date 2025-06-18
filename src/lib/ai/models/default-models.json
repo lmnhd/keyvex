@@ -214,8 +214,8 @@
       "baseUrl": "https://api.anthropic.com/v1",
       "models": {
         "claude-3-5-sonnet": {
-          "id": "claude-3-5-sonnet-20240620",
-          "name": "Claude 3.5 Sonnet",
+          "id": "claude-3-5-sonnet-20241022",
+          "name": "Claude 3.5 Sonnet v2",
           "maxTokens": 200000,
           "costPer1kTokens": {
             "input": 0.003,
@@ -223,6 +223,39 @@
           },
           "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision"],
           "recommended": ["creative-content", "complex-reasoning", "style-generation", "visual-analysis"]
+        },
+        "claude-3-7-sonnet": {
+          "id": "claude-3-7-sonnet-20250219",
+          "name": "Claude 3.7 Sonnet",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.003,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision", "extended-thinking"],
+          "recommended": ["advanced-reasoning", "complex-analysis", "extended-thinking", "latest-performance"]
+        },
+        "claude-4-sonnet": {
+          "id": "claude-sonnet-4-20250514",
+          "name": "Claude 4 Sonnet",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.003,
+            "output": 0.015
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision", "extended-thinking", "advanced-reasoning"],
+          "recommended": ["flagship-performance", "complex-reasoning", "advanced-analysis", "latest-model"]
+        },
+        "claude-4-opus": {
+          "id": "claude-opus-4-20250514",
+          "name": "Claude 4 Opus",
+          "maxTokens": 200000,
+          "costPer1kTokens": {
+            "input": 0.015,
+            "output": 0.075
+          },
+          "capabilities": ["text", "reasoning", "analysis", "creativity", "complex-tasks", "vision", "extended-thinking", "premium-intelligence"],
+          "recommended": ["highest-quality", "most-capable", "premium-tasks", "advanced-reasoning"]
         },
         "claude-3-opus": {
           "id": "claude-3-opus-20240229",
@@ -271,13 +304,13 @@
       "description": "Initial tool suggestions and idea generation",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet",
-        "reason": "Excellent creativity and reasoning for generating diverse tool suggestions"
+        "model": "claude-3-7-sonnet",
+        "reason": "Latest Claude model with excellent creativity and reasoning for generating diverse tool suggestions"
       },
       "fallback": {
-        "provider": "openai",
-        "model": "gpt-4-turbo",
-        "reason": "Strong alternative for creative suggestions"
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong alternative with proven performance"
       },
       "streaming": true,
       "temperature": 0.8,
@@ -288,13 +321,13 @@
       "description": "Visual brand analysis and extraction from logos, images, and brand assets",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet",
-        "reason": "Excellent vision capabilities and creative analysis for brand intelligence"
+        "model": "claude-3-7-sonnet",
+        "reason": "Latest vision capabilities and creative analysis for brand intelligence"
       },
       "fallback": {
-        "provider": "openai", 
-        "model": "gpt-4-vision",
-        "reason": "Strong vision capabilities for detailed brand analysis and color extraction"
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
+        "reason": "Strong vision capabilities for detailed brand analysis"
       },
       "streaming": true,
       "temperature": 0.4,
@@ -305,13 +338,13 @@
       "description": "Enhanced framework and logic structure building with thinking mode, quality validation, and research capabilities",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet-thinking",
-        "reason": "Advanced thinking mode enables deep reasoning, self-reflection, and iterative improvement for superior brainstorming quality"
+        "model": "claude-4-sonnet",
+        "reason": "Latest Claude 4 model with superior reasoning capabilities for enhanced brainstorming quality"
       },
       "fallback": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet",
-        "reason": "Fallback to standard Claude 3.5 Sonnet for framework design"
+        "model": "claude-3-7-sonnet",
+        "reason": "Fallback to Claude 3.7 Sonnet for framework design"
       },
       "streaming": true,
       "temperature": 0.4,
@@ -335,12 +368,12 @@
       "description": "Content generation and copywriting",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet",
-        "reason": "Exceptional writing quality and tone adaptation"
+        "model": "claude-3-7-sonnet",
+        "reason": "Latest model with exceptional writing quality and tone adaptation"
       },
       "fallback": {
-        "provider": "openai",
-        "model": "gpt-4-turbo",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
         "reason": "Strong content generation capabilities"
       },
       "streaming": true,
@@ -352,12 +385,12 @@
       "description": "Visual design and styling decisions",
       "primary": {
         "provider": "anthropic",
-        "model": "claude-3-5-sonnet",
-        "reason": "Creative design thinking and aesthetic reasoning"
+        "model": "claude-3-7-sonnet",
+        "reason": "Latest creative design thinking and aesthetic reasoning"
       },
       "fallback": {
-        "provider": "openai",
-        "model": "gpt-4",
+        "provider": "anthropic",
+        "model": "claude-3-5-sonnet",
         "reason": "Good design analysis and recommendations"
       },
       "streaming": true,

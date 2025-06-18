@@ -10,7 +10,7 @@ export class AnthropicProvider {
   private defaultModel: string;
   private apiKey: string;
 
-  constructor(apiKey?: string, defaultModel: string = 'claude-3-5-sonnet-20240620') {
+  constructor(apiKey?: string, defaultModel: string = 'claude-3-7-sonnet-20250219') {
     this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY || '';
     this.defaultModel = defaultModel;
     this.client = anthropic(this.defaultModel);
@@ -360,6 +360,10 @@ export class AnthropicProvider {
    */
   getAvailableModels(): string[] {
     return [
+      'claude-3-5-sonnet-20241022',
+      'claude-3-7-sonnet-20250219',
+      'claude-sonnet-4-20250514',
+      'claude-opus-4-20250514',
       'claude-3-5-sonnet-20240620',
       'claude-3-opus-20240229',
       'claude-3-sonnet-20240229',
@@ -377,6 +381,30 @@ export class AnthropicProvider {
     supportsTools: boolean;
   } {
     const capabilities: Record<string, any> = {
+      'claude-sonnet-4-20250514': {
+        maxTokens: 64000,
+        contextWindow: 200000,
+        supportsVision: true,
+        supportsTools: true
+      },
+      'claude-opus-4-20250514': {
+        maxTokens: 32000,
+        contextWindow: 200000,
+        supportsVision: true,
+        supportsTools: true
+      },
+      'claude-3-7-sonnet-20250219': {
+        maxTokens: 64000,
+        contextWindow: 200000,
+        supportsVision: true,
+        supportsTools: true
+      },
+      'claude-3-5-sonnet-20241022': {
+        maxTokens: 8192,
+        contextWindow: 200000,
+        supportsVision: true,
+        supportsTools: true
+      },
       'claude-3-5-sonnet-20240620': {
         maxTokens: 4096,
         contextWindow: 200000,
@@ -403,7 +431,7 @@ export class AnthropicProvider {
       }
     };
     
-    return capabilities[model] || capabilities['claude-3-5-sonnet-20240620'];
+    return capabilities[model] || capabilities['claude-3-5-sonnet-20241022'];
   }
 
   /**
@@ -411,6 +439,10 @@ export class AnthropicProvider {
    */
   getModelPricing(model: string): { input: number; output: number } | null {
     const pricing: Record<string, { input: number; output: number }> = {
+      'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
+      'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
+      'claude-3-7-sonnet-20250219': { input: 0.003, output: 0.015 },
+      'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015 },
       'claude-3-5-sonnet-20240620': { input: 0.003, output: 0.015 },
       'claude-3-opus-20240229': { input: 0.015, output: 0.075 },
       'claude-3-sonnet-20240229': { input: 0.003, output: 0.015 },
