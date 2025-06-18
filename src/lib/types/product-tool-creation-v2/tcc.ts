@@ -66,6 +66,9 @@ export const BrainstormDataSchema = z.object({
     toolComplexity: z.string(),
   }),
 
+  // 🆕 NEW: Research Agent Requirements from Logic Architect
+  researchAgentRequirements: z.string().optional().describe('What data/research the Research Agent needs to populate for this tool to work'),
+
   // 🆕 NEW: Data Requirements & Research Agent fields (optional for backward compatibility)
   dataRequirements: z.object({
     hasExternalDataNeeds: z.boolean().describe('Whether this tool requires external data'),

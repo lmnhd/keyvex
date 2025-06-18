@@ -439,6 +439,9 @@ TOOL CONCEPT:
 Core Concept: ${brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified'}
 Value Proposition: ${brainstormData.valueProposition || 'Not specified'}
 
+🚨 LOGIC ARCHITECT RESEARCH REQUIREMENTS:
+${brainstormData.researchAgentRequirements || 'No specific research requirements provided by Logic Architect'}
+
 KEY CALCULATIONS:
 ${brainstormData.keyCalculations?.map((calc: any) => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No specific calculations defined'}
 
@@ -452,26 +455,30 @@ INTERACTION FLOW:
 ${brainstormData.interactionFlow?.map((step: any) => `${step.step}. ${step.title}: ${step.userAction}`).join('\n') || 'No interaction flow defined'}
 
 ANALYSIS INSTRUCTIONS:
-1. **IDENTIFY TOOL TYPE**: Based on the concept and calculations, determine if this is:
+1. **FOLLOW LOGIC ARCHITECT GUIDANCE**: Pay special attention to the "LOGIC ARCHITECT RESEARCH REQUIREMENTS" section above - this provides specific guidance on what data research is needed for this tool
+
+2. **IDENTIFY TOOL TYPE**: Based on the concept and calculations, determine if this is:
    - COMPARISON/RANKING: Compares multiple options (neighborhoods, colleges, investments)
    - CALCULATOR: Performs calculations with current rates/data (mortgage, solar, tax)
    - ASSESSMENT/SCORING: Evaluates user based on criteria (credit, readiness, risk)
    - DECISION SUPPORT: Helps choose between options (insurance, career, retirement)
    - PLANNING/OPTIMIZATION: Allocates resources optimally (budget, schedule, workout)
 
-2. **GENERATE APPROPRIATE DATA STRUCTURE**: 
+3. **GENERATE APPROPRIATE DATA STRUCTURE**: 
    - For COMPARISON tools: Create arrays of options with multiple attributes
    - For ASSESSMENT tools: Create scoring criteria and factor weights  
    - For CALCULATOR tools: Provide current rates and regional variations
    - For DECISION tools: Create option matrices with trade-offs
    - For PLANNING tools: Create allocation rules and optimization parameters
 
-3. **AVOID GENERIC TEMPLATES**: Don't use "average value + standard deviation" for all domains
+4. **AVOID GENERIC TEMPLATES**: Don't use "average value + standard deviation" for all domains
 
-4. **CHECK EXTERNAL DATA NEEDS**: If any calculation references external data (tax rates, market prices, industry standards), set hasExternalDataNeeds=true
+5. **CHECK EXTERNAL DATA NEEDS**: If any calculation references external data (tax rates, market prices, industry standards), or if the Logic Architect's research requirements specify external data needs, set hasExternalDataNeeds=true
+
+6. **ALIGN WITH LOGIC ARCHITECT REQUIREMENTS**: Ensure your research queries and data structures directly address the specific requirements outlined by the Logic Architect
 
 USER INSTRUCTIONS GUIDANCE:
-The userInstructions field should provide guidance to the APP USER (the person creating this tool) about what external data structure they need to provide. Focus on the specific data structure pattern that matches the tool type.
+The userInstructions field should provide guidance to the APP USER (the person creating this tool) about what external data structure they need to provide. Focus on the specific data structure pattern that matches the tool type AND the Logic Architect's specific research requirements.
 
 Examples:
 - COMPARISON: "You need to provide a dataset of [items] with [attributes] for comparison"
