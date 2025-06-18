@@ -278,22 +278,6 @@
           },
           "capabilities": ["text", "fast-response", "simple-tasks", "vision"],
           "recommended": ["quick-responses", "simple-analysis", "basic-visual-analysis"]
-        },
-        "claude-3-5-sonnet-thinking": {
-          "id": "claude-3-5-sonnet-20241022",
-          "name": "Claude 3.5 Sonnet (Thinking Mode)",
-          "maxTokens": 200000,
-          "costPer1kTokens": {
-            "input": 0.003,
-            "output": 0.015
-          },
-          "capabilities": ["text", "reasoning", "analysis", "creativity", "long-context", "vision", "thinking-mode", "self-reflection"],
-          "recommended": ["complex-reasoning", "iterative-improvement", "quality-validation", "brainstorming", "deep-analysis"],
-          "thinkingMode": {
-            "enabled": true,
-            "budgetTokens": 12000,
-            "type": "enabled"
-          }
         }
       }
     }
