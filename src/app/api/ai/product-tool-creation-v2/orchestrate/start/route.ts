@@ -283,6 +283,7 @@ export async function POST(request: NextRequest) {
             jobId,
             selectedModel: selectedModel || "gpt-4o",
             tcc: tcc,
+            isSequentialMode: true
           }),
         }
       );
@@ -293,10 +294,56 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // ✅ CRITICAL FIX: Get updated TCC from Function Planner 
+      const functionPlannerResult = await functionPlannerResponse.json();
+      if (!functionPlannerResult.success) {
+        throw new Error(`Function Planner failed: ${functionPlannerResult.error}`);
+      }
+
       logger.info(
-        { jobId, status: functionPlannerResponse.status },
-        "🚀 ORCHESTRATION START: Function Planner triggered"
+        { 
+          jobId, 
+          status: functionPlannerResponse.status,
+          functionSignaturesCreated: functionPlannerResult.functionSignatures?.length || 0
+        },
+        "🚀 ORCHESTRATION START: Function Planner completed, got updated TCC"
       );
+
+      // ✅ RESTORATION: Now trigger State Design with the UPDATED TCC from Function Planner
+      logger.info(
+        { jobId },
+        "🚀 ORCHESTRATION START: Triggering State Design with updated TCC"
+      );
+
+      const stateDesignUrl = new URL(
+        "/api/ai/product-tool-creation-v2/agents/state-design",
+        request.url
+      );
+      const stateDesignResponse = await fetch(
+        stateDesignUrl.toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId,
+            selectedModel: selectedModel || "gpt-4o",
+            tcc: functionPlannerResult.updatedTcc || tcc,
+            isSequentialMode: true
+          }),
+        }
+      );
+
+      if (!stateDesignResponse.ok) {
+        throw new Error(
+          `State Design failed: ${stateDesignResponse.status}`
+        );
+      }
+
+      logger.info(
+        { jobId, status: stateDesignResponse.status },
+        "🚀 ORCHESTRATION START: State Design triggered with proper TCC"
+      );
+
     } else {
       logger.info(
         { jobId },

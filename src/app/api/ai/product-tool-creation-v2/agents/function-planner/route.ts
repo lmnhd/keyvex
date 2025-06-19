@@ -32,11 +32,13 @@ export async function POST(request: NextRequest) {
       isEditMode: z.boolean().optional(),              // ✅ Simple edit mode
       editInstructions: z.string().optional(),         // ✅ Simple edit mode
       isIsolatedTest: z.boolean().optional(),
+      // ✅ SEQUENTIAL MODE FIX: Prevent auto-triggering when orchestrator controls flow
+      isSequentialMode: z.boolean().optional(),
     });
 
     const body = await request.json();
     const parsedRequest = functionPlannerRequestSchema.parse(body);
-    const { jobId, selectedModel, model, tcc, mockTcc, editMode, isEditMode, editInstructions, isIsolatedTest } = parsedRequest;
+    const { jobId, selectedModel, model, tcc, mockTcc, editMode, isEditMode, editInstructions, isIsolatedTest, isSequentialMode } = parsedRequest;
     const effectiveModel = selectedModel || model;    // ✅ Accept both
     
     // Phase 2: Edit mode handling - merge simple and complex edit modes
@@ -69,30 +71,30 @@ export async function POST(request: NextRequest) {
     });
 
     if (result.success && result.updatedTcc) {
-      // Only trigger orchestration if not in isolated test mode
-      if (!isIsolatedTestActive) {
-      // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
-      const baseUrl = request.nextUrl.origin;
-      
-      const stateDesignModel = result.updatedTcc.agentModelMapping?.['state-design'] || result.updatedTcc.selectedModel;
-      const jsxLayoutModel = result.updatedTcc.agentModelMapping?.['jsx-layout'] || result.updatedTcc.selectedModel;
-      
-      // Trigger both agents in parallel, passing the updated TCC
-      Promise.all([
-        triggerStateDesignAgent(baseUrl, jobId, stateDesignModel, result.updatedTcc),
-        triggerJsxLayoutAgent(baseUrl, jobId, jsxLayoutModel, result.updatedTcc)
-      ]).catch(error => {
-        console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${jobId}:`, error);
-      });
+      // ✅ SEQUENTIAL MODE FIX: Only trigger orchestration if not in sequential or isolated test mode
+      if (!isIsolatedTestActive && !isSequentialMode) {
+        // Trigger the next parallel agents (State Design + JSX Layout) with the NEW TCC
+        const baseUrl = request.nextUrl.origin;
+        
+        const stateDesignModel = result.updatedTcc.agentModelMapping?.['state-design'] || result.updatedTcc.selectedModel;
+        const jsxLayoutModel = result.updatedTcc.agentModelMapping?.['jsx-layout'] || result.updatedTcc.selectedModel;
+        
+        // Trigger both agents in parallel, passing the updated TCC
+        Promise.all([
+          triggerStateDesignAgent(baseUrl, jobId, stateDesignModel, result.updatedTcc),
+          triggerJsxLayoutAgent(baseUrl, jobId, jsxLayoutModel, result.updatedTcc)
+        ]).catch(error => {
+          console.error(`[FunctionPlanner] Failed to trigger parallel agents for jobId ${jobId}:`, error);
+        });
       } else {
-        console.log('📋 FunctionPlanner Route: Isolated test mode - skipping orchestration triggering');
+        console.log('📋 FunctionPlanner Route: Sequential/isolated test mode - orchestrator controls flow');
       }
 
-      // Return the function signatures, but not the whole TCC
+      // ✅ SEQUENTIAL MODE FIX: Always return updated TCC to orchestrator
       return NextResponse.json({
         success: true,
         functionSignatures: result.functionSignatures,
-        ...(isIsolatedTest && { updatedTcc: result.updatedTcc }) // Include TCC in isolated test mode
+        updatedTcc: result.updatedTcc // Always include updated TCC
       }, { status: 200 });
 
     } else {
@@ -131,33 +133,4 @@ async function triggerStateDesignAgent(baseUrl: string, jobId: string, selectedM
       throw new Error(`State agent responded with status: ${response.status}`);
     }
 
-    console.log(`[FunctionPlanner] Successfully triggered State Design Agent for jobId: ${jobId}`);
-  } catch (error) {
-    console.error(`[FunctionPlanner] Failed to trigger State Design Agent:`, error);
-    throw error;
-  }
-}
-
-/**
- * Triggers the JSX Layout Agent, passing the full TCC
- */
-async function triggerJsxLayoutAgent(baseUrl: string, jobId: string, selectedModel: string | undefined, tcc: ToolConstructionContext): Promise<void> {
-  const jsxAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/jsx-layout', baseUrl);
-  
-  try {
-    const response = await fetch(jsxAgentUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId, selectedModel, tcc }) // Pass the full TCC object
-    });
-
-    if (!response.ok) {
-      throw new Error(`JSX agent responded with status: ${response.status}`);
-    }
-
-    console.log(`[FunctionPlanner] Successfully triggered JSX Layout Agent for jobId: ${jobId}`);
-  } catch (error) {
-    console.error(`[FunctionPlanner] Failed to trigger JSX Layout Agent:`, error);
-    throw error;
-  }
-} 
+    console.log(`

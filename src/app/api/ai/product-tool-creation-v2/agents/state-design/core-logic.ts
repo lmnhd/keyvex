@@ -272,7 +272,8 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
   // ✅ FIXED: Get model info properly
   const modelId = selectedModel || 'gpt-4o';
   const provider = getModelProvider(modelId);
-  const functionSignatures = tcc.functionSignatures || [];
+  // 🚨 CRITICAL FIX: Use correct field name from Function Planner
+  const functionSignatures = tcc.definedFunctionSignatures || [];
 
     logger.info({ 
       jobId: tcc.jobId,

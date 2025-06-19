@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
 // TCC Store operations removed - using prop-based TCC passing
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
@@ -168,12 +168,19 @@ export async function assembleComponent(request: {
     // Add a small delay to allow progress to be sent
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Assemble the component with AI
-    const assembledComponent = await generateAssembledComponent(
-      tcc,
+    // ✅ FIXED: Use correct function signature
+    const assemblyResult = await generateAssembledComponent({
       jobId,
-      selectedModel
-    );
+      selectedModel,
+      tcc,
+      isIsolatedTest: false
+    });
+
+    if (!assemblyResult.success || !assemblyResult.assembledComponent) {
+      throw new Error(assemblyResult.error || 'Failed to assemble component');
+    }
+
+    const assembledComponent = assemblyResult.assembledComponent;
 
     // Update TCC with results
     const updatedTCC: ToolConstructionContext = {
@@ -262,406 +269,442 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 }
 
 /**
- * Use AI to generate the assembled component using ITERATIVE PARALLEL APPROACH WITH VALIDATE & RETRY
- * Multiple specialized AI calls with validation and retry logic, then merge results
+ * Merge results from parallel specialized AI calls into complete component
  */
-async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: string, selectedModel?: string): Promise<AssembledComponent> {
-  // Get model configuration
-  const { provider, modelId } = getModelForAgent('componentAssembler', selectedModel, tcc);
-  logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
-  const modelInstance = createModelInstance(provider, modelId);
+function mergeParallelResults(results: {
+  imports: string[];
+  componentName: string;
+  useStateHooks: string[];
+  stateInitializers: string[];
+  calculationFunctions: string[];
+  eventHandlers: string[];
+  reactElementCode: string;
+  stateVariables: any[];
+  stateFunctions: any[];
+}): AssembledComponent {
+  
+  // Generate simple calculation function implementations
+  const simpleFunctions = results.calculationFunctions.map(funcName => 
+    `const ${funcName} = () => { console.log('${funcName} called'); };`
+  ).join('\n  ');
+  
+  const simpleHandlers = results.eventHandlers.map(handlerName => 
+    `const ${handlerName} = () => { console.log('${handlerName} called'); };`
+  ).join('\n  ');
+  
+  const finalCode = `${results.imports.join('\n')}
 
-  // Extract essential data for parallel generation
-  const stateVariables = tcc.stateLogic?.variables || [];
-  const stateFunctions = tcc.stateLogic?.functions || [];
-  const suggestedInputs = tcc.brainstormData?.suggestedInputs || [];
-  const keyCalculations = tcc.brainstormData?.keyCalculations || [];
-  const jsxCode = tcc.styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || '';
-  const userInputString = typeof tcc.userInput === 'string' ? tcc.userInput : tcc.userInput?.description || 'Tool';
+function ${results.componentName}() {
+  // State Management
+  ${results.useStateHooks.join('\n  ')}
+  
+  // Simple Functions
+  ${simpleFunctions}
+  
+  // Simple Handlers  
+  ${simpleHandlers}
+  
+  // Component Render
+  return ${results.reactElementCode};
+}
 
-  // Truncate JSX for manageable prompt size
-  const truncatedJsx = jsxCode.length > 5000 ? jsxCode.substring(0, 5000) + '...' : jsxCode;
+export default ${results.componentName};`;
 
-  // Log parallel approach
-  logger.info({
-    tccJobId: tcc.jobId,
-    provider,
-    modelId,
-    stateVariableCount: stateVariables.length,
-    functionCount: stateFunctions.length,
-    suggestedInputCount: suggestedInputs.length,
-    jsxCodeLength: truncatedJsx.length,
-    approachType: 'iterative_parallel_with_validation'
-  }, '🔧 ComponentAssembler: 📝 ITERATIVE PARALLEL WITH VALIDATE & RETRY - Specialized AI calls');
+  return {
+    finalComponentCode: finalCode,
+    componentName: results.componentName,
+    hooks: results.useStateHooks.map(hook => hook.match(/useState/)?.[0] || 'useState'),
+    functions: [...results.calculationFunctions, ...results.eventHandlers].map(func => 
+      func.match(/(?:const|function)\s+(\w+)/)?.[1] || func
+    ),
+    estimatedLines: finalCode.split('\n').length
+  };
+}
+
+/**
+ * ✅ RESTORED: Original Elegant Component Assembly 
+ * This function implements the INTENDED DESIGN where Component Assembler 
+ * COMBINES the accumulated TCC sections instead of regenerating everything.
+ */
+export async function generateAssembledComponent(request: {
+  jobId: string;
+  selectedModel?: string;
+  tcc?: ToolConstructionContext;
+  mockTcc?: ToolConstructionContext;
+  isIsolatedTest?: boolean;
+  editMode?: EditModeContext;
+}): Promise<{
+  success: boolean;
+  assembledComponent?: AssembledComponent;
+  error?: string;
+  updatedTcc?: ToolConstructionContext;
+}> {
+  const { jobId, selectedModel, isIsolatedTest = false, editMode } = request;
+  const tcc = request.mockTcc || request.tcc;
+
+  logger.info({ jobId }, '🔧 ComponentAssembler: Starting component assembly');
 
   try {
-    // 🚀 PARALLEL SPECIALIZED AI CALLS WITH VALIDATION & RETRY
-    const [importsResult, stateResult, functionsResult, jsxResult] = await Promise.all([
-      
-      // 1️⃣ IMPORTS & SETUP SPECIALIST WITH VALIDATION
-      validateAndRetrySpecialistCall(
-        'imports-specialist',
-        () => generateObject({
-          model: modelInstance,
-          schema: z.object({
-            imports: z.array(z.string()).describe("Required import statements"),
-            componentName: z.string().describe("Component function name")
-          }),
-          system: `Generate ONLY the imports and component name. Focus on imports needed for the component.`,
-          prompt: `Based on this tool: "${userInputString}"
-          
-Required imports for React component with these UI elements:
-${suggestedInputs.map(input => `- ${input.type} input: ${input.label}`).join('\n')}
-
-Generate imports and component name.`
-        }),
-        (result) => validateImportsResult(result),
-        tcc.jobId
-      ),
-
-      // 2️⃣ STATE MANAGEMENT SPECIALIST WITH VALIDATION  
-      validateAndRetrySpecialistCall(
-        'state-specialist',
-        () => generateObject({
-          model: modelInstance,
-          schema: z.object({
-            useStateHooks: z.array(z.string()).describe("useState hook declarations"),
-            stateInitializers: z.array(z.string()).describe("State initialization code")
-          }),
-          system: `Generate ONLY useState hooks and state initialization. One hook per input field.`,
-          prompt: `Create useState hooks for these inputs:
-${suggestedInputs.map(input => `- ${input.label} (${input.type})`).join('\n')}
-
-Generate useState declarations with proper initial values.`
-        }),
-        (result) => validateStateResult(result, suggestedInputs),
-        tcc.jobId
-      ),
-
-      // 3️⃣ CALCULATION FUNCTIONS SPECIALIST WITH VALIDATION
-      validateAndRetrySpecialistCall(
-        'calculation-specialist',
-        () => generateObject({
-          model: modelInstance,
-          schema: z.object({
-            calculationFunctions: z.array(z.string()).describe("Calculation function implementations"),
-            eventHandlers: z.array(z.string()).describe("Event handler functions")
-          }),
-          system: `Generate ONLY calculation functions and event handlers. Implement the actual calculation logic.`,
-          prompt: `Implement these calculations:
-${keyCalculations.map(calc => `- ${calc.name}: ${calc.description}`).join('\n')}
-
-State variables available:
-${stateVariables.map(v => `- ${v.name}: ${v.type}`).join('\n')}
-
-Generate working calculation functions.`
-        }),
-        (result) => validateCalculationResult(result, keyCalculations),
-        tcc.jobId
-      ),
-
-      // 4️⃣ JSX CONVERSION SPECIALIST WITH VALIDATION
-      validateAndRetrySpecialistCall(
-        'jsx-specialist',
-        () => generateObject({
-          model: modelInstance,
-          schema: z.object({
-            reactElementCode: z.string().describe("Complete JSX converted to React.createElement"),
-            componentStructure: z.string().describe("Component structure summary")
-          }),
-          system: `Convert JSX to React.createElement syntax. Connect state variables to inputs and displays.`,
-          prompt: `Convert this JSX to React.createElement:
-
-${truncatedJsx}
-
-Connect state variables: ${stateVariables.map(v => v.name).join(', ')}
-Add onClick handlers for buttons and onChange for inputs.`
-        }),
-        (result) => validateJsxResult(result, stateVariables, suggestedInputs),
-        tcc.jobId
-      )
-    ]);
-
-    // 🔧 MERGE VALIDATED RESULTS INTO COMPLETE COMPONENT
-    const mergedComponent = mergeParallelResults({
-      imports: importsResult.object.imports,
-      componentName: importsResult.object.componentName,
-      useStateHooks: stateResult.object.useStateHooks,
-      stateInitializers: stateResult.object.stateInitializers,
-      calculationFunctions: functionsResult.object.calculationFunctions,
-      eventHandlers: functionsResult.object.eventHandlers,
-      reactElementCode: jsxResult.object.reactElementCode,
-      stateVariables,
-      stateFunctions
-    });
-
-    // 🔍 FINAL VALIDATION OF MERGED COMPONENT
-    const finalValidation = validateMergedComponent(mergedComponent, suggestedInputs, keyCalculations);
-    if (!finalValidation.isValid) {
-      logger.warn({
-        tccJobId: tcc.jobId,
-        validationIssues: finalValidation.issues,
-        approachType: 'final_validation_failed'
-      }, '🔧 ComponentAssembler: ⚠️ FINAL VALIDATION FAILED - Using enhanced fallback');
-      
-      return generateEnhancedFallbackComponent(tcc, truncatedJsx, mergedComponent);
+    if (!tcc) {
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
+
+    // ✅ ORIGINAL DESIGN: Comprehensive TCC analysis of accumulated sections
+    const tccAnalysis = analyzeTccSections(tcc);
+    logger.info({
+      jobId,
+      agentName: 'ComponentAssembler',
+      tccInputAnalysis: tccAnalysis
+    }, '🔧 ComponentAssembler: 📋 COMPREHENSIVE TCC INPUT ANALYSIS - WHAT PREVIOUS AGENTS PROVIDED');
+
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.assembling_component,
+        'in_progress',
+        'Assembling final React component...',
+        tcc
+      );
+    }
+
+    // ✅ VALIDATE REQUIRED TCC SECTIONS - Ensure previous agents completed their work
+    const validationResult = validateTccSections(tcc);
+    if (!validationResult.isValid) {
+      throw new Error(`Missing required TCC sections: ${validationResult.missingSection}`);
+    }
+
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.assembling_component,
+        'in_progress',
+        'Preparing component assembly context...',
+        tcc
+      );
+    }
+
+    // ✅ ORIGINAL ELEGANT APPROACH: PROGRAMMATIC COMBINATION of TCC sections
+    const assembledComponent = combineTccSections(tcc);
+
+    // ✅ COMPREHENSIVE TCC UPDATE 
+    const updatedTcc: ToolConstructionContext = {
+      ...tcc,
+      assembledComponentCode: assembledComponent.finalComponentCode,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code,
+      status: OrchestrationStatusEnum.enum.in_progress,
+      steps: {
+        ...tcc.steps,
+        assemblingComponent: {
+          status: OrchestrationStatusEnum.enum.completed,
+          startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          result: assembledComponent,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
 
     logger.info({
-      tccJobId: tcc.jobId,
-      approachType: 'iterative_parallel_validation_success',
-      mergedComponentLength: mergedComponent.finalComponentCode.length,
-      hooksCount: mergedComponent.hooks?.length || 0,
-      functionsCount: mergedComponent.functions?.length || 0,
-      finalValidation: finalValidation
-    }, '🔧 ComponentAssembler: ✅ PARALLEL GENERATION WITH VALIDATION SUCCESS - All specialists validated');
+      jobId,
+      assembledCodeLength: assembledComponent.finalComponentCode.length,
+      hasImportsInFinalCode: assembledComponent.finalComponentCode.includes('import'),
+    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
 
-    return mergedComponent;
+    if (!isIsolatedTest) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.assembling_component,
+        'completed',
+        'Component assembled successfully!',
+        updatedTcc
+      );
+    }
+
+    logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
+    return { success: true, assembledComponent, updatedTcc };
 
   } catch (error) {
-    logger.error({
-      tccJobId: tcc.jobId,
-      error: error instanceof Error ? error.message : String(error),
-      approachType: 'iterative_parallel_validation_failed'
-    }, '🔧 ComponentAssembler: 🚨 PARALLEL generation with validation failed');
-
-    // Enhanced fallback with better component generation
-    return generateEnhancedFallbackComponent(tcc, truncatedJsx);
-  }
-}
-
-/**
- * 🔄 VALIDATE & RETRY WRAPPER - Handles specialist call validation and retry logic
- */
-async function validateAndRetrySpecialistCall<T>(
-  specialistName: string,
-  generateCall: () => Promise<T>,
-  validateCall: (result: T) => { isValid: boolean; issues: string[] },
-  jobId: string,
-  maxRetries: number = 2
-): Promise<T> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-    try {
-      logger.info({
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ jobId, error: errorMessage }, '🔧 ComponentAssembler: Error');
+    
+    if (!isIsolatedTest) {
+      await emitStepProgress(
         jobId,
-        specialistName,
-        attempt,
-        maxRetries
-      }, `🔄 ComponentAssembler: ${specialistName} - Attempt ${attempt}`);
-
-      const result = await generateCall();
-      const validation = validateCall(result);
-      
-      if (validation.isValid) {
-        logger.info({
-          jobId,
-          specialistName,
-          attempt,
-          success: true
-        }, `✅ ComponentAssembler: ${specialistName} - SUCCESS on attempt ${attempt}`);
-        return result;
-      } else {
-        logger.warn({
-          jobId,
-          specialistName,
-          attempt,
-          validationIssues: validation.issues
-        }, `⚠️ ComponentAssembler: ${specialistName} - VALIDATION FAILED on attempt ${attempt}`);
-        
-        if (attempt <= maxRetries) {
-          continue; // Retry
-        } else {
-          throw new Error(`Validation failed after ${maxRetries} retries: ${validation.issues.join(', ')}`);
-        }
-      }
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error));
-      logger.error({
-        jobId,
-        specialistName,
-        attempt,
-        error: lastError.message
-      }, `❌ ComponentAssembler: ${specialistName} - ERROR on attempt ${attempt}`);
-      
-      if (attempt <= maxRetries) {
-        continue; // Retry
-      }
-    }
-  }
-  
-  throw lastError || new Error(`Failed after ${maxRetries} retries`);
-}
-
-/**
- * 🔍 VALIDATION FUNCTIONS FOR EACH SPECIALIST
- */
-
-function validateImportsResult(result: any): { isValid: boolean; issues: string[] } {
-  const issues: string[] = [];
-  
-  if (!result?.object?.imports || !Array.isArray(result.object.imports)) {
-    issues.push('Missing or invalid imports array');
-  }
-  
-  if (!result?.object?.componentName || typeof result.object.componentName !== 'string') {
-    issues.push('Missing or invalid component name');
-  }
-  
-  if (result.object.imports && result.object.imports.length === 0) {
-    issues.push('No imports generated - React imports required');
-  }
-  
-  return { isValid: issues.length === 0, issues };
-}
-
-function validateStateResult(result: any, suggestedInputs: any[]): { isValid: boolean; issues: string[] } {
-  const issues: string[] = [];
-  
-  if (!result?.object?.useStateHooks || !Array.isArray(result.object.useStateHooks)) {
-    issues.push('Missing or invalid useStateHooks array');
-  }
-  
-  if (!result?.object?.stateInitializers || !Array.isArray(result.object.stateInitializers)) {
-    issues.push('Missing or invalid stateInitializers array');
-  }
-  
-  // Check if we have enough state hooks for the inputs
-  if (result.object.useStateHooks && suggestedInputs.length > 0) {
-    if (result.object.useStateHooks.length < Math.min(suggestedInputs.length, 5)) {
-      issues.push(`Insufficient state hooks - expected at least ${Math.min(suggestedInputs.length, 5)}, got ${result.object.useStateHooks.length}`);
-    }
-  }
-  
-  return { isValid: issues.length === 0, issues };
-}
-
-function validateCalculationResult(result: any, keyCalculations: any[]): { isValid: boolean; issues: string[] } {
-  const issues: string[] = [];
-  
-  if (!result?.object?.calculationFunctions || !Array.isArray(result.object.calculationFunctions)) {
-    issues.push('Missing or invalid calculationFunctions array');
-  }
-  
-  if (!result?.object?.eventHandlers || !Array.isArray(result.object.eventHandlers)) {
-    issues.push('Missing or invalid eventHandlers array');
-  }
-  
-  // Check if we have calculation functions for key calculations
-  if (result.object.calculationFunctions && keyCalculations.length > 0) {
-    if (result.object.calculationFunctions.length === 0) {
-      issues.push('No calculation functions generated despite having key calculations');
-    }
-  }
-  
-  return { isValid: issues.length === 0, issues };
-}
-
-function validateJsxResult(result: any, stateVariables: any[], suggestedInputs: any[]): { isValid: boolean; issues: string[] } {
-  const issues: string[] = [];
-  
-  if (!result?.object?.reactElementCode || typeof result.object.reactElementCode !== 'string') {
-    issues.push('Missing or invalid reactElementCode');
-  }
-  
-  if (result.object.reactElementCode) {
-    if (!result.object.reactElementCode.includes('React.createElement')) {
-      issues.push('React.createElement syntax not found in JSX conversion');
+        OrchestrationStepEnum.enum.assembling_component,
+        'failed',
+        errorMessage,
+        tcc
+      );
     }
     
-    if (result.object.reactElementCode.length < 100) {
-      issues.push('Generated JSX conversion too short - likely incomplete');
-    }
+    return { success: false, error: errorMessage };
   }
-  
-  return { isValid: issues.length === 0, issues };
-}
-
-function validateMergedComponent(component: AssembledComponent, suggestedInputs: any[], keyCalculations: any[]): { isValid: boolean; issues: string[] } {
-  const issues: string[] = [];
-  
-  if (!component.finalComponentCode || component.finalComponentCode.length < 200) {
-    issues.push('Final component code too short');
-  }
-  
-  if (!component.componentName || component.componentName.length < 3) {
-    issues.push('Invalid component name');
-  }
-  
-  // Check for basic React patterns
-  if (!component.finalComponentCode.includes('function ') && !component.finalComponentCode.includes('const ')) {
-    issues.push('No function declaration found');
-  }
-  
-  if (!component.finalComponentCode.includes('React.createElement')) {
-    issues.push('No React.createElement calls found');
-  }
-  
-  return { isValid: issues.length === 0, issues };
 }
 
 /**
- * Enhanced fallback with better component structure when validation fails
+ * ✅ ORIGINAL DESIGN: Analyze TCC sections accumulated by previous agents
  */
-function generateEnhancedFallbackComponent(tcc: ToolConstructionContext, jsxCode: string, partialComponent?: AssembledComponent): AssembledComponent {
-  const userInputString = typeof tcc.userInput === 'string' ? tcc.userInput : tcc.userInput?.description || 'Tool';
-  const componentName = generateComponentName(userInputString);
+function analyzeTccSections(tcc: ToolConstructionContext) {
+  return {
+    hasUserId: !!tcc.userId,
+    hasJobId: !!tcc.jobId,
+    hasBrainstormData: !!tcc.brainstormData,
+    hasUserInput: !!tcc.userInput,
+    hasStateLogic: !!tcc.stateLogic,
+    hasJsxLayout: !!tcc.jsxLayout,
+    hasStyling: !!tcc.styling,
+    hasResearchData: !!tcc.brainstormData?.researchData,
+    currentStep: tcc.currentOrchestrationStep,
+    completedSteps: Object.keys(tcc.steps || {}),
+    updatedAt: tcc.updatedAt,
+    
+    // State Logic Analysis
+    stateLogicDetails: {
+      variableCount: tcc.stateLogic?.variables?.length || 0,
+      variableNames: tcc.stateLogic?.variables?.map(v => v.name) || [],
+      functionCount: tcc.stateLogic?.functions?.length || 0,
+      functionNames: tcc.stateLogic?.functions?.map(f => f.name) || [],
+      hasUseStateHooks: !!tcc.stateLogic?.imports?.includes('useState'),
+      hookCount: (tcc.stateLogic?.imports || []).filter(imp => imp.includes('use')).length,
+      hookNames: (tcc.stateLogic?.imports || []).filter(imp => imp.includes('use'))
+    },
+    
+    // JSX Layout Analysis  
+    jsxLayoutDetails: {
+      componentStructureLength: tcc.jsxLayout?.componentStructure?.length || 0,
+      componentStructurePreview: tcc.jsxLayout?.componentStructure?.substring(0, 200) + '...',
+      elementMapCount: tcc.jsxLayout?.elementMap?.length || 0,
+      elementTypes: tcc.jsxLayout?.elementMap?.map(e => e.type) || [],
+      hasAccessibilityFeatures: !!tcc.jsxLayout?.accessibilityFeatures?.length,
+      hasResponsiveBreakpoints: !!tcc.jsxLayout?.responsiveBreakpoints?.length
+    },
+    
+    // Styling Analysis
+    stylingDetails: {
+      styledComponentCodeLength: tcc.styling?.styledComponentCode?.length || 0,
+      styledComponentCodePreview: tcc.styling?.styledComponentCode?.substring(0, 200) + '...',
+      hasColorScheme: !!tcc.styling?.colorScheme,
+      colorSchemePrimary: tcc.styling?.colorScheme?.primary,
+      hasResponsiveFeatures: !!(tcc.styling as any).responsiveFeatures?.length,
+      hasAccessibilityFeatures: !!(tcc.styling as any).accessibilityFeatures?.length,
+      hasDarkModeSupport: !!(tcc.styling as any).darkModeSupport
+    },
+    
+    // Brainstorm Analysis
+    brainstormDetails: {
+      hasCoreConcept: !!tcc.brainstormData?.coreConcept,
+      hasValueProposition: !!tcc.brainstormData?.valueProposition,
+      suggestedInputCount: tcc.brainstormData?.suggestedInputs?.length || 0,
+      keyCalculationCount: tcc.brainstormData?.keyCalculations?.length || 0,
+      hasResearchOptions: !!tcc.brainstormData?.researchData,
+      researchOptionCount: Object.keys(tcc.brainstormData?.researchData || {}).length
+    }
+  };
+}
+
+/**
+ * ✅ ORIGINAL DESIGN: Validate that required TCC sections exist
+ */
+function validateTccSections(tcc: ToolConstructionContext): { isValid: boolean; missingSection?: string } {
+  if (!tcc.definedFunctionSignatures?.length) {
+    return { isValid: false, missingSection: 'Function signatures (Function Planner output)' };
+  }
   
-  // Try to salvage what we can from partial component
-  const salvageableCode = partialComponent?.finalComponentCode || '';
-  const hasSomeCode = salvageableCode.length > 100;
+  if (!tcc.stateLogic?.variables?.length) {
+    return { isValid: false, missingSection: 'State logic (State Design output)' };
+  }
   
-  const fallbackCode = hasSomeCode ? 
-    `// Partially generated component - some validation failed
-${salvageableCode}` : 
-    `import React from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+  if (!tcc.jsxLayout?.componentStructure) {
+    return { isValid: false, missingSection: 'JSX layout (JSX Layout output)' };
+  }
+  
+  if (!tcc.styling?.styledComponentCode) {
+    return { isValid: false, missingSection: 'Styling (Tailwind Styling output)' };
+  }
+  
+  return { isValid: true };
+}
+
+/**
+ * ✅ ORIGINAL ELEGANT DESIGN: Programmatically combine TCC sections into final component
+ * This is the INTENDED APPROACH - no AI needed, just intelligent combination!
+ */
+function combineTccSections(tcc: ToolConstructionContext): AssembledComponent {
+  const componentName = generateComponentName(tcc.userInput.description);
+  
+  // Extract all the accumulated sections
+  const imports = extractTccImports(tcc);
+  const stateDeclarations = extractStateDeclarations(tcc);
+  const functionImplementations = extractFunctionImplementations(tcc);
+  const styledJsxCode = extractStyledJsx(tcc);
+  
+  // ✅ PROGRAMMATIC COMBINATION: Assemble the final component
+  const finalComponentCode = `${imports.join('\n')}
 
 function ${componentName}() {
-  return React.createElement('div', { 
-    className: 'p-4 max-w-2xl mx-auto',
-    'data-style-id': 'main-container'
-  }, [
-    React.createElement(Card, { 
-      className: 'border shadow-lg',
-      'data-style-id': 'main-card',
-      key: 'main-card'
-    }, [
-      React.createElement(CardHeader, { 
-        key: 'header'
-      }, [
-        React.createElement(CardTitle, { 
-          key: 'title'
-        }, 'Component Generation In Progress'),
-        React.createElement(CardDescription, {
-          key: 'description'
-        }, 'This tool is being assembled by our AI system.')
-      ]),
-      React.createElement(CardContent, {
-        key: 'content',
-        className: 'p-6'
-      }, 'Full functionality will be available shortly.')
-    ])
-  ]);
+  // State Management (from State Design Agent)
+${stateDeclarations.join('\n')}
+
+  // Business Logic Functions (from State Design Agent)  
+${functionImplementations.join('\n')}
+
+  // Component Render (from JSX Layout + Tailwind Styling)
+  return ${styledJsxCode};
+}
+
+export default ${componentName};`;
+
+  return {
+    finalComponentCode,
+    componentName,
+    hooks: extractTccHooks(tcc),
+    functions: extractFunctionNames(tcc),
+    estimatedLines: finalComponentCode.split('\n').length
+  };
+}
+
+/**
+ * ✅ Extract imports from TCC sections
+ */
+function extractTccImports(tcc: ToolConstructionContext): string[] {
+  const imports = new Set<string>();
+  
+  // Base React imports
+  imports.add("import React from 'react';");
+  
+  // State logic imports
+  if (tcc.stateLogic?.imports) {
+    tcc.stateLogic.imports.forEach(imp => imports.add(imp));
+  }
+  
+  // UI component imports (detect from JSX layout)
+  const jsxCode = tcc.jsxLayout?.componentStructure || '';
+  if (jsxCode.includes('Card')) {
+    imports.add("import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';");
+  }
+  if (jsxCode.includes('Button')) {
+    imports.add("import { Button } from '@/components/ui/button';");
+  }
+  if (jsxCode.includes('Input')) {
+    imports.add("import { Input } from '@/components/ui/input';");
+  }
+  if (jsxCode.includes('Select')) {
+    imports.add("import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';");
+  }
+  if (jsxCode.includes('Slider')) {
+    imports.add("import { Slider } from '@/components/ui/slider';");
+  }
+  
+  return Array.from(imports);
+}
+
+/**
+ * ✅ Extract state declarations from State Design output
+ */
+function extractStateDeclarations(tcc: ToolConstructionContext): string[] {
+  if (!tcc.stateLogic?.variables) return [];
+  
+  return tcc.stateLogic.variables.map(variable => {
+    const variableType = variable.type || 'string';
+    const initialValue = variableType.includes('string') ? `"${variable.initialValue}"` : variable.initialValue;
+    return `  const [${variable.name}, set${capitalize(variable.name)}] = useState(${initialValue}); // ${variable.description}`;
+  });
+}
+
+/**
+ * ✅ Extract function implementations from State Design output
+ */
+function extractFunctionImplementations(tcc: ToolConstructionContext): string[] {
+  if (!tcc.stateLogic?.functions) return [];
+  
+  return tcc.stateLogic.functions.map(func => {
+    return `  const ${func.name} = () => {
+    ${func.body.split('\n').map(line => `    ${line}`).join('\n')}
+  };`;
+  });
+}
+
+/**
+ * ✅ Extract styled JSX from JSX Layout + Tailwind Styling
+ */
+function extractStyledJsx(tcc: ToolConstructionContext): string {
+  // Get the base JSX structure
+  let jsxCode = tcc.jsxLayout?.componentStructure || '<div>Component structure not available</div>';
+  
+  // Apply styling from Tailwind Styling agent
+  if (tcc.styling?.styledComponentCode) {
+    // Extract the JSX from the styled component code
+    const styledMatch = tcc.styling.styledComponentCode.match(/return\s+\(([\s\S]*)\);?\s*}?\s*$/);
+    if (styledMatch) {
+      jsxCode = styledMatch[1].trim();
+    }
+  }
+  
+  return jsxCode;
+}
+
+/**
+ * ✅ Extract hooks used from state logic
+ */
+function extractTccHooks(tcc: ToolConstructionContext): string[] {
+  const hooks = new Set<string>();
+  
+  if (tcc.stateLogic?.variables?.length) {
+    hooks.add('useState');
+  }
+  
+  if (tcc.stateLogic?.functions?.some(f => f.body.includes('useEffect'))) {
+    hooks.add('useEffect');
+  }
+  
+  return Array.from(hooks);
+}
+
+/**
+ * ✅ Extract function names from state logic
+ */
+function extractFunctionNames(tcc: ToolConstructionContext): string[] {
+  return tcc.stateLogic?.functions?.map(f => f.name) || [];
+}
+
+/**
+ * ✅ Utility: Capitalize first letter
+ */
+function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Simple fallback when assembly fails
+ */
+function generateSimpleFallbackComponent(tcc: ToolConstructionContext, jsxCode: string): AssembledComponent {
+  const componentName = generateComponentName(tcc.userInput.description);
+  const fallbackCode = `import React from 'react';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+
+function ${componentName}() {
+  return (
+    <Card className="p-4 max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>Component Generation In Progress</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>This tool is being assembled by our AI system.</p>
+        <p>Full functionality will be available shortly.</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default ${componentName};`;
 
   return {
     finalComponentCode: fallbackCode,
-    componentName: componentName,
-    hooks: hasSomeCode ? (partialComponent?.hooks || []) : [],
-    functions: hasSomeCode ? (partialComponent?.functions || []) : [],
+    componentName,
+    hooks: ['useState'],
+    functions: [],
     estimatedLines: fallbackCode.split('\n').length
   };
-}
-
-/**
- * Simple fallback when parallel approach fails completely
- */
-function generateSimpleFallbackComponent(tcc: ToolConstructionContext, jsxCode: string): AssembledComponent {
-  return generateEnhancedFallbackComponent(tcc, jsxCode);
 }
 
 function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolConstructionContext): { provider: string; modelId: string } {
@@ -768,11 +811,13 @@ function generateComponentName(userInput: string): string {
     return 'GeneratedTool';
   }
   
-  // Clean the name: remove special chars, handle spaces properly
+  // Clean the name: remove special chars, handle spaces properly, limit length
   const cleanedName = name
+    .substring(0, 50) // Limit input length to prevent extremely long names
     .replace(/[^a-zA-Z0-9 ]/g, '') // Remove special characters
     .split(/\s+/) // Split on whitespace
     .filter(Boolean) // Remove empty strings
+    .slice(0, 3) // Take only first 3 words to keep name reasonable
     .map((word, index) => {
       // Capitalize first letter of each word
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
@@ -802,28 +847,4 @@ function generateComponentName(userInput: string): string {
   }
   
   return finalName;
-}
-
-/**
- * Extract imports from component code
- */
-function extractImports(code: string): string[] {
-  const importMatches = code.match(/import\s+.*?\s+from\s+['"][^'"]+['"]/g) || [];
-  return importMatches.map(imp => imp.match(/from\s+['"]([^'"]+)['"]/)?.[1] || '').filter(Boolean);
-}
-
-/**
- * Extract React hooks from component code
- */
-function extractHooks(code: string): string[] {
-  const hookMatches = code.match(/use[A-Z][a-zA-Z]*\(/g) || [];
-  return [...new Set(hookMatches.map(hook => hook.replace('(', '')))];
-}
-
-/**
- * Extract function definitions from component code
- */
-function extractFunctions(code: string): string[] {
-  const functionMatches = code.match(/(?:const|function)\s+([a-zA-Z][a-zA-Z0-9]*)\s*[=\(]/g) || [];
-  return functionMatches.map(func => func.match(/(?:const|function)\s+([a-zA-Z][a-zA-Z0-9]*)/)?.[1] || '').filter(Boolean);
 } 
