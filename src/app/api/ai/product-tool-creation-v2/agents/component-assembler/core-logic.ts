@@ -747,7 +747,7 @@ The final component must be a COMPLETE implementation of ALL brainstorm requirem
     );
 
     // ENHANCED FIX: Add retry logic and better error handling for generateObject
-    let object: AssembledComponent | undefined;
+    let object!: AssembledComponent; // Definite assignment assertion - will be assigned in the loop
     let attempts = 0;
     const maxAttempts = 3;
     
@@ -798,11 +798,6 @@ The final component must be a COMPLETE implementation of ALL brainstorm requirem
         // Wait before retrying (exponential backoff)
         await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
       }
-    }
-    
-    // Ensure object is defined before proceeding
-    if (!object) {
-      throw new Error('Failed to generate component object after all retry attempts');
     }
     
     // CRITICAL FIX: Send progress update after AI generation completes
