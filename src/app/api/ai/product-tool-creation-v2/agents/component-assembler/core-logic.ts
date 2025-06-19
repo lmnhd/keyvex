@@ -262,8 +262,8 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 }
 
 /**
- * Use AI to generate the assembled component using ITERATIVE PARALLEL APPROACH
- * Multiple specialized AI calls focusing on different aspects, then merge results
+ * Use AI to generate the assembled component using ITERATIVE PARALLEL APPROACH WITH VALIDATE & RETRY
+ * Multiple specialized AI calls with validation and retry logic, then merge results
  */
 async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: string, selectedModel?: string): Promise<AssembledComponent> {
   // Get model configuration
@@ -277,6 +277,7 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   const suggestedInputs = tcc.brainstormData?.suggestedInputs || [];
   const keyCalculations = tcc.brainstormData?.keyCalculations || [];
   const jsxCode = tcc.styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || '';
+  const userInputString = typeof tcc.userInput === 'string' ? tcc.userInput : tcc.userInput?.description || 'Tool';
 
   // Truncate JSX for manageable prompt size
   const truncatedJsx = jsxCode.length > 5000 ? jsxCode.substring(0, 5000) + '...' : jsxCode;
@@ -290,97 +291,130 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
     functionCount: stateFunctions.length,
     suggestedInputCount: suggestedInputs.length,
     jsxCodeLength: truncatedJsx.length,
-    approachType: 'iterative_parallel'
-  }, '🔧 ComponentAssembler: 📝 ITERATIVE PARALLEL APPROACH - Specialized AI calls');
+    approachType: 'iterative_parallel_with_validation'
+  }, '🔧 ComponentAssembler: 📝 ITERATIVE PARALLEL WITH VALIDATE & RETRY - Specialized AI calls');
 
   try {
-    // 🚀 PARALLEL SPECIALIZED AI CALLS
+    // 🚀 PARALLEL SPECIALIZED AI CALLS WITH VALIDATION & RETRY
     const [importsResult, stateResult, functionsResult, jsxResult] = await Promise.all([
       
-      // 1️⃣ IMPORTS & SETUP SPECIALIST
-      generateObject({
-        model: modelInstance,
-        schema: z.object({
-          imports: z.array(z.string()).describe("Required import statements"),
-          componentName: z.string().describe("Component function name")
-        }),
-        system: `Generate ONLY the imports and component name. Focus on imports needed for the component.`,
-        prompt: `Based on this tool: "${tcc.userInput}"
-        
+      // 1️⃣ IMPORTS & SETUP SPECIALIST WITH VALIDATION
+      validateAndRetrySpecialistCall(
+        'imports-specialist',
+        () => generateObject({
+          model: modelInstance,
+          schema: z.object({
+            imports: z.array(z.string()).describe("Required import statements"),
+            componentName: z.string().describe("Component function name")
+          }),
+          system: `Generate ONLY the imports and component name. Focus on imports needed for the component.`,
+          prompt: `Based on this tool: "${userInputString}"
+          
 Required imports for React component with these UI elements:
 ${suggestedInputs.map(input => `- ${input.type} input: ${input.label}`).join('\n')}
 
 Generate imports and component name.`
-      }),
-
-      // 2️⃣ STATE MANAGEMENT SPECIALIST  
-      generateObject({
-        model: modelInstance,
-        schema: z.object({
-          useStateHooks: z.array(z.string()).describe("useState hook declarations"),
-          stateInitializers: z.array(z.string()).describe("State initialization code")
         }),
-        system: `Generate ONLY useState hooks and state initialization. One hook per input field.`,
-        prompt: `Create useState hooks for these inputs:
+        (result) => validateImportsResult(result),
+        tcc.jobId
+      ),
+
+      // 2️⃣ STATE MANAGEMENT SPECIALIST WITH VALIDATION  
+      validateAndRetrySpecialistCall(
+        'state-specialist',
+        () => generateObject({
+          model: modelInstance,
+          schema: z.object({
+            useStateHooks: z.array(z.string()).describe("useState hook declarations"),
+            stateInitializers: z.array(z.string()).describe("State initialization code")
+          }),
+          system: `Generate ONLY useState hooks and state initialization. One hook per input field.`,
+          prompt: `Create useState hooks for these inputs:
 ${suggestedInputs.map(input => `- ${input.label} (${input.type})`).join('\n')}
 
 Generate useState declarations with proper initial values.`
-      }),
-
-      // 3️⃣ CALCULATION FUNCTIONS SPECIALIST
-      generateObject({
-        model: modelInstance,
-        schema: z.object({
-          calculationFunctions: z.array(z.string()).describe("Calculation function implementations"),
-          eventHandlers: z.array(z.string()).describe("Event handler functions")
         }),
-        system: `Generate ONLY calculation functions and event handlers. Implement the actual calculation logic.`,
-        prompt: `Implement these calculations:
+        (result) => validateStateResult(result, suggestedInputs),
+        tcc.jobId
+      ),
+
+      // 3️⃣ CALCULATION FUNCTIONS SPECIALIST WITH VALIDATION
+      validateAndRetrySpecialistCall(
+        'calculation-specialist',
+        () => generateObject({
+          model: modelInstance,
+          schema: z.object({
+            calculationFunctions: z.array(z.string()).describe("Calculation function implementations"),
+            eventHandlers: z.array(z.string()).describe("Event handler functions")
+          }),
+          system: `Generate ONLY calculation functions and event handlers. Implement the actual calculation logic.`,
+          prompt: `Implement these calculations:
 ${keyCalculations.map(calc => `- ${calc.name}: ${calc.description}`).join('\n')}
 
 State variables available:
 ${stateVariables.map(v => `- ${v.name}: ${v.type}`).join('\n')}
 
 Generate working calculation functions.`
-      }),
-
-      // 4️⃣ JSX CONVERSION SPECIALIST
-      generateObject({
-        model: modelInstance,
-        schema: z.object({
-          reactElementCode: z.string().describe("Complete JSX converted to React.createElement"),
-          componentStructure: z.string().describe("Component structure summary")
         }),
-        system: `Convert JSX to React.createElement syntax. Connect state variables to inputs and displays.`,
-        prompt: `Convert this JSX to React.createElement:
+        (result) => validateCalculationResult(result, keyCalculations),
+        tcc.jobId
+      ),
+
+      // 4️⃣ JSX CONVERSION SPECIALIST WITH VALIDATION
+      validateAndRetrySpecialistCall(
+        'jsx-specialist',
+        () => generateObject({
+          model: modelInstance,
+          schema: z.object({
+            reactElementCode: z.string().describe("Complete JSX converted to React.createElement"),
+            componentStructure: z.string().describe("Component structure summary")
+          }),
+          system: `Convert JSX to React.createElement syntax. Connect state variables to inputs and displays.`,
+          prompt: `Convert this JSX to React.createElement:
 
 ${truncatedJsx}
 
 Connect state variables: ${stateVariables.map(v => v.name).join(', ')}
 Add onClick handlers for buttons and onChange for inputs.`
-      })
+        }),
+        (result) => validateJsxResult(result, stateVariables, suggestedInputs),
+        tcc.jobId
+      )
     ]);
 
-    // 🔧 MERGE RESULTS INTO COMPLETE COMPONENT
+    // 🔧 MERGE VALIDATED RESULTS INTO COMPLETE COMPONENT
     const mergedComponent = mergeParallelResults({
-      imports: importsResult.imports,
-      componentName: importsResult.componentName,
-      useStateHooks: stateResult.useStateHooks,
-      stateInitializers: stateResult.stateInitializers,
-      calculationFunctions: functionsResult.calculationFunctions,
-      eventHandlers: functionsResult.eventHandlers,
-      reactElementCode: jsxResult.reactElementCode,
+      imports: importsResult.object.imports,
+      componentName: importsResult.object.componentName,
+      useStateHooks: stateResult.object.useStateHooks,
+      stateInitializers: stateResult.object.stateInitializers,
+      calculationFunctions: functionsResult.object.calculationFunctions,
+      eventHandlers: functionsResult.object.eventHandlers,
+      reactElementCode: jsxResult.object.reactElementCode,
       stateVariables,
       stateFunctions
     });
 
+    // 🔍 FINAL VALIDATION OF MERGED COMPONENT
+    const finalValidation = validateMergedComponent(mergedComponent, suggestedInputs, keyCalculations);
+    if (!finalValidation.isValid) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        validationIssues: finalValidation.issues,
+        approachType: 'final_validation_failed'
+      }, '🔧 ComponentAssembler: ⚠️ FINAL VALIDATION FAILED - Using enhanced fallback');
+      
+      return generateEnhancedFallbackComponent(tcc, truncatedJsx, mergedComponent);
+    }
+
     logger.info({
       tccJobId: tcc.jobId,
-      approachType: 'iterative_parallel_success',
+      approachType: 'iterative_parallel_validation_success',
       mergedComponentLength: mergedComponent.finalComponentCode.length,
       hooksCount: mergedComponent.hooks?.length || 0,
-      functionsCount: mergedComponent.functions?.length || 0
-    }, '🔧 ComponentAssembler: ✅ PARALLEL GENERATION SUCCESS - Merged specialized results');
+      functionsCount: mergedComponent.functions?.length || 0,
+      finalValidation: finalValidation
+    }, '🔧 ComponentAssembler: ✅ PARALLEL GENERATION WITH VALIDATION SUCCESS - All specialists validated');
 
     return mergedComponent;
 
@@ -388,75 +422,228 @@ Add onClick handlers for buttons and onChange for inputs.`
     logger.error({
       tccJobId: tcc.jobId,
       error: error instanceof Error ? error.message : String(error),
-      approachType: 'iterative_parallel_failed'
-    }, '🔧 ComponentAssembler: 🚨 PARALLEL generation failed');
+      approachType: 'iterative_parallel_validation_failed'
+    }, '🔧 ComponentAssembler: 🚨 PARALLEL generation with validation failed');
 
-    // Fallback to simple approach
-    return generateSimpleFallbackComponent(tcc, truncatedJsx);
+    // Enhanced fallback with better component generation
+    return generateEnhancedFallbackComponent(tcc, truncatedJsx);
   }
 }
 
 /**
- * Merge results from parallel specialized AI calls into complete component
+ * 🔄 VALIDATE & RETRY WRAPPER - Handles specialist call validation and retry logic
  */
-function mergeParallelResults(results: {
-  imports: string[];
-  componentName: string;
-  useStateHooks: string[];
-  stateInitializers: string[];
-  calculationFunctions: string[];
-  eventHandlers: string[];
-  reactElementCode: string;
-  stateVariables: any[];
-  stateFunctions: any[];
-}): AssembledComponent {
+async function validateAndRetrySpecialistCall<T>(
+  specialistName: string,
+  generateCall: () => Promise<T>,
+  validateCall: (result: T) => { isValid: boolean; issues: string[] },
+  jobId: string,
+  maxRetries: number = 2
+): Promise<T> {
+  let lastError: Error | null = null;
   
-  const finalCode = `${results.imports.join('\n')}
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      logger.info({
+        jobId,
+        specialistName,
+        attempt,
+        maxRetries
+      }, `🔄 ComponentAssembler: ${specialistName} - Attempt ${attempt}`);
 
-function ${results.componentName}() {
-  // State Management
-  ${results.useStateHooks.join('\n  ')}
+      const result = await generateCall();
+      const validation = validateCall(result);
+      
+      if (validation.isValid) {
+        logger.info({
+          jobId,
+          specialistName,
+          attempt,
+          success: true
+        }, `✅ ComponentAssembler: ${specialistName} - SUCCESS on attempt ${attempt}`);
+        return result;
+      } else {
+        logger.warn({
+          jobId,
+          specialistName,
+          attempt,
+          validationIssues: validation.issues
+        }, `⚠️ ComponentAssembler: ${specialistName} - VALIDATION FAILED on attempt ${attempt}`);
+        
+        if (attempt <= maxRetries) {
+          continue; // Retry
+        } else {
+          throw new Error(`Validation failed after ${maxRetries} retries: ${validation.issues.join(', ')}`);
+        }
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      logger.error({
+        jobId,
+        specialistName,
+        attempt,
+        error: lastError.message
+      }, `❌ ComponentAssembler: ${specialistName} - ERROR on attempt ${attempt}`);
+      
+      if (attempt <= maxRetries) {
+        continue; // Retry
+      }
+    }
+  }
   
-  // State Initializers
-  ${results.stateInitializers.join('\n  ')}
-  
-  // Calculation Functions
-  ${results.calculationFunctions.join('\n  ')}
-  
-  // Event Handlers  
-  ${results.eventHandlers.join('\n  ')}
-  
-  // Component Render
-  return ${results.reactElementCode};
-}
-
-export default ${results.componentName};`;
-
-  return {
-    finalComponentCode: finalCode,
-    componentName: results.componentName,
-    hooks: results.useStateHooks.map(hook => hook.match(/useState/)?.[0] || 'useState'),
-    functions: [...results.calculationFunctions, ...results.eventHandlers].map(func => 
-      func.match(/(?:const|function)\s+(\w+)/)?.[1] || 'unknownFunction'
-    ),
-    estimatedLines: finalCode.split('\n').length
-  };
+  throw lastError || new Error(`Failed after ${maxRetries} retries`);
 }
 
 /**
- * Simple fallback when parallel approach fails
+ * 🔍 VALIDATION FUNCTIONS FOR EACH SPECIALIST
  */
-function generateSimpleFallbackComponent(tcc: ToolConstructionContext, jsxCode: string): AssembledComponent {
-  const componentName = generateComponentName(tcc.userInput || 'Tool');
+
+function validateImportsResult(result: any): { isValid: boolean; issues: string[] } {
+  const issues: string[] = [];
   
-  const fallbackCode = `import React from 'react';
+  if (!result?.object?.imports || !Array.isArray(result.object.imports)) {
+    issues.push('Missing or invalid imports array');
+  }
+  
+  if (!result?.object?.componentName || typeof result.object.componentName !== 'string') {
+    issues.push('Missing or invalid component name');
+  }
+  
+  if (result.object.imports && result.object.imports.length === 0) {
+    issues.push('No imports generated - React imports required');
+  }
+  
+  return { isValid: issues.length === 0, issues };
+}
+
+function validateStateResult(result: any, suggestedInputs: any[]): { isValid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  
+  if (!result?.object?.useStateHooks || !Array.isArray(result.object.useStateHooks)) {
+    issues.push('Missing or invalid useStateHooks array');
+  }
+  
+  if (!result?.object?.stateInitializers || !Array.isArray(result.object.stateInitializers)) {
+    issues.push('Missing or invalid stateInitializers array');
+  }
+  
+  // Check if we have enough state hooks for the inputs
+  if (result.object.useStateHooks && suggestedInputs.length > 0) {
+    if (result.object.useStateHooks.length < Math.min(suggestedInputs.length, 5)) {
+      issues.push(`Insufficient state hooks - expected at least ${Math.min(suggestedInputs.length, 5)}, got ${result.object.useStateHooks.length}`);
+    }
+  }
+  
+  return { isValid: issues.length === 0, issues };
+}
+
+function validateCalculationResult(result: any, keyCalculations: any[]): { isValid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  
+  if (!result?.object?.calculationFunctions || !Array.isArray(result.object.calculationFunctions)) {
+    issues.push('Missing or invalid calculationFunctions array');
+  }
+  
+  if (!result?.object?.eventHandlers || !Array.isArray(result.object.eventHandlers)) {
+    issues.push('Missing or invalid eventHandlers array');
+  }
+  
+  // Check if we have calculation functions for key calculations
+  if (result.object.calculationFunctions && keyCalculations.length > 0) {
+    if (result.object.calculationFunctions.length === 0) {
+      issues.push('No calculation functions generated despite having key calculations');
+    }
+  }
+  
+  return { isValid: issues.length === 0, issues };
+}
+
+function validateJsxResult(result: any, stateVariables: any[], suggestedInputs: any[]): { isValid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  
+  if (!result?.object?.reactElementCode || typeof result.object.reactElementCode !== 'string') {
+    issues.push('Missing or invalid reactElementCode');
+  }
+  
+  if (result.object.reactElementCode) {
+    if (!result.object.reactElementCode.includes('React.createElement')) {
+      issues.push('React.createElement syntax not found in JSX conversion');
+    }
+    
+    if (result.object.reactElementCode.length < 100) {
+      issues.push('Generated JSX conversion too short - likely incomplete');
+    }
+  }
+  
+  return { isValid: issues.length === 0, issues };
+}
+
+function validateMergedComponent(component: AssembledComponent, suggestedInputs: any[], keyCalculations: any[]): { isValid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  
+  if (!component.finalComponentCode || component.finalComponentCode.length < 200) {
+    issues.push('Final component code too short');
+  }
+  
+  if (!component.componentName || component.componentName.length < 3) {
+    issues.push('Invalid component name');
+  }
+  
+  // Check for basic React patterns
+  if (!component.finalComponentCode.includes('function ') && !component.finalComponentCode.includes('const ')) {
+    issues.push('No function declaration found');
+  }
+  
+  if (!component.finalComponentCode.includes('React.createElement')) {
+    issues.push('No React.createElement calls found');
+  }
+  
+  return { isValid: issues.length === 0, issues };
+}
+
+/**
+ * Enhanced fallback with better component structure when validation fails
+ */
+function generateEnhancedFallbackComponent(tcc: ToolConstructionContext, jsxCode: string, partialComponent?: AssembledComponent): AssembledComponent {
+  const userInputString = typeof tcc.userInput === 'string' ? tcc.userInput : tcc.userInput?.description || 'Tool';
+  const componentName = generateComponentName(userInputString);
+  
+  // Try to salvage what we can from partial component
+  const salvageableCode = partialComponent?.finalComponentCode || '';
+  const hasSomeCode = salvageableCode.length > 100;
+  
+  const fallbackCode = hasSomeCode ? 
+    `// Partially generated component - some validation failed
+${salvageableCode}` : 
+    `import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 
 function ${componentName}() {
   return React.createElement('div', { 
-    className: 'p-4',
+    className: 'p-4 max-w-2xl mx-auto',
     'data-style-id': 'main-container'
-  }, 'Component generation in progress...');
+  }, [
+    React.createElement(Card, { 
+      className: 'border shadow-lg',
+      'data-style-id': 'main-card',
+      key: 'main-card'
+    }, [
+      React.createElement(CardHeader, { 
+        key: 'header'
+      }, [
+        React.createElement(CardTitle, { 
+          key: 'title'
+        }, 'Component Generation In Progress'),
+        React.createElement(CardDescription, {
+          key: 'description'
+        }, 'This tool is being assembled by our AI system.')
+      ]),
+      React.createElement(CardContent, {
+        key: 'content',
+        className: 'p-6'
+      }, 'Full functionality will be available shortly.')
+    ])
+  ]);
 }
 
 export default ${componentName};`;
@@ -464,10 +651,17 @@ export default ${componentName};`;
   return {
     finalComponentCode: fallbackCode,
     componentName: componentName,
-    hooks: [],
-    functions: [],
-    estimatedLines: 10
+    hooks: hasSomeCode ? (partialComponent?.hooks || []) : [],
+    functions: hasSomeCode ? (partialComponent?.functions || []) : [],
+    estimatedLines: fallbackCode.split('\n').length
   };
+}
+
+/**
+ * Simple fallback when parallel approach fails completely
+ */
+function generateSimpleFallbackComponent(tcc: ToolConstructionContext, jsxCode: string): AssembledComponent {
+  return generateEnhancedFallbackComponent(tcc, jsxCode);
 }
 
 function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolConstructionContext): { provider: string; modelId: string } {
