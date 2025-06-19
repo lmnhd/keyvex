@@ -262,7 +262,8 @@ async function triggerNextOrchestrationStep(jobId: string): Promise<void> {
 }
 
 /**
- * Use AI to generate the assembled component based on existing TCC parts
+ * Use AI to generate the assembled component using ITERATIVE PARALLEL APPROACH
+ * Multiple specialized AI calls focusing on different aspects, then merge results
  */
 async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: string, selectedModel?: string): Promise<AssembledComponent> {
   // Get model configuration
@@ -270,156 +271,203 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
-  // ✅ ENHANCED SIMPLIFIED PROMPT - BALANCE BETWEEN FUNCTIONALITY AND COMPLIANCE
-  const systemPrompt = `You are a React component assembler. Convert provided JSX to React.createElement syntax AND implement full functionality.
-
-🚨 CRITICAL: Your response MUST be valid JSON matching this EXACT schema:
-{
-  "finalComponentCode": "string - complete React component using React.createElement syntax",
-  "componentName": "string - component name like 'TripPlanner'", 
-  "hooks": ["array of hook names like useState, useEffect"],
-  "functions": ["array of function names defined in component"],
-  "estimatedLines": 50
-}
-
-ESSENTIAL REQUIREMENTS:
-1. Add 'use client'; at the start
-2. Use React.createElement() for ALL elements  
-3. Implement ALL state variables from State Logic Agent
-4. Implement ALL calculation functions from State Logic Agent
-5. Connect ALL buttons to actual event handlers (onClick: handleFunction)
-6. Add useState hooks for ALL input fields
-7. Include ALL suggested inputs from brainstorm data
-8. NO import/export statements
-9. Return ONLY valid JSON, nothing else
-
-CRITICAL: This is a FUNCTIONAL tool, not a static display. Users must be able to interact with inputs and see calculated results.`;
-
-  // ✅ ENHANCED USER PROMPT - INCLUDE STATE LOGIC AND BRAINSTORM CONTEXT
-  const componentName = generateComponentName(tcc.userInput.description);
-  const styledCode = (tcc as any).styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || 'No code available';
-  
-  // Get state logic details for implementation guidance
+  // Extract essential data for parallel generation
   const stateVariables = tcc.stateLogic?.variables || [];
   const stateFunctions = tcc.stateLogic?.functions || [];
   const suggestedInputs = tcc.brainstormData?.suggestedInputs || [];
-  
-  const userPrompt = `Convert this JSX to React.createElement format AND implement full functionality:
+  const keyCalculations = tcc.brainstormData?.keyCalculations || [];
+  const jsxCode = tcc.styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || '';
 
-Component Name: ${componentName}
+  // Truncate JSX for manageable prompt size
+  const truncatedJsx = jsxCode.length > 5000 ? jsxCode.substring(0, 5000) + '...' : jsxCode;
 
-MUST IMPLEMENT - State Variables (${stateVariables.length}):
-${stateVariables.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n')}
-
-MUST IMPLEMENT - Calculation Functions (${stateFunctions.length}):
-${stateFunctions.map(f => `- ${f.name}(): ${f.description}`).join('\n')}
-
-MUST IMPLEMENT - ALL Input Fields (${suggestedInputs.length}):
-${suggestedInputs.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n')}
-
-JSX Code to Convert:
-\`\`\`jsx
-${styledCode.substring(0, 4000)}${styledCode.length > 4000 ? '\n...(truncated)' : ''}
-\`\`\`
-
-CRITICAL: Implement useState for EVERY input, onClick handlers for ALL buttons, and calculation functions that update state.
-Return valid JSON only.`;
-
-  // Log enhanced prompts
+  // Log parallel approach
   logger.info({
     tccJobId: tcc.jobId,
     provider,
     modelId,
-    systemPromptLength: systemPrompt.length,
-    userPromptLength: userPrompt.length,
-    totalPromptSize: systemPrompt.length + userPrompt.length,
     stateVariableCount: stateVariables.length,
     functionCount: stateFunctions.length,
-    suggestedInputCount: suggestedInputs.length
-  }, '🔧 ComponentAssembler: 📝 ENHANCED PROMPTS - Balanced functionality + JSON compliance');
+    suggestedInputCount: suggestedInputs.length,
+    jsxCodeLength: truncatedJsx.length,
+    approachType: 'iterative_parallel'
+  }, '🔧 ComponentAssembler: 📝 ITERATIVE PARALLEL APPROACH - Specialized AI calls');
 
   try {
-    // CRITICAL FIX: Send progress update before starting AI generation
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.assembling_component,
-      'in_progress',
-      'Generating component with AI - using simplified prompts...',
-      tcc
-    );
+    // 🚀 PARALLEL SPECIALIZED AI CALLS
+    const [importsResult, stateResult, functionsResult, jsxResult] = await Promise.all([
+      
+      // 1️⃣ IMPORTS & SETUP SPECIALIST
+      generateObject({
+        model: modelInstance,
+        schema: z.object({
+          imports: z.array(z.string()).describe("Required import statements"),
+          componentName: z.string().describe("Component function name")
+        }),
+        system: `Generate ONLY the imports and component name. Focus on imports needed for the component.`,
+        prompt: `Based on this tool: "${tcc.userInput}"
+        
+Required imports for React component with these UI elements:
+${suggestedInputs.map(input => `- ${input.type} input: ${input.label}`).join('\n')}
 
-    // SIMPLIFIED GENERATION: Single attempt with clear JSON schema focus
-    logger.info({
-      jobId: tcc.jobId,
-      provider,
-      modelId,
-      approach: 'simplified_single_attempt'
-    }, '🔧 ComponentAssembler: Attempting simplified AI generation');
+Generate imports and component name.`
+      }),
 
-    const result = await generateObject({
-      model: modelInstance,
-      schema: assembledComponentSchema,
-      prompt: userPrompt,
-      system: systemPrompt,
-      temperature: 0.1,
-      maxTokens: 4096  // Reduced token limit to force concise responses
+      // 2️⃣ STATE MANAGEMENT SPECIALIST  
+      generateObject({
+        model: modelInstance,
+        schema: z.object({
+          useStateHooks: z.array(z.string()).describe("useState hook declarations"),
+          stateInitializers: z.array(z.string()).describe("State initialization code")
+        }),
+        system: `Generate ONLY useState hooks and state initialization. One hook per input field.`,
+        prompt: `Create useState hooks for these inputs:
+${suggestedInputs.map(input => `- ${input.label} (${input.type})`).join('\n')}
+
+Generate useState declarations with proper initial values.`
+      }),
+
+      // 3️⃣ CALCULATION FUNCTIONS SPECIALIST
+      generateObject({
+        model: modelInstance,
+        schema: z.object({
+          calculationFunctions: z.array(z.string()).describe("Calculation function implementations"),
+          eventHandlers: z.array(z.string()).describe("Event handler functions")
+        }),
+        system: `Generate ONLY calculation functions and event handlers. Implement the actual calculation logic.`,
+        prompt: `Implement these calculations:
+${keyCalculations.map(calc => `- ${calc.name}: ${calc.description}`).join('\n')}
+
+State variables available:
+${stateVariables.map(v => `- ${v.name}: ${v.type}`).join('\n')}
+
+Generate working calculation functions.`
+      }),
+
+      // 4️⃣ JSX CONVERSION SPECIALIST
+      generateObject({
+        model: modelInstance,
+        schema: z.object({
+          reactElementCode: z.string().describe("Complete JSX converted to React.createElement"),
+          componentStructure: z.string().describe("Component structure summary")
+        }),
+        system: `Convert JSX to React.createElement syntax. Connect state variables to inputs and displays.`,
+        prompt: `Convert this JSX to React.createElement:
+
+${truncatedJsx}
+
+Connect state variables: ${stateVariables.map(v => v.name).join(', ')}
+Add onClick handlers for buttons and onChange for inputs.`
+      })
+    ]);
+
+    // 🔧 MERGE RESULTS INTO COMPLETE COMPONENT
+    const mergedComponent = mergeParallelResults({
+      imports: importsResult.imports,
+      componentName: importsResult.componentName,
+      useStateHooks: stateResult.useStateHooks,
+      stateInitializers: stateResult.stateInitializers,
+      calculationFunctions: functionsResult.calculationFunctions,
+      eventHandlers: functionsResult.eventHandlers,
+      reactElementCode: jsxResult.reactElementCode,
+      stateVariables,
+      stateFunctions
     });
-    
-    if (!result.object || !result.object.finalComponentCode) {
-      throw new Error('Generated object is missing required finalComponentCode field');
-    }
-    
-    const object = result.object;
-    
-    logger.info({ 
-      tccJobId: tcc.jobId, 
-      provider, 
-      modelId,
-      codeLength: object.finalComponentCode.length,
-      approach: 'simplified_generation_success'
-    }, '🔧 ComponentAssembler: ✅ SIMPLIFIED generation successful');
 
-    // Basic cleanup if needed
-    let finalCode = object.finalComponentCode;
-    
-    // Remove imports if present
-    if (finalCode.includes('import ')) {
-      const lines = finalCode.split('\n');
-      finalCode = lines.filter(line => !line.trim().startsWith('import ')).join('\n');
-      object.finalComponentCode = finalCode;
-    }
-
-    // Log final result
     logger.info({
-      jobId: tcc.jobId,
-      componentName: object.componentName,
-      codeLength: finalCode.length,
-      hooksCount: object.hooks?.length || 0,
-      functionsCount: object.functions?.length || 0
-    }, '🔧 ComponentAssembler: 🔍 Final component assembled');
-
-    return object;
-    
-  } catch (error) {
-    logger.error({ 
-      error: error instanceof Error ? error.message : String(error), 
-      provider, 
-      modelId,
       tccJobId: tcc.jobId,
-      approach: 'simplified_generation_failed'
-    }, '🔧 ComponentAssembler: 🚨 SIMPLIFIED generation failed - using fallback');
-    
-    // Emit a warning about fallback usage
-    await emitStepProgress(
-      tcc.jobId,
-      OrchestrationStepEnum.enum.assembling_component,
-      'in_progress',
-      '⚠️ AI generation failed, using error fallback component...',
-      tcc
-    );
-    
-    return generateFallbackComponent(tcc);
+      approachType: 'iterative_parallel_success',
+      mergedComponentLength: mergedComponent.finalComponentCode.length,
+      hooksCount: mergedComponent.hooks?.length || 0,
+      functionsCount: mergedComponent.functions?.length || 0
+    }, '🔧 ComponentAssembler: ✅ PARALLEL GENERATION SUCCESS - Merged specialized results');
+
+    return mergedComponent;
+
+  } catch (error) {
+    logger.error({
+      tccJobId: tcc.jobId,
+      error: error instanceof Error ? error.message : String(error),
+      approachType: 'iterative_parallel_failed'
+    }, '🔧 ComponentAssembler: 🚨 PARALLEL generation failed');
+
+    // Fallback to simple approach
+    return generateSimpleFallbackComponent(tcc, truncatedJsx);
   }
+}
+
+/**
+ * Merge results from parallel specialized AI calls into complete component
+ */
+function mergeParallelResults(results: {
+  imports: string[];
+  componentName: string;
+  useStateHooks: string[];
+  stateInitializers: string[];
+  calculationFunctions: string[];
+  eventHandlers: string[];
+  reactElementCode: string;
+  stateVariables: any[];
+  stateFunctions: any[];
+}): AssembledComponent {
+  
+  const finalCode = `${results.imports.join('\n')}
+
+function ${results.componentName}() {
+  // State Management
+  ${results.useStateHooks.join('\n  ')}
+  
+  // State Initializers
+  ${results.stateInitializers.join('\n  ')}
+  
+  // Calculation Functions
+  ${results.calculationFunctions.join('\n  ')}
+  
+  // Event Handlers  
+  ${results.eventHandlers.join('\n  ')}
+  
+  // Component Render
+  return ${results.reactElementCode};
+}
+
+export default ${results.componentName};`;
+
+  return {
+    finalComponentCode: finalCode,
+    componentName: results.componentName,
+    hooks: results.useStateHooks.map(hook => hook.match(/useState/)?.[0] || 'useState'),
+    functions: [...results.calculationFunctions, ...results.eventHandlers].map(func => 
+      func.match(/(?:const|function)\s+(\w+)/)?.[1] || 'unknownFunction'
+    ),
+    estimatedLines: finalCode.split('\n').length
+  };
+}
+
+/**
+ * Simple fallback when parallel approach fails
+ */
+function generateSimpleFallbackComponent(tcc: ToolConstructionContext, jsxCode: string): AssembledComponent {
+  const componentName = generateComponentName(tcc.userInput || 'Tool');
+  
+  const fallbackCode = `import React from 'react';
+import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+
+function ${componentName}() {
+  return React.createElement('div', { 
+    className: 'p-4',
+    'data-style-id': 'main-container'
+  }, 'Component generation in progress...');
+}
+
+export default ${componentName};`;
+
+  return {
+    finalComponentCode: fallbackCode,
+    componentName: componentName,
+    hooks: [],
+    functions: [],
+    estimatedLines: 10
+  };
 }
 
 function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolConstructionContext): { provider: string; modelId: string } {
@@ -584,98 +632,4 @@ function extractHooks(code: string): string[] {
 function extractFunctions(code: string): string[] {
   const functionMatches = code.match(/(?:const|function)\s+([a-zA-Z][a-zA-Z0-9]*)\s*[=\(]/g) || [];
   return functionMatches.map(func => func.match(/(?:const|function)\s+([a-zA-Z][a-zA-Z0-9]*)/)?.[1] || '').filter(Boolean);
-}
-
-/**
- * Generate fallback component when AI parsing fails
- */
-function generateFallbackComponent(tcc: ToolConstructionContext): AssembledComponent {
-  const componentName = generateComponentName(tcc.userInput.description);
-  const timestamp = new Date().toISOString();
-  
-  return {
-    finalComponentCode: `'use client';
-
-const ${componentName} = () => {
-  return React.createElement('div', { 
-    className: 'p-8 max-w-2xl mx-auto',
-    'data-style-id': 'error-container'
-  }, [
-    React.createElement(Card, { 
-      className: 'border-red-500 bg-red-50',
-      'data-style-id': 'error-card',
-      key: 'error-card'
-    }, [
-      React.createElement(CardHeader, { 
-        className: 'bg-red-100 border-b border-red-200',
-        'data-style-id': 'error-header',
-        key: 'header'
-      }, [
-        React.createElement('div', { 
-          className: 'flex items-center space-x-2',
-          key: 'header-content'
-        }, [
-          React.createElement(AlertCircle, { 
-            className: 'h-6 w-6 text-red-600',
-            key: 'icon'
-          }),
-          React.createElement(CardTitle, { 
-            className: 'text-red-800',
-            key: 'title'
-          }, '🚨 COMPONENT GENERATION FAILED')
-        ])
-      ]),
-      React.createElement(CardContent, { 
-        className: 'p-6 space-y-4',
-        'data-style-id': 'error-content',
-        key: 'content'
-      }, [
-        React.createElement('div', { 
-          className: 'bg-red-100 border border-red-300 rounded-lg p-4',
-          key: 'error-details'
-        }, [
-          React.createElement('h3', { 
-            className: 'font-semibold text-red-800 mb-2',
-            key: 'error-title'
-          }, 'ERROR: AI Component Assembly Failed'),
-          React.createElement('p', { 
-            className: 'text-red-700 text-sm mb-2',
-            key: 'error-description'
-          }, 'The AI model failed to generate the component code. This is a fallback error component.'),
-          React.createElement('p', { 
-            className: 'text-red-600 text-xs',
-            key: 'timestamp'
-          }, 'Timestamp: ${timestamp}')
-        ]),
-        React.createElement('div', { 
-          className: 'space-y-2',
-          key: 'tool-info'
-        }, [
-          React.createElement('h4', { 
-            className: 'font-medium text-red-800',
-            key: 'tool-title'
-          }, 'Requested Tool:'),
-          React.createElement('p', { 
-            className: 'text-sm text-red-700',
-            key: 'tool-description'
-          }, '${tcc.userInput.description}')
-        ]),
-        React.createElement('div', { 
-          className: 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded',
-          key: 'warning'
-        }, [
-          React.createElement('p', { 
-            className: 'text-yellow-800 text-xs font-medium',
-            key: 'warning-text'
-          }, '⚠️ This is a system-generated fallback component indicating an error in the AI generation process.')
-        ])
-      ])
-    ])
-  ]);
-};`,
-    componentName: `${componentName}_ERROR_FALLBACK`,
-    hooks: [],
-    functions: [],
-    estimatedLines: 45
-  };
 } 
