@@ -2,12 +2,8 @@ import { z } from 'zod';
 import { ToolConstructionContext, DefinedFunctionSignature, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
 // TCC Store operations removed - using prop-based TCC passing
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { openai } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateText, generateObject } from 'ai';
-import { getPrimaryModel, getFallbackModel, getModelProvider } from '@/lib/ai/models/model-config';
+import { callModelForObject } from '@/lib/ai/model-caller';
 import logger from '@/lib/logger';
-import { getModelForAgent } from '@/lib/ai/model-mapping-helper';
 import { getStateDesignSystemPrompt } from '@/lib/prompts/v2';
 
 // Enhanced testing options for granular control
@@ -66,14 +62,6 @@ export type StateLogicResult = {
   imports: string[];
   hooks: string[];
 };
-
-function createModelInstance(provider: string, modelId: string) {
-  switch (provider) {
-    case 'openai': return openai(modelId);
-    case 'anthropic': return anthropic(modelId);
-    default: return openai('gpt-4o');
-  }
-}
 
 // 🚨 FIX: Added proper Zod schema for AI output (like Component Assembler)
 const StateVariableSchema = z.object({
@@ -214,12 +202,12 @@ export async function designStateLogic(request: {
           name: v.name,
           type: v.type,
           initialValue: v.initialValue,
-          description: v.description?.substring(0, 100) + (v.description?.length > 100 ? '...' : '')
+          description: (v.description?.substring(0, 100) + (v.description && v.description.length > 100 ? '...' : '')) || 'No description'
         })) || [],
         functionsCreated: updatedTcc.stateLogic?.functions?.map(f => ({
           name: f.name,
           dependencies: f.dependencies,
-          description: f.description?.substring(0, 100) + (f.description?.length > 100 ? '...' : ''),
+          description: (f.description?.substring(0, 100) + (f.description && f.description.length > 100 ? '...' : '')) || 'No description',
           bodyLength: f.body?.length || 0,
           bodyPreview: f.body?.substring(0, 200) + (f.body?.length > 200 ? '...' : '') || ''
         })) || [],
@@ -269,41 +257,33 @@ export async function designStateLogic(request: {
  * Generate state logic using AI
  */
 async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: string, editMode?: EditModeContext): Promise<StateLogicResult> {
-  // ✅ FIXED: Get model info properly
+  // ✅ FIXED: Get model info properly - RESPECT USER SELECTION
   const modelId = selectedModel || 'gpt-4o';
-  const provider = getModelProvider(modelId);
   // 🚨 CRITICAL FIX: Use correct field name from Function Planner
   const functionSignatures = tcc.definedFunctionSignatures || [];
 
-    logger.info({ 
-      jobId: tcc.jobId,
+  logger.info({ 
+    jobId: tcc.jobId,
     functionSignatureCount: functionSignatures.length,
-    provider, 
     modelId 
   }, '🎯 StateDesign: Generating state logic with AI');
 
-  // ✅ AI FIRST APPROACH: Generate state logic from AI (no fallbacks!)
-  const modelInstance = createModelInstance(provider, modelId);
-  
   const userPrompt = getUserPrompt(tcc, functionSignatures, editMode);
-
-  // Get the enhanced system prompt from the v2 prompts directory  
   const systemPrompt = getStateDesignSystemPrompt(false); // false = creation mode (not edit)
 
-  // ✅ FIXED: Using generateObject with proper schema validation! 🎯
-  const { object } = await generateObject({
-    model: modelInstance,
+  // 🌟 CENTRALIZED MODEL CALLER: Automatically handles OpenAI mode: 'json' and Anthropic thinking mode
+  const { object } = await callModelForObject<StateDesignOutput>(modelId, {
     schema: StateDesignOutputSchema,
-    system: systemPrompt,
     prompt: userPrompt,
+    systemPrompt: systemPrompt,
     temperature: 0.4,
-    maxTokens: 2000
+    maxTokens: 2000,
+    maxRetries: 3
   });
 
   // ✅ AI FIRST: Direct object access - NO PARSING NEEDED!
   logger.info({ 
     jobId: tcc.jobId, 
-    provider, 
     modelId,
     variableCount: object.variables.length,
     functionCount: object.functions.length

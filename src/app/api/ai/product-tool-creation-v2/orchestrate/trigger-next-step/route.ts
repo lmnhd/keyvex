@@ -109,8 +109,23 @@ export async function POST(request: NextRequest) {
         const inEditMode = isAgentInEditMode(updatedTCC, agentNameFromPath);
         const editInstructions = inEditMode ? getActiveEditInstructions(updatedTCC, agentNameFromPath) : [];
         
+        // ✅ CRITICAL FIX: Extract agent-specific model from TCC agentModelMapping
+        const agentSpecificModel = updatedTCC.agentModelMapping?.[agentPath];
+        const selectedModel = agentSpecificModel || 'gpt-4o'; // Fallback to default if no agent-specific model
+        
+        logger.info({ 
+          jobId, 
+          agentPath, 
+          selectedModel,
+          modelSource: agentSpecificModel ? 'agentModelMapping' : 'default',
+          agentModelMapping: updatedTCC.agentModelMapping,
+          isEditMode: inEditMode, 
+          editInstructionsCount: editInstructions.length 
+        }, '🔄 TRIGGER-NEXT: Agent model selection and context');
+        
         const agentRequestBody = {
           jobId,
+          selectedModel, // ✅ FIXED: Pass agent-specific model
           tcc: updatedTCC,
           // Phase 2: Edit mode context for agents
           editMode: {

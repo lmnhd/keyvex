@@ -351,20 +351,20 @@ export async function generateAssembledComponent(request: {
 
     // ✅ ORIGINAL DESIGN: Comprehensive TCC analysis of accumulated sections
     const tccAnalysis = analyzeTccSections(tcc);
-    logger.info({
+  logger.info({
       jobId,
       agentName: 'ComponentAssembler',
       tccInputAnalysis: tccAnalysis
     }, '🔧 ComponentAssembler: 📋 COMPREHENSIVE TCC INPUT ANALYSIS - WHAT PREVIOUS AGENTS PROVIDED');
 
     if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.assembling_component,
-        'in_progress',
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
         'Assembling final React component...',
-        tcc
-      );
+      tcc
+    );
     }
 
     // ✅ VALIDATE REQUIRED TCC SECTIONS - Ensure previous agents completed their work
@@ -374,13 +374,13 @@ export async function generateAssembledComponent(request: {
     }
 
     if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.assembling_component,
-        'in_progress',
+    await emitStepProgress(
+      jobId,
+      OrchestrationStepEnum.enum.assembling_component,
+      'in_progress',
         'Preparing component assembly context...',
-        tcc
-      );
+      tcc
+    );
     }
 
     // ✅ ORIGINAL ELEGANT APPROACH: PROGRAMMATIC COMBINATION of TCC sections

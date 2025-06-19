@@ -270,6 +270,18 @@ export async function POST(request: NextRequest) {
         "🚀 ORCHESTRATION START: Triggering Function Planner"
       );
 
+      // ✅ FIXED: Use agent-specific model from agentModelMapping or fall back to selectedModel/default
+      const functionPlannerModel = agentModelMapping?.['function-planner'] || selectedModel || "gpt-4o";
+      
+      logger.info(
+        { 
+          jobId, 
+          functionPlannerModel,
+          modelSource: agentModelMapping?.['function-planner'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+        },
+        "🚀 ORCHESTRATION START: Function Planner model selection"
+      );
+
       const functionPlannerUrl = new URL(
         "/api/ai/product-tool-creation-v2/agents/function-planner",
         request.url
@@ -281,7 +293,7 @@ export async function POST(request: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             jobId,
-            selectedModel: selectedModel || "gpt-4o",
+            selectedModel: functionPlannerModel,
             tcc: tcc,
             isSequentialMode: true
           }),
@@ -315,6 +327,18 @@ export async function POST(request: NextRequest) {
         "🚀 ORCHESTRATION START: Triggering State Design with updated TCC"
       );
 
+      // ✅ FIXED: Use agent-specific model for State Design
+      const stateDesignModel = agentModelMapping?.['state-design'] || selectedModel || "gpt-4o";
+      
+      logger.info(
+        { 
+          jobId, 
+          stateDesignModel,
+          modelSource: agentModelMapping?.['state-design'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+        },
+        "🚀 ORCHESTRATION START: State Design model selection"
+      );
+
       const stateDesignUrl = new URL(
         "/api/ai/product-tool-creation-v2/agents/state-design",
         request.url
@@ -326,7 +350,7 @@ export async function POST(request: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             jobId,
-            selectedModel: selectedModel || "gpt-4o",
+            selectedModel: stateDesignModel,
             tcc: functionPlannerResult.updatedTcc || tcc,
             isSequentialMode: true
           }),
@@ -341,7 +365,7 @@ export async function POST(request: NextRequest) {
 
       logger.info(
         { jobId, status: stateDesignResponse.status },
-        "🚀 ORCHESTRATION START: State Design triggered with proper TCC"
+        "🚀 ORCHESTRATION START: State Design triggered with proper TCC and correct model"
       );
 
     } else {

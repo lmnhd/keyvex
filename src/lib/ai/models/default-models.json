@@ -63,9 +63,9 @@
           "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "complex-tasks"],
           "recommended": ["flagship-tasks", "complex-reasoning", "advanced-analysis"]
         },
-        "gpt-4.1-mini": {
-          "id": "gpt-4.1-mini",
-          "name": "GPT-4.1 Mini",
+        "gpt-4.1-mini-v2": {
+          "id": "gpt-4.1-mini-v2",
+          "name": "GPT-4o Mini (Enhanced)",
           "maxTokens": 128000,
           "costPer1kTokens": {
             "input": 0.00015,
@@ -96,16 +96,16 @@
           "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal"],
           "recommended": ["tool-generation", "complex-reasoning", "conversation-management"]
         },
-        "gpt-4o-mini": {
-          "id": "gpt-4o-mini",
+        "gpt-4.1-mini": {
+          "id": "gpt-4.1-mini",
           "name": "GPT-4o Mini",
           "maxTokens": 128000,
           "costPer1kTokens": {
             "input": 0.00015,
             "output": 0.0006
           },
-          "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "fast-response"],
-          "recommended": ["quick-tool-generation", "cost-effective-tasks", "rapid-prototyping"]
+          "capabilities": ["text", "reasoning", "analysis", "long-context", "multimodal", "fast-response", "cost-effective"],
+          "recommended": ["tool-generation", "cost-effective-tasks", "rapid-prototyping", "intelligent-speed-balance"]
         },
         "gpt-4o-audio-preview": {
           "id": "gpt-4o-audio-preview",
@@ -118,8 +118,8 @@
           "capabilities": ["text", "reasoning", "analysis", "audio-input", "audio-output", "multimodal"],
           "recommended": ["audio-processing", "voice-interfaces", "multimedia-applications"]
         },
-        "gpt-4o-mini-audio-preview": {
-          "id": "gpt-4o-mini-audio-preview",
+        "gpt-4.1-mini-audio-preview": {
+          "id": "gpt-4.1-mini-audio-preview",
           "name": "GPT-4o Mini Audio",
           "maxTokens": 128000,
           "costPer1kTokens": {

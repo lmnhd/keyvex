@@ -133,4 +133,35 @@ async function triggerStateDesignAgent(baseUrl: string, jobId: string, selectedM
       throw new Error(`State agent responded with status: ${response.status}`);
     }
 
-    console.log(`
+    console.log(`📋 FunctionPlanner Route: Successfully triggered State Design Agent for jobId: ${jobId}`);
+    
+  } catch (error) {
+    console.error(`📋 FunctionPlanner Route: Failed to trigger State Design Agent for jobId ${jobId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Triggers the JSX Layout Agent, passing the full TCC
+ */
+async function triggerJsxLayoutAgent(baseUrl: string, jobId: string, selectedModel: string | undefined, tcc: ToolConstructionContext): Promise<void> {
+  const jsxAgentUrl = new URL('/api/ai/product-tool-creation-v2/agents/jsx-layout', baseUrl);
+  
+  try {
+    const response = await fetch(jsxAgentUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jobId, selectedModel, tcc }) // Pass the full TCC object
+    });
+
+    if (!response.ok) {
+      throw new Error(`JSX Layout agent responded with status: ${response.status}`);
+    }
+
+    console.log(`📋 FunctionPlanner Route: Successfully triggered JSX Layout Agent for jobId: ${jobId}`);
+    
+  } catch (error) {
+    console.error(`📋 FunctionPlanner Route: Failed to trigger JSX Layout Agent for jobId ${jobId}:`, error);
+    throw error;
+  }
+}

@@ -8,9 +8,7 @@ import {
 } from '@/lib/types/product-tool-creation-v2/tcc';
 // TCC Store operations removed - using prop-based TCC passing
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { openai } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
+import { callModelForObject } from '@/lib/ai/model-caller';
 import logger from '@/lib/logger';
 import { getFunctionPlannerSystemPrompt } from '@/lib/prompts/v2/function-planner-prompt';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
@@ -170,8 +168,11 @@ async function generateFunctionSignatures(
 ): Promise<DefinedFunctionSignature[]> {
   const primaryModelInfo = getPrimaryModel('functionPlanner');
   if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
-  const primaryModel = createModelInstance(primaryModelInfo.provider, primaryModelInfo.modelInfo.id);
-  logger.info({ provider: primaryModelInfo.provider, modelName: primaryModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Attempting primary model');
+  
+  // Use selected model if provided, otherwise fall back to primary
+  const modelId = selectedModel || primaryModelInfo.modelInfo.id;
+  
+  logger.info({ modelId }, '🔧 FunctionPlanner: Using model for generation');
 
   const systemPrompt = getFunctionPlannerSystemPrompt(false);
   const userPrompt = createUserPrompt(tcc, editMode);
@@ -181,7 +182,7 @@ async function generateFunctionSignatures(
     // Use console.log for prompts to make them readable during isolation testing
     console.log(`\n🔧 ========== FUNCTION PLANNER AGENT - ISOLATION TEST PROMPTS ==========`);
     console.log(`JobId: ${tcc.jobId}`);
-    console.log(`Model: ${primaryModelInfo.modelInfo.id}`);
+    console.log(`Model: ${modelId}`);
     
     console.log(`\n🔧 SYSTEM PROMPT PREVIEW (first 500 chars):`);
     console.log(systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''));
@@ -200,43 +201,51 @@ async function generateFunctionSignatures(
     // Keep minimal structured logging for debugging
     logger.info({ 
       jobId: tcc.jobId,
-      modelId: primaryModelInfo.modelInfo.id,
+      modelId: modelId,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length
     }, '🔧 FunctionPlanner: [ISOLATED TEST] Prompt lengths logged to console');
   }
 
   try {
+    // 🌟 CENTRALIZED MODEL CALLER: Automatically handles OpenAI mode: 'json' and Anthropic thinking mode
     const {
       object: { signatures },
-    } = await generateObject({
-      model: primaryModel,
+    } = await callModelForObject<{ signatures: DefinedFunctionSignature[] }>(modelId, {
       schema: functionSignaturesSchema,
-      system: systemPrompt,
       prompt: userPrompt,
+      systemPrompt: systemPrompt,
       temperature: 0.2,
       maxTokens: 2000,
+      maxRetries: 3
     });
+    
     return signatures;
   } catch (error) {
-    logger.warn({ error }, `🔧 FunctionPlanner: Primary model failed. Attempting fallback.`);
+    logger.error({ error, modelId }, `🔧 FunctionPlanner: Model call failed`);
     
+    // Try fallback model if primary failed and fallback is configured
     const fallbackModelInfo = getFallbackModel('functionPlanner');
-    if (!fallbackModelInfo) throw new Error('No fallback model configured for FunctionPlanner.');
+    if (!fallbackModelInfo) {
+      throw new Error(`Function planning failed with model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
     
-    const fallbackModel = createModelInstance(fallbackModelInfo.provider, fallbackModelInfo.modelInfo.id);
-    logger.info({ provider: fallbackModelInfo.provider, modelName: fallbackModelInfo.modelInfo.id }, '🔧 FunctionPlanner: Using fallback model');
+    logger.info({ 
+      fallbackModelId: fallbackModelInfo.modelInfo.id,
+      provider: fallbackModelInfo.provider 
+    }, '🔧 FunctionPlanner: Attempting fallback model');
 
     const {
       object: { signatures },
-    } = await generateObject({
-      model: fallbackModel,
+    } = await callModelForObject<{ signatures: DefinedFunctionSignature[] }>(fallbackModelInfo.modelInfo.id, {
       schema: functionSignaturesSchema,
-      system: systemPrompt,
       prompt: userPrompt,
+      systemPrompt: systemPrompt,
       temperature: 0.2,
       maxTokens: 2000,
+      maxRetries: 3
     });
+    
     return signatures;
   }
 }
@@ -431,18 +440,4 @@ Please apply these edit instructions to improve the function signatures. Maintai
 Please provide the JSON array of function signatures as specified in the guidelines.`;
 
   return prompt;
-}
-
-/**
- * Creates a model instance based on provider and model ID
- */
-function createModelInstance(provider: string, modelId: string) {
-  switch (provider.toLowerCase()) {
-    case 'openai':
-      return openai(modelId);
-    case 'anthropic':
-      return anthropic(modelId);
-    default:
-      throw new Error(`Unsupported model provider: ${provider}`);
-  }
 }
