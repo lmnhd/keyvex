@@ -591,8 +591,8 @@ async function parseSearchResultsWithAI(
 ): Promise<DataStructure> {
   try {
     logger.info({ 
-      domain, 
-      dataType, 
+      domain,
+      dataType,
       searchResultsLength: searchResults?.length || 0,
       queryIntent: query.query 
     }, 'DataRequirementsResearch: 🧠 Using AI to intelligently parse search results');
@@ -693,7 +693,7 @@ Return a JSON object with the generated data structure.`;
     logger.error({ 
       domain, 
       dataType, 
-      error: error instanceof Error ? error.message : String(error)
+      error: error instanceof Error ? error.message : String(error) 
     }, 'DataRequirementsResearch: ❌ AI parsing failed, using fallback');
     
     // Fallback to basic structure if AI fails

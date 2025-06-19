@@ -220,23 +220,23 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Available brainstorm data structure');
 
   if (tcc.brainstormData) {
-    const brainstorm = tcc.brainstormData;
+    const brainstormData = tcc.brainstormData;
     logger.info({ 
       jobId: tcc.jobId,
-      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
-      valueProposition: brainstorm.valueProposition || 'Not specified',
-      suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
-      keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
-      interactionFlowCount: brainstorm.interactionFlow?.length || 0,
-      hasLeadCaptureStrategy: !!brainstorm.leadCaptureStrategy,
-      hasCalculationLogic: !!brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0
+      coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified',
+      valueProposition: brainstormData.valueProposition || 'Not specified',
+      suggestedInputsCount: brainstormData.suggestedInputs?.length || 0,
+      keyCalculationsCount: brainstormData.keyCalculations?.length || 0,
+      interactionFlowCount: brainstormData.interactionFlow?.length || 0,
+      hasLeadCaptureStrategy: !!brainstormData.leadCaptureStrategy,
+      hasCalculationLogic: !!brainstormData.calculationLogic && brainstormData.calculationLogic.length > 0
     }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Detailed brainstorm data analysis');
 
     // Log specific brainstorm fields that could influence component assembly
-    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
+    if (brainstormData.keyCalculations && brainstormData.keyCalculations.length > 0) {
       logger.info({ 
         jobId: tcc.jobId,
-        keyCalculations: brainstorm.keyCalculations.map(calc => ({
+        keyCalculations: brainstormData.keyCalculations.map(calc => ({
           name: calc.name,
           formula: calc.formula?.substring(0, 100) + (calc.formula?.length > 100 ? '...' : ''),
           description: calc.description?.substring(0, 100) + (calc.description?.length > 100 ? '...' : '')
@@ -244,20 +244,20 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
       }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Key calculations that should be implemented');
     }
 
-    if (brainstorm.calculationLogic && brainstorm.calculationLogic.length > 0) {
+    if (brainstormData.calculationLogic && brainstormData.calculationLogic.length > 0) {
       logger.info({ 
         jobId: tcc.jobId,
-        calculationLogic: brainstorm.calculationLogic.map(logic => ({
+        calculationLogic: brainstormData.calculationLogic.map(logic => ({
           name: logic.name,
           formula: logic.formula?.substring(0, 100) + (logic.formula?.length > 100 ? '...' : '')
         }))
       }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] Calculation logic for function implementation');
     }
 
-    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
+    if (brainstormData.interactionFlow && brainstormData.interactionFlow.length > 0) {
       logger.info({ 
         jobId: tcc.jobId,
-        interactionFlow: brainstorm.interactionFlow.map(step => ({
+        interactionFlow: brainstormData.interactionFlow.map(step => ({
           step: step.step,
           title: step.title,
           userAction: step.userAction?.substring(0, 100) + (step.userAction?.length > 100 ? '...' : '')
@@ -609,9 +609,83 @@ RULES:
     hasStateLogic: !!tcc.stateLogic
   }, '🔧 ComponentAssembler: 🔍 Input data analysis');
 
+  // CRITICAL FIX: Include brainstorm data context for complete tool implementation
+  let brainstormContext = '';
+  if (tcc.brainstormData) {
+    const brainstormData = tcc.brainstormData;
+    brainstormContext = `
+
+🚨 CRITICAL BRAINSTORM CONTEXT - IMPLEMENT ALL REQUIREMENTS:
+
+TOOL CONCEPT & VALUE PROPOSITION:
+Core Concept: ${brainstormData.coreConcept || 'Not specified'}
+Value Proposition: ${brainstormData.valueProposition || 'Not specified'}
+
+🚨 MANDATORY INPUT FIELDS CHECKLIST (MUST IMPLEMENT ALL ${brainstormData.suggestedInputs?.length || 0} INPUTS):
+${brainstormData.suggestedInputs?.map((input, index) => 
+  `✅ REQUIRED ${index + 1}/${brainstormData.suggestedInputs?.length}: ${input.label} (type: ${input.type})
+     - State Variable: ${input.id || input.label.toLowerCase().replace(/\s+/g, '')}
+     - Event Handler: set${input.id || input.label.replace(/\s+/g, '')}
+     - UI Element: ${input.type === 'select' ? 'Select with SelectTrigger, SelectContent, SelectItem' : 
+                   input.type === 'multiselect' ? 'Select with multiple="true" and array state' :
+                   input.type === 'radio' ? 'RadioGroup with RadioGroupItem elements' :
+                   input.type === 'slider' ? 'Slider with value={[stateVar]} and onValueChange' :
+                   input.type === 'number' ? 'Input with type="number"' :
+                   input.type === 'currency' ? 'Input with type="number" and $ formatting' :
+                   input.type === 'percentage' ? 'Input with type="number" and % display' : 'Input element'}
+     - Description: ${input.description}
+     ${(input as any).researchOptions ? `- Options from Research: ${(input as any).researchOptions}` : ''}
+     🚨 FAILURE TO IMPLEMENT THIS FIELD = INCOMPLETE TOOL`
+).join('\n\n') || 'No inputs to implement'}
+
+🚨 MANDATORY CALCULATION FUNCTIONS CHECKLIST (MUST IMPLEMENT ALL ${brainstormData.keyCalculations?.length || 0} CALCULATIONS):
+${brainstormData.keyCalculations?.map((calc, index) => 
+  `✅ REQUIRED ${index + 1}/${brainstormData.keyCalculations?.length}: ${calc.name}
+     - Function Name: ${calc.name.toLowerCase().replace(/\s+/g, '').replace(/-/g, '')}
+     - Purpose: ${calc.description}
+     - Formula: ${calc.formula}
+     - State Variable for Result: set${calc.name.replace(/\s+/g, '').replace(/-/g, '')}
+     - Must be called by Calculate button
+     - Must display result in Results section with dynamic value
+     🚨 FAILURE TO IMPLEMENT THIS CALCULATION = INCOMPLETE TOOL`
+).join('\n\n') || 'No calculations to implement'}
+
+🚨 RESEARCH DATA FOR SELECT/MULTISELECT OPTIONS:
+${brainstormData.researchData ? JSON.stringify(brainstormData.researchData, null, 2) : 'No research data available - use logical defaults'}
+
+🚨 CRITICAL VALIDATION REQUIREMENTS:
+1. TOTAL INPUT COUNT: Must render exactly ${brainstormData.suggestedInputs?.length || 0} input elements
+2. TOTAL CALCULATION COUNT: Must implement exactly ${brainstormData.keyCalculations?.length || 0} calculation functions
+3. Calculate button onClick: Must call ALL calculation functions in sequence
+4. Results section: Must display ALL calculation results with dynamic values (calcName: $\{stateVariable\})
+5. State variables: Must include ALL input states and ALL calculation result states
+6. Event handlers: Must connect ALL inputs to their corresponding setState functions
+7. Select/Multiselect: Must populate ALL options from research data or logical defaults
+
+🚨 EXPLICIT FAILURE CONDITIONS - ANY OF THESE = REJECTED IMPLEMENTATION:
+❌ Missing input fields (less than ${brainstormData.suggestedInputs?.length || 0} total)
+❌ Missing calculation functions (less than ${brainstormData.keyCalculations?.length || 0} total)
+❌ Calculate button only calls 1 function instead of ALL functions
+❌ Results section shows static text instead of dynamic calculated values
+❌ Select/Multiselect components with empty SelectContent
+❌ Missing state variables for any input or calculation result
+❌ Missing event handlers for any input element
+
+🚨 COMPONENT STRUCTURE REQUIREMENTS:
+- Input Section: MUST contain ALL ${brainstormData.suggestedInputs?.length || 0} input fields
+- Calculate Button: MUST call ALL ${brainstormData.keyCalculations?.length || 0} calculation functions
+- Results Section: MUST display ALL ${brainstormData.keyCalculations?.length || 0} results with dynamic values
+- State Logic: MUST include variables for ALL inputs + ALL calculation results
+
+The Component Assembler MUST implement the COMPLETE tool according to ALL brainstorm specifications above - partial implementations are REJECTED!`;
+  } else {
+    brainstormContext = '\n⚠️ WARNING: No brainstorm data available - implementing with minimal context only.';
+  }
+
   const userPrompt = `Please assemble the React component using the following parts.
 
 Component Name Suggestion: ${suggestedComponentName}
+${brainstormContext}
 
 STYLED JSX CODE (complete JSX with Tailwind classes already applied):
 \`\`\`jsx
@@ -628,7 +702,19 @@ STYLE MAP (for reference - element IDs to classes):
 ${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
 \`\`\`
 
-Convert the styled JSX above to React.createElement() syntax and integrate with the state logic. Generate the complete JSON object containing the final component code WITHOUT imports and using the available components from the execution context.`;
+🚨 ASSEMBLY INSTRUCTIONS:
+1. Convert the styled JSX above to React.createElement() syntax
+2. Integrate with the state logic provided
+3. IMPLEMENT ALL input fields specified in the brainstorm context above
+4. IMPLEMENT ALL calculation functions specified in the brainstorm context above
+5. Connect Calculate button to call ALL calculation functions (not just one)
+6. Display ALL calculation results in the results section with dynamic values
+7. Follow all interaction flow steps for complete user experience
+8. Include lead capture mechanism as specified in brainstorm
+9. Use the available components from the execution context
+10. Generate complete JSON object WITHOUT imports
+
+The final component must be a COMPLETE implementation of ALL brainstorm requirements, not a partial demonstration.`;
 
   // Log prompts with proper formatting for debugging
   logger.info({
@@ -660,14 +746,64 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       tcc
     );
 
-    const { object } = await generateObject({
-      model: modelInstance,
-      schema: assembledComponentSchema,
-      prompt: userPrompt,
-      system: systemPrompt,
-      temperature: 0.1,
-      maxTokens: 8192,
-    });
+    // ENHANCED FIX: Add retry logic and better error handling for generateObject
+    let object: AssembledComponent | undefined;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      try {
+        logger.info({
+          jobId: tcc.jobId,
+          attempt: attempts,
+          maxAttempts,
+          provider,
+          modelId
+        }, '🔧 ComponentAssembler: Attempting AI generation');
+
+        const result = await generateObject({
+          model: modelInstance,
+          schema: assembledComponentSchema,
+          prompt: userPrompt,
+          system: systemPrompt,
+          temperature: 0.1,
+          maxTokens: 8192,
+          // Add explicit request for JSON formatting
+          mode: 'json'
+        });
+        
+        // Validate that we got a proper object
+        if (!result.object || !result.object.finalComponentCode) {
+          throw new Error('Generated object is missing required finalComponentCode field');
+        }
+        
+        object = result.object;
+        break; // Success, exit retry loop
+        
+      } catch (generationError) {
+        logger.warn({
+          jobId: tcc.jobId,
+          attempt: attempts,
+          error: generationError instanceof Error ? generationError.message : String(generationError),
+          willRetry: attempts < maxAttempts
+        }, '🔧 ComponentAssembler: Generation attempt failed');
+        
+        if (attempts === maxAttempts) {
+          // Final attempt failed - rethrow the error
+          throw new Error(`AI generation failed after ${maxAttempts} attempts: ${generationError instanceof Error ? generationError.message : String(generationError)}`);
+        }
+        
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+      }
+    }
+    
+    // Ensure object is defined before proceeding
+    if (!object) {
+      throw new Error('Failed to generate component object after all retry attempts');
+    }
     
     // CRITICAL FIX: Send progress update after AI generation completes
     await emitStepProgress(
@@ -681,7 +817,8 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
     logger.info({ 
       tccJobId: tcc.jobId, 
       provider, 
-      modelId 
+      modelId,
+      attempts
     }, '🔧 ComponentAssembler: ✅ AI generation successful');
 
     // Log the AI response for debugging
@@ -695,6 +832,77 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
     console.log('\nHooks:');
     console.log(JSON.stringify(object.hooks || [], null, 2));
     console.log('='.repeat(80) + '\n');
+
+    // CRITICAL VALIDATION: Check if all brainstorm requirements are implemented
+    let validationErrors: string[] = [];
+    if (tcc.brainstormData?.suggestedInputs) {
+      const requiredInputCount = tcc.brainstormData.suggestedInputs.length;
+      const codeText = object.finalComponentCode;
+      
+      // Count actual input elements in the generated code
+      const inputElementCounts = {
+        Select: (codeText.match(/React\.createElement\(Select,/g) || []).length,
+        Input: (codeText.match(/React\.createElement\(Input,/g) || []).length,
+        RadioGroup: (codeText.match(/React\.createElement\(RadioGroup,/g) || []).length,
+        Slider: (codeText.match(/React\.createElement\(Slider,/g) || []).length
+      };
+      const totalInputElements = Object.values(inputElementCounts).reduce((sum, count) => sum + count, 0);
+      
+      logger.info({
+        jobId: tcc.jobId,
+        requiredInputCount,
+        actualInputCount: totalInputElements,
+        inputBreakdown: inputElementCounts,
+        brainstormInputs: tcc.brainstormData.suggestedInputs.map(input => `${input.label} (${input.type})`).join(', ')
+      }, '🔧 ComponentAssembler: 🔍 VALIDATION - Input field count analysis');
+      
+      if (totalInputElements < requiredInputCount) {
+        validationErrors.push(`Missing input fields: Generated ${totalInputElements} inputs but brainstorm requires ${requiredInputCount} inputs`);
+      }
+      
+      // Check if calculation functions are implemented
+      if (tcc.brainstormData?.keyCalculations) {
+        const requiredCalcCount = tcc.brainstormData.keyCalculations.length;
+        const calcFunctionMatches = codeText.match(/const\s+\w*[Cc]alculat\w*\s*=/g) || [];
+        const actualCalcCount = calcFunctionMatches.length;
+        
+        logger.info({
+          jobId: tcc.jobId,
+          requiredCalcCount,
+          actualCalcCount,
+          foundFunctions: calcFunctionMatches,
+          brainstormCalculations: tcc.brainstormData.keyCalculations.map(calc => calc.name).join(', ')
+        }, '🔧 ComponentAssembler: 🔍 VALIDATION - Calculation function analysis');
+        
+        if (actualCalcCount < requiredCalcCount) {
+          validationErrors.push(`Missing calculation functions: Generated ${actualCalcCount} functions but brainstorm requires ${requiredCalcCount} calculations`);
+        }
+      }
+    }
+    
+    // If validation fails, log the error but continue (don't regenerate for now to avoid infinite loops)
+    if (validationErrors.length > 0) {
+      logger.error({
+        jobId: tcc.jobId,
+        validationErrors,
+        modelUsed: `${provider}:${modelId}`,
+        brainstormInputCount: tcc.brainstormData?.suggestedInputs?.length || 0,
+        brainstormCalcCount: tcc.brainstormData?.keyCalculations?.length || 0
+      }, '🔧 ComponentAssembler: 🚨 VALIDATION FAILED - Generated component is incomplete!');
+      
+      console.log('\n' + '🚨'.repeat(40));
+      console.log('🚨 COMPONENT VALIDATION FAILED:');
+      console.log('🚨 ERRORS:');
+      validationErrors.forEach(error => console.log(`🚨   - ${error}`));
+      console.log('🚨 MODEL USED:', `${provider}:${modelId}`);
+      console.log('🚨 This indicates the AI model is not following brainstorm requirements!');
+      console.log('🚨'.repeat(40) + '\n');
+    } else {
+      logger.info({
+        jobId: tcc.jobId,
+        modelUsed: `${provider}:${modelId}`
+      }, '🔧 ComponentAssembler: ✅ VALIDATION PASSED - Component implements all requirements');
+    }
 
     // Post-process to automatically remove import statements if AI ignored instructions
     let finalCode = object.finalComponentCode;
@@ -908,7 +1116,19 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
 }
 
 function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolConstructionContext): { provider: string; modelId: string } {
-    // PRIORITY 1: User-selected model from UI (highest priority)
+    // CRITICAL FIX: GPT-4o consistently fails with "could not parse the response" for complex structured generation
+    // Force Claude 3.7 Sonnet for Component Assembler to ensure reliable JSON generation
+    if (agentName === 'componentAssembler') {
+        logger.info({ 
+            agentName, 
+            reason: 'GPT-4o JSON parsing failures',
+            selectedModel,
+            source: 'STRUCTURED_GENERATION_FIX' 
+        }, '🔧 ComponentAssembler: 🚨 FORCING Claude 3.7 Sonnet due to GPT-4o JSON parsing failures');
+        return { provider: 'anthropic', modelId: 'claude-3-7-sonnet-20250219' };
+    }
+    
+    // PRIORITY 1: User-selected model from UI (highest priority) - but only for non-ComponentAssembler
     if (selectedModel && selectedModel !== 'default') {
         const provider = getModelProvider(selectedModel);
         if (provider !== 'unknown') {
@@ -978,14 +1198,14 @@ function getModelForAgent(agentName: string, selectedModel?: string, tcc?: ToolC
         return { provider: fallbackModel.provider, modelId: fallbackModel.modelInfo.id };
     }
 
-    // PRIORITY 5: Final hardcoded fallback (indicates configuration problem)
+    // PRIORITY 5: Final hardcoded fallback - use Claude instead of GPT-4o for structured generation reliability
     logger.error({ 
         agentName, 
         selectedModel,
         tccAgentMapping: tcc?.agentModelMapping ? Object.keys(tcc.agentModelMapping) : 'No TCC provided',
         source: 'HARDCODED_FALLBACK' 
-    }, '🔧 ComponentAssembler: 🚨 CRITICAL: No model configuration found! Using hardcoded fallback - check model configuration!');
-    return { provider: 'openai', modelId: 'gpt-4o' }; // Final fallback
+    }, '🔧 ComponentAssembler: 🚨 CRITICAL: No model configuration found! Using Claude 3.7 Sonnet fallback for reliable structured generation');
+    return { provider: 'anthropic', modelId: 'claude-3-7-sonnet-20250219' }; // Claude fallback for reliability
 }
 
 /**

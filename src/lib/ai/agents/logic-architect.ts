@@ -227,7 +227,7 @@ export class LogicArchitectAgent {
     );
 
     // CRITICAL FIX: Use generateObject with schema validation instead of manual JSON parsing
-    const { object, reasoning } = await generateObject({
+    const { object } = await generateObject({
       model: this.model,
       schema: logicBrainstormingSchema,
       prompt: prompt,
@@ -238,7 +238,7 @@ export class LogicArchitectAgent {
       },
     });
 
-    console.log('🤔 Thinking process length:', reasoning?.length || 0);
+    //console.log('🤔 Thinking process length:', reasoning?.length || 0);
     
     // No need for postProcessBrainstormingResult since generateObject ensures proper schema compliance
     return object;

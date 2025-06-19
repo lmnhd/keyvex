@@ -77,79 +77,71 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('🚀 DataRequirementsResearch mounting, loading models...');
-    
-    // Load saved brainstorms
     loadSavedBrainstorms();
-    
-    // Fetch API default model
+  }, [newBrainstormFlag]);
+
+  const fetchDefaultModel = async () => {
+    try {
+      console.log('🔍 DataRequirementsResearch: Fetching default model from API...');
+      const response = await fetch('/api/ai/models/default');
+      if (response.ok) {
+        const data = await response.json();
+        const defaultModel = data.primaryModel || 'claude-3-7-sonnet-20250219';
+        console.log('✅ DataRequirementsResearch: API default model:', defaultModel);
+        setDefaultPrimaryModel(defaultModel);
+      } else {
+        console.warn('⚠️ DataRequirementsResearch: Failed to fetch default model, using fallback');
+        setDefaultPrimaryModel('claude-3-7-sonnet-20250219');
+      }
+    } catch (error) {
+      console.error('❌ DataRequirementsResearch: Error fetching default model:', error);
+      setDefaultPrimaryModel('claude-3-7-sonnet-20250219');
+    }
+  };
+
+  useEffect(() => {
     fetchDefaultModel();
     
-    // Load all available models from default-models.json
-    const loadModels = () => {
-      try {
-        console.log('🔍 Loading models from DEFAULT_MODELS...');
-        const parsedModels: ModelOption[] = [];
-        
-        // Add some hardcoded models as fallback
-        if (!DEFAULT_MODELS?.providers) {
-          console.warn('⚠️ DEFAULT_MODELS not available, using fallback models');
-          const fallbackModels: ModelOption[] = [
-            { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Anthropic)', provider: 'Anthropic' },
-            { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet v2 (Anthropic)', provider: 'Anthropic' },
-            { id: 'gpt-4o', name: 'GPT-4o (OpenAI)', provider: 'OpenAI' },
-            { id: 'gpt-4o-mini', name: 'GPT-4o Mini (OpenAI)', provider: 'OpenAI' },
-            { id: 'claude-4-sonnet-20250514', name: 'Claude 4 Sonnet (Anthropic)', provider: 'Anthropic' },
-          ];
-          setAvailableModels(fallbackModels);
-          setSelectedModel('claude-3-7-sonnet-20250219');
-          return;
-        }
-        
-        // Parse models from DEFAULT_MODELS
-        for (const providerKey in DEFAULT_MODELS.providers) {
-          const provider = (DEFAULT_MODELS.providers as any)[providerKey];
-          if (!provider?.models) continue;
-          
-          for (const modelKey in provider.models) {
-            const model = (provider.models as any)[modelKey];
-            if (model.deprecated) continue;
-            
-            parsedModels.push({ 
-              id: model.id, 
-              name: `${model.name} (${provider.name})`,
-              provider: provider.name
-            });
-          }
-        }
-        
-        console.log('✅ Loaded', parsedModels.length, 'models');
-        setAvailableModels(parsedModels);
-        
-        // Set default model
-        if (parsedModels.length > 0) {
-          const defaultModel = parsedModels.find(m => m.id === 'claude-3-7-sonnet-20250219') || 
-                             parsedModels.find(m => m.id === 'claude-3-5-sonnet-20241022') ||
-                             parsedModels[0];
-          
-          console.log('🎯 Setting default model:', defaultModel.name);
-          setSelectedModel(defaultModel.id);
-        }
-      } catch (err) {
-        console.error('❌ Failed to load models:', err);
-        // Set fallback models
+    // Load all available models from default-models.json  
+    try {
+      console.log('🔍 DataRequirementsResearch: Loading models from DEFAULT_MODELS...');
+      const parsedModels: ModelOption[] = [];
+      
+      if (!DEFAULT_MODELS?.providers) {
+        console.error('❌ DEFAULT_MODELS.providers not found, using fallback');
         const fallbackModels: ModelOption[] = [
           { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Anthropic)', provider: 'Anthropic' },
           { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet v2 (Anthropic)', provider: 'Anthropic' },
           { id: 'gpt-4o', name: 'GPT-4o (OpenAI)', provider: 'OpenAI' },
         ];
         setAvailableModels(fallbackModels);
-        setSelectedModel('claude-3-7-sonnet-20250219');
+        return;
       }
-    };
-    
-    loadModels();
-  }, [newBrainstormFlag]);
+      
+      // Parse models from DEFAULT_MODELS
+      for (const providerKey in DEFAULT_MODELS.providers) {
+        const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+        if (!provider?.models) continue;
+        
+        for (const modelKey in provider.models) {
+          const model = (provider.models as any)[modelKey];
+          if (model.deprecated) continue;
+          
+          parsedModels.push({ 
+            id: model.id, 
+            name: `${model.name} (${provider.name})`,
+            provider: provider.name
+          });
+        }
+      }
+      
+      console.log('✅ DataRequirementsResearch: Parsed', parsedModels.length, 'models');
+      setAvailableModels(parsedModels);
+      
+    } catch (err) {
+      console.error('❌ DataRequirementsResearch: Failed to load models:', err);
+    }
+  }, []);
 
   // Update selected model when API default is fetched
   useEffect(() => {
@@ -273,38 +265,38 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       // 🔧 CRITICAL FIX: Always save to IndexedDB since server cannot access browser IndexedDB
       // The server-side persistResearchToBrainstorm function cannot actually persist to IndexedDB
       // (IndexedDB is a browser-only API), so we must handle persistence client-side
-      
-      if (selectedBrainstorm) {
-        const updatedBrainstorm = {
-          ...selectedBrainstorm,
-          brainstormData: {
-            ...selectedBrainstorm.brainstormData,
-            dataRequirements: {
-              hasExternalDataNeeds: researchData.hasExternalDataNeeds,
-              requiredDataTypes: researchData.requiredDataTypes,
-              researchQueries: researchData.researchQueries
-            },
-            researchData: researchData.researchData,
-            userDataInstructions: researchData.userInstructions
-          }
-        };
         
-        try {
-          // Import the save function dynamically to avoid import issues
-          const { saveLogicResultToDB } = await import('../../ui/db-utils');
-          await saveLogicResultToDB(updatedBrainstorm);
+        if (selectedBrainstorm) {
+          const updatedBrainstorm = {
+            ...selectedBrainstorm,
+            brainstormData: {
+              ...selectedBrainstorm.brainstormData,
+              dataRequirements: {
+                hasExternalDataNeeds: researchData.hasExternalDataNeeds,
+                requiredDataTypes: researchData.requiredDataTypes,
+                researchQueries: researchData.researchQueries
+              },
+              researchData: researchData.researchData,
+              userDataInstructions: researchData.userInstructions
+            }
+          };
           
-          // Update local state immediately
-          setSelectedBrainstorm(updatedBrainstorm);
-          
-          // Refresh the brainstorms list
-          await loadSavedBrainstorms();
-          
-          console.log('✅ Research data saved to IndexedDB for brainstorm:', selectedBrainstorm.id);
+          try {
+            // Import the save function dynamically to avoid import issues
+            const { saveLogicResultToDB } = await import('../../ui/db-utils');
+            await saveLogicResultToDB(updatedBrainstorm);
+            
+            // Update local state immediately
+            setSelectedBrainstorm(updatedBrainstorm);
+            
+            // Refresh the brainstorms list
+            await loadSavedBrainstorms();
+            
+            console.log('✅ Research data saved to IndexedDB for brainstorm:', selectedBrainstorm.id);
           toast.success('✅ Research complete and saved to database!');
-        } catch (dbError) {
-          console.error('❌ Failed to save research data to IndexedDB:', dbError);
-          toast.error('Research completed but failed to save to local database');
+          } catch (dbError) {
+            console.error('❌ Failed to save research data to IndexedDB:', dbError);
+            toast.error('Research completed but failed to save to local database');
         }
       } else {
         toast.success('✅ Research analysis complete!');
@@ -546,13 +538,13 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 </span>
               )}
             </Label>
-            {availableModels.length > 0 ? (
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose an AI model" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableModels.map(model => (
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose an AI model" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableModels.length > 0 ? (
+                  availableModels.map(model => (
                     <SelectItem key={model.id} value={model.id}>
                       <div className="flex items-center">
                         {model.name}
@@ -563,12 +555,19 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                         )}
                       </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="text-sm text-gray-500">Loading models...</p>
-            )}
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet (Recommended)</SelectItem>
+                    <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet v2</SelectItem>
+                    <SelectItem value="claude-4-sonnet-20250514">Claude 4 Sonnet</SelectItem>
+                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                    <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Action Buttons */}

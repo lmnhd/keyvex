@@ -195,9 +195,8 @@ export async function finalizeTool(request: {
       'completed',
       'Tool has been finalized successfully!',
       { 
-        ...tcc, 
-        finalProduct,
-        assembledComponentCode: tcc.assembledComponentCode // Ensure code is available for preview
+        userId: tcc.userId,    // Include userId for progress emission
+        finalProduct          // Include finalProduct for frontend access
       }
     );
 
