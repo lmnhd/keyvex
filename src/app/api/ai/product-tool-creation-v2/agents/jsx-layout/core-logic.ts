@@ -166,6 +166,17 @@ export async function designJsxLayout(request: {
     const jsxLayout = await generateJsxLayoutWithAI(tcc, selectedModel, isIsolatedTest, editMode);
     logger.info({ jobId }, '🏗️ JSXLayout: generateJsxLayoutWithAI completed successfully');
 
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋
+    logger.info({
+      jobId,
+      agentName: 'JSXLayout',
+      tccUpdateDetail: {
+        beforeJsxLayout: !!tcc.jsxLayout,
+        beforeSteps: Object.keys(tcc.steps || {}),
+        beforeLastUpdated: tcc.updatedAt
+      }
+    }, '🏗️ JSXLayout: 📋 TCC STATE BEFORE UPDATE');
+
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
       jsxLayout,
@@ -182,6 +193,33 @@ export async function designJsxLayout(request: {
       },
       updatedAt: new Date().toISOString(),
     };
+
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋 - DETAILED OUTPUT
+    logger.info({
+      jobId,
+      agentName: 'JSXLayout',
+      tccUpdateDetail: {
+        afterJsxLayout: !!updatedTcc.jsxLayout,
+        afterSteps: Object.keys(updatedTcc.steps || {}),
+        afterLastUpdated: updatedTcc.updatedAt,
+        jsxStructureCreated: {
+          componentStructureLength: updatedTcc.jsxLayout?.componentStructure?.length || 0,
+          componentStructurePreview: updatedTcc.jsxLayout?.componentStructure?.substring(0, 300) + (updatedTcc.jsxLayout?.componentStructure?.length > 300 ? '...' : '') || '',
+          elementMapCount: updatedTcc.jsxLayout?.elementMap?.length || 0,
+          elementMapItems: updatedTcc.jsxLayout?.elementMap?.map(el => ({
+            elementId: el.elementId,
+            type: el.type,
+            purpose: el.purpose?.substring(0, 50) + (el.purpose?.length > 50 ? '...' : '') || ''
+          })) || [],
+          hasAccessibilityFeatures: !!updatedTcc.jsxLayout?.accessibilityFeatures,
+          accessibilityFeatureCount: updatedTcc.jsxLayout?.accessibilityFeatures?.length || 0,
+          hasResponsiveBreakpoints: !!updatedTcc.jsxLayout?.responsiveBreakpoints,
+          responsiveBreakpointCount: updatedTcc.jsxLayout?.responsiveBreakpoints?.length || 0
+        },
+        stepStatusUpdate: updatedTcc.steps?.designingJsxLayout?.status,
+        stepResult: !!updatedTcc.steps?.designingJsxLayout?.result
+      }
+    }, '🏗️ JSXLayout: 📋 TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
     // Skip progress emission during isolated testing to prevent orchestration
     if (!isIsolatedTest) {

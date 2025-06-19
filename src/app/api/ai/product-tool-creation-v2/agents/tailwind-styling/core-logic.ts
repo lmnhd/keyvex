@@ -137,6 +137,17 @@ export async function applyStyling(request: {
 
     const styling = await generateTailwindStylingWithAI(tcc, selectedModel, isIsolatedTest, editMode, isEditMode, editInstructions);
 
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋
+    logger.info({
+      jobId,
+      agentName: 'TailwindStyling',
+      tccUpdateDetail: {
+        beforeStyling: !!tcc.styling,
+        beforeSteps: Object.keys(tcc.steps || {}),
+        beforeLastUpdated: tcc.updatedAt
+      }
+    }, '🎨 TailwindStyling: 📋 TCC STATE BEFORE UPDATE');
+
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
       styling,
@@ -154,6 +165,39 @@ export async function applyStyling(request: {
       },
       updatedAt: new Date().toISOString(),
     };
+
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋 - DETAILED OUTPUT
+    logger.info({
+      jobId,
+      agentName: 'TailwindStyling',
+      tccUpdateDetail: {
+        afterStyling: !!updatedTcc.styling,
+        afterSteps: Object.keys(updatedTcc.steps || {}),
+        afterLastUpdated: updatedTcc.updatedAt,
+        stylingApplied: {
+          styledComponentCodeLength: updatedTcc.styling?.styledComponentCode?.length || 0,
+          styledComponentCodePreview: updatedTcc.styling?.styledComponentCode?.substring(0, 300) + (updatedTcc.styling?.styledComponentCode?.length > 300 ? '...' : '') || '',
+          hasColorScheme: !!updatedTcc.styling?.colorScheme,
+          colorScheme: updatedTcc.styling?.colorScheme ? {
+            primary: updatedTcc.styling.colorScheme.primary,
+            secondary: updatedTcc.styling.colorScheme.secondary,
+            accent: updatedTcc.styling.colorScheme.accent,
+            background: updatedTcc.styling.colorScheme.background,
+            text: updatedTcc.styling.colorScheme.text
+          } : null,
+          hasResponsiveFeatures: !!updatedTcc.styling?.responsiveFeatures,
+          responsiveFeatureCount: updatedTcc.styling?.responsiveFeatures?.length || 0,
+          hasAccessibilityFeatures: !!updatedTcc.styling?.accessibilityFeatures,
+          accessibilityFeatureCount: updatedTcc.styling?.accessibilityFeatures?.length || 0,
+          hasDarkModeSupport: !!updatedTcc.styling?.darkModeSupport,
+          hasAnimationClasses: !!updatedTcc.styling?.animationClasses,
+          animationClassCount: updatedTcc.styling?.animationClasses?.length || 0
+        },
+        stepStatusUpdate: updatedTcc.steps?.applyingTailwindStyling?.status,
+        stepResult: !!updatedTcc.steps?.applyingTailwindStyling?.result,
+        orchestrationStepUpdated: updatedTcc.currentOrchestrationStep
+      }
+    }, '🎨 TailwindStyling: 📋 TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
     if (!isIsolatedTest) {
       await emitStepProgress(

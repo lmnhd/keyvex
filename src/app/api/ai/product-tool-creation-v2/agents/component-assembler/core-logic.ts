@@ -91,6 +91,60 @@ export async function assembleComponent(request: {
       throw new Error(`Prerequisites missing in TCC: ${missing}`);
     }
 
+    // ✅ COMPREHENSIVE TCC INPUT LOGGING 📋 - WHAT WE RECEIVED FROM PREVIOUS AGENTS
+    logger.info({
+      jobId,
+      agentName: 'ComponentAssembler',
+      tccInputAnalysis: {
+        hasUserId: !!tcc.userId,
+        hasJobId: !!tcc.jobId,
+        hasBrainstormData: !!tcc.brainstormData,
+        hasUserInput: !!tcc.userInput,
+        hasStateLogic: !!tcc.stateLogic,
+        hasJsxLayout: !!tcc.jsxLayout,
+        hasStyling: !!tcc.styling,
+        hasResearchData: !!tcc.researchData,
+        currentStep: tcc.currentOrchestrationStep,
+        completedSteps: Object.keys(tcc.steps || {}),
+        updatedAt: tcc.updatedAt,
+        // DETAILED BREAKDOWN OF WHAT EACH AGENT PROVIDED
+        stateLogicDetails: tcc.stateLogic ? {
+          variableCount: tcc.stateLogic.variables?.length || 0,
+          variableNames: tcc.stateLogic.variables?.map(v => v.name) || [],
+          functionCount: tcc.stateLogic.functions?.length || 0,
+          functionNames: tcc.stateLogic.functions?.map(f => f.name) || [],
+          hasUseStateHooks: !!tcc.stateLogic.useStateHooks,
+          hookCount: tcc.stateLogic.useStateHooks?.length || 0,
+          hookNames: tcc.stateLogic.useStateHooks?.map(h => h.variableName) || []
+        } : null,
+        jsxLayoutDetails: tcc.jsxLayout ? {
+          componentStructureLength: tcc.jsxLayout.componentStructure?.length || 0,
+          componentStructurePreview: tcc.jsxLayout.componentStructure?.substring(0, 200) + '...' || '',
+          elementMapCount: tcc.jsxLayout.elementMap?.length || 0,
+          elementTypes: tcc.jsxLayout.elementMap?.map(el => el.type) || [],
+          hasAccessibilityFeatures: !!tcc.jsxLayout.accessibilityFeatures,
+          hasResponsiveBreakpoints: !!tcc.jsxLayout.responsiveBreakpoints
+        } : null,
+        stylingDetails: tcc.styling ? {
+          styledComponentCodeLength: tcc.styling.styledComponentCode?.length || 0,
+          styledComponentCodePreview: tcc.styling.styledComponentCode?.substring(0, 200) + '...' || '',
+          hasColorScheme: !!tcc.styling.colorScheme,
+          colorSchemePrimary: tcc.styling.colorScheme?.primary || 'Not set',
+          hasResponsiveFeatures: !!tcc.styling.responsiveFeatures,
+          hasAccessibilityFeatures: !!tcc.styling.accessibilityFeatures,
+          hasDarkModeSupport: !!tcc.styling.darkModeSupport
+        } : null,
+        brainstormDetails: tcc.brainstormData ? {
+          hasCoreConcept: !!tcc.brainstormData.coreConcept,
+          hasValueProposition: !!tcc.brainstormData.valueProposition,
+          suggestedInputCount: tcc.brainstormData.suggestedInputs?.length || 0,
+          keyCalculationCount: tcc.brainstormData.keyCalculations?.length || 0,
+          hasResearchOptions: !!tcc.brainstormData.researchOptions,
+          researchOptionCount: tcc.brainstormData.researchOptions?.length || 0
+        } : null
+      }
+    }, '🔧 ComponentAssembler: 📋 COMPREHENSIVE TCC INPUT ANALYSIS - WHAT PREVIOUS AGENTS PROVIDED');
+
     await emitStepProgress(
       jobId,
       OrchestrationStepEnum.enum.assembling_component,
@@ -609,77 +663,27 @@ RULES:
     hasStateLogic: !!tcc.stateLogic
   }, '🔧 ComponentAssembler: 🔍 Input data analysis');
 
-  // CRITICAL FIX: Include brainstorm data context for complete tool implementation
+  // STREAMLINED APPROACH: Concise brainstorm context that doesn't overwhelm Claude
   let brainstormContext = '';
   if (tcc.brainstormData) {
     const brainstormData = tcc.brainstormData;
+    
     brainstormContext = `
+🎯 TOOL: ${brainstormData.coreConcept || 'Not specified'}
 
-🚨 CRITICAL BRAINSTORM CONTEXT - IMPLEMENT ALL REQUIREMENTS:
+📝 INPUTS (${brainstormData.suggestedInputs?.length || 0}):
+${brainstormData.suggestedInputs?.slice(0, 8).map((input, i) => 
+  `${i + 1}. ${input.label} (${input.type})`
+).join('\n') || 'None'}${brainstormData.suggestedInputs?.length > 8 ? '\n...and more' : ''}
 
-TOOL CONCEPT & VALUE PROPOSITION:
-Core Concept: ${brainstormData.coreConcept || 'Not specified'}
-Value Proposition: ${brainstormData.valueProposition || 'Not specified'}
+🧮 CALCULATIONS (${brainstormData.keyCalculations?.length || 0}):
+${brainstormData.keyCalculations?.map((calc, i) => 
+  `${i + 1}. ${calc.name}`
+).join('\n') || 'None'}
 
-🚨 MANDATORY INPUT FIELDS CHECKLIST (MUST IMPLEMENT ALL ${brainstormData.suggestedInputs?.length || 0} INPUTS):
-${brainstormData.suggestedInputs?.map((input, index) => 
-  `✅ REQUIRED ${index + 1}/${brainstormData.suggestedInputs?.length}: ${input.label} (type: ${input.type})
-     - State Variable: ${input.id || input.label.toLowerCase().replace(/\s+/g, '')}
-     - Event Handler: set${input.id || input.label.replace(/\s+/g, '')}
-     - UI Element: ${input.type === 'select' ? 'Select with SelectTrigger, SelectContent, SelectItem' : 
-                   input.type === 'multiselect' ? 'Select with multiple="true" and array state' :
-                   input.type === 'radio' ? 'RadioGroup with RadioGroupItem elements' :
-                   input.type === 'slider' ? 'Slider with value={[stateVar]} and onValueChange' :
-                   input.type === 'number' ? 'Input with type="number"' :
-                   input.type === 'currency' ? 'Input with type="number" and $ formatting' :
-                   input.type === 'percentage' ? 'Input with type="number" and % display' : 'Input element'}
-     - Description: ${input.description}
-     ${(input as any).researchOptions ? `- Options from Research: ${(input as any).researchOptions}` : ''}
-     🚨 FAILURE TO IMPLEMENT THIS FIELD = INCOMPLETE TOOL`
-).join('\n\n') || 'No inputs to implement'}
-
-🚨 MANDATORY CALCULATION FUNCTIONS CHECKLIST (MUST IMPLEMENT ALL ${brainstormData.keyCalculations?.length || 0} CALCULATIONS):
-${brainstormData.keyCalculations?.map((calc, index) => 
-  `✅ REQUIRED ${index + 1}/${brainstormData.keyCalculations?.length}: ${calc.name}
-     - Function Name: ${calc.name.toLowerCase().replace(/\s+/g, '').replace(/-/g, '')}
-     - Purpose: ${calc.description}
-     - Formula: ${calc.formula}
-     - State Variable for Result: set${calc.name.replace(/\s+/g, '').replace(/-/g, '')}
-     - Must be called by Calculate button
-     - Must display result in Results section with dynamic value
-     🚨 FAILURE TO IMPLEMENT THIS CALCULATION = INCOMPLETE TOOL`
-).join('\n\n') || 'No calculations to implement'}
-
-🚨 RESEARCH DATA FOR SELECT/MULTISELECT OPTIONS:
-${brainstormData.researchData ? JSON.stringify(brainstormData.researchData, null, 2) : 'No research data available - use logical defaults'}
-
-🚨 CRITICAL VALIDATION REQUIREMENTS:
-1. TOTAL INPUT COUNT: Must render exactly ${brainstormData.suggestedInputs?.length || 0} input elements
-2. TOTAL CALCULATION COUNT: Must implement exactly ${brainstormData.keyCalculations?.length || 0} calculation functions
-3. Calculate button onClick: Must call ALL calculation functions in sequence
-4. Results section: Must display ALL calculation results with dynamic values (calcName: $\{stateVariable\})
-5. State variables: Must include ALL input states and ALL calculation result states
-6. Event handlers: Must connect ALL inputs to their corresponding setState functions
-7. Select/Multiselect: Must populate ALL options from research data or logical defaults
-
-🚨 EXPLICIT FAILURE CONDITIONS - ANY OF THESE = REJECTED IMPLEMENTATION:
-❌ Missing input fields (less than ${brainstormData.suggestedInputs?.length || 0} total)
-❌ Missing calculation functions (less than ${brainstormData.keyCalculations?.length || 0} total)
-❌ Calculate button only calls 1 function instead of ALL functions
-❌ Results section shows static text instead of dynamic calculated values
-❌ Select/Multiselect components with empty SelectContent
-❌ Missing state variables for any input or calculation result
-❌ Missing event handlers for any input element
-
-🚨 COMPONENT STRUCTURE REQUIREMENTS:
-- Input Section: MUST contain ALL ${brainstormData.suggestedInputs?.length || 0} input fields
-- Calculate Button: MUST call ALL ${brainstormData.keyCalculations?.length || 0} calculation functions
-- Results Section: MUST display ALL ${brainstormData.keyCalculations?.length || 0} results with dynamic values
-- State Logic: MUST include variables for ALL inputs + ALL calculation results
-
-The Component Assembler MUST implement the COMPLETE tool according to ALL brainstorm specifications above - partial implementations are REJECTED!`;
+⚠️ MUST IMPLEMENT: All ${brainstormData.suggestedInputs?.length || 0} inputs + all ${brainstormData.keyCalculations?.length || 0} calculations`;
   } else {
-    brainstormContext = '\n⚠️ WARNING: No brainstorm data available - implementing with minimal context only.';
+    brainstormContext = '\n⚠️ No brainstorm data available.';
   }
 
   const userPrompt = `Please assemble the React component using the following parts.
@@ -769,9 +773,7 @@ The final component must be a COMPLETE implementation of ALL brainstorm requirem
           prompt: userPrompt,
           system: systemPrompt,
           temperature: 0.1,
-          maxTokens: 8192,
-          // Add explicit request for JSON formatting
-          mode: 'json'
+          maxTokens: 8192
         });
         
         // Validate that we got a proper object

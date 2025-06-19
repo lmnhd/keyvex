@@ -174,6 +174,17 @@ export async function designStateLogic(request: {
       imports: stateLogic.imports,
     };
 
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋
+    logger.info({
+      jobId,
+      agentName: 'StateDesign',
+      tccUpdateDetail: {
+        beforeStateLogic: !!tcc.stateLogic,
+        beforeSteps: Object.keys(tcc.steps || {}),
+        beforeLastUpdated: tcc.updatedAt
+      }
+    }, '🎯 StateDesign: 📋 TCC STATE BEFORE UPDATE');
+
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
       stateLogic: tccCompatibleStateLogic,
@@ -190,6 +201,33 @@ export async function designStateLogic(request: {
       },
       updatedAt: new Date().toISOString(),
     };
+
+    // ✅ COMPREHENSIVE TCC UPDATE LOGGING 📋 - DETAILED OUTPUT
+    logger.info({
+      jobId,
+      agentName: 'StateDesign',
+      tccUpdateDetail: {
+        afterStateLogic: !!updatedTcc.stateLogic,
+        afterSteps: Object.keys(updatedTcc.steps || {}),
+        afterLastUpdated: updatedTcc.updatedAt,
+        stateVariablesCreated: updatedTcc.stateLogic?.variables?.map(v => ({
+          name: v.name,
+          type: v.type,
+          initialValue: v.initialValue,
+          description: v.description?.substring(0, 100) + (v.description?.length > 100 ? '...' : '')
+        })) || [],
+        functionsCreated: updatedTcc.stateLogic?.functions?.map(f => ({
+          name: f.name,
+          dependencies: f.dependencies,
+          description: f.description?.substring(0, 100) + (f.description?.length > 100 ? '...' : ''),
+          bodyLength: f.body?.length || 0,
+          bodyPreview: f.body?.substring(0, 200) + (f.body?.length > 200 ? '...' : '') || ''
+        })) || [],
+        importsCreated: updatedTcc.stateLogic?.imports || [],
+        stepStatusUpdate: updatedTcc.steps?.designingStateLogic?.status,
+        stepResult: !!updatedTcc.steps?.designingStateLogic?.result
+      }
+    }, '🎯 StateDesign: 📋 TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
     logger.info(
       {
