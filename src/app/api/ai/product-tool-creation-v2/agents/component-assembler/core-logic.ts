@@ -270,8 +270,8 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
-  // ✅ DRAMATICALLY SIMPLIFIED SYSTEM PROMPT - FOCUS ON JSON COMPLIANCE
-  const systemPrompt = `You are a React component assembler. Convert provided JSX to React.createElement syntax.
+  // ✅ ENHANCED SIMPLIFIED PROMPT - BALANCE BETWEEN FUNCTIONALITY AND COMPLIANCE
+  const systemPrompt = `You are a React component assembler. Convert provided JSX to React.createElement syntax AND implement full functionality.
 
 🚨 CRITICAL: Your response MUST be valid JSON matching this EXACT schema:
 {
@@ -282,37 +282,61 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   "estimatedLines": 50
 }
 
-RULES:
-- NO import/export statements
-- Use React.createElement() for ALL elements
-- Include 'use client'; at the start
-- Add key props to array children
-- Return ONLY valid JSON, nothing else`;
+ESSENTIAL REQUIREMENTS:
+1. Add 'use client'; at the start
+2. Use React.createElement() for ALL elements  
+3. Implement ALL state variables from State Logic Agent
+4. Implement ALL calculation functions from State Logic Agent
+5. Connect ALL buttons to actual event handlers (onClick: handleFunction)
+6. Add useState hooks for ALL input fields
+7. Include ALL suggested inputs from brainstorm data
+8. NO import/export statements
+9. Return ONLY valid JSON, nothing else
 
-  // ✅ DRAMATICALLY SIMPLIFIED USER PROMPT - JUST THE ESSENTIALS  
+CRITICAL: This is a FUNCTIONAL tool, not a static display. Users must be able to interact with inputs and see calculated results.`;
+
+  // ✅ ENHANCED USER PROMPT - INCLUDE STATE LOGIC AND BRAINSTORM CONTEXT
   const componentName = generateComponentName(tcc.userInput.description);
   const styledCode = (tcc as any).styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || 'No code available';
   
-  const userPrompt = `Convert this JSX to React.createElement format:
+  // Get state logic details for implementation guidance
+  const stateVariables = tcc.stateLogic?.variables || [];
+  const stateFunctions = tcc.stateLogic?.functions || [];
+  const suggestedInputs = tcc.brainstormData?.suggestedInputs || [];
+  
+  const userPrompt = `Convert this JSX to React.createElement format AND implement full functionality:
 
 Component Name: ${componentName}
 
-JSX Code:
+MUST IMPLEMENT - State Variables (${stateVariables.length}):
+${stateVariables.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n')}
+
+MUST IMPLEMENT - Calculation Functions (${stateFunctions.length}):
+${stateFunctions.map(f => `- ${f.name}(): ${f.description}`).join('\n')}
+
+MUST IMPLEMENT - ALL Input Fields (${suggestedInputs.length}):
+${suggestedInputs.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n')}
+
+JSX Code to Convert:
 \`\`\`jsx
-${styledCode.substring(0, 5000)}${styledCode.length > 5000 ? '\n...(truncated)' : ''}
+${styledCode.substring(0, 4000)}${styledCode.length > 4000 ? '\n...(truncated)' : ''}
 \`\`\`
 
+CRITICAL: Implement useState for EVERY input, onClick handlers for ALL buttons, and calculation functions that update state.
 Return valid JSON only.`;
 
-  // Log simplified prompts
+  // Log enhanced prompts
   logger.info({
     tccJobId: tcc.jobId,
     provider,
     modelId,
     systemPromptLength: systemPrompt.length,
     userPromptLength: userPrompt.length,
-    totalPromptSize: systemPrompt.length + userPrompt.length
-  }, '🔧 ComponentAssembler: 📝 SIMPLIFIED PROMPTS - Reduced by 80% for JSON compliance');
+    totalPromptSize: systemPrompt.length + userPrompt.length,
+    stateVariableCount: stateVariables.length,
+    functionCount: stateFunctions.length,
+    suggestedInputCount: suggestedInputs.length
+  }, '🔧 ComponentAssembler: 📝 ENHANCED PROMPTS - Balanced functionality + JSON compliance');
 
   try {
     // CRITICAL FIX: Send progress update before starting AI generation
