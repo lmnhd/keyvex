@@ -312,13 +312,35 @@ export async function POST(request: NextRequest) {
         throw new Error(`Function Planner failed: ${functionPlannerResult.error}`);
       }
 
+      // 🚨 STRICT TCC VALIDATION: Fail outright if Function Planner doesn't return updated TCC
+      if (!functionPlannerResult.updatedTcc) {
+        logger.error({
+          jobId,
+          functionPlannerResultKeys: Object.keys(functionPlannerResult),
+          hasUpdatedTcc: !!functionPlannerResult.updatedTcc
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Function Planner Agent did not return updatedTcc");
+        throw new Error("CRITICAL FAILURE: Function Planner Agent did not return updatedTcc in sequential mode");
+      }
+
+      // 🚨 STRICT TCC FIELD VALIDATION: Ensure function signatures were created
+      if (!functionPlannerResult.updatedTcc.definedFunctionSignatures || functionPlannerResult.updatedTcc.definedFunctionSignatures.length === 0) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(functionPlannerResult.updatedTcc),
+          hasFunctionSignatures: !!functionPlannerResult.updatedTcc.definedFunctionSignatures,
+          functionSignatureCount: functionPlannerResult.updatedTcc.definedFunctionSignatures?.length || 0
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Function Planner Agent updatedTcc missing definedFunctionSignatures");
+        throw new Error("CRITICAL FAILURE: Function Planner Agent updatedTcc missing required definedFunctionSignatures");
+      }
+
       logger.info(
         { 
           jobId, 
           status: functionPlannerResponse.status,
-          functionSignaturesCreated: functionPlannerResult.functionSignatures?.length || 0
+          functionSignaturesCreated: functionPlannerResult.updatedTcc.definedFunctionSignatures.length,
+          updatedTccKeys: Object.keys(functionPlannerResult.updatedTcc)
         },
-        "🚀 ORCHESTRATION START: Function Planner completed, got updated TCC"
+        "🚀 ORCHESTRATION START: ✅ Function Planner Result - TCC VALIDATION PASSED"
       );
 
       // ✅ RESTORATION: Now trigger State Design with the UPDATED TCC from Function Planner
@@ -351,7 +373,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             selectedModel: stateDesignModel,
-            tcc: functionPlannerResult.updatedTcc || tcc,
+            tcc: functionPlannerResult.updatedTcc, // ✅ STRICT: Only use validated TCC
             isSequentialMode: true
           }),
         }
@@ -368,6 +390,40 @@ export async function POST(request: NextRequest) {
       if (!stateDesignResult.success) {
         throw new Error(`State Design failed: ${stateDesignResult.error}`);
       }
+
+      // 🚨 STRICT TCC VALIDATION: Fail outright if State Design doesn't return updated TCC
+      if (!stateDesignResult.updatedTcc) {
+        logger.error({
+          jobId,
+          stateDesignResultKeys: Object.keys(stateDesignResult),
+          hasUpdatedTcc: !!stateDesignResult.updatedTcc
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - State Design Agent did not return updatedTcc");
+        throw new Error("CRITICAL FAILURE: State Design Agent did not return updatedTcc in sequential mode");
+      }
+
+      // 🚨 STRICT TCC FIELD VALIDATION: Ensure stateLogic was created
+      if (!stateDesignResult.updatedTcc.stateLogic) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(stateDesignResult.updatedTcc),
+          hasStateLogic: !!stateDesignResult.updatedTcc.stateLogic
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - State Design Agent updatedTcc missing stateLogic field");
+        throw new Error("CRITICAL FAILURE: State Design Agent updatedTcc missing required stateLogic field");
+      }
+
+      // 🔍 DEBUG: Log what orchestrator received from State Design Agent
+      logger.info(
+        { 
+          jobId, 
+          stateDesignResultKeys: Object.keys(stateDesignResult),
+          hasUpdatedTcc: !!stateDesignResult.updatedTcc,
+          updatedTccKeys: Object.keys(stateDesignResult.updatedTcc),
+          hasStateLogicInResult: !!stateDesignResult.updatedTcc.stateLogic,
+          stateLogicVariableCount: stateDesignResult.updatedTcc.stateLogic?.variables?.length || 0,
+          stateLogicFunctionCount: stateDesignResult.updatedTcc.stateLogic?.functions?.length || 0
+        },
+        "🚀 ORCHESTRATION START: ✅ State Design Result - TCC VALIDATION PASSED"
+      );
 
       logger.info(
         { jobId, status: stateDesignResponse.status },
@@ -398,7 +454,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             selectedModel: jsxLayoutModel,
-            tcc: stateDesignResult.updatedTcc || tcc,
+            tcc: stateDesignResult.updatedTcc, // ✅ STRICT: Only use validated TCC
             isSequentialMode: true
           }),
         }
@@ -415,6 +471,48 @@ export async function POST(request: NextRequest) {
       if (!jsxLayoutResult.success) {
         throw new Error(`JSX Layout failed: ${jsxLayoutResult.error}`);
       }
+
+      // 🚨 STRICT TCC VALIDATION: Fail outright if JSX Layout doesn't return updated TCC
+      if (!jsxLayoutResult.updatedTcc) {
+        logger.error({
+          jobId,
+          jsxLayoutResultKeys: Object.keys(jsxLayoutResult),
+          hasUpdatedTcc: !!jsxLayoutResult.updatedTcc
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent did not return updatedTcc");
+        throw new Error("CRITICAL FAILURE: JSX Layout Agent did not return updatedTcc in sequential mode");
+      }
+
+      // 🚨 STRICT TCC FIELD VALIDATION: Ensure all previous fields are preserved
+      if (!jsxLayoutResult.updatedTcc.stateLogic) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
+          hasStateLogic: !!jsxLayoutResult.updatedTcc.stateLogic
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent lost stateLogic field from TCC");
+        throw new Error("CRITICAL FAILURE: JSX Layout Agent lost required stateLogic field from TCC");
+      }
+
+      if (!jsxLayoutResult.updatedTcc.jsxLayout) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
+          hasJsxLayout: !!jsxLayoutResult.updatedTcc.jsxLayout
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent updatedTcc missing jsxLayout field");
+        throw new Error("CRITICAL FAILURE: JSX Layout Agent updatedTcc missing required jsxLayout field");
+      }
+
+      // 🔍 DEBUG: Log JSX Layout TCC result
+      logger.info(
+        { 
+          jobId, 
+          jsxLayoutTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
+          hasStateLogic: !!jsxLayoutResult.updatedTcc.stateLogic,
+          hasJsxLayout: !!jsxLayoutResult.updatedTcc.jsxLayout,
+          stateLogicVariableCount: jsxLayoutResult.updatedTcc.stateLogic?.variables?.length || 0,
+          stateLogicFunctionCount: jsxLayoutResult.updatedTcc.stateLogic?.functions?.length || 0
+        },
+        "🚀 ORCHESTRATION START: ✅ JSX Layout Result - TCC VALIDATION PASSED"
+      );
 
       logger.info(
         { jobId, status: jsxLayoutResponse.status },
@@ -445,7 +543,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             selectedModel: tailwindStylingModel,
-            tcc: jsxLayoutResult.updatedTcc || tcc,
+            tcc: jsxLayoutResult.updatedTcc, // ✅ STRICT: Only use validated TCC
             isSequentialMode: true
           }),
         }
@@ -462,6 +560,58 @@ export async function POST(request: NextRequest) {
       if (!tailwindStylingResult.success) {
         throw new Error(`Tailwind Styling failed: ${tailwindStylingResult.error}`);
       }
+
+      // 🚨 STRICT TCC VALIDATION: Fail outright if Tailwind Styling doesn't return updated TCC
+      if (!tailwindStylingResult.updatedTcc) {
+        logger.error({
+          jobId,
+          tailwindStylingResultKeys: Object.keys(tailwindStylingResult),
+          hasUpdatedTcc: !!tailwindStylingResult.updatedTcc
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent did not return updatedTcc");
+        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent did not return updatedTcc in sequential mode");
+      }
+
+      // 🚨 STRICT TCC FIELD VALIDATION: Ensure all previous fields are preserved
+      if (!tailwindStylingResult.updatedTcc.stateLogic) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
+          hasStateLogic: !!tailwindStylingResult.updatedTcc.stateLogic
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent lost stateLogic field from TCC");
+        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent lost required stateLogic field from TCC");
+      }
+
+      if (!tailwindStylingResult.updatedTcc.jsxLayout) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
+          hasJsxLayout: !!tailwindStylingResult.updatedTcc.jsxLayout
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent lost jsxLayout field from TCC");
+        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent lost required jsxLayout field from TCC");
+      }
+
+      if (!tailwindStylingResult.updatedTcc.styling) {
+        logger.error({
+          jobId,
+          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
+          hasStyling: !!tailwindStylingResult.updatedTcc.styling
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent updatedTcc missing styling field");
+        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent updatedTcc missing required styling field");
+      }
+
+      // 🔍 DEBUG: Log Tailwind Styling TCC result
+      logger.info(
+        { 
+          jobId, 
+          tailwindStylingTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
+          hasStateLogic: !!tailwindStylingResult.updatedTcc.stateLogic,
+          hasJsxLayout: !!tailwindStylingResult.updatedTcc.jsxLayout,
+          hasStyling: !!tailwindStylingResult.updatedTcc.styling,
+          stateLogicVariableCount: tailwindStylingResult.updatedTcc.stateLogic?.variables?.length || 0,
+          stateLogicFunctionCount: tailwindStylingResult.updatedTcc.stateLogic?.functions?.length || 0
+        },
+        "🚀 ORCHESTRATION START: ✅ Tailwind Styling Result - TCC VALIDATION PASSED"
+      );
 
       logger.info(
         { jobId, status: tailwindStylingResponse.status },
@@ -492,7 +642,7 @@ export async function POST(request: NextRequest) {
           body: JSON.stringify({
             jobId,
             selectedModel: componentAssemblerModel,
-            tcc: tailwindStylingResult.updatedTcc || tcc,
+            tcc: tailwindStylingResult.updatedTcc, // ✅ STRICT: Only use validated TCC
             isSequentialMode: true
           }),
         }

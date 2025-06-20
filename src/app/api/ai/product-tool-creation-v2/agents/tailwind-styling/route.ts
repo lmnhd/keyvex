@@ -93,10 +93,10 @@ export async function POST(request: NextRequest) {
     // Return appropriate response for isolated vs normal mode
     const responseData: any = result;
     
-    if (isIsolatedTest && result.updatedTcc) {
-      // Ensure updatedTcc is explicitly included for isolated tests
+    if ((isIsolatedTest || isSequentialMode) && result.updatedTcc) {
+      // Ensure updatedTcc is explicitly included for isolated tests and sequential mode
       responseData.updatedTcc = result.updatedTcc;
-      logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: ✅ Including updatedTcc in isolated test response');
+      logger.info({ jobId: parsedRequest.jobId }, `🎨 TailwindStyling Route: ✅ Including updatedTcc in ${isIsolatedTest ? 'isolated test' : 'sequential'} response`);
     }
 
     return NextResponse.json(responseData);

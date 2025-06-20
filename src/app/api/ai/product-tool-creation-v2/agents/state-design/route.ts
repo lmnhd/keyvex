@@ -101,9 +101,20 @@ export async function POST(request: NextRequest) {
       stateLogic: result.stateLogic,
     };
 
-    if (isIsolatedTest) {
+    if (isIsolatedTest || isSequentialMode) {
       responseData.updatedTcc = result.updatedTcc;
-      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Including updatedTcc in isolated test response');
+      logger.info({ jobId }, `🎯 StateDesign Route: ✅ Including updatedTcc in ${isIsolatedTest ? 'isolated test' : 'sequential'} response`);
+      
+      // 🔍 DEBUG: Log what we're actually returning
+      logger.info({
+        jobId,
+        responseDataKeys: Object.keys(responseData),
+        hasUpdatedTcc: !!responseData.updatedTcc,
+        updatedTccKeys: responseData.updatedTcc ? Object.keys(responseData.updatedTcc) : [],
+        hasStateLogicInUpdatedTcc: !!responseData.updatedTcc?.stateLogic,
+        stateLogicVariableCount: responseData.updatedTcc?.stateLogic?.variables?.length || 0,
+        stateLogicFunctionCount: responseData.updatedTcc?.stateLogic?.functions?.length || 0
+      }, '🎯 StateDesign Route: 🔍 DEBUG - Response data structure');
     }
 
     logger.info({ jobId }, '🎯 StateDesign Route: Returning success response.');
