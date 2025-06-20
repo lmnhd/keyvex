@@ -16,6 +16,7 @@ import {
 } from '@/lib/ai/models/model-config';
 import { getTailwindStylingSystemPrompt } from '@/lib/prompts/v2/tailwind-styling-prompt';
 import logger from '@/lib/logger';
+import { filterBrainstormForTailwindStyling, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 
 // --- START: Authoritative Zod Schema ---
 // This schema is a 1:1 mirror of the StylingSchema in tcc.ts.
@@ -329,51 +330,22 @@ ${JSON.stringify(tcc.jsxLayout?.elementMap, null, 2)}`;
 
   // Phase 1: Inject style-specific brainstorm context for enhanced styling decisions
   if (tcc.brainstormData) {
-    const brainstorm = tcc.brainstormData;
+    // 🎯 FILTERED BRAINSTORM DATA: Only get Tailwind Styling specific data
+    const filteredBrainstormData = filterBrainstormForTailwindStyling(tcc.brainstormData, tcc.jobId);
     
-    userPrompt += `
+    if (filteredBrainstormData) {
+      const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'TailwindStyling');
+      userPrompt += brainstormContext;
 
-STYLE-SPECIFIC BRAINSTORM CONTEXT (Use this to make informed styling decisions):
-
-CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
-VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
-
-    // Add prompt options for specific styling preferences
-    if (brainstorm.promptOptions) {
-      userPrompt += `
-
-STYLING PREFERENCES:
-- Include Comprehensive Colors: ${brainstorm.promptOptions.includeComprehensiveColors ? 'YES' : 'NO'}
-- Include Gorgeous Styling: ${brainstorm.promptOptions.includeGorgeousStyling ? 'YES' : 'NO'}
-- Include Advanced Layouts: ${brainstorm.promptOptions.includeAdvancedLayouts ? 'YES' : 'NO'}
-- Style Complexity: ${brainstorm.promptOptions.styleComplexity || 'Standard'}
-- Tool Complexity: ${brainstorm.promptOptions.toolComplexity || 'Standard'}`;
-
-      if (brainstorm.promptOptions.industryFocus) {
-        userPrompt += `
-- Industry Focus: ${brainstorm.promptOptions.industryFocus}`;
-      }
+      logger.info({ 
+        jobId: tcc.jobId,
+        dataReduction: 'Applied Tailwind Styling specific filtering'
+      }, '🎨 TailwindStyling: [FILTERED BRAINSTORM] Context successfully added to prompt');
     }
-
-    // Add lead capture strategy for strategic styling decisions
-    if (brainstorm.leadCaptureStrategy) {
-      userPrompt += `
-
-LEAD CAPTURE STRATEGY (Apply styling that supports this strategy):
-- Timing: ${brainstorm.leadCaptureStrategy.timing}
-- Method: ${brainstorm.leadCaptureStrategy.method}
-- Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
-    }
-
-    // Add creative enhancements for styling inspiration
-    if (brainstorm.creativeEnhancements && brainstorm.creativeEnhancements.length > 0) {
-      userPrompt += `
-
-CREATIVE ENHANCEMENTS (Consider these for styling inspiration):`;
-      brainstorm.creativeEnhancements.forEach(enhancement => {
-        userPrompt += `\n- ${enhancement}`;
-      });
-    }
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+    }, '🎨 TailwindStyling: [FILTERED BRAINSTORM] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
   }
 
   // Phase 2: Add edit mode context if in edit mode

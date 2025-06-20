@@ -5,6 +5,7 @@ import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { callModelForObject } from '@/lib/ai/model-caller';
 import logger from '@/lib/logger';
 import { getStateDesignSystemPrompt } from '@/lib/prompts/v2';
+import { filterBrainstormForStateDesign, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 
 // Enhanced testing options for granular control
 export type TestingOptions = {
@@ -316,7 +317,8 @@ async function generateStateLogic(tcc: ToolConstructionContext, selectedModel?: 
  * ✅ ADDED: Generate user prompt for AI
  */
 function getUserPrompt(tcc: ToolConstructionContext, functionSignatures: DefinedFunctionSignature[], editMode?: EditModeContext): string {
-  const brainstormData = tcc.brainstormData;
+  // 🎯 FILTERED BRAINSTORM DATA: Only get State Design specific data
+  const brainstormData = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
   const isEditMode = editMode?.isEditMode || false;
   
   if (isEditMode) {

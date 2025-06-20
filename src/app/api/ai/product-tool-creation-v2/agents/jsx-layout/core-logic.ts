@@ -17,6 +17,7 @@ import {
 } from '@/lib/ai/models/model-config';
 import { getJsxLayoutSystemPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
 import logger from '@/lib/logger';
+import { filterBrainstormForJSXLayout, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 
 // Zod schema for the element map
 const elementMapSchema = z.object({
@@ -380,59 +381,22 @@ ${
 }`;
 
   if (tcc.brainstormData) {
-    const brainstorm = tcc.brainstormData;
+    // 🎯 FILTERED BRAINSTORM DATA: Only get JSX Layout specific data
+    const filteredBrainstormData = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
     
-    logger.info({ 
-      jobId: tcc.jobId,
-    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] Injecting full brainstorm context into prompt.');
+    if (filteredBrainstormData) {
+      const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'JSXLayout');
+      userPrompt += brainstormContext;
 
-    userPrompt += `
-
-DETAILED BRAINSTORM CONTEXT (Use this to design a more specific and engaging layout):
-
-CORE CONCEPT: ${brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified'}
-
-VALUE PROPOSITION: ${brainstorm.valueProposition || 'Not specified'}`;
-
-    if (brainstorm.suggestedInputs && brainstorm.suggestedInputs.length > 0) {
-      userPrompt += `
-
-SUGGESTED INPUT FIELDS (Design layout to accommodate these specific inputs):`;
-      brainstorm.suggestedInputs.forEach(input => {
-        userPrompt += `\n- ${input.label} (${input.type}): ${input.description}`;
-      });
-    }
-
-    if (brainstorm.interactionFlow && brainstorm.interactionFlow.length > 0) {
-      userPrompt += `
-
-INTERACTION FLOW (Design layout to support this specific user journey):`;
-      brainstorm.interactionFlow.forEach(step => {
-        userPrompt += `\n${step.step}. ${step.title}: ${step.description} - ${step.userAction}`;
-      });
-    }
-
-    if (brainstorm.keyCalculations && brainstorm.keyCalculations.length > 0) {
-      userPrompt += `
-
-KEY CALCULATIONS (Design layout sections to display these results prominently):`;
-      brainstorm.keyCalculations.forEach(calc => {
-        userPrompt += `\n- ${calc.name}: ${calc.description}`;
-      });
-    }
-
-    if (brainstorm.leadCaptureStrategy) {
-      userPrompt += `
-
-LEAD CAPTURE STRATEGY (Incorporate this into the layout design):
-- Timing: ${brainstorm.leadCaptureStrategy.timing}
-- Method: ${brainstorm.leadCaptureStrategy.method}
-- Incentive: ${brainstorm.leadCaptureStrategy.incentive}`;
+      logger.info({ 
+        jobId: tcc.jobId,
+        dataReduction: 'Applied JSX Layout specific filtering'
+      }, '🏗️ JSXLayout: [FILTERED BRAINSTORM] Context successfully added to prompt');
     }
   } else {
     logger.warn({ 
       jobId: tcc.jobId,
-    }, '🏗️ JSXLayout: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
+    }, '🏗️ JSXLayout: [FILTERED BRAINSTORM] ⚠️ NO BRAINSTORM DATA - Agent working with minimal context only');
   }
 
   if (editMode?.isEditMode && editMode.instructions.length > 0) {
