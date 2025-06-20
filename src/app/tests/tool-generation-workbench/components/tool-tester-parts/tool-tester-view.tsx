@@ -818,6 +818,10 @@ export default function ToolTesterView({
                         <RadioGroupItem value="savedV2Job" id="source-v2job" />
                         <Label htmlFor="source-v2job">From Saved V2 Result</Label>
                       </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="inMemory" id="source-inmemory" />
+                        <Label htmlFor="source-inmemory">From Current TCC Data</Label>
+                      </div>
                     </RadioGroup>
                   </div>
 
@@ -862,6 +866,57 @@ export default function ToolTesterView({
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {tccSource === 'inMemory' && (
+                    <div className="space-y-3 pl-6 border-l-2 border-green-200">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                        <Label className="text-green-700 dark:text-green-300 font-medium">Current TCC Data Status</Label>
+                      </div>
+                      {tccData ? (
+                        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded border border-green-200">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">Job ID:</span>
+                              <code className="text-xs bg-green-100 dark:bg-green-800 px-1 rounded">{tccData.jobId?.slice(0, 12)}...</code>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="flex items-center gap-1">
+                                {tccData.functionPlanning ? '✅' : '⚪'} Function Planning
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {tccData.stateLogic ? '✅' : '⚪'} State Logic
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {tccData.jsxLayout ? '✅' : '⚪'} JSX Layout
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {tccData.styling ? '✅' : '⚪'} Styling
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {tccData.finalProduct?.componentCode ? '✅' : '⚪'} Final Product Code
+                              </div>
+                              <div className="flex items-center gap-1">
+                                {tccData.validationResults ? '✅' : '⚪'} Validation
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-green-200">
+                              <span className="text-xs text-green-600 dark:text-green-400">
+                                ✅ Ready to use current in-memory TCC data for isolated agent testing
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded border border-yellow-200">
+                          <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-300">
+                            <span>⚠️</span>
+                            <span>No current TCC data available. Run a tool generation first to populate TCC data.</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -970,7 +1025,8 @@ export default function ToolTesterView({
                 !selectedAgent || 
                 !agentModelMapping[selectedAgent] ||
                 (tccSource === 'savedV2Job' && !selectedDebugTccJobId) ||
-                (tccSource === 'mockScenario' && !selectedMockScenarioId)
+                (tccSource === 'mockScenario' && !selectedMockScenarioId) ||
+                (tccSource === 'inMemory' && !tccData)
               ))
             } 
             size="lg" 
@@ -1273,12 +1329,12 @@ export default function ToolTesterView({
                           <p><strong>testJob.status:</strong> {testJob?.status || 'No job'}</p>
                           <p><strong>TCC Keys:</strong> {Object.keys(tccData).join(', ')}</p>
                           
-                          {tccData.assembledComponentCode && (
+                          {tccData.finalProduct?.componentCode && (
                             <div>
-                              <p><strong>TCC.assembledComponentCode:</strong> Available ({tccData.assembledComponentCode.length} chars)</p>
+                              <p><strong>TCC.finalProduct.componentCode:</strong> Available ({tccData.finalProduct.componentCode.length} chars)</p>
                               <details className="mt-1">
                                 <summary className="cursor-pointer text-blue-600 hover:text-blue-800">View Code</summary>
-                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs whitespace-pre-wrap">{tccData.assembledComponentCode}</pre>
+                                <pre className="mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded text-xs whitespace-pre-wrap">{tccData.finalProduct.componentCode}</pre>
                               </details>
                             </div>
                           )}
@@ -1326,15 +1382,14 @@ export default function ToolTesterView({
                       Tool Preview
                     </h3>
                     {(() => {
-                      // UNIFIED PREVIEW LOGIC - FIXED: Only use assembled code sources
-                      // This prevents fallback to intermediate code that bypasses our slider fixes
+                      // UNIFIED PREVIEW LOGIC - FIXED: Only use SINGLE SOURCE OF TRUTH
+                      // Component code is ONLY stored in finalProduct.componentCode after assembly
                       
                       console.log('🔍 PREVIEW LOGIC TRACE =======================================');
                       console.log('🔍 SOURCES AVAILABLE:');
                       console.log('🔍   testJob?.result:', !!testJob?.result);
                       console.log('🔍   testJob?.result.componentCode length:', testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result ? (testJob.result as any).componentCode?.length : 'N/A');
-                      console.log('🔍   assembledCode length:', assembledCode?.length || 'N/A');
-                      console.log('🔍   tccData?.assembledComponentCode length:', tccData?.assembledComponentCode?.length || 'N/A');
+                      console.log('🔍   tccData?.finalProduct?.componentCode length:', tccData?.finalProduct?.componentCode?.length || 'N/A');
                       console.log('🔍   workflowMode:', workflowMode);
                       console.log('🔍   timestamp:', new Date().toISOString());
                       
@@ -1351,22 +1406,22 @@ export default function ToolTesterView({
                         console.log('🔍     Code hash:', (testJob.result as any).componentCode ? safeHash((testJob.result as any).componentCode) : 'NO-CODE');
                         console.log('🔍     Contains sliders?:', (testJob.result as any).componentCode?.includes('Slider'));
                       }
-                      // PRIORITY 2: Use TCC assembled component code (component assembler completed)
-                      else if (tccData?.assembledComponentCode) {
+                      // PRIORITY 2: Use TCC finalProduct component code (component assembler completed)
+                      else if (tccData?.finalProduct?.componentCode) {
                         previewTool = {
                           id: tccData.jobId || `preview-${Date.now()}`,
                           slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
-                          componentCode: tccData.assembledComponentCode,
+                          componentCode: tccData.finalProduct.componentCode,
                           metadata: {
                             id: tccData.jobId || `preview-${Date.now()}`,
                             slug: tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'preview-tool',
                             title: tccData.userInput?.description || 'Generated Tool Preview',
                             type: tccData.userInput?.toolType || 'Tool',
-                            description: tccData.userInput?.description || 'Tool preview from TCC assembled code',
+                            description: tccData.userInput?.description || 'Tool preview from TCC finalProduct',
                             userInstructions: 'This is a preview of the generated tool.',
-                            developerNotes: 'Generated from TCC assembled component code.',
+                            developerNotes: 'Generated from TCC finalProduct component code.',
                             dependencies: ['react'],
-                            source: 'tcc-assembled-preview',
+                            source: 'tcc-finalproduct-preview',
                             version: '1.0.0-preview'
                           },
                           initialStyleMap: tccData.styling?.styleMap || {},
@@ -1374,28 +1429,27 @@ export default function ToolTesterView({
                           createdAt: Date.now(),
                           updatedAt: Date.now()
                         };
-                        previewSource = 'TCC Assembled Code';
-                                                console.log('🔍 ✅ USING PRIORITY 2: TCC Assembled Code');
-                          console.log('🔍     TCC Job ID:', tccData.jobId);
-                          console.log('🔍     Code length:', tccData.assembledComponentCode.length);
-                          console.log('🔍     Code hash:', safeHash(tccData.assembledComponentCode));
-                          console.log('🔍     Contains sliders?:', tccData.assembledComponentCode.includes('Slider'));
+                        previewSource = 'TCC Final Product Code';
+                        console.log('🔍 ✅ USING PRIORITY 2: TCC Final Product Code');
+                        console.log('🔍     TCC Job ID:', tccData.jobId);
+                        console.log('🔍     Code length:', tccData.finalProduct.componentCode.length);
+                        console.log('🔍     Code hash:', safeHash(tccData.finalProduct.componentCode));
+                        console.log('🔍     Contains sliders?:', tccData.finalProduct.componentCode.includes('Slider'));
                       }
-                      // PRIORITY 3: Use debug mode assembled code from isolated agent tests
+                      // PRIORITY 3: Use debug mode finalProduct code from isolated agent tests
                       else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
                         const debugTccData = (testJob.result as any).updatedTcc;
                         const originalTool = (testJob.result as any).originalTool;
                         
-                        console.log('🔍 📋 DEBUG MODE - Checking for assembled code...');
-                        console.log('🔍     debugTccData.assembledComponentCode length:', debugTccData.assembledComponentCode?.length || 'N/A');
+                        console.log('🔍 📋 DEBUG MODE - Checking for finalProduct code...');
+                        console.log('🔍     debugTccData.finalProduct?.componentCode length:', debugTccData.finalProduct?.componentCode?.length || 'N/A');
                         
-                        // CRITICAL FIX: Only use assembledComponentCode in debug mode
-                        // Do NOT fall back to styled or JSX code that bypasses our fixes
-                        if (debugTccData.assembledComponentCode) {
+                        // ✅ SINGLE SOURCE OF TRUTH: Only use finalProduct.componentCode in debug mode
+                        if (debugTccData.finalProduct?.componentCode) {
                           previewTool = {
                             id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                             slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                            componentCode: debugTccData.assembledComponentCode,
+                            componentCode: debugTccData.finalProduct.componentCode,
                             metadata: {
                               id: debugTccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                               slug: originalTool?.slug || debugTccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
@@ -1413,14 +1467,14 @@ export default function ToolTesterView({
                             createdAt: originalTool?.createdAt || Date.now(),
                             updatedAt: Date.now()
                           };
-                          previewSource = `Debug Agent: ${selectedAgent} (Assembled)`;
-                          console.log('🔍 ✅ USING PRIORITY 3: Debug Mode Assembled Code');
+                          previewSource = `Debug Agent: ${selectedAgent} (Final Product)`;
+                          console.log('🔍 ✅ USING PRIORITY 3: Debug Mode Final Product Code');
                           console.log('🔍     Debug TCC Job ID:', debugTccData.jobId);
-                          console.log('🔍     Code length:', debugTccData.assembledComponentCode.length);
-                          console.log('🔍     Code hash:', safeHash(debugTccData.assembledComponentCode));
-                          console.log('🔍     Contains sliders?:', debugTccData.assembledComponentCode.includes('Slider'));
+                          console.log('🔍     Code length:', debugTccData.finalProduct.componentCode.length);
+                          console.log('🔍     Code hash:', safeHash(debugTccData.finalProduct.componentCode));
+                          console.log('🔍     Contains sliders?:', debugTccData.finalProduct.componentCode.includes('Slider'));
                         } else {
-                          console.log('🔍 ❌ DEBUG MODE: No assembled code available - preview will be empty');
+                          console.log('🔍 ❌ DEBUG MODE: No finalProduct code available - preview will be empty');
                         }
                       } else {
                         console.log('🔍 ❌ NO PREVIEW SOURCE AVAILABLE');
@@ -1505,8 +1559,8 @@ export default function ToolTesterView({
                       Debug Panel
                     </h3>
                     {(() => {
-                      // Get the component code for debugging
-                      const componentCode = assembledCode || (tccData?.assembledComponentCode) || '';
+                      // Get the component code for debugging - SINGLE SOURCE OF TRUTH
+                      const componentCode = assembledCode || (tccData?.finalProduct?.componentCode) || '';
                       const toolId = testJob?.jobId || 'debug-tool';
                       
                       if (componentCode) {
@@ -1572,14 +1626,14 @@ export default function ToolTesterView({
                       componentCode = (testJob.result as any).componentCode;
                       codeSource = 'Tool Definition componentCode';
                     }
-                    // Try to get from TCC data (debug/agent results) - ONLY ASSEMBLED CODE
+                    // Try to get from TCC data (debug/agent results) - SINGLE SOURCE OF TRUTH
                     else if (testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
                       const tccData = (testJob.result as any).updatedTcc;
-                      if (tccData.assembledComponentCode) {
-                        componentCode = tccData.assembledComponentCode;
-                        codeSource = 'TCC assembledComponentCode';
+                      if (tccData.finalProduct?.componentCode) {
+                        componentCode = tccData.finalProduct.componentCode;
+                        codeSource = 'TCC finalProduct.componentCode';
                       }
-                      // REMOVED: No fallback to styled or JSX code that bypasses slider fixes
+                      // REMOVED: No fallback to styled or JSX code that bypasses component fixes
                     }
 
                     if (componentCode) {
@@ -1832,32 +1886,52 @@ export default function ToolTesterView({
                                   <CardTitle className="text-blue-700 text-lg">🎯 State Design Results</CardTitle>
                                 </CardHeader>
                                 <CardContent>
+                                  {/* 🔍 DEBUG: Show actual TCC structure */}
+                                  <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200">
+                                    <div className="text-xs space-y-1 text-green-700 dark:text-green-300">
+                                      <div className="font-semibold">✅ TCC Schema Compliance: State Design Data Structure</div>
+                                      <div>• activeTccData.stateLogic exists: {activeTccData?.stateLogic ? '✅' : '❌'}</div>
+                                      <div>• stateLogic keys: {activeTccData?.stateLogic ? Object.keys(activeTccData.stateLogic).join(', ') : 'N/A'}</div>
+                                      <div>• variables field (TCC Schema): {activeTccData?.stateLogic?.variables ? `✅ (${activeTccData.stateLogic.variables.length})` : '❌'}</div>
+                                      <div>• functions field (TCC Schema): {activeTccData?.stateLogic?.functions ? `✅ (${activeTccData.stateLogic.functions.length})` : '❌'}</div>
+                                      <div>• imports field (TCC Schema): {activeTccData?.stateLogic?.imports ? `✅ (${activeTccData.stateLogic.imports.length})` : '❌'}</div>
+                                      <div className="font-semibold text-green-800 mt-2">🎯 All field names now match TCC StateLogic schema!</div>
+                                    </div>
+                                  </div>
+                                  
                                   <div className="space-y-3">
-                                    {activeTccData.stateLogic.stateVariables && (
+                                    {/* ✅ FIXED: Use correct TCC schema field names */}
+                                    {activeTccData.stateLogic.variables && (
                                       <div>
-                                        <Badge variant="outline" className="mb-2">State Variables ({activeTccData.stateLogic.stateVariables.length} total)</Badge>
+                                        <Badge variant="outline" className="mb-2">State Variables ({activeTccData.stateLogic.variables.length} total)</Badge>
                                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                                          {activeTccData.stateLogic.stateVariables.map((variable: any, idx: number) => (
+                                          {activeTccData.stateLogic.variables.map((variable: any, idx: number) => (
                                             <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-sm">
                                               <div className="font-semibold text-blue-700">{variable.name}: {variable.type}</div>
                                               <div className="text-blue-600">{variable.description}</div>
-                                              <div className="text-xs text-blue-500">Default: {variable.defaultValue || 'none'}</div>
+                                              <div className="text-xs text-blue-500">Initial Value: {JSON.stringify(variable.initialValue) || 'none'}</div>
                                             </div>
                                           ))}
                                         </div>
                                       </div>
                                     )}
-                                    {activeTccData.stateLogic.stateFunctions && (
+                                    {/* ✅ FIXED: Use correct TCC schema field names */}
+                                    {activeTccData.stateLogic.functions && (
                                       <div>
-                                        <Badge variant="outline" className="mb-2">State Functions ({activeTccData.stateLogic.stateFunctions.length} total)</Badge>
+                                        <Badge variant="outline" className="mb-2">State Functions ({activeTccData.stateLogic.functions.length} total)</Badge>
                                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                                          {activeTccData.stateLogic.stateFunctions.map((func: any, idx: number) => (
+                                          {activeTccData.stateLogic.functions.map((func: any, idx: number) => (
                                             <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded text-sm">
                                               <div className="font-semibold text-blue-700">{func.name}</div>
                                               <div className="text-blue-600">{func.description}</div>
                                               <div className="text-xs text-blue-500 font-mono">
-                                                {func.parameters?.map((p: any) => `${p.name}: ${p.type}`).join(', ')}
+                                                Dependencies: {func.dependencies?.join(', ') || 'None'}
                                               </div>
+                                              {func.body && (
+                                                <div className="text-xs text-blue-400 mt-1 font-mono bg-blue-100 dark:bg-blue-800 p-1 rounded">
+                                                  {func.body.substring(0, 100)}{func.body.length > 100 ? '...' : ''}
+                                                </div>
+                                              )}
                                             </div>
                                           ))}
                                         </div>
@@ -1995,7 +2069,7 @@ export default function ToolTesterView({
                         const transformedResult = {
                           id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                           slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',
-                          componentCode: tccData.assembledComponentCode || originalTool?.componentCode || '<div>Component code not available</div>',
+                          componentCode: tccData.finalProduct?.componentCode || originalTool?.componentCode || '<div>Component code not available</div>',
                           metadata: {
                             id: tccData.jobId || originalTool?.id || `debug-${Date.now()}`,
                             slug: originalTool?.slug || tccData.userInput?.description?.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'debug-tool',

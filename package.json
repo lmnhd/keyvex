@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev",
     "dev:debug": "cross-env NODE_OPTIONS=\"--inspect=9231\" next dev --turbopack",
     "dev:webpack": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "debug-dev": "next dev | grep -E '(🎯|StateDesign|ERROR|FAILED)' --color=always"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",

@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
 
     // Detect isolated test mode
     const isIsolatedTest = !!mockTcc;
+    const activeTcc = mockTcc || tcc;
 
     if (!jobId || (!tcc && !mockTcc)) {
       return NextResponse.json(
@@ -44,6 +45,51 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // 🚨 ISOLATION TEST LOGGING: Show exactly what TCC data we received
+    console.log(`\n🎯 ========== STATE DESIGN ROUTE - RECEIVED DATA ==========`);
+    console.log(`JobId: ${jobId}`);
+    console.log(`Selected Model: ${selectedModel}`);
+    console.log(`Is Isolated Test: ${isIsolatedTest}`);
+    console.log(`Is Sequential Mode: ${isSequentialMode}`);
+    console.log(`TCC Present: ${!!tcc}`);
+    console.log(`Mock TCC Present: ${!!mockTcc}`);
+    
+    if (activeTcc) {
+      console.log(`\n--- ACTIVE TCC STRUCTURE ---`);
+      console.log(`TCC Keys: ${Object.keys(activeTcc).join(', ')}`);
+      console.log(`TCC Job ID: ${activeTcc.jobId}`);
+      console.log(`TCC User ID: ${activeTcc.userId}`);
+      console.log(`TCC Has Brainstorm Data: ${!!activeTcc.brainstormData}`);
+      console.log(`TCC Has Function Signatures: ${!!activeTcc.definedFunctionSignatures}`);
+      console.log(`Function Signatures Count: ${activeTcc.definedFunctionSignatures?.length || 0}`);
+      
+      if (activeTcc.brainstormData) {
+        console.log(`\n--- BRAINSTORM DATA ANALYSIS ---`);
+        console.log(`Brainstorm Keys: ${Object.keys(activeTcc.brainstormData).join(', ')}`);
+        console.log(`Core Concept: ${activeTcc.brainstormData.coreConcept || 'N/A'}`);
+        console.log(`Tool Type: ${activeTcc.brainstormData.toolType || 'N/A'}`);
+        console.log(`Suggested Inputs Count: ${activeTcc.brainstormData.suggestedInputs?.length || 0}`);
+        console.log(`Key Calculations Count: ${activeTcc.brainstormData.keyCalculations?.length || 0}`);
+        
+        if (activeTcc.brainstormData.suggestedInputs?.length > 0) {
+          console.log(`\n--- FIRST 3 SUGGESTED INPUTS ---`);
+          console.log(JSON.stringify(activeTcc.brainstormData.suggestedInputs.slice(0, 3), null, 2));
+        }
+        
+        if (activeTcc.brainstormData.keyCalculations?.length > 0) {
+          console.log(`\n--- FIRST 3 KEY CALCULATIONS ---`);
+          console.log(JSON.stringify(activeTcc.brainstormData.keyCalculations.slice(0, 3), null, 2));
+        }
+      }
+      
+      if (activeTcc.definedFunctionSignatures && activeTcc.definedFunctionSignatures.length > 0) {
+        console.log(`\n--- FUNCTION SIGNATURES ---`);
+        console.log(JSON.stringify(activeTcc.definedFunctionSignatures, null, 2));
+      }
+    }
+    
+    console.log(`🎯 ========== END RECEIVED DATA ==========\n`);
 
     // ADD to both agents' route handlers:
     const isEditModeActive = isEditMode || editMode?.isEditMode || false;
@@ -54,7 +100,11 @@ export async function POST(request: NextRequest) {
       selectedModel,
       isEditMode: isEditModeActive,
       editInstructionsCount: editInstructionsArray.length,
-      isIsolatedTest
+      isIsolatedTest,
+      activeTccKeys: activeTcc ? Object.keys(activeTcc) : [],
+      hasBrainstormData: !!activeTcc?.brainstormData,
+      hasFunctionSignatures: !!activeTcc?.definedFunctionSignatures,
+      functionSignatureCount: activeTcc?.definedFunctionSignatures?.length || 0
     }, '🎯 StateDesign Route: Request received with isolation detection');
     
     // Call the pure core logic function with edit mode context

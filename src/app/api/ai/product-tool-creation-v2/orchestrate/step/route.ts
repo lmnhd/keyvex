@@ -91,6 +91,6 @@ function determineNextStep(tcc: ToolConstructionContext): string {
   if (!tcc.stateLogic) return 'designing_state_logic';
   if (!tcc.jsxLayout) return 'designing_jsx_layout';
   if (!tcc.styling) return 'applying_tailwind_styling';
-  if (!tcc.assembledComponentCode) return 'assembling_component';
+  if (!tcc.finalProduct?.componentCode) return 'assembling_component';
   return 'completed';
 } 

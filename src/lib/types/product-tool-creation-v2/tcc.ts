@@ -412,8 +412,9 @@ export const ToolConstructionContextSchema = z.object({
     }).optional(),
   }).optional(),
   
-  assembledComponentCode: z.string().optional(),
   validationResult: z.any().optional(),
+  
+  // ✅ SINGLE SOURCE OF TRUTH: All component code lives here after Tool Finalizer completes
   finalProduct: z.any().optional(),
 
   // Timestamps and versioning
@@ -637,7 +638,6 @@ export function createTCC(
     targetAudience: userInput.targetAudience,
     additionalContext: undefined,
     steps: undefined,
-    assembledComponentCode: undefined,
     validationResult: undefined,
     finalProduct: undefined,
     createdAt: new Date().toISOString(),

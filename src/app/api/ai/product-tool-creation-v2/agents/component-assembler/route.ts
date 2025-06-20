@@ -60,7 +60,11 @@ export async function POST(request: NextRequest) {
 
     // Only trigger next step if NOT in isolated test mode AND NOT in sequential mode
     if (!isActuallyIsolatedTest && !isSequentialMode && result.success && result.updatedTcc) {
-      logger.info({ jobId }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step.');
+      logger.info({ 
+        jobId,
+        hasFinalComponentCode: !!result.assembledComponent?.finalComponentCode,
+        finalComponentCodeLength: result.assembledComponent?.finalComponentCode?.length || 0
+      }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step with finalComponentCode.');
 
       // Trigger the next step by calling the centralized orchestrator endpoint
       const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
@@ -83,15 +87,23 @@ export async function POST(request: NextRequest) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Isolated test mode - NOT triggering next step');
     }
 
-    // ALWAYS return updatedTcc for isolated tests to fix finalization steps bug
+    // ALWAYS return updatedTcc for isolated tests AND sequential mode
     const responseData: any = { 
       success: true, 
-      assembledComponent: result.assembledComponent
+      assembledComponent: result.assembledComponent,
+      finalComponentCode: result.assembledComponent?.finalComponentCode
     };
     
-    if (isActuallyIsolatedTest) {
+    // ✅ CRITICAL FIX: Return updatedTcc for BOTH isolated tests AND sequential mode
+    // The orchestrator needs the updated TCC with finalProduct.componentCode
+    if (isActuallyIsolatedTest || isSequentialMode) {
       responseData.updatedTcc = result.updatedTcc;
-      logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Including updatedTcc in isolated test response');
+      logger.info({ 
+        jobId,
+        hasFinalComponentCode: !!result.assembledComponent?.finalComponentCode,
+        finalComponentCodeLength: result.assembledComponent?.finalComponentCode?.length || 0,
+        mode: isActuallyIsolatedTest ? 'isolated test' : 'sequential'
+      }, '🔧 ComponentAssembler Route: ✅ Including updatedTcc and finalComponentCode in response');
     }
 
     return NextResponse.json(responseData);

@@ -523,6 +523,72 @@ export async function runIsolatedAgentTest(
       if (!selectedJob) throw new Error(`V2 Job with ID ${savedV2JobId} not found.`);
       tcc = selectedJob.toolConstructionContext;
       addLog('debug', 'Loaded TCC from saved V2 Job', { id: savedV2JobId });
+    } else if (tccSource === 'inMemory') {
+      if (!currentTcc) {
+        throw new Error('No in-memory TCC data available');
+      }
+      
+      // ✅ CRITICAL FIX: Ensure in-memory TCC has ALL essential fields for agent operation
+      // The currentTcc from workbench might be a final TCC missing intermediate fields
+      addLog('debug', '🔍 IN-MEMORY TCC ANALYSIS - Checking for essential fields');
+      
+      if (currentTcc.brainstormData && currentTcc.definedFunctionSignatures && currentTcc.userInput) {
+        addLog('debug', '✅ IN-MEMORY TCC COMPLETE - All essential fields present');
+        tcc = currentTcc;
+      } else {
+        // If still missing essential fields, create minimal required structure
+        const enhancedTcc = {
+          ...currentTcc,
+          // Ensure essential fields exist with minimal structure
+          userInput: currentTcc.userInput || {
+            description: "Enhanced tool from in-memory TCC data",
+            targetAudience: "General users",
+            industry: "General"
+          },
+          brainstormData: currentTcc.brainstormData || {
+            coreConcept: "Tool enhancement from existing data",
+            valueProposition: "Improved tool functionality",
+            targetAudience: "General users",
+            suggestedInputs: [
+              {
+                label: "Input Value",
+                type: "number",
+                description: "Primary input for calculations",
+                placeholder: "Enter value",
+                validation: { required: true, min: 0 }
+              }
+            ],
+            keyCalculations: [
+              {
+                name: "processValue",
+                description: "Process the input value",
+                formula: "inputValue * 1.0",
+                variables: ["inputValue"]
+              }
+            ],
+            interactionFlow: [
+              "User provides input",
+              "System processes value", 
+              "Results are displayed"
+            ]
+          },
+          definedFunctionSignatures: currentTcc.definedFunctionSignatures || [
+            {
+              name: "processValue",
+              description: "Process the input value with basic calculation",
+              parameters: [
+                { name: "inputValue", type: "number", description: "The value to process" }
+              ],
+              returnType: "number",
+              implementation: "return inputValue * 1.0;"
+            }
+          ]
+        };
+        
+        addLog('debug', '🔧 ENHANCED IN-MEMORY TCC - Added minimal required structure for agent operation');
+        
+        tcc = enhancedTcc;
+      }
     } else {
       throw new Error(`Invalid TCC source: ${tccSource}`);
     }
@@ -530,6 +596,11 @@ export async function runIsolatedAgentTest(
     // If in edit mode, ensure the current TCC data is used.
     if (agentMode === 'edit' && currentTcc) {
       tcc = { ...currentTcc }; // Use the most recent TCC from the state
+      // Ensure jobId exists for edit mode
+      if (!tcc.jobId) {
+        tcc.jobId = uuidv4(); // Generate valid UUID
+        addLog('debug', 'Generated new jobId for edit mode TCC data (UUID format)', { jobId: tcc.jobId });
+      }
       addLog('debug', 'Running in EDIT mode, using current TCC data from state.', { keys: Object.keys(tcc) });
     }
     

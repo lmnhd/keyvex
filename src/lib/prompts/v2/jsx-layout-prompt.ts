@@ -559,6 +559,8 @@ ${CORE_LAYOUT_RULES}
         - Slider (numeric range selection - PERFECT for amounts, percentages, ratings!)
         - Switch (toggle on/off states)
 
+        **🚨 CRITICAL RADIX UI EVENT HANDLER PATTERNS:**
+        
         **🚨 CRITICAL SELECT COMPONENT PATTERN:**
         '''jsx'''
         <Select value={stateValue} onValueChange={setStateValue}>
@@ -576,50 +578,290 @@ ${CORE_LAYOUT_RULES}
         '''end jsx'''
         **NEVER use onChange with Select components - ALWAYS use onValueChange!**
 
-        **INTERACTIVE & FEEDBACK:**
-        - Button (primary actions)
-        - Progress (show completion status)
-        - Tooltip, TooltipProvider, TooltipTrigger, TooltipContent (contextual help)
-
-        **CHARTS & VISUALIZATION:**
-        - BarChart, Bar (comparing values, showing rankings)
-        - LineChart, Line (trends over time, progress tracking)
-        - PieChart, Pie, Cell (proportions, percentages, breakdowns)
-        - AreaChart, Area (cumulative data, filled line charts)
-        - RadialBarChart, RadialBar (circular progress, gauges)
-        - ScatterChart, Scatter (correlations, data points)
-        - XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer
-
-        **VISUAL ELEMENTS:**
-        - Label (form field labels)
-        - AlertCircle, Info, Loader2 (icons from Lucide)
-
-        **USAGE EXAMPLES:**
-        - Use Slider for: "Budget Range: $1,000 - $50,000", "Risk Tolerance: 1-10", "Years of Experience: 0-30"
-        - Use Switch for: "Include Optional Calculations", "Advanced Mode", "Email Notifications"
-        - Use RadioGroup for: "Business Type", "Industry Category", "Experience Level"
-        - Use Checkbox for: "Include Marketing Costs", "Factor in Taxes", "Show Detailed Breakdown"
-        - Use Accordion for: "Advanced Options", "Help & Examples", "Detailed Explanations"
-        - Use Progress for: "Assessment Completion", "Score Visualization"
-        - Use Tooltip for: Explaining technical terms, providing examples, showing help text
+        **🚨 CRITICAL RADIX UI EVENT HANDLER PATTERNS - PREVENTS VALIDATION ERRORS:**
         
-        **CHART USAGE EXAMPLES:**
-        - Use BarChart for: "Revenue by Quarter", "Expense Categories", "Performance Metrics", "Comparison Data"
-        - Use LineChart for: "Growth Trends", "Performance Over Time", "Progress Tracking", "Forecasting"
-        - Use PieChart for: "Budget Allocation", "Market Share", "Category Breakdown", "Percentage Distribution"
-        - Use AreaChart for: "Cumulative Revenue", "Stacked Categories", "Filled Trend Data"
-        - Use RadialBarChart for: "Score Gauges", "Completion Percentage", "Rating Displays"
-        - Always wrap charts in ResponsiveContainer for proper sizing
-        - Include XAxis, YAxis, CartesianGrid, RechartsTooltip, and Legend for complete charts
+        **SLIDER COMPONENTS - MUST USE onValueChange with Array Value:**
+        '''jsx'''
+        {/* ✅ CORRECT: Slider with array value and proper handler */}
+        <Slider 
+          data-style-id="trip-duration-slider"
+          value={stateTripDuration} 
+          onValueChange={(values) => handleInputChange({ target: { name: 'trip-duration', value: values[0] } })}
+          min={1} 
+          max={30} 
+          step={1}
+        />
+        
+        {/* ❌ WRONG: Single value instead of array */}
+        <Slider value={singleNumber} onChange={handleInputChange} />
+        '''end jsx'''
 
-        **🚨 LAYOUT ORGANIZATION RULES:**
-        - NEVER mix action buttons with input fields in the same section
-        - NEVER put results above action buttons - results should be at the bottom
-        - ALWAYS separate concerns: Header → Inputs → Actions → Lead Capture → Results
-        - ALWAYS use different background colors for visual section separation
-        - ALWAYS use grid layouts for horizontal space utilization (grid-cols-2, grid-cols-3)
-        - ALWAYS put lead capture in its own section, not mixed with primary actions
+        **RADIO GROUP COMPONENTS - MUST USE onValueChange:**
+        '''jsx'''
+        {/* ✅ CORRECT: RadioGroup with proper Radix UI pattern */}
+        <RadioGroup 
+          value={stateVacationPace} 
+          onValueChange={(value) => handleInputChange({ target: { name: 'vacation-pace', value } })}
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="relaxed" id="relaxed" />
+            <Label htmlFor="relaxed">Relaxed</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="moderate" id="moderate" />
+            <Label htmlFor="moderate">Moderate</Label>
+          </div>
+        </RadioGroup>
+        
+        {/* ❌ WRONG: Using onChange instead of onValueChange */}
+        <RadioGroup value={stateValue} onChange={handleInputChange}>
+        '''end jsx'''
+
+        **CHECKBOX COMPONENTS - MUST USE onCheckedChange:**
+        '''jsx'''
+        {/* ✅ CORRECT: Checkbox with proper Radix UI pattern */}
+        <Checkbox 
+          checked={stateIncludeKids} 
+          onCheckedChange={(checked) => handleInputChange({ target: { name: 'include-kids', value: checked } })}
+        />
+        
+        {/* ❌ WRONG: Using onChange instead of onCheckedChange */}
+        <Checkbox checked={stateValue} onChange={handleInputChange} />
+        '''end jsx'''
+
+        **SELECT WITH FORM INTEGRATION:**
+        '''jsx'''
+        {/* ✅ CORRECT: Select integrated with form handler */}
+        <Select value={stateFamilyComposition} onValueChange={(value) => handleInputChange({ target: { name: 'family-composition', value } })}>
+          <SelectTrigger data-style-id="family-composition-select">
+            <SelectValue placeholder="Select family type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="single">Single Person</SelectItem>
+            <SelectItem value="couple">Couple</SelectItem>
+            <SelectItem value="family">Family with Kids</SelectItem>
+          </SelectContent>
+        </Select>
+        '''end jsx'''
+
+        **🚨 VALIDATION ERROR PREVENTION CHECKLIST:**
+        - Select: ALWAYS use onValueChange, NEVER onChange
+        - Slider: ALWAYS use onValueChange with array values, NEVER onChange  
+        - RadioGroup: ALWAYS use onValueChange, NEVER onChange
+        - Checkbox: ALWAYS use onCheckedChange, NEVER onChange
+        - Input: Use standard onChange (HTML pattern)
+        
+        **🚨 THESE PATTERNS PREVENT "Found 2 errors" VALIDATION FAILURES!**
     </available-shadcn-components>
+
+    <critical-jsx-examples>
+        🚨 **COMPREHENSIVE EXAMPLES - CORRECT vs WRONG JSX PATTERNS**
+
+        **EXAMPLE 1: TRIP DURATION SLIDER (CORRECT vs WRONG)**
+        
+        ✅ **CORRECT SLIDER IMPLEMENTATION:**
+        '''jsx'''
+        <div data-style-id="trip-duration-section">
+          <Label htmlFor="trip-duration" data-style-id="trip-duration-label">
+            Trip Duration: {stateTripDuration[0]} days
+          </Label>
+          <Slider 
+            data-style-id="trip-duration-slider"
+            value={stateTripDuration} 
+            onValueChange={(values) => handleInputChange({ target: { name: 'trip-duration', value: values[0] } })}
+            min={1} 
+            max={30} 
+            step={1}
+            id="trip-duration"
+          />
+        </div>
+        '''end jsx'''
+        
+        ❌ **WRONG SLIDER (CAUSES INVISIBLE SLIDER):**
+        '''jsx'''
+        <div data-style-id="trip-duration-section">
+          <Label htmlFor="trip-duration">Trip Duration</Label>
+          <Slider 
+            value={stateTripDuration}
+            onChange={handleInputChange}
+            min={1} 
+            max={30}
+            id="trip-duration"
+          />
+        </div>
+        '''end jsx'''
+
+        **EXAMPLE 2: FAMILY COMPOSITION SELECT (CORRECT vs WRONG)**
+        
+        ✅ **CORRECT SELECT IMPLEMENTATION:**
+        '''jsx'''
+        <div data-style-id="family-composition-section">
+          <Label htmlFor="family-composition" data-style-id="family-composition-label">
+            Family Composition
+          </Label>
+          <Select 
+            value={stateFamilyComposition} 
+            onValueChange={(value) => handleInputChange({ target: { name: 'family-composition', value } })}
+          >
+            <SelectTrigger data-style-id="family-composition-select" id="family-composition">
+              <SelectValue placeholder="Select family type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Family Types</SelectLabel>
+                <SelectItem value="single">Single Person</SelectItem>
+                <SelectItem value="couple">Couple</SelectItem>
+                <SelectItem value="family-with-kids">Family with Kids</SelectItem>
+                <SelectItem value="extended-family">Extended Family</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+        '''end jsx'''
+        
+        ❌ **WRONG SELECT (CAUSES EVENT HANDLER ERRORS):**
+        '''jsx'''
+        <div data-style-id="family-composition-section">
+          <Label>Family Composition</Label>
+          <Select 
+            value={stateFamilyComposition} 
+            onChange={handleInputChange}
+            name="family-composition"
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select family type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Single Person</SelectItem>
+              <SelectItem value="couple">Couple</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        '''end jsx'''
+
+        **EXAMPLE 3: VACATION PACE RADIO GROUP (CORRECT vs WRONG)**
+        
+        ✅ **CORRECT RADIO GROUP IMPLEMENTATION:**
+        '''jsx'''
+        <div data-style-id="vacation-pace-section">
+          <Label data-style-id="vacation-pace-label">Vacation Pace</Label>
+          <RadioGroup 
+            value={stateVacationPace} 
+            onValueChange={(value) => handleInputChange({ target: { name: 'vacation-pace', value } })}
+            data-style-id="vacation-pace-group"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="relaxed" id="pace-relaxed" />
+              <Label htmlFor="pace-relaxed">Relaxed - Lots of downtime</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="moderate" id="pace-moderate" />
+              <Label htmlFor="pace-moderate">Moderate - Balanced activities</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="active" id="pace-active" />
+              <Label htmlFor="pace-active">Active - Packed schedule</Label>
+            </div>
+          </RadioGroup>
+        </div>
+        '''end jsx'''
+        
+        ❌ **WRONG RADIO GROUP (INCORRECT EVENT HANDLERS):**
+        '''jsx'''
+        <div data-style-id="vacation-pace-section">
+          <Label>Vacation Pace</Label>
+          <RadioGroup 
+            value={stateVacationPace} 
+            onChange={handleInputChange}
+            name="vacation-pace"
+          >
+            <RadioGroupItem value="relaxed">Relaxed</RadioGroupItem>
+            <RadioGroupItem value="moderate">Moderate</RadioGroupItem>
+            <RadioGroupItem value="active">Active</RadioGroupItem>
+          </RadioGroup>
+        </div>
+        '''end jsx'''
+
+        **EXAMPLE 4: RESULTS DISPLAY WITH DYNAMIC VALUES (CORRECT vs WRONG)**
+        
+        ✅ **CORRECT RESULTS WITH DYNAMIC VALUES:**
+        '''jsx'''
+        <Card data-style-id="results-card">
+          <CardHeader>
+            <CardTitle data-style-id="results-title">Your Trip Planning Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div data-style-id="results-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div data-style-id="compatibility-result">
+                <h3 data-style-id="compatibility-title">Destination Match</h3>
+                <p data-style-id="compatibility-score" className="text-2xl font-bold">
+                  {familyDestinationCompatibilityScore}/10
+                </p>
+                <p data-style-id="compatibility-description">
+                  Compatibility Score for Your Family
+                </p>
+              </div>
+              
+              <div data-style-id="budget-result">
+                <h3 data-style-id="budget-title">Daily Budget</h3>
+                <p data-style-id="daily-budget-amount" className="text-2xl font-bold">
+                  {Math.round(parseFloat(stateTotalVacationBudget) / stateTripDuration[0] || 0)}
+                </p>
+                <p data-style-id="budget-breakdown">
+                  Per day for {stateTripDuration[0]} days
+                </p>
+              </div>
+              
+              <div data-style-id="itinerary-result">
+                <h3 data-style-id="itinerary-title">Activities Planned</h3>
+                <p data-style-id="activity-count" className="text-2xl font-bold">
+                  {dailyItinerary.length}
+                </p>
+                <p data-style-id="activity-description">
+                  Days of Customized Activities
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        '''end jsx'''
+        
+        ❌ **WRONG RESULTS (STATIC DESCRIPTIONS - FORBIDDEN):**
+        '''jsx'''
+        <Card data-style-id="results-card">
+          <CardContent>
+            <div data-style-id="results-grid">
+              <div data-style-id="compatibility-result">
+                <h3>Destination Match</h3>
+                <p>Calculates how well destinations match your family needs</p>
+              </div>
+              
+              <div data-style-id="budget-result">
+                <h3>Budget Planning</h3>
+                <p>Optimizes your budget allocation across categories</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        '''end jsx'''
+
+        🚨 **CRITICAL JSX PATTERNS TO REMEMBER:**
+        1. **Select components MUST use onValueChange, NEVER onChange**
+        2. **Slider components MUST use onValueChange with array values**
+        3. **RadioGroup components MUST use onValueChange, NEVER onChange**
+        4. **Checkbox components MUST use onCheckedChange, NEVER onChange**
+        5. **All form elements need proper data-style-id attributes**
+        6. **Results MUST show dynamic values like {variableName}, not static descriptions**
+        7. **Use proper Label htmlFor attributes linking to input ids**
+        8. **Wrap interactive components with proper event handlers**
+        
+        🚨 **VALIDATION ERROR PREVENTION CHECKLIST:**
+        - ✅ Select: onValueChange={(value) => handleInputChange({ target: { name: 'field-name', value } })}
+        - ✅ Slider: onValueChange={(values) => handleInputChange({ target: { name: 'field-name', value: values[0] } })}
+        - ✅ RadioGroup: onValueChange={(value) => handleInputChange({ target: { name: 'field-name', value } })}
+        - ✅ Checkbox: onCheckedChange={(checked) => handleInputChange({ target: { name: 'field-name', value: checked } })}
+        - ✅ Input: onChange={handleInputChange} name="field-name"
+    </critical-jsx-examples>
 
     <layout-examples>
         <example name="Space Utilization">

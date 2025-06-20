@@ -670,6 +670,12 @@ export async function POST(request: NextRequest) {
         throw new Error("CRITICAL FAILURE: Component Assembler did not return finalComponentCode");
       }
 
+      // ✅ CRITICAL FIX: Use Component Assembler's updated TCC (contains finalProduct.componentCode)
+      const componentAssemblerTcc = componentAssemblerResult.updatedTcc || {
+        ...tailwindStylingResult.updatedTcc,
+        componentName: componentAssemblerResult.componentName
+      };
+
       logger.info(
         { 
           jobId, 
@@ -677,22 +683,157 @@ export async function POST(request: NextRequest) {
           finalComponentCodeLength: componentAssemblerResult.finalComponentCode.length,
           componentName: componentAssemblerResult.componentName || 'Unknown'
         },
-        "🚀 ORCHESTRATION START: ✅ Component Assembler Result - FINAL TOOL READY!"
+        "🚀 ORCHESTRATION START: ✅ Component Assembler Result - CONTINUING TO VALIDATOR"
       );
 
-      // ✅ FINAL STEP: Save the completed tool and emit final status
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.assembling_component,
-        'completed',
-        'Tool generation completed successfully! 🎉',
-        tcc // Pass original TCC structure for userId
-      );
+      // ✅ SEQUENTIAL FLOW: Continue with Validator 
+      if (!testingOptions?.skipValidator) {
+        logger.info(
+          { jobId },
+          "🚀 ORCHESTRATION START: Triggering Validator"
+        );
 
-      logger.info(
-        { jobId },
-        "🚀 ORCHESTRATION START: SEQUENTIAL FLOW COMPLETE - Tool successfully generated!"
-      );
+        const validatorModel = agentModelMapping?.['validator'] || selectedModel || "gpt-4o";
+        
+        logger.info(
+          { 
+            jobId, 
+            validatorModel,
+            modelSource: agentModelMapping?.['validator'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+          },
+          "🚀 ORCHESTRATION START: Validator model selection"
+        );
+
+        const validatorUrl = new URL(
+          "/api/ai/product-tool-creation-v2/agents/validator",
+          request.url
+        );
+        const validatorResponse = await fetch(
+          validatorUrl.toString(),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              jobId,
+              selectedModel: validatorModel,
+              tcc: componentAssemblerTcc,
+              isSequentialMode: true
+            }),
+          }
+        );
+
+        if (!validatorResponse.ok) {
+          throw new Error(
+            `Validator failed: ${validatorResponse.status}`
+          );
+        }
+
+        const validatorResult = await validatorResponse.json();
+        if (!validatorResult.success) {
+          throw new Error(`Validator failed: ${validatorResult.error}`);
+        }
+
+        // ✅ CRITICAL FIX: Check actual validation results, not just route success
+        if (validatorResult.validationResult && !validatorResult.validationResult.isValid) {
+          const errorDetails = validatorResult.validationResult.errors?.join('; ') || 'Unknown validation errors';
+          const errorCount = validatorResult.validationResult.errorCount || 0;
+          
+          logger.error({
+            jobId,
+            errorCount,
+            errorDetails,
+            autoCorrectionApplied: validatorResult.validationResult.autoCorrectionApplied
+          }, "🚀 ORCHESTRATION START: ❌ VALIDATION FAILED - STOPPING TOOL GENERATION");
+          
+          throw new Error(`Validation failed with ${errorCount} errors: ${errorDetails}. Auto-correction attempted but failed to resolve all issues.`);
+        }
+
+        logger.info(
+          { jobId, status: validatorResponse.status },
+          "🚀 ORCHESTRATION START: Validator completed, continuing with Tool Finalizer"
+        );
+
+        // ✅ SEQUENTIAL FLOW: Finally, trigger Tool Finalizer
+        if (!testingOptions?.skipToolFinalizer) {
+          logger.info(
+            { jobId },
+            "🚀 ORCHESTRATION START: Triggering Tool Finalizer"
+          );
+
+          const toolFinalizerModel = agentModelMapping?.['tool-finalizer'] || selectedModel || "gpt-4o";
+          
+          logger.info(
+            { 
+              jobId, 
+              toolFinalizerModel,
+              modelSource: agentModelMapping?.['tool-finalizer'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+            },
+            "🚀 ORCHESTRATION START: Tool Finalizer model selection"
+          );
+
+          const toolFinalizerUrl = new URL(
+            "/api/ai/product-tool-creation-v2/agents/tool-finalizer",
+            request.url
+          );
+          const toolFinalizerResponse = await fetch(
+            toolFinalizerUrl.toString(),
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                jobId,
+                selectedModel: toolFinalizerModel,
+                tcc: componentAssemblerTcc,
+                isSequentialMode: true
+              }),
+            }
+          );
+
+          if (!toolFinalizerResponse.ok) {
+            throw new Error(
+              `Tool Finalizer failed: ${toolFinalizerResponse.status}`
+            );
+          }
+
+          const toolFinalizerResult = await toolFinalizerResponse.json();
+          if (!toolFinalizerResult.success) {
+            throw new Error(`Tool Finalizer failed: ${toolFinalizerResult.error}`);
+          }
+
+          logger.info(
+            { 
+              jobId, 
+              status: toolFinalizerResponse.status,
+              finalProductCreated: !!toolFinalizerResult.finalProduct
+            },
+            "🚀 ORCHESTRATION START: ✅ Tool Finalizer Result - TOOL GENERATION COMPLETE!"
+          );
+
+          // ✅ FINAL STEP: Emit final completion status
+          await emitStepProgress(
+            jobId,
+            OrchestrationStepEnum.enum.finalizing_tool,
+            'completed',
+            'Tool generation completed successfully! 🎉',
+            tcc // Pass original TCC structure for userId
+          );
+
+          logger.info(
+            { jobId },
+            "🚀 ORCHESTRATION START: COMPLETE SEQUENTIAL FLOW FINISHED - All 6 agents executed successfully!"
+          );
+        } else {
+          logger.info(
+            { jobId },
+            "🚀 ORCHESTRATION START: Skipping Tool Finalizer (testing mode)"
+          );
+        }
+      } else {
+        logger.info(
+          { jobId },
+          "🚀 ORCHESTRATION START: Skipping Validator (testing mode)"
+        );
+      }
 
     } else {
       logger.info(

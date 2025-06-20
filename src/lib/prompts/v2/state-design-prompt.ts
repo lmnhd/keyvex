@@ -88,18 +88,24 @@ const commonGuidelines = `
     - Percentages, rates (e.g., "interestRate", "riskTolerance")
     - Ratings, scores, scales (e.g., "creditScore", "satisfactionRating")
     - Any input with min/max constraints or step values
+    - Duration, time periods (e.g., "tripDuration", "sessionDuration")
+    - Quantities, counts with ranges (e.g., "numberOfGuests", "teamSize")
     
     ✅ CORRECT SLIDER VALUE USAGE IN CALCULATIONS:
     - "const termYears = loanTerm[0];"
     - "const principal = investmentAmount[0];"
     - "const rate = interestRate[0] / 100;"
     - "const risk = riskTolerance[0];"
+    - "const duration = tripDuration[0];" // For travel planning tools
+    - "const days = stateTripDuration[0];" // Common pattern for duration sliders
     
     ❌ WRONG SLIDER VALUE USAGE (CAUSES NaN IN CALCULATIONS):
     - "const termYears = loanTerm;" // This is an array [30], not number 30!
     - "const principal = investmentAmount;" // This is an array [10000], not number 10000!
+    - "const duration = tripDuration;" // This is an array [7], not number 7!
     
     🚨 REMEMBER: Radix UI Slider components become INVISIBLE if value prop is not an array!
+    🚨 ANY variable with "Duration", "Term", "Period", "Age", "Score", "Rating", "Size", "Count" should be number[] for sliders!
 </slider-field-handling>
 
 <state-management-best-practices>
@@ -131,6 +137,283 @@ const commonGuidelines = `
     - Customer LTV = avgMonthlyValue * avgLifespanMonths
     - Conversion rate = conversions / totalVisitors * 100
 </example-patterns>
+
+<comprehensive-examples>
+    🚨 **CRITICAL EXAMPLES - WHAT TO DO vs WHAT NOT TO DO**
+
+    **EXAMPLE 1: TRIP DURATION SLIDER (CORRECT vs WRONG)**
+    
+    ✅ **CORRECT STATE DESIGN:**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateTripDuration",
+          "type": "number[]",
+          "defaultValue": [7],
+          "description": "Duration of the trip in days"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateTotalCost",
+          "logic": [
+            "const days = stateTripDuration[0];",
+            "const dailyBudget = parseFloat(stateTotalVacationBudget) / days;",
+            "setTotalCost(days * dailyBudget);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+    
+    ❌ **WRONG STATE DESIGN (CAUSES INVISIBLE SLIDER):**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateTripDuration", 
+          "type": "number",
+          "defaultValue": 7,
+          "description": "Duration of the trip in days"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateTotalCost",
+          "logic": [
+            "const days = stateTripDuration;",
+            "const dailyBudget = parseFloat(stateTotalVacationBudget) / days;",
+            "setTotalCost(days * dailyBudget);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+
+    **EXAMPLE 2: LOAN AMOUNT SLIDER (CORRECT vs WRONG)**
+    
+    ✅ **CORRECT FOR FINANCIAL SLIDERS:**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateLoanAmount",
+          "type": "number[]", 
+          "defaultValue": [50000],
+          "description": "Loan amount in dollars"
+        },
+        {
+          "name": "stateInterestRate",
+          "type": "number[]",
+          "defaultValue": [3.5],
+          "description": "Annual interest rate percentage"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateMonthlyPayment",
+          "logic": [
+            "const principal = stateLoanAmount[0];",
+            "const rate = stateInterestRate[0] / 100 / 12;",
+            "const months = 360;",
+            "const payment = principal * (rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1);",
+            "setMonthlyPayment(payment);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+    
+    ❌ **WRONG (CREATES BROKEN SLIDERS):**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateLoanAmount",
+          "type": "number",
+          "defaultValue": 50000,
+          "description": "Loan amount in dollars"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateMonthlyPayment", 
+          "logic": [
+            "const principal = stateLoanAmount;",
+            "const payment = principal * 0.005;",
+            "setMonthlyPayment(payment);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+
+    **EXAMPLE 3: SELECT DROPDOWN HANDLING (CORRECT vs WRONG)**
+    
+    ✅ **CORRECT SELECT VALUE MAPPING:**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateSystemSize",
+          "type": "string",
+          "defaultValue": "",
+          "description": "Solar system size selection"
+        },
+        {
+          "name": "systemCost",
+          "type": "number",
+          "defaultValue": 0,
+          "description": "Calculated system cost"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateSystemCost",
+          "logic": [
+            "const systemSizeKW = stateSystemSize === 'small' ? 4 : stateSystemSize === 'medium' ? 7 : stateSystemSize === 'large' ? 10 : 0;",
+            "const costPerKW = 3000;",
+            "const totalCost = systemSizeKW * costPerKW;",
+            "setSystemCost(totalCost);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+    
+    ❌ **WRONG (CAUSES NaN ERRORS):**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateSystemSize",
+          "type": "string", 
+          "defaultValue": "",
+          "description": "Solar system size selection"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateSystemCost",
+          "logic": [
+            "const systemCost = parseFloat(stateSystemSize) * 1000;",
+            "setSystemCost(systemCost);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+
+    **EXAMPLE 4: HANDLE INPUT CHANGE FUNCTION (CORRECT vs WRONG)**
+    
+    ✅ **CORRECT EVENT HANDLER (WORKS WITH RADIX UI):**
+    \`\`\`json
+    {
+      "functions": [
+        {
+          "name": "handleInputChange",
+          "logic": [
+            "const { name, value } = event.target;",
+            "switch (name) {",
+            "  case 'family-composition':",
+            "    setStateFamilyComposition(value);",
+            "    break;",
+            "  case 'trip-duration':",
+            "    setStateTripDuration([parseInt(value) || 7]);",
+            "    break;",
+            "  case 'vacation-pace':",
+            "    setStateVacationPace(value);",
+            "    break;",
+            "  default:",
+            "    break;",
+            "}"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+    
+    ❌ **WRONG (DOESN'T HANDLE RADIX UI PATTERNS):**
+    \`\`\`json
+    {
+      "functions": [
+        {
+          "name": "handleInputChange",
+          "logic": [
+            "const { name, value } = event.target;",
+            "setState(prevState => ({ ...prevState, [name]: value }));"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+
+    **EXAMPLE 5: MULTI-CALCULATION TOOL (COMPLETE IMPLEMENTATION)**
+    
+    ✅ **CORRECT FULL IMPLEMENTATION:**
+    \`\`\`json
+    {
+      "variables": [
+        {
+          "name": "stateHomePrice",
+          "type": "number[]",
+          "defaultValue": [300000],
+          "description": "Home price slider"
+        },
+        {
+          "name": "stateDownPayment", 
+          "type": "number[]",
+          "defaultValue": [20],
+          "description": "Down payment percentage slider"
+        },
+        {
+          "name": "monthlyPayment",
+          "type": "number",
+          "defaultValue": 0,
+          "description": "Calculated monthly payment"
+        },
+        {
+          "name": "affordabilityIndex",
+          "type": "number", 
+          "defaultValue": 0,
+          "description": "Calculated affordability score"
+        }
+      ],
+      "functions": [
+        {
+          "name": "calculateMonthlyPayment",
+          "logic": [
+            "const homePrice = stateHomePrice[0];",
+            "const downPercent = stateDownPayment[0] / 100;", 
+            "const loanAmount = homePrice * (1 - downPercent);",
+            "const monthlyRate = 0.065 / 12;",
+            "const months = 360;",
+            "const payment = loanAmount * (monthlyRate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1);",
+            "setMonthlyPayment(payment);"
+          ]
+        },
+        {
+          "name": "calculateAffordabilityIndex",
+          "logic": [
+            "const homePrice = stateHomePrice[0];",
+            "const income = 75000;",
+            "const affordability = (income * 0.28) / (homePrice / 100);",
+            "setAffordabilityIndex(affordability);"
+          ]
+        }
+      ]
+    }
+    \`\`\`
+
+    🚨 **KEY PATTERNS TO REMEMBER:**
+    1. **Sliders ALWAYS use number[] type with [defaultValue]**
+    2. **Extract slider values with variable[0] in calculations**
+    3. **Map select text values to numbers for calculations**
+    4. **Create separate functions for each keyCalculation**
+    5. **Use switch statements in handleInputChange for different field types**
+    6. **Always validate inputs before calculations (check for NaN)**
+</comprehensive-examples>
 `;
 
 const CREATION_PROMPT = `

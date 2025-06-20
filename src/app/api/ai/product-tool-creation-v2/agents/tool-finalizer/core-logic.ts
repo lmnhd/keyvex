@@ -367,7 +367,7 @@ Please finalize the tool based on the following comprehensive context.
 
 **Assembled Component Code (to be reviewed and cleaned):**
 \`\`\`jsx
-${tcc.assembledComponentCode || '// No assembled code available'}
+${tcc.finalProduct?.componentCode || '// No component code available in finalProduct'}
 \`\`\`
 
 **Validation Results:**

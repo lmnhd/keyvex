@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
       jobId,
       selectedModel: effectiveModel,
       tcc: mockTcc || tcc,
-      mockTcc,
-      isIsolatedTest
+      mockTcc
     });
     
     if (!result.success) {
@@ -54,8 +53,8 @@ export async function POST(request: NextRequest) {
     const updatedTcc = {
       ...(mockTcc || tcc),
       finalProduct: result.finalProduct,
-      // Ensure the component code is preserved for preview
-      assembledComponentCode: result.finalProduct?.componentCode || (mockTcc || tcc)?.assembledComponentCode,
+      // ✅ SINGLE SOURCE OF TRUTH: Component code only exists in finalProduct.componentCode
+      // ❌ REMOVED: assembledComponentCode preservation - no more dual storage!
       // Update status and step
       status: 'completed' as const,
       currentOrchestrationStep: 'finalizing_tool' as const,

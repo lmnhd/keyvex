@@ -29,7 +29,7 @@ export const STORAGE_KEYS = {
   agentMapping: 'tool-generation-workbench-agent-mapping',
 } as const;
 
-export type TccSource = 'brainstorm' | 'mockScenario' | 'savedV2Job';
+export type TccSource = 'brainstorm' | 'mockScenario' | 'savedV2Job' | 'inMemory';
 
 export type WorkflowMode = 'v1' | 'v2' | 'debug';
 

@@ -182,11 +182,25 @@ export async function assembleComponent(request: {
 
     const assembledComponent = assemblyResult.assembledComponent;
 
-    // Update TCC with results
+    // ✅ SINGLE SOURCE OF TRUTH: Create finalProduct immediately with componentCode
+    // No more assembledComponentCode - everything goes directly into finalProduct
+    const tempFinalProduct = {
+      componentCode: assembledComponent.finalComponentCode,
+      // Add minimal required fields for intermediate storage
+      metadata: {
+        title: 'Component Assembly In Progress',
+        description: 'Assembled component awaiting finalization',
+        status: 'assembled'
+      }
+    };
+
     const updatedTCC: ToolConstructionContext = {
       ...tcc,
-      assembledComponentCode: assembledComponent.finalComponentCode,
-      currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code, // Set next step
+      // ❌ REMOVED: assembledComponentCode storage
+      // ✅ SINGLE SOURCE: Store component code directly in finalProduct
+      finalProduct: tempFinalProduct,
+      currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code,
+      status: OrchestrationStatusEnum.enum.in_progress,
       steps: {
         ...tcc.steps,
         assemblingComponent: {
@@ -204,9 +218,11 @@ export async function assembleComponent(request: {
     // Debug: Log what we're storing in TCC
     logger.info({
       jobId,
-      assembledCodeLength: assembledComponent.finalComponentCode.length,
-      hasImportsInFinalCode: assembledComponent.finalComponentCode.includes('import ')
-    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
+      finalComponentCodeLength: assembledComponent.finalComponentCode.length,
+      hasImportsInFinalCode: assembledComponent.finalComponentCode.includes('import '),
+      storedInFinalProduct: true,
+      assembledComponentCodeRemoved: true
+    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing component code in finalProduct.componentCode (SINGLE SOURCE OF TRUTH)');
 
     await emitStepProgress(
       jobId,
@@ -386,29 +402,15 @@ export async function generateAssembledComponent(request: {
     // ✅ ORIGINAL ELEGANT APPROACH: PROGRAMMATIC COMBINATION of TCC sections
     const assembledComponent = combineTccSections(tcc);
 
-    // ✅ COMPREHENSIVE TCC UPDATE 
-    const updatedTcc: ToolConstructionContext = {
-      ...tcc,
-      assembledComponentCode: assembledComponent.finalComponentCode,
-      currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code,
-      status: OrchestrationStatusEnum.enum.in_progress,
-      steps: {
-        ...tcc.steps,
-        assemblingComponent: {
-          status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tcc.steps?.assemblingComponent?.startedAt || new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          result: assembledComponent,
-        },
-      },
-      updatedAt: new Date().toISOString(),
-    };
+    // ✅ SINGLE SOURCE OF TRUTH: This function only returns the assembled component
+    // The TCC creation happens in the main assembleComponent function to avoid duplication
 
     logger.info({
       jobId,
-      assembledCodeLength: assembledComponent.finalComponentCode.length,
+      finalComponentCodeLength: assembledComponent.finalComponentCode.length,
       hasImportsInFinalCode: assembledComponent.finalComponentCode.includes('import'),
-    }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
+      generatedByHelperFunction: true
+    }, '🔧 ComponentAssembler: 🔍 Helper function completed - assembled component ready for main function');
 
     if (!isIsolatedTest) {
       await emitStepProgress(
@@ -416,12 +418,12 @@ export async function generateAssembledComponent(request: {
         OrchestrationStepEnum.enum.assembling_component,
         'completed',
         'Component assembled successfully!',
-        updatedTcc
+        tcc
       );
     }
 
     logger.info({ jobId }, '🔧 ComponentAssembler: Completed successfully');
-    return { success: true, assembledComponent, updatedTcc };
+    return { success: true, assembledComponent };
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -564,17 +566,36 @@ export default ${componentName};`;
 }
 
 /**
- * ✅ Extract imports from TCC sections
+ * ✅ Extract imports from TCC sections with React import deduplication
  */
 function extractTccImports(tcc: ToolConstructionContext): string[] {
   const imports = new Set<string>();
+  const reactHooks = new Set<string>();
   
-  // Base React imports
-  imports.add("import React from 'react';");
-  
-  // State logic imports
+  // Collect React hooks from state logic
   if (tcc.stateLogic?.imports) {
-    tcc.stateLogic.imports.forEach(imp => imports.add(imp));
+    tcc.stateLogic.imports.forEach(imp => {
+      if (imp.includes('from \'react\'') || imp.includes('from "react"')) {
+        // Extract hooks from React import
+        const hooksMatch = imp.match(/\{\s*([^}]+)\s*\}/);
+        if (hooksMatch) {
+          hooksMatch[1].split(',').forEach(hook => {
+            reactHooks.add(hook.trim());
+          });
+        }
+      } else {
+        // Non-React imports
+        imports.add(imp);
+      }
+    });
+  }
+  
+  // ✅ CRITICAL FIX: Create single React import with all hooks
+  if (reactHooks.size > 0) {
+    const hooksList = Array.from(reactHooks).join(', ');
+    imports.add(`import React, { ${hooksList} } from 'react';`);
+  } else {
+    imports.add("import React from 'react';");
   }
   
   // UI component imports (detect from JSX layout)
@@ -599,15 +620,27 @@ function extractTccImports(tcc: ToolConstructionContext): string[] {
 }
 
 /**
- * ✅ Extract state declarations from State Design output
+ * ✅ Extract state declarations from State Design output with Radix UI corrections
  */
 function extractStateDeclarations(tcc: ToolConstructionContext): string[] {
   if (!tcc.stateLogic?.variables) return [];
   
   return tcc.stateLogic.variables.map(variable => {
     const variableType = variable.type || 'string';
-    const initialValue = variableType.includes('string') ? `"${variable.initialValue}"` : variable.initialValue;
-    return `  const [${variable.name}, set${capitalize(variable.name)}] = useState(${initialValue}); // ${variable.description}`;
+    let initialValue = variable.initialValue;
+    
+    // ✅ RADIX UI CORRECTION: Slider components need array values
+    if (variable.name.toLowerCase().includes('duration') || 
+        variable.name.toLowerCase().includes('slider') ||
+        variable.type?.includes('slider') ||
+        (typeof initialValue === 'number' && variable.description?.toLowerCase().includes('slider'))) {
+      initialValue = `[${initialValue}]`;
+      return `  const [${variable.name}, set${capitalize(variable.name)}] = useState(${initialValue}); // ${variable.description} - Array for Radix UI Slider`;
+    }
+    
+    // Standard handling for other types
+    const formattedValue = variableType.includes('string') ? `"${initialValue}"` : initialValue;
+    return `  const [${variable.name}, set${capitalize(variable.name)}] = useState(${formattedValue}); // ${variable.description}`;
   });
 }
 
@@ -625,7 +658,7 @@ function extractFunctionImplementations(tcc: ToolConstructionContext): string[] 
 }
 
 /**
- * ✅ Extract styled JSX from JSX Layout + Tailwind Styling
+ * ✅ Extract styled JSX from JSX Layout + Tailwind Styling with Radix UI corrections
  */
 function extractStyledJsx(tcc: ToolConstructionContext): string {
   // Get the base JSX structure
@@ -640,7 +673,55 @@ function extractStyledJsx(tcc: ToolConstructionContext): string {
     }
   }
   
+  // ✅ RADIX UI CORRECTIONS: Fix event handler mismatches
+  jsxCode = applyRadixUICorrections(jsxCode);
+  
   return jsxCode;
+}
+
+/**
+ * ✅ Apply Radix UI component corrections to JSX code
+ */
+function applyRadixUICorrections(jsxCode: string): string {
+  let correctedCode = jsxCode;
+  
+  // Fix Select component event handlers
+  correctedCode = correctedCode.replace(
+    /onValueChange=\{handleInputChange\}/g,
+    'onValueChange={(value) => handleInputChange({ target: { name: fieldName, value } })}'
+  );
+  
+  // Fix Slider component event handlers and values  
+  correctedCode = correctedCode.replace(
+    /onChange=\{([^}]+)\}/g,
+    'onValueChange={$1}'
+  );
+  
+  // Fix Slider value props to use arrays
+  correctedCode = correctedCode.replace(
+    /value=\{([^}]+)\}/g,
+    (match, valueName) => {
+      if (valueName.toLowerCase().includes('duration') || 
+          valueName.toLowerCase().includes('slider')) {
+        return `value={Array.isArray(${valueName}) ? ${valueName} : [${valueName}]}`;
+      }
+      return match;
+    }
+  );
+  
+  // Fix RadioGroup component event handlers
+  correctedCode = correctedCode.replace(
+    /<RadioGroup([^>]*?)onChange=\{([^}]+)\}/g,
+    '<RadioGroup$1onValueChange={$2}'
+  );
+  
+  // Fix Checkbox component event handlers
+  correctedCode = correctedCode.replace(
+    /onCheckedChange=\{handleInputChange\}/g,
+    'onCheckedChange={(checked) => handleInputChange({ target: { name: fieldName, value: checked } })}'
+  );
+  
+  return correctedCode;
 }
 
 /**
@@ -671,7 +752,7 @@ function extractFunctionNames(tcc: ToolConstructionContext): string[] {
  * ✅ Utility: Capitalize first letter
  */
 function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
+  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
 /**

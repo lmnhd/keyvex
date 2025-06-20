@@ -205,7 +205,8 @@ export async function designJsxLayout(request: {
         afterLastUpdated: updatedTcc.updatedAt,
         jsxStructureCreated: {
           componentStructureLength: updatedTcc.jsxLayout?.componentStructure?.length || 0,
-          componentStructurePreview: updatedTcc.jsxLayout?.componentStructure?.substring(0, 300) + (updatedTcc.jsxLayout?.componentStructure?.length > 300 ? '...' : '') || '',
+          componentStructurePreview: updatedTcc.jsxLayout?.componentStructure ? 
+          (updatedTcc.jsxLayout.componentStructure.substring(0, 300) + (updatedTcc.jsxLayout.componentStructure.length > 300 ? '...' : '')) : '',
           elementMapCount: updatedTcc.jsxLayout?.elementMap?.length || 0,
           elementMapItems: updatedTcc.jsxLayout?.elementMap?.map(el => ({
             elementId: el.elementId,
