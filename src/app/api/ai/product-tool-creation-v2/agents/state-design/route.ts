@@ -33,6 +33,22 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
+    
+    // 🔍 CRITICAL DEBUG: Log the raw request body BEFORE schema parsing
+    logger.info({
+      rawBodyKeys: Object.keys(body),
+      jobIdPresent: 'jobId' in body,
+      jobIdValue: body.jobId,
+      jobIdType: typeof body.jobId,
+      fullBodySample: {
+        jobId: body.jobId,
+        selectedModel: body.selectedModel,
+        hasGoogleTcc: !!body.tcc,
+        hasMockTcc: !!body.mockTcc,
+        isIsolatedTest: body.isIsolatedTest
+      }
+    }, '🎯 StateDesign Route: 🔍 RAW REQUEST BODY ANALYSIS');
+    
     const { jobId, selectedModel, tcc, mockTcc, editMode, isEditMode, editInstructions, isSequentialMode } = StateDesignRequestSchema.parse(body);
 
     // Detect isolated test mode

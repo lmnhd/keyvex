@@ -539,6 +539,8 @@ export async function runIsolatedAgentTest(
         // If still missing essential fields, create minimal required structure
         const enhancedTcc = {
           ...currentTcc,
+          // ✅ CRITICAL FIX: Ensure jobId exists for all isolation tests
+          jobId: currentTcc.jobId || uuidv4(),
           // Ensure essential fields exist with minimal structure
           userInput: currentTcc.userInput || {
             description: "Enhanced tool from in-memory TCC data",
