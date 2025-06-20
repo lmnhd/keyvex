@@ -27,6 +27,7 @@ const jsxLayoutRequestSchema = z.object({
   editMode: EditModeContextSchema.optional(),       // ✅ Complex edit mode (existing)
   isEditMode: z.boolean().optional(),               // ✅ Simple edit mode (ADD)
   editInstructions: z.string().optional(),          // ✅ Simple edit mode (ADD)
+  isSequentialMode: z.boolean().optional(),         // ✅ Sequential mode detection (ADD)
 });
 
 export async function POST(request: NextRequest) {
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
     
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
+    const isSequentialMode = parsedRequest.isSequentialMode || false;
     
     // ADD to both agents' route handlers:
     const isEditMode = parsedRequest.isEditMode || parsedRequest.editMode?.isEditMode || false;
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest) {
       selectedModel: parsedRequest.selectedModel,
       isIsolatedTest,
       isEditMode,
+      isSequentialMode,
       editInstructionsCount: editInstructions.length
     }, '🏗️ JSXLayout API: Request received');
 
@@ -62,8 +65,8 @@ export async function POST(request: NextRequest) {
       editMode: parsedRequest.editMode
     });
 
-    // Skip orchestration triggering during isolated testing
-    if (!isIsolatedTest && result.success && result.updatedTcc) {
+    // Skip orchestration triggering during isolated testing AND sequential mode
+    if (!isIsolatedTest && !isSequentialMode && result.success && result.updatedTcc) {
       logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Core logic successful, triggering parallel completion check.');
 
       // Trigger the next step by calling the centralized orchestrator endpoint
@@ -80,6 +83,8 @@ export async function POST(request: NextRequest) {
       });
         
       logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: Successfully triggered parallel completion check.');
+    } else if (isSequentialMode) {
+      logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: ✅ Sequential mode - skipping parallel completion, orchestrator will handle next step');
     } else if (isIsolatedTest) {
       logger.info({ jobId: parsedRequest.jobId }, '🏗️ JSXLayout Route: ✅ Isolated test mode - skipping parallel completion check');
     }

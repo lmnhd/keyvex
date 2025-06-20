@@ -25,6 +25,7 @@ const StateDesignRequestSchema = z.object({
   editMode: EditModeContextSchema.optional(),       // ✅ Complex edit mode (existing)
   isEditMode: z.boolean().optional(),               // ✅ Simple edit mode (ADD)
   editInstructions: z.string().optional(),          // ✅ Simple edit mode (ADD)
+  isSequentialMode: z.boolean().optional(),         // ✅ Sequential mode detection (ADD)
 });
 
 export async function POST(request: NextRequest) {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { jobId, selectedModel, tcc, mockTcc, editMode, isEditMode, editInstructions } = StateDesignRequestSchema.parse(body);
+    const { jobId, selectedModel, tcc, mockTcc, editMode, isEditMode, editInstructions, isSequentialMode } = StateDesignRequestSchema.parse(body);
 
     // Detect isolated test mode
     const isIsolatedTest = !!mockTcc;
@@ -72,8 +73,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only trigger orchestration if NOT in isolated test mode
-    if (!isIsolatedTest) {
+    // Only trigger orchestration if NOT in isolated test mode AND NOT in sequential mode
+    if (!isIsolatedTest && !isSequentialMode) {
       logger.info({ jobId }, '🎯 StateDesign Route: Core logic successful, checking parallel completion.');
 
       // Non-blocking call to the centralized parallel completion checker endpoint
@@ -88,6 +89,8 @@ export async function POST(request: NextRequest) {
       }).catch(error => {
           logger.error({ jobId, error: error.message }, '🎯 StateDesign Route: Failed to trigger parallel completion check endpoint');
       });
+    } else if (isSequentialMode) {
+      logger.info({ jobId }, '🎯 StateDesign Route: ✅ Sequential mode - skipping parallel completion, orchestrator will handle next step');
     } else {
       logger.info({ jobId }, '🎯 StateDesign Route: ✅ Isolated test mode - skipping parallel completion check');
     }

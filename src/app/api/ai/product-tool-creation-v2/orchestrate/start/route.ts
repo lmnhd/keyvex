@@ -363,9 +363,103 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // ✅ CRITICAL FIX: Get updated TCC from State Design and continue with JSX Layout
+      const stateDesignResult = await stateDesignResponse.json();
+      if (!stateDesignResult.success) {
+        throw new Error(`State Design failed: ${stateDesignResult.error}`);
+      }
+
       logger.info(
         { jobId, status: stateDesignResponse.status },
-        "🚀 ORCHESTRATION START: State Design triggered with proper TCC and correct model"
+        "🚀 ORCHESTRATION START: State Design completed, continuing with JSX Layout"
+      );
+
+      // ✅ SEQUENTIAL FLOW: Now trigger JSX Layout with the UPDATED TCC from State Design
+      const jsxLayoutModel = agentModelMapping?.['jsx-layout'] || selectedModel || "gpt-4o";
+      
+      logger.info(
+        { 
+          jobId, 
+          jsxLayoutModel,
+          modelSource: agentModelMapping?.['jsx-layout'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+        },
+        "🚀 ORCHESTRATION START: JSX Layout model selection"
+      );
+
+      const jsxLayoutUrl = new URL(
+        "/api/ai/product-tool-creation-v2/agents/jsx-layout",
+        request.url
+      );
+      const jsxLayoutResponse = await fetch(
+        jsxLayoutUrl.toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId,
+            selectedModel: jsxLayoutModel,
+            tcc: stateDesignResult.updatedTcc || tcc,
+            isSequentialMode: true
+          }),
+        }
+      );
+
+      if (!jsxLayoutResponse.ok) {
+        throw new Error(
+          `JSX Layout failed: ${jsxLayoutResponse.status}`
+        );
+      }
+
+      // ✅ CRITICAL FIX: Get updated TCC from JSX Layout and continue with Tailwind Styling
+      const jsxLayoutResult = await jsxLayoutResponse.json();
+      if (!jsxLayoutResult.success) {
+        throw new Error(`JSX Layout failed: ${jsxLayoutResult.error}`);
+      }
+
+      logger.info(
+        { jobId, status: jsxLayoutResponse.status },
+        "🚀 ORCHESTRATION START: JSX Layout completed, continuing with Tailwind Styling"
+      );
+
+      // ✅ SEQUENTIAL FLOW: Now trigger Tailwind Styling with the UPDATED TCC from JSX Layout
+      const tailwindStylingModel = agentModelMapping?.['tailwind-styling'] || selectedModel || "gpt-4o";
+      
+      logger.info(
+        { 
+          jobId, 
+          tailwindStylingModel,
+          modelSource: agentModelMapping?.['tailwind-styling'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+        },
+        "🚀 ORCHESTRATION START: Tailwind Styling model selection"
+      );
+
+      const tailwindStylingUrl = new URL(
+        "/api/ai/product-tool-creation-v2/agents/tailwind-styling",
+        request.url
+      );
+      const tailwindStylingResponse = await fetch(
+        tailwindStylingUrl.toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId,
+            selectedModel: tailwindStylingModel,
+            tcc: jsxLayoutResult.updatedTcc || tcc,
+            isSequentialMode: true
+          }),
+        }
+      );
+
+      if (!tailwindStylingResponse.ok) {
+        throw new Error(
+          `Tailwind Styling failed: ${tailwindStylingResponse.status}`
+        );
+      }
+
+      logger.info(
+        { jobId, status: tailwindStylingResponse.status },
+        "🚀 ORCHESTRATION START: Tailwind Styling triggered with proper TCC and correct model"
       );
 
     } else {

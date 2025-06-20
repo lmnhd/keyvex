@@ -27,6 +27,7 @@ const tailwindStylingRequestSchema = z.object({
   editMode: EditModeContextSchema.optional(), // Phase 2: Edit mode context (legacy)
   isEditMode: z.boolean().optional(), // Simple edit mode flag
   editInstructions: z.string().optional(), // Simple edit instructions
+  isSequentialMode: z.boolean().optional(), // ✅ Sequential mode detection (ADD)
 });
 
 export async function POST(request: NextRequest) {
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
     
     // Detect isolated testing mode - if mockTcc is provided, it's likely an isolated test
     const isIsolatedTest = !!parsedRequest.mockTcc;
+    const isSequentialMode = parsedRequest.isSequentialMode || false;
     
     // Phase 2: Edit mode detection (support both legacy and simple modes)
     const isEditMode = parsedRequest.isEditMode || parsedRequest.editMode?.isEditMode || false;
@@ -47,6 +49,7 @@ export async function POST(request: NextRequest) {
       jobId: parsedRequest.jobId, 
       selectedModel: parsedRequest.selectedModel,
       isIsolatedTest,
+      isSequentialMode,
       isEditMode,
       editInstructionsCount: editInstructions.length
     }, '🎨 TailwindStyling API: Request received');
@@ -63,8 +66,8 @@ export async function POST(request: NextRequest) {
       editInstructions: typeof editInstructions === 'string' ? editInstructions : undefined // Simple edit instructions
     });
 
-    // Skip orchestration triggering during isolated testing
-    if (!isIsolatedTest && result.success && result.updatedTcc) {
+    // Skip orchestration triggering during isolated testing AND sequential mode
+    if (!isIsolatedTest && !isSequentialMode && result.success && result.updatedTcc) {
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Core logic successful, triggering next step.');
     // Trigger the next step by calling the centralized orchestrator endpoint
     const triggerUrl = new URL('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', request.nextUrl.origin);
@@ -81,6 +84,8 @@ export async function POST(request: NextRequest) {
     });
       
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Successfully triggered next step.');
+    } else if (isSequentialMode) {
+      logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: ✅ Sequential mode - skipping orchestration trigger, orchestrator will handle next step');
     } else if (isIsolatedTest) {
       logger.info({ jobId: parsedRequest.jobId }, '🎨 TailwindStyling Route: Isolated test mode - skipping orchestration trigger');
     }
