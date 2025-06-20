@@ -12,19 +12,20 @@ const commonGuidelines = `
       "variables": [
         {
           "name": "string (camelCase)",
-          "type": "string (e.g., 'string', 'number', 'boolean', 'string[]')",
-          "defaultValue": "any (e.g., '', 0, false, [])",
+          "type": "string (e.g., 'string', 'number', 'boolean', 'number[]')",
+          "initialValue": "any (e.g., '', 0, false, [7])",
           "description": "string"
         }
       ],
       "functions": [
         {
           "name": "string (e.g., 'handleCalculate', from the function plan)",
-          "logic": [
-            "string of JavaScript code, representing one line of logic"
-          ]
+          "body": "string (JavaScript function body as SINGLE concatenated string)",
+          "dependencies": ["string (optional array of state dependencies)"],
+          "description": "string (optional description)"
         }
-      ]
+      ],
+      "imports": ["string (optional React imports like 'useState', 'useEffect')"]
     }
     \`\`\`
 
@@ -157,11 +158,9 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateTotalCost",
-          "logic": [
-            "const days = stateTripDuration[0];",
-            "const dailyBudget = parseFloat(stateTotalVacationBudget) / days;",
-            "setTotalCost(days * dailyBudget);"
-          ]
+          "body": "const days = stateTripDuration[0]; const dailyBudget = parseFloat(stateTotalVacationBudget) / days; setTotalCost(days * dailyBudget);",
+          "dependencies": ["stateTripDuration", "stateTotalVacationBudget"],
+          "description": "Calculate total trip cost based on duration and budget"
         }
       ]
     }
@@ -181,11 +180,9 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateTotalCost",
-          "logic": [
-            "const days = stateTripDuration;",
-            "const dailyBudget = parseFloat(stateTotalVacationBudget) / days;",
-            "setTotalCost(days * dailyBudget);"
-          ]
+          "body": "const days = stateTripDuration; const dailyBudget = parseFloat(stateTotalVacationBudget) / days; setTotalCost(days * dailyBudget);",
+          "dependencies": ["stateTripDuration", "stateTotalVacationBudget"],
+          "description": "WRONG: Calculate total trip cost (this will cause invisible slider)"
         }
       ]
     }
@@ -213,13 +210,9 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateMonthlyPayment",
-          "logic": [
-            "const principal = stateLoanAmount[0];",
-            "const rate = stateInterestRate[0] / 100 / 12;",
-            "const months = 360;",
-            "const payment = principal * (rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1);",
-            "setMonthlyPayment(payment);"
-          ]
+          "body": "const principal = stateLoanAmount[0]; const rate = stateInterestRate[0] / 100 / 12; const months = 360; const payment = principal * (rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1); setMonthlyPayment(payment);",
+          "dependencies": ["stateLoanAmount", "stateInterestRate"],
+          "description": "Calculate monthly loan payment using amortization formula"
         }
       ]
     }
@@ -239,11 +232,9 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateMonthlyPayment", 
-          "logic": [
-            "const principal = stateLoanAmount;",
-            "const payment = principal * 0.005;",
-            "setMonthlyPayment(payment);"
-          ]
+          "body": "const principal = stateLoanAmount; const payment = principal * 0.005; setMonthlyPayment(payment);",
+          "dependencies": ["stateLoanAmount"],
+          "description": "WRONG: Calculate payment (this will break sliders)"
         }
       ]
     }
@@ -271,7 +262,7 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateSystemCost",
-          "logic": [
+          \"body\": [
             "const systemSizeKW = stateSystemSize === 'small' ? 4 : stateSystemSize === 'medium' ? 7 : stateSystemSize === 'large' ? 10 : 0;",
             "const costPerKW = 3000;",
             "const totalCost = systemSizeKW * costPerKW;",
@@ -296,7 +287,7 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateSystemCost",
-          "logic": [
+          \"body\": [
             "const systemCost = parseFloat(stateSystemSize) * 1000;",
             "setSystemCost(systemCost);"
           ]
@@ -313,7 +304,7 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "handleInputChange",
-          "logic": [
+          \"body\": [
             "const { name, value } = event.target;",
             "switch (name) {",
             "  case 'family-composition':",
@@ -340,7 +331,7 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "handleInputChange",
-          "logic": [
+          \"body\": [
             "const { name, value } = event.target;",
             "setState(prevState => ({ ...prevState, [name]: value }));"
           ]
@@ -383,7 +374,7 @@ const commonGuidelines = `
       "functions": [
         {
           "name": "calculateMonthlyPayment",
-          "logic": [
+          \"body\": [
             "const homePrice = stateHomePrice[0];",
             "const downPercent = stateDownPayment[0] / 100;", 
             "const loanAmount = homePrice * (1 - downPercent);",
@@ -395,7 +386,7 @@ const commonGuidelines = `
         },
         {
           "name": "calculateAffordabilityIndex",
-          "logic": [
+          \"body\": [
             "const homePrice = stateHomePrice[0];",
             "const income = 75000;",
             "const affordability = (income * 0.28) / (homePrice / 100);",
@@ -464,11 +455,11 @@ You are a "State Logic Designer" agent. Your expertise is in translating functio
   "functions": [
     {
       "name": "calculateNeighborhoodScore", 
-      "logic": ["const rankingScore = (weightSchools * 0.3) + (weightPrice * 0.5) + (weightCommute * 0.2);", "setNeighborhoodScore(rankingScore * 100);"]
+      \"body\": ["const rankingScore = (weightSchools * 0.3) + (weightPrice * 0.5) + (weightCommute * 0.2);", "setNeighborhoodScore(rankingScore * 100);"]
     },
     {
       "name": "calculateAffordabilityIndex",
-      "logic": ["const budget = parseFloat(stateYourBudget);", "const affordability = 750000 / budget;", "setAffordabilityIndex(affordability);"]
+      \"body\": ["const budget = parseFloat(stateYourBudget);", "const affordability = 750000 / budget;", "setAffordabilityIndex(affordability);"]
     }
   ]
 }
