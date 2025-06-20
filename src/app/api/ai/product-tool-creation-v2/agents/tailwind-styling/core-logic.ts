@@ -177,7 +177,7 @@ export async function applyStyling(request: {
         afterLastUpdated: updatedTcc.updatedAt,
         stylingApplied: {
           styledComponentCodeLength: updatedTcc.styling?.styledComponentCode?.length || 0,
-          styledComponentCodePreview: updatedTcc.styling?.styledComponentCode?.substring(0, 300) + (updatedTcc.styling?.styledComponentCode?.length > 300 ? '...' : '') || '',
+          styledComponentCodePreview: (updatedTcc.styling?.styledComponentCode?.substring(0, 300) || '') + ((updatedTcc.styling?.styledComponentCode?.length || 0) > 300 ? '...' : ''),
           hasColorScheme: !!updatedTcc.styling?.colorScheme,
           colorScheme: updatedTcc.styling?.colorScheme ? {
             primary: updatedTcc.styling.colorScheme.primary,
@@ -186,13 +186,10 @@ export async function applyStyling(request: {
             background: updatedTcc.styling.colorScheme.background,
             text: updatedTcc.styling.colorScheme.text
           } : null,
-          hasResponsiveFeatures: !!updatedTcc.styling?.responsiveFeatures,
-          responsiveFeatureCount: updatedTcc.styling?.responsiveFeatures?.length || 0,
-          hasAccessibilityFeatures: !!updatedTcc.styling?.accessibilityFeatures,
-          accessibilityFeatureCount: updatedTcc.styling?.accessibilityFeatures?.length || 0,
-          hasDarkModeSupport: !!updatedTcc.styling?.darkModeSupport,
-          hasAnimationClasses: !!updatedTcc.styling?.animationClasses,
-          animationClassCount: updatedTcc.styling?.animationClasses?.length || 0
+          hasStyleMap: !!updatedTcc.styling?.styleMap,
+          styleMapKeysCount: Object.keys(updatedTcc.styling?.styleMap || {}).length,
+          hasDesignTokens: !!updatedTcc.styling?.designTokens,
+          designTokensKeys: updatedTcc.styling?.designTokens ? Object.keys(updatedTcc.styling.designTokens) : []
         },
         stepStatusUpdate: updatedTcc.steps?.applyingTailwindStyling?.status,
         stepResult: !!updatedTcc.steps?.applyingTailwindStyling?.result,

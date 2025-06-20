@@ -654,9 +654,44 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // ✅ CRITICAL FIX: Process Component Assembler result and save final tool
+      const componentAssemblerResult = await componentAssemblerResponse.json();
+      if (!componentAssemblerResult.success) {
+        throw new Error(`Component Assembler failed: ${componentAssemblerResult.error}`);
+      }
+
+      // 🚨 STRICT TCC VALIDATION: Ensure Component Assembler returned the final code
+      if (!componentAssemblerResult.finalComponentCode) {
+        logger.error({
+          jobId,
+          componentAssemblerResultKeys: Object.keys(componentAssemblerResult),
+          hasFinalComponentCode: !!componentAssemblerResult.finalComponentCode
+        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Component Assembler did not return finalComponentCode");
+        throw new Error("CRITICAL FAILURE: Component Assembler did not return finalComponentCode");
+      }
+
       logger.info(
-        { jobId, status: componentAssemblerResponse.status },
-        "🚀 ORCHESTRATION START: Component Assembler triggered - SEQUENTIAL FLOW COMPLETE!"
+        { 
+          jobId, 
+          status: componentAssemblerResponse.status,
+          finalComponentCodeLength: componentAssemblerResult.finalComponentCode.length,
+          componentName: componentAssemblerResult.componentName || 'Unknown'
+        },
+        "🚀 ORCHESTRATION START: ✅ Component Assembler Result - FINAL TOOL READY!"
+      );
+
+      // ✅ FINAL STEP: Save the completed tool and emit final status
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.assembling_component,
+        'completed',
+        'Tool generation completed successfully! 🎉',
+        tcc // Pass original TCC structure for userId
+      );
+
+      logger.info(
+        { jobId },
+        "🚀 ORCHESTRATION START: SEQUENTIAL FLOW COMPLETE - Tool successfully generated!"
       );
 
     } else {

@@ -26,7 +26,7 @@ import {
 import { BrainstormResult } from '../types/unified-brainstorm-types';
 import { loadLogicResultsFromDB } from '@/app/tests/ui/db-utils';
 import { toast } from 'sonner';
-import { extractToolTitle } from '@/lib/utils';
+import { extractToolTitle } from '@/lib/utils/utils';
 import DEFAULT_MODELS from '@/lib/ai/models/default-models.json';
 
 interface ModelOption {
