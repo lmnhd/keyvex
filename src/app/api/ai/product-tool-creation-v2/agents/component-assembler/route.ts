@@ -16,11 +16,12 @@ export async function POST(request: NextRequest) {
       tcc: z.custom<ToolConstructionContext>().optional(),
       mockTcc: z.custom<ToolConstructionContext>().optional(),
       isIsolatedTest: z.boolean().optional(),
+      isSequentialMode: z.boolean().optional(),         // ✅ Sequential mode detection (ADD)
     });
 
     const body = await request.json();
     const parsedRequest = componentAssemblerRequestSchema.parse(body);
-    const { jobId, selectedModel, model, tcc, mockTcc, isIsolatedTest } = parsedRequest;
+    const { jobId, selectedModel, model, tcc, mockTcc, isIsolatedTest, isSequentialMode } = parsedRequest;
     const effectiveModel = selectedModel || model;    // ✅ Accept both
 
     // Detect if this is an isolated test - check explicit parameter OR mockTcc presence
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
     logger.info({ 
       jobId, 
       isIsolatedTest: isActuallyIsolatedTest, 
+      isSequentialMode,
       selectedModel: effectiveModel,
       hasExplicitIsolatedFlag: !!isIsolatedTest,
       hasMockTcc: !!mockTcc
@@ -56,8 +58,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Only trigger next step if NOT in isolated test mode
-    if (!isActuallyIsolatedTest && result.success && result.updatedTcc) {
+    // Only trigger next step if NOT in isolated test mode AND NOT in sequential mode
+    if (!isActuallyIsolatedTest && !isSequentialMode && result.success && result.updatedTcc) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: Core logic successful, triggering next step.');
 
       // Trigger the next step by calling the centralized orchestrator endpoint
@@ -75,6 +77,8 @@ export async function POST(request: NextRequest) {
       });
         
       logger.info({ jobId }, '🔧 ComponentAssembler Route: Successfully triggered next step.');
+    } else if (isSequentialMode) {
+      logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Sequential mode - skipping orchestration trigger, orchestrator will handle next step');
     } else if (isActuallyIsolatedTest) {
       logger.info({ jobId }, '🔧 ComponentAssembler Route: ✅ Isolated test mode - NOT triggering next step');
     }

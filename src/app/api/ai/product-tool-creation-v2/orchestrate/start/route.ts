@@ -457,9 +457,56 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // ✅ CRITICAL FIX: Get updated TCC from Tailwind Styling and continue with Component Assembler
+      const tailwindStylingResult = await tailwindStylingResponse.json();
+      if (!tailwindStylingResult.success) {
+        throw new Error(`Tailwind Styling failed: ${tailwindStylingResult.error}`);
+      }
+
       logger.info(
         { jobId, status: tailwindStylingResponse.status },
-        "🚀 ORCHESTRATION START: Tailwind Styling triggered with proper TCC and correct model"
+        "🚀 ORCHESTRATION START: Tailwind Styling completed, continuing with Component Assembler"
+      );
+
+      // ✅ SEQUENTIAL FLOW: Now trigger Component Assembler with the UPDATED TCC from Tailwind Styling
+      const componentAssemblerModel = agentModelMapping?.['component-assembler'] || selectedModel || "claude-3-7-sonnet-20250219";
+      
+      logger.info(
+        { 
+          jobId, 
+          componentAssemblerModel,
+          modelSource: agentModelMapping?.['component-assembler'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+        },
+        "🚀 ORCHESTRATION START: Component Assembler model selection"
+      );
+
+      const componentAssemblerUrl = new URL(
+        "/api/ai/product-tool-creation-v2/agents/component-assembler",
+        request.url
+      );
+      const componentAssemblerResponse = await fetch(
+        componentAssemblerUrl.toString(),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jobId,
+            selectedModel: componentAssemblerModel,
+            tcc: tailwindStylingResult.updatedTcc || tcc,
+            isSequentialMode: true
+          }),
+        }
+      );
+
+      if (!componentAssemblerResponse.ok) {
+        throw new Error(
+          `Component Assembler failed: ${componentAssemblerResponse.status}`
+        );
+      }
+
+      logger.info(
+        { jobId, status: componentAssemblerResponse.status },
+        "🚀 ORCHESTRATION START: Component Assembler triggered - SEQUENTIAL FLOW COMPLETE!"
       );
 
     } else {
