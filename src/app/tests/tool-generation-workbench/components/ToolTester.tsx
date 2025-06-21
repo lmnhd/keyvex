@@ -67,7 +67,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   // Agent model mapping for individual agent testing
   const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
   
-  // NEW: workflowMode to distinguish between V1, V2 orchestration, and debug mode
+  // workflowMode to distinguish between V2 orchestration and debug mode
   const [workflowMode, setWorkflowMode] = useState<WorkflowMode>('v2');
   const [orchestrationStatus, setOrchestrationStatus] = useState<OrchestrationStatus>('free');
   const [selectedAgent, setSelectedAgent] = useState<string>('');
@@ -296,14 +296,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       // For debug mode, return the model assigned to the specific agent
       const agentModel = agentModelMapping[selectedAgent];
       return agentModel ? [agentModel] : [];
-    } else if (workflowMode === 'v2') {
+    } else {
       // For V2 orchestration, return all models in agent mapping
       return Object.values(agentModelMapping).filter((model, index, arr) => arr.indexOf(model) === index);
-    } else {
-      // For V1 mode, return selected model IDs
-      return selectedModelIds;
     }
-  }, [workflowMode, selectedAgent, agentModelMapping, selectedModelIds]);
+  }, [workflowMode, selectedAgent, agentModelMapping]);
 
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
@@ -500,8 +497,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       return;
     }
     
-    if (!selectedBrainstormId || selectedModelIds.length === 0) {
-      setError("Please select a brainstorm and at least one model.");
+    if (!selectedBrainstormId) {
+      setError("Please select a brainstorm.");
       return;
     }
     setError(null);
@@ -539,7 +536,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       // Pass the unified brainstorm directly to the tool creation process
       const newJob = await runToolCreationProcess(
         brainstorm, // ✅ Already in unified BrainstormResult format
-        selectedModelIds[0],
         agentModelMapping,
         jobId // CRITICAL: Pass the same jobId
       );
@@ -557,7 +553,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setError(errorMsg);
       addWSLog(`Error during orchestration start: ${errorMsg}`);
       setTestJob(prev => ({
-          ...(prev || { modelId: selectedModelIds[0] || 'unknown', startTime: Date.now() }),
+          ...(prev || { modelId: 'unknown', startTime: Date.now() }),
           status: 'error',
           error: errorMsg,
           endTime: Date.now()

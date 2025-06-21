@@ -681,11 +681,7 @@ export default function ToolTesterView({
             <Label>2. Select Workflow Mode</Label>
             
             <Tabs value={workflowMode} onValueChange={(value) => setWorkflowMode(value as WorkflowMode)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="v1" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                V1 Legacy
-              </TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="v2" className="flex items-center gap-2">
                 <Zap className="h-4 w-4" />
                 V2 Orchestration
@@ -695,54 +691,6 @@ export default function ToolTesterView({
                 Debug & Inspect
               </TabsTrigger>
             </TabsList>
-            
-            <TabsContent value="v1" className="mt-4">
-              <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100">V1 Legacy Mode</h4>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">Uses the original monolithic tool creation approach. Single API call, no streaming.</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 pt-2">
-                    <Label>Model Selection (Max 5)</Label>
-                    <div className="rounded-md border bg-blue-50/50 dark:bg-blue-900/10 p-4">
-                      {availableModels.length > 0 ? (
-                        <ScrollArea className="h-48">
-                          <div className="space-y-2">
-                            {availableModels.map(model => (
-                              <div key={model.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                  id={`v1-model-${model.id}`}
-                                  checked={selectedModelIds.includes(model.id)}
-                                  onCheckedChange={(checked) => handleModelToggle(model.id, checked as boolean)}
-                                  disabled={isLoading || (!selectedModelIds.includes(model.id) && selectedModelIds.length >= 5)}
-                                />
-                                <Label htmlFor={`v1-model-${model.id}`} className="text-sm font-normal cursor-pointer flex items-center">
-                                  {model.name}
-                                  {model.id === defaultPrimaryModel && (
-                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-md">
-                                      Default
-                                    </span>
-                                  )}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      ) : (
-                        <div className="text-center py-4">
-                          <p className="text-sm text-gray-500">Loading models...</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
             
             <TabsContent value="v2" className="mt-4">
               <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
@@ -1020,7 +968,6 @@ export default function ToolTesterView({
               loadMode === 'load' || 
               !selectedBrainstormId ||
               (workflowMode === 'v2' && testJob?.status === 'loading') ||
-              (workflowMode === 'v1' && selectedModelIds.length === 0) ||
               (workflowMode === 'debug' && (
                 !selectedAgent || 
                 !agentModelMapping[selectedAgent] ||
@@ -1033,9 +980,7 @@ export default function ToolTesterView({
             className="flex-1"
           >
             {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <TestTube2 className="mr-2 h-5 w-5" />}
-            {workflowMode === 'v1' ? 'Generate Tool (V1)' : 
-             workflowMode === 'v2' ? 'Start V2 Orchestration' : 
-             'Test Selected Agent'}
+            {workflowMode === 'v2' ? 'Start V2 Orchestration' : 'Test Selected Agent'}
           </Button>
 
           {workflowMode === 'v2' && testJob && (
@@ -1077,7 +1022,7 @@ export default function ToolTesterView({
           <Tabs defaultValue="progress" className="w-full">
             <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="progress">Progress</TabsTrigger>
-              <TabsTrigger value="tcc" disabled={(workflowMode === 'v1') || (!testJob?.jobId && !tccData)}>TCC Monitor</TabsTrigger>
+              <TabsTrigger value="tcc" disabled={!testJob?.jobId && !tccData}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
               <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
               <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
