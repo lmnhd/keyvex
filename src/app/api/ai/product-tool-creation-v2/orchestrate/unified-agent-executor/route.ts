@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     }, `✅ UNIFIED EXECUTOR: Agent module processing completed`);
 
     // 🎯 BREAKPOINT 5: Validation logic
-    const validationResult = validateAgentModule(agentType, agentResult);
+    const validationResult = validateAgentModule(agentType, agentResult.result);
     
     logger.info({
       jobId,

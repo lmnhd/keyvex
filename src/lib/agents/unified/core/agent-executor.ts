@@ -14,9 +14,10 @@ import {
   ComponentAssemblerResult,
   CodeValidatorResult,
   ToolFinalizerResult
-} from '@/lib/types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '@/lib/types/product-tool-creation-v2/tcc';
-import logger from '@/lib/logger';
+} from '../../../types/tcc-unified';
+import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
+import { updateTccWithAgentResult } from './tcc-manager';
+import logger from '../../../logger';
 
 // Import unified agent modules
 import { FunctionPlannerModule } from '../modules/function-planner';
@@ -49,12 +50,16 @@ const agentModules = {
   // 'tool-finalizer': new ToolFinalizerModule(),
 };
 
+/**
+ * Execute agent and return both result and updated TCC
+ * This is the SINGLE SOURCE OF TRUTH for agent execution
+ */
 export async function executeAgent(
   agentType: AgentType,
   context: AgentExecutionContext,
   tcc: BaseTCC,
   rawModelResult?: any
-): Promise<AgentResult> {
+): Promise<{ result: AgentResult; updatedTcc: BaseTCC }> {
   const startTime = Date.now();
   
   logger.info({
@@ -65,8 +70,6 @@ export async function executeAgent(
   }, `🚀 Executing unified agent: ${agentType}`);
 
   try {
-    let result: AgentResult;
-
     // Get the appropriate agent module
     const agentModule = agentModules[agentType as keyof typeof agentModules];
     
@@ -75,18 +78,27 @@ export async function executeAgent(
     }
 
     // Execute the agent module
-    result = await agentModule.execute(context, { tcc, rawModelResult });
+    const result = await agentModule.execute(context, { tcc, rawModelResult });
+    
+    const executionTime = Date.now() - startTime;
 
-    const duration = Date.now() - startTime;
+    // Update TCC with the result using TCC Manager
+    const updatedTcc = updateTccWithAgentResult(
+      tcc,
+      agentType,
+      result,
+      context.modelConfig.modelId,
+      executionTime
+    );
     
     logger.info({
       jobId: context.jobId,
       agentType,
-      duration,
+      duration: executionTime,
       success: true
     }, `✅ Agent execution completed: ${agentType}`);
 
-    return result;
+    return { result, updatedTcc };
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
