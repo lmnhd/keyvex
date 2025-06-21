@@ -1,4 +1,4 @@
-﻿// Validation Manager - Multi-layer validation with auto-correction
+// Validation Manager - Multi-layer validation with auto-correction
 // Schema + Content + Integration + Quality validation
 
 import { AgentType, ToolConstructionContext, ValidationError } from '@/lib/types/tcc-unified';
@@ -19,7 +19,7 @@ export class ValidationManager {
     result: any,
     tcc: ToolConstructionContext
   ): Promise<ValidationResult> {
-    console.log([Validation Manager] Validating  result...);
+    console.log(`[Validation Manager] Validating ${agent} result...`);
 
     const validationResult: ValidationResult = {
       isValid: true,
@@ -59,14 +59,14 @@ export class ValidationManager {
         const correctionResult = await this.attemptAutoCorrection(agent, result, validationResult.errors);
         if (correctionResult.success) {
           validationResult.correctedData = correctionResult.correctedData;
-          validationResult.warnings.push(Auto-corrected  issues);
-          console.log([Validation Manager] Auto-corrected  result);
+          validationResult.warnings.push(`Auto-corrected ${correctionResult.corrections.length} issues`);
+          console.log(`[Validation Manager] Auto-corrected ${agent} result`);
         } else {
           validationResult.retryRecommended = true;
         }
       }
 
-      console.log([Validation Manager]  validation complete:, {
+      console.log(`[Validation Manager] ${agent} validation complete:`, {
         isValid: validationResult.isValid,
         errorCount: validationResult.errors.length,
         warningCount: validationResult.warnings.length,
@@ -74,31 +74,11 @@ export class ValidationManager {
       });
 
     } catch (error) {
-      console.error([Validation Manager] Validation failed for :, error);
+      console.error(`[Validation Manager] Validation failed for ${agent}:`, error);
       validationResult.isValid = false;
       validationResult.errors.push({
         type: 'validation_error',
-        message: Validation process failed: An item with the specified name C:\Users\Administrator\Dropbox\Source\Projects-25\Keyvex_Project\keyvex_app\src\lib\agents\unified\core already exists. A parameter cannot be found that matches parameter name 'la'. System.Management.Automation.ParseException: At line:1 char:12
-+ git add -A && git commit -m "checkpoint: before 6-20 Refactor - begin ...
-+            ~~
-The token '&&' is not a valid statement separator in this version.
-   at System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   at Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: At line:1 char:12
-+ git add -A && git commit -m "checkpoint: fixed Function Planner isola ...
-+            ~~
-The token '&&' is not a valid statement separator in this version.
-   at System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   at Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: At line:1 char:12
-+ git add -A && git commit -m "checkpoint: added debug logging to State ...
-+            ~~
-The token '&&' is not a valid statement separator in this version.
-   at System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   at Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) System.Management.Automation.ParseException: At line:1 char:12
-+ git add -A && git commit -m "checkpoint: fixed State Design Agent pro ...
-+            ~~
-The token '&&' is not a valid statement separator in this version.
-   at System.Management.Automation.Runspaces.PipelineBase.Invoke(IEnumerable input)
-   at Microsoft.PowerShell.Executor.ExecuteCommandHelper(Pipeline tempPipeline, Exception& exceptionThrown, ExecutionOptions options) A parameter cannot be found that matches parameter name 'Chord'. A parameter cannot be found that matches parameter name 'Chord'. A parameter cannot be found that matches parameter name 'Chord'. A parameter cannot be found that matches parameter name 'Chord'.,
+        message: `Validation process failed: ${error}`,
         agent,
         severity: 'error',
       });
@@ -125,7 +105,7 @@ The token '&&' is not a valid statement separator in this version.
         isValid: false,
         errors: [{
           type: 'schema_error',
-          message: No schema validator found for agent: ,
+          message: `No schema validator found for agent: ${agent}`,
           agent,
           severity: 'error',
         }],
@@ -359,14 +339,14 @@ The token '&&' is not a valid statement separator in this version.
 
     // Example: Check if state variables from Function Planner match State Design
     if (agent === 'state-design') {
-      const functionPlannerResult = tcc.definedFunctionSignatures;
-      if (functionPlannerResult?.functionSignatures) {
-        const declaredVariables = functionPlannerResult.functionSignatures.map((f: any) => f.name);
+      const functionPlannerResult = tcc.functionPlannerResult;
+      if (functionPlannerResult?.stateVariables) {
+        const declaredVariables = functionPlannerResult.stateVariables.map((v: any) => v.name);
         const stateLogic = result.stateLogic || '';
         
         for (const variable of declaredVariables) {
           if (!stateLogic.includes(variable)) {
-            warnings.push(Function "" not found in state logic);
+            warnings.push(`State variable "${variable}" not found in state logic`);
           }
         }
       }
@@ -419,7 +399,7 @@ The token '&&' is not a valid statement separator in this version.
           const fieldName = error.message.split(' ')[0].toLowerCase();
           if (!correctedData[fieldName]) {
             correctedData[fieldName] = [];
-            corrections.push(Added missing  array);
+            corrections.push(`Added missing ${fieldName} array`);
           }
         }
       }
@@ -431,4 +411,4 @@ The token '&&' is not a valid statement separator in this version.
       corrections,
     };
   }
-}
+} 
