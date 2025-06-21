@@ -23,11 +23,11 @@ import logger from '../../../logger';
 
 // Import unified agent modules
 import { FunctionPlannerModule } from '../modules/function-planner';
+import { StateDesignModule } from '../modules/state-design';
+import { JSXLayoutModule } from '../modules/jsx-layout';
+import { ComponentAssemblerModule } from '../modules/component-assembler';
 // TODO: Import other modules when they're implemented
-// import { StateDesignModule } from '../modules/state-design';
-// import { JSXLayoutModule } from '../modules/jsx-layout';
 // import { TailwindStylingModule } from '../modules/tailwind-styling';
-// import { ComponentAssemblerModule } from '../modules/component-assembler';
 // import { CodeValidatorModule } from '../modules/code-validator';
 // import { ToolFinalizerModule } from '../modules/tool-finalizer';
 
@@ -43,11 +43,11 @@ type AgentResult =
 // Initialize agent modules
 const agentModules: Record<string, BaseAgentModule> = {
   'function-planner': new FunctionPlannerModule(),
+  'state-design': new StateDesignModule(),
+  'jsx-layout': new JSXLayoutModule(),
+  'component-assembler': new ComponentAssemblerModule(),
   // TODO: Add other modules when implemented
-  // 'state-design': new StateDesignModule(),
-  // 'jsx-layout': new JSXLayoutModule(),
   // 'tailwind-styling': new TailwindStylingModule(),
-  // 'component-assembler': new ComponentAssemblerModule(),
   // 'code-validator': new CodeValidatorModule(),
   // 'tool-finalizer': new ToolFinalizerModule(),
 };
