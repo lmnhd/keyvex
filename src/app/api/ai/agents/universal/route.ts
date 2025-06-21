@@ -125,9 +125,19 @@ const AGENT_EXECUTORS: Record<AgentType, AgentExecutor> = {
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const startTime = Date.now();
+  let body: UniversalAgentRequest | undefined;
   
   try {
-    const body: UniversalAgentRequest = await request.json();
+    body = await request.json();
+    
+    // Validate body exists before destructuring
+    if (!body) {
+      return NextResponse.json({
+        success: false,
+        error: 'Request body is missing',
+      } as UniversalAgentResponse);
+    }
+    
     const { 
       agent, 
       jobId, 
@@ -201,7 +211,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       executionTime
     }, `🔄 Universal Agent: ${agent} execution completed`);
 
-    // 5. RESULT VALIDATION & RETRY LOGIC
+    // 5. HARD FAILURE - If agent execution fails, FAIL IMMEDIATELY
     if (!result.success) {
       logger.error({ 
         agent, 
@@ -209,7 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         error: result.error,
         retryAttempt,
         executionTime
-      }, `🔄 Universal Agent: ${agent} execution failed`);
+      }, `🔄 Universal Agent: ${agent} execution FAILED - HARD FAILURE`);
 
       return NextResponse.json({
         success: false,
@@ -219,40 +229,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           isValid: false,
           errors: [result.error],
           warnings: [],
-          autoCorrections: [],
-          retryRecommended: retryAttempt < 2
+          autoCorrections: [] // NO AUTO-CORRECTIONS
         }
       } as UniversalAgentResponse);
     }
 
-    // 6. COMPREHENSIVE VALIDATION of successful results
+    // 6. STRICT VALIDATION - FAIL FAST, NO FALLBACKS
     const validationResult = await validateAgentResult(agent, result, tcc, retryAttempt);
     
-    // 7. RETRY LOGIC - If validation fails and retry is recommended
-    if (!validationResult.isValid && validationResult.retryRecommended && retryAttempt < 2) {
-      logger.warn({ 
+    // 7. HARD FAILURE - If validation fails, FAIL IMMEDIATELY
+    if (!validationResult.isValid) {
+      logger.error({ 
         agent, 
         jobId, 
         validationErrors: validationResult.errors,
         warnings: validationResult.warnings,
-        retryAttempt,
-        autoCorrections: validationResult.autoCorrections
-      }, `🔄 Universal Agent: ${agent} validation failed, recommending retry`);
+        retryAttempt
+      }, `🔄 Universal Agent: ${agent} validation FAILED - HARD FAILURE`);
 
       return NextResponse.json({
         success: false,
-        error: `Validation failed: ${validationResult.errors.join(', ')}`,
+        error: `VALIDATION FAILED: ${validationResult.errors.join(', ')}`,
         validationErrors: validationResult.errors,
-        retryRecommended: true,
+        retryRecommended: retryAttempt < 2,
         validationResult
       } as UniversalAgentResponse);
     }
 
-    // 8. USE CORRECTED DATA if auto-correction was applied
+    // 8. USE CORRECTED DATA if auto-correction improved quality
     const finalResult = validationResult.correctedData || result;
     const finalResultData = finalResult.result || finalResult[getResultKey(agent)];
 
-    // 9. SUCCESS RESPONSE with validation details
+    // 9. SUCCESS RESPONSE with QUALITY ASSURANCE
     logger.info({ 
       agent, 
       jobId,
@@ -262,7 +270,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       autoCorrectionApplied: !!validationResult.correctedData,
       warningsCount: validationResult.warnings.length,
       executionTime
-    }, `🔄 Universal Agent: ${agent} completed successfully with validation`);
+    }, `🔄 Universal Agent: ${agent} completed successfully with QUALITY ASSURANCE`);
 
     return NextResponse.json({
       success: true,
@@ -367,7 +375,7 @@ async function validateAgentResult(
     errors.push(...contentValidation.errors);
     warnings.push(...contentValidation.warnings);
 
-    // 3. AUTO-CORRECTION ATTEMPTS - Try to fix common issues
+    // 3. AUTO-CORRECTION ATTEMPTS - Try to fix real issues
     if (errors.length > 0) {
       const correctionResult = attemptAutoCorrection(agent, result, errors);
       if (correctionResult.success) {
@@ -382,7 +390,7 @@ async function validateAgentResult(
       }
     }
 
-    // 4. RETRY RECOMMENDATION LOGIC
+    // 4. RETRY RECOMMENDATION LOGIC - Only if correction failed
     const retryRecommended = errors.length > 0 && retryAttempt < 2 && canRetryForAgent(agent, errors);
 
     logger.info({
@@ -394,7 +402,7 @@ async function validateAgentResult(
         retryRecommended,
         retryAttempt
       }
-    }, `🔄 Universal Agent: Validation completed for ${agent}`);
+    }, `🔄 Universal Agent: Validation completed for ${agent} - QUALITY FIRST`);
 
     return {
       isValid: errors.length === 0,
@@ -414,6 +422,41 @@ async function validateAgentResult(
       autoCorrections: [],
       retryRecommended: retryAttempt < 2
     };
+  }
+}
+
+// QUALITY-FOCUSED AUTO-CORRECTION - Fix real issues, don't mask them
+function attemptAutoCorrection(agent: AgentType, result: any, errors: string[]): { success: boolean; correctedData?: any; corrections: string[] } {
+  const corrections: string[] = [];
+  let correctedData = { ...result };
+
+  try {
+    // ONLY fix REAL structural issues - NOT quality issues
+    if (errors.includes('Missing updatedTcc in result') && result.tcc) {
+      correctedData.updatedTcc = result.tcc;
+      corrections.push('Fixed missing updatedTcc field');
+    }
+
+    // Agent-specific STRUCTURAL corrections only
+    switch (agent) {
+      case 'component-assembler':
+        if (errors.includes('Missing final component code') && result.assembledComponent?.componentCode) {
+          correctedData.assembledComponent.finalComponentCode = result.assembledComponent.componentCode;
+          corrections.push('Mapped componentCode to finalComponentCode');
+        }
+        break;
+    }
+
+    // NO QUALITY FALLBACKS - If content is bad, let it fail!
+    
+    return {
+      success: corrections.length > 0,
+      correctedData: corrections.length > 0 ? correctedData : undefined,
+      corrections
+    };
+
+  } catch (error) {
+    return { success: false, corrections: [] };
   }
 }
 
@@ -491,48 +534,6 @@ function validateResultContent(agent: AgentType, result: any, tcc: ToolConstruct
   return { errors, warnings };
 }
 
-function attemptAutoCorrection(agent: AgentType, result: any, errors: string[]): { success: boolean; correctedData?: any; corrections: string[] } {
-  const corrections: string[] = [];
-  let correctedData = { ...result };
-
-  try {
-    // Common auto-corrections
-    if (errors.includes('Missing updatedTcc in result') && result.tcc) {
-      correctedData.updatedTcc = result.tcc;
-      corrections.push('Added missing updatedTcc field');
-    }
-
-    if (errors.includes('Result indicates failure') && result.error) {
-      // If there's useful data despite the error, try to salvage it
-      if (result[getResultKey(agent)]) {
-        correctedData.success = true;
-        corrections.push('Overrode success flag due to valid result data');
-      }
-    }
-
-    // Agent-specific auto-corrections
-    switch (agent) {
-      case 'component-assembler':
-        if (errors.includes('Missing final component code') && result.assembledComponent) {
-          if (result.assembledComponent.componentCode) {
-            correctedData.assembledComponent.finalComponentCode = result.assembledComponent.componentCode;
-            corrections.push('Mapped componentCode to finalComponentCode');
-          }
-        }
-        break;
-    }
-
-    return {
-      success: corrections.length > 0,
-      correctedData: corrections.length > 0 ? correctedData : undefined,
-      corrections
-    };
-
-  } catch (error) {
-    return { success: false, corrections: [] };
-  }
-}
-
 function canRetryForAgent(agent: AgentType, errors: string[]): boolean {
   // Don't retry for certain types of errors
   const nonRetryableErrors = [
@@ -572,8 +573,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       availableAgents: Object.keys(AGENT_EXECUTORS),
-      version: '2.3-enhanced',
-      features: ['validation', 'retry', 'auto-correction', 'comprehensive-logging']
+      version: '2.3-QUALITY-FIRST',
+      features: ['validation-retry-correction', 'no-quality-fallbacks', 'fail-fast-approach', 'comprehensive-logging']
     });
   }
 
@@ -583,19 +584,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         name: agent,
         implemented: agent !== 'data-requirements-research',
         module: `@/lib/agents/unified/modules/${agent}`,
-        validation: 'enabled',
+        validation: 'strict-with-correction',
         retry: 'enabled',
-        autoCorrection: 'enabled'
+        autoCorrection: 'QUALITY-FOCUSED'
       }))
     });
   }
 
   return NextResponse.json({
-    message: 'Universal Agent Route - Phase 2.3 Enhanced',
+    message: 'Universal Agent Route - Phase 2.3 QUALITY FIRST',
+    philosophy: 'Perfect tools or fail trying - NO suboptimal fallbacks!',
     features: [
-      'Multi-layer validation (schema + content + auto-correction)',
+      'Validation & retry with intelligent correction',
+      'Auto-correction for structural issues (NOT quality masking)',
+      'FAIL FAST when corrections don\'t achieve quality standards',
       'Intelligent retry logic with error context',
-      'Auto-correction for common issues',
       'Comprehensive logging and metrics'
     ],
     usage: {
