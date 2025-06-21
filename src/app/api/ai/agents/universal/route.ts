@@ -1,16 +1,16 @@
 /**
- * Universal Agent Route (Phase 2.1)
- * Single unified endpoint for all agent executions
- * Replaces individual agent routes with centralized orchestration
+ * Universal Agent Route (Phase 2.1 - Enhanced)
+ * Single unified endpoint for all agent executions with retry logic
+ * Integrates with the new unified agent architecture
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { AgentType } from '@/lib/types/tcc-unified';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
-import { executeAgent } from '@/lib/agents/unified/core/agent-executor';
-import { createAgentExecutionContext } from '@/lib/agents/unified/core/model-manager';
-import logger from '@/lib/logger';
+import { AgentType } from '../../../../../lib/types/tcc-unified';
+import { ToolConstructionContext } from '../../../../../lib/types/product-tool-creation-v2/tcc';
+import { executeAgent } from '../../../../../lib/agents/unified/core/agent-executor';
+import { createAgentExecutionContext } from '../../../../../lib/agents/unified/core/model-manager';
+import logger from '../../../../../lib/logger';
 
 // Request schema for universal agent execution
 const UniversalAgentRequestSchema = z.object({
@@ -26,12 +26,18 @@ const UniversalAgentRequestSchema = z.object({
   jobId: z.string().uuid(),
   tcc: z.custom<ToolConstructionContext>(),
   selectedModel: z.string().optional(),
-  isIsolatedTest: z.boolean().default(false)
+  isIsolatedTest: z.boolean().default(false),
+  retryAttempt: z.number().default(0).optional(),
+  editMode: z.object({
+    isEditMode: z.boolean(),
+    editMessage: z.string().optional(),
+    targetField: z.string().optional()
+  }).optional()
 });
 
 type UniversalAgentRequest = z.infer<typeof UniversalAgentRequestSchema>;
 
-// Unified response interface (no 'any' types!)
+// Enhanced response interface with retry information
 interface UniversalAgentResponse {
   success: boolean;
   agentType: AgentType;
@@ -83,9 +89,18 @@ interface UniversalAgentResponse {
     };
     metadata?: Record<string, unknown>;
   };
+  updatedTcc?: ToolConstructionContext;
   error?: string;
   executionTime?: number;
   modelUsed?: string;
+  retryInfo?: {
+    attemptNumber: number;
+    maxAttempts: number;
+    isRetry: boolean;
+    retryReason?: string;
+    totalRetryTime?: number;
+  };
+  validationScore?: number;
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<UniversalAgentResponse>> {
@@ -94,17 +109,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
   try {
     const body = await request.json();
     const validatedRequest = UniversalAgentRequestSchema.parse(body);
-    const { agentType, jobId, tcc, selectedModel, isIsolatedTest } = validatedRequest;
+    const { agentType, jobId, tcc, selectedModel, isIsolatedTest, retryAttempt, editMode } = validatedRequest;
 
     logger.info({
       jobId,
       agentType,
       selectedModel,
       isIsolatedTest,
+      retryAttempt: retryAttempt || 0,
+      isRetry: (retryAttempt || 0) > 0,
       userId: tcc.userId
     }, '🔄 Universal Agent Route: Processing request');
 
-    // Create execution context
+    // Create execution context with retry information
     const executionContext = createAgentExecutionContext(
       agentType,
       jobId,
@@ -113,8 +130,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       isIsolatedTest
     );
 
-    // Execute the agent
-    const result = await executeAgent(agentType, executionContext, tcc);
+    // Add edit mode context if provided
+    if (editMode?.isEditMode) {
+      executionContext.editMode = {
+        isEditMode: true,
+        totalEdits: 1,
+        lastEditedAt: new Date().toISOString(),
+        activeEditInstructions: editMode.editMessage ? [{
+          targetAgent: agentType,
+          editType: 'refine',
+          instructions: editMode.editMessage,
+          priority: 'medium',
+          createdAt: new Date().toISOString()
+        }] : undefined
+      };
+    }
+
+    // Execute the agent with unified system
+    const { result, updatedTcc } = await executeAgent(agentType, executionContext, tcc);
     
     const executionTime = Date.now() - startTime;
 
@@ -124,8 +157,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       agentType,
       jobId,
       result: convertAgentResultToResponse(agentType, result),
+      updatedTcc,
       executionTime,
-      modelUsed: executionContext.modelConfig.modelId
+      modelUsed: executionContext.modelConfig.modelId,
+      retryInfo: {
+        attemptNumber: retryAttempt || 0,
+        maxAttempts: executionContext.retryConfig.maxAttempts,
+        isRetry: (retryAttempt || 0) > 0,
+        totalRetryTime: executionTime
+      },
+      validationScore: (result as any).metadata?.validationScore || 100
     };
 
     logger.info({
@@ -133,7 +174,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       agentType,
       executionTime,
       modelUsed: executionContext.modelConfig.modelId,
-      success: true
+      success: true,
+      validationScore: response.validationScore,
+      isRetry: (retryAttempt || 0) > 0
     }, '✅ Universal Agent Route: Request completed successfully');
 
     return NextResponse.json(response);
@@ -148,18 +191,33 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
     logger.error({
       ...context,
       error: errorMessage,
-      executionTime
+      executionTime,
+      retryAttempt: context.retryAttempt || 0
     }, '❌ Universal Agent Route: Request failed');
+
+    // Determine if this is a retryable error
+    const isRetryable = isRetryableError(error);
+    const maxRetries = 3;
+    const currentRetry = context.retryAttempt || 0;
 
     const errorResponse: UniversalAgentResponse = {
       success: false,
       agentType: context.agentType || 'unknown' as AgentType,
       jobId: context.jobId || 'unknown',
       error: errorMessage,
-      executionTime
+      executionTime,
+      retryInfo: {
+        attemptNumber: currentRetry,
+        maxAttempts: maxRetries,
+        isRetry: currentRetry > 0,
+        retryReason: isRetryable ? getRetryReason(error) : undefined,
+        totalRetryTime: executionTime
+      }
     };
 
-    return NextResponse.json(errorResponse, { status: 500 });
+    // Return appropriate status code
+    const statusCode = isRetryable && currentRetry < maxRetries ? 429 : 500;
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
@@ -258,8 +316,53 @@ function convertAgentResultToResponse(agentType: AgentType, result: unknown): Un
   }
 }
 
+// Helper functions for retry logic and error handling
+
+/**
+ * Determine if an error is retryable
+ */
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    
+    // Retryable error patterns
+    const retryablePatterns = [
+      'timeout',
+      'rate limit',
+      'temporary',
+      'network',
+      'connection',
+      'service unavailable',
+      'internal server error',
+      'model_error',
+      'validation_failed'
+    ];
+    
+    return retryablePatterns.some(pattern => message.includes(pattern));
+  }
+  
+  return false;
+}
+
+/**
+ * Get retry reason from error
+ */
+function getRetryReason(error: unknown): string {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    
+    if (message.includes('timeout')) return 'timeout';
+    if (message.includes('rate limit')) return 'rate_limit';
+    if (message.includes('validation')) return 'validation_failed';
+    if (message.includes('model')) return 'model_error';
+    if (message.includes('network') || message.includes('connection')) return 'network_error';
+  }
+  
+  return 'unknown_error';
+}
+
 // Extract context from error for better logging
-function extractContextFromError(error: unknown): { agentType?: AgentType; jobId?: string } {
+function extractContextFromError(error: unknown): { agentType?: AgentType; jobId?: string; retryAttempt?: number } {
   if (error instanceof Error) {
     // Try to extract context from error message or stack
     const message = error.message;
@@ -271,7 +374,8 @@ function extractContextFromError(error: unknown): { agentType?: AgentType; jobId
     
     return {
       agentType: agentTypeMatch?.[1] as AgentType,
-      jobId: jobIdMatch?.[1]
+      jobId: jobIdMatch?.[1],
+      retryAttempt: parseInt(message.match(/retryAttempt[:\s]+(\d+)/i)?.[1] || '0')
     };
   }
   

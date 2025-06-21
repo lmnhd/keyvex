@@ -7,10 +7,10 @@ import {
   ModelConfiguration, 
   AgentType, 
   AgentExecutionContext 
-} from '@/lib/types/tcc-unified';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
-import { getModelProvider, getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
-import logger from '@/lib/logger';
+} from '../../../types/tcc-unified';
+import { ToolConstructionContext } from '../../../types/product-tool-creation-v2/tcc';
+import { getModelProvider, getPrimaryModel, getFallbackModel } from '../../../ai/models/model-config';
+import logger from '../../../logger';
 
 export function createModelConfiguration(
   modelId: string,
@@ -54,14 +54,25 @@ export function resolveAgentModel(
     return selectedModel;
   }
 
-  // Priority 3: Primary model
-  const primaryModel = getPrimaryModel();
+  // Priority 3: Primary model for agent
+  const primaryModelResult = getPrimaryModel(agentType);
+  if (primaryModelResult?.modelInfo?.id) {
+    logger.info({
+      agentType,
+      modelId: primaryModelResult.modelInfo.id,
+      source: 'PRIMARY_MODEL'
+    }, 'Using primary model for agent');
+    return primaryModelResult.modelInfo.id;
+  }
+
+  // Fallback: Default model
+  const fallbackModel = 'claude-3-7-sonnet-20250219';
   logger.info({
     agentType,
-    modelId: primaryModel,
-    source: 'PRIMARY_MODEL'
-  }, 'Using primary model');
-  return primaryModel;
+    modelId: fallbackModel,
+    source: 'DEFAULT_FALLBACK'
+  }, 'Using default fallback model');
+  return fallbackModel;
 }
 
 export function createAgentExecutionContext(
@@ -116,5 +127,17 @@ export function getOptimalModelForAgent(agentType: AgentType): string {
     'tool-finalizer': 'gpt-4o'              // Good at finalizing and formatting
   };
 
-  return agentModelPreferences[agentType] || getPrimaryModel();
+  const preferredModel = agentModelPreferences[agentType];
+  if (preferredModel) {
+    return preferredModel;
+  }
+
+  // Fallback to primary model for this agent
+  const primaryModelResult = getPrimaryModel(agentType);
+  if (primaryModelResult?.modelInfo?.id) {
+    return primaryModelResult.modelInfo.id;
+  }
+
+  // Final fallback
+  return 'claude-3-7-sonnet-20250219';
 }

@@ -25,19 +25,58 @@ import { BrainstormData } from '../types/product-tool-creation-v2/tcc';
  * Handles backward compatibility with legacy field names
  */
 function convertToCoreData(brainstormData: BrainstormData): CoreBrainstormData {
+  // Ensure keyCalculations have all required fields
+  const keyCalculations = (brainstormData.keyCalculations || []).map(calc => ({
+    name: calc.name || 'Unknown Calculation',
+    formula: calc.formula || 'N/A',
+    variables: calc.variables || [],
+    description: calc.description || 'No description available'
+  }));
+
+  // Ensure calculationLogic have all required fields
+  const calculationLogic = (brainstormData.calculationLogic || []).map(logic => ({
+    id: logic.id || `calc-${Math.random().toString(36).substr(2, 9)}`,
+    name: logic.name || 'Unknown Logic',
+    formula: logic.formula || 'N/A',
+    dependencies: logic.dependencies || [],
+    outputFormat: logic.outputFormat || 'number',
+    engagementMoment: logic.engagementMoment || undefined
+  }));
+
+  // Ensure suggestedInputs have all required fields
+  const suggestedInputs = (brainstormData.suggestedInputs || []).map((input: any) => ({
+    id: input.id || `input-${Math.random().toString(36).substr(2, 9)}`,
+    label: input.label || 'Unknown Input',
+    type: input.type || 'text',
+    required: input.required !== undefined ? input.required : false,
+    description: input.description || 'No description available',
+    placeholder: input.placeholder,
+    validation: input.validation,
+    options: input.options
+  }));
+
+  // Ensure interactionFlow have all required fields
+  const interactionFlow = (brainstormData.interactionFlow || []).map(flow => ({
+    step: flow.step || 1,
+    title: flow.title || 'Unknown Step',
+    description: flow.description || 'No description available',
+    userAction: flow.userAction || 'No action defined',
+    engagementHook: flow.engagementHook || undefined
+  }));
+
   return {
     coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified',
     valueProposition: brainstormData.valueProposition || 'Not specified',
     toolType: 'calculator', // Default type, can be enhanced
     targetAudience: 'general', // Default audience, can be enhanced
-    keyCalculations: brainstormData.keyCalculations || [],
-    calculationLogic: brainstormData.calculationLogic || [],
-    suggestedInputs: brainstormData.suggestedInputs || [],
-    interactionFlow: brainstormData.interactionFlow || [],
-    leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
-      timing: 'after_calculation',
-      method: 'email_form',
-      incentive: 'detailed_report'
+    keyCalculations,
+    calculationLogic,
+    suggestedInputs,
+    interactionFlow,
+    leadCaptureStrategy: {
+      timing: brainstormData.leadCaptureStrategy?.timing || 'after_calculation',
+      method: brainstormData.leadCaptureStrategy?.method || 'email_form',
+      incentive: brainstormData.leadCaptureStrategy?.incentive || 'detailed_report'
     },
     creativeEnhancements: brainstormData.creativeEnhancements || []
   };
