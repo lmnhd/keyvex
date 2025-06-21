@@ -118,9 +118,6 @@ export class FunctionPlannerModule extends BaseAgentModule {
       if (!func.description || func.description.trim().length === 0) {
         errors.push(`Function ${func.name} missing description`);
       }
-      if (!func.parameters || !Array.isArray(func.parameters)) {
-        errors.push(`Function ${func.name} missing parameters array`);
-      }
 
       // Categorize functions
       if (func.name.toLowerCase().includes('calculate') || 
@@ -207,10 +204,7 @@ export class FunctionPlannerModule extends BaseAgentModule {
     for (const calc of brainstormData.keyCalculations) {
       const signature: DefinedFunctionSignature = {
         name: this.generateFunctionName(calc.name),
-        description: calc.description,
-        parameters: this.extractParametersFromFormula(calc.formula, calc.variables),
-        returnType: 'number',
-        isAsync: false
+        description: `${calc.description} - Formula: ${calc.formula} - Variables: ${calc.variables.join(', ')}`
       };
       signatures.push(signature);
     }
@@ -219,10 +213,7 @@ export class FunctionPlannerModule extends BaseAgentModule {
     for (const logic of brainstormData.calculationLogic) {
       const signature: DefinedFunctionSignature = {
         name: this.generateFunctionName(logic.name),
-        description: `Process ${logic.name} calculation`,
-        parameters: this.extractParametersFromDependencies(logic.dependencies),
-        returnType: this.determineReturnType(logic.outputFormat),
-        isAsync: false
+        description: `Process ${logic.name} calculation - Dependencies: ${logic.dependencies.join(', ')} - Output: ${logic.outputFormat}`
       };
       signatures.push(signature);
     }
@@ -230,15 +221,7 @@ export class FunctionPlannerModule extends BaseAgentModule {
     // Add validation function
     signatures.push({
       name: 'validateInputs',
-      description: 'Validate all user inputs before calculations',
-      parameters: brainstormData.suggestedInputs.map(input => ({
-        name: input.id,
-        type: this.mapInputTypeToParameterType(input.type),
-        required: input.required,
-        description: input.description
-      })),
-      returnType: 'boolean',
-      isAsync: false
+      description: `Validate all user inputs before calculations - Inputs: ${brainstormData.suggestedInputs.map(input => `${input.id}(${input.type})`).join(', ')}`
     });
 
     logger.info({
@@ -266,87 +249,38 @@ export class FunctionPlannerModule extends BaseAgentModule {
   }
 
   /**
-   * Extract parameters from formula and variables
-   */
-  private extractParametersFromFormula(formula: string, variables: string[]): Array<{
-    name: string;
-    type: string;
-    required: boolean;
-    description: string;
-  }> {
-    return variables.map(variable => ({
-      name: variable.toLowerCase().replace(/[^a-z0-9]/g, ''),
-      type: 'number',
-      required: true,
-      description: `${variable} value for calculation`
-    }));
-  }
-
-  /**
-   * Extract parameters from dependencies
-   */
-  private extractParametersFromDependencies(dependencies: string[]): Array<{
-    name: string;
-    type: string;
-    required: boolean;
-    description: string;
-  }> {
-    return dependencies.map(dep => ({
-      name: dep.toLowerCase().replace(/[^a-z0-9]/g, ''),
-      type: 'any',
-      required: true,
-      description: `${dep} dependency`
-    }));
-  }
-
-  /**
-   * Determine return type from output format
-   */
-  private determineReturnType(outputFormat: string): string {
-    if (outputFormat.toLowerCase().includes('number') || 
-        outputFormat.toLowerCase().includes('currency') ||
-        outputFormat.toLowerCase().includes('percentage')) {
-      return 'number';
-    }
-    if (outputFormat.toLowerCase().includes('boolean')) {
-      return 'boolean';
-    }
-    if (outputFormat.toLowerCase().includes('array')) {
-      return 'array';
-    }
-    return 'string';
-  }
-
-  /**
-   * Map input type to parameter type
-   */
-  private mapInputTypeToParameterType(inputType: string): string {
-    switch (inputType.toLowerCase()) {
-      case 'number':
-      case 'currency':
-      case 'percentage':
-        return 'number';
-      case 'boolean':
-      case 'checkbox':
-        return 'boolean';
-      case 'select':
-      case 'multiselect':
-        return 'array';
-      default:
-        return 'string';
-    }
-  }
-
-  /**
    * Determine complexity level
    */
   private determineComplexityLevel(signatures: DefinedFunctionSignature[]): 'simple' | 'moderate' | 'complex' {
     const totalFunctions = signatures.length;
-    const avgParameters = signatures.reduce((sum, sig) => sum + sig.parameters.length, 0) / totalFunctions;
+    
+    // Analyze complexity based on function names and descriptions
+    let complexityScore = 0;
+    
+    for (const sig of signatures) {
+      // Add points for calculation functions (more complex)
+      if (sig.name.toLowerCase().includes('calculate') || 
+          sig.name.toLowerCase().includes('compute')) {
+        complexityScore += 2;
+      }
+      
+      // Add points for validation functions
+      if (sig.name.toLowerCase().includes('validate')) {
+        complexityScore += 1;
+      }
+      
+      // Add points for long descriptions (indicates complexity)
+      if (sig.description && sig.description.length > 100) {
+        complexityScore += 1;
+      }
+    }
 
-    if (totalFunctions <= 3 && avgParameters <= 3) {
+    // Determine complexity based on function count and complexity score
+    const avgComplexity = complexityScore / totalFunctions;
+    
+    if (totalFunctions <= 3 && avgComplexity <= 2) {
       return 'simple';
-    } else if (totalFunctions <= 6 && avgParameters <= 5) {
+    } else if (totalFunctions <= 6 && avgComplexity <= 4) {
       return 'moderate';
     } else {
       return 'complex';
