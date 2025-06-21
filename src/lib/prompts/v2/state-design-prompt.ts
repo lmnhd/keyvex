@@ -3,6 +3,10 @@
 // ✅ ENHANCED: Now handles brainstorm data and demands SPECIFIC business logic
 // ============================================================================
 
+import { ToolConstructionContext, DefinedFunctionSignature } from '@/lib/types/product-tool-creation-v2/tcc';
+import { filterBrainstormForStateDesign } from '@/lib/utils/brainstorm-filter';
+import logger from '@/lib/logger';
+
 const commonGuidelines = `
 <output-format>
     🚨 CRITICAL: You MUST return ONLY a JSON code block in this exact format:
@@ -506,6 +510,19 @@ You are a "State Logic Designer" agent, and you are in EDIT MODE.
 ${commonGuidelines}
 `;
 
+// Edit mode context type for user prompt
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
 /**
  * Dynamically selects the appropriate system prompt for the State Design agent.
  * @param isEditing - Boolean flag, true if in edit mode.
@@ -513,6 +530,78 @@ ${commonGuidelines}
  */
 export function getStateDesignSystemPrompt(isEditing: boolean): string {
     return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
+}
+
+/**
+ * Creates the user prompt for the state design agent based on TCC data
+ * Enhanced with filtered brainstorm data integration and edit mode support
+ */
+export function getStateDesignUserPrompt(
+  tcc: ToolConstructionContext, 
+  functionSignatures: DefinedFunctionSignature[], 
+  editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string
+): string {
+  // Get State Design specific filtered data
+  const brainstormData = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
+  
+  // Handle null brainstorm data from filter
+  if (!brainstormData) {
+    logger.warn({ jobId: tcc.jobId }, '🎯 StateDesign Module: Brainstorm filter returned null, using original brainstorm data');
+    // Fallback to original brainstorm data if filter returns null
+    const fallbackData = tcc.brainstormData || {};
+    
+    return `Generate React state logic for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${fallbackData.toolType || tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
+- Description: ${tcc.userInput?.description || 'A business calculation tool'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
+
+Generate the complete state logic with variables and functions that match the StateLogic schema exactly.`;
+  }
+
+  let prompt = `Generate React state logic for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${brainstormData.toolType || tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
+- Description: ${tcc.userInput?.description || 'A business calculation tool'}
+
+KEY CALCULATIONS TO IMPLEMENT:
+${brainstormData.keyCalculations?.map(calc => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No calculations defined'}
+
+SUGGESTED INPUTS:
+${brainstormData.suggestedInputs?.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n') || 'No inputs defined'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
+
+🚨 CRITICAL REQUIREMENTS:
+- Generate state variables for ALL suggested inputs
+- Implement ALL keyCalculations as functions
+- Use proper TypeScript types
+- Include validation functions
+- 🚨 FAILURE TO IMPLEMENT ANY keyCalculation = INCOMPLETE TOOL!
+
+Generate the complete state logic matching the StateLogic schema exactly.`;
+
+  // Add edit mode context if needed
+  if (isEditMode && editInstructions) {
+    prompt += `
+
+🔄 EDIT MODE:
+Current state logic exists. Apply these modifications:
+${editInstructions}
+
+Modify the existing state logic while maintaining all core functionality.`;
+  }
+
+  return prompt;
 }
 
 // DEPRECATED: This will be removed once all consuming code uses the dynamic getter.

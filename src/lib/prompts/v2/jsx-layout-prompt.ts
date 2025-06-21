@@ -2,6 +2,10 @@
 // V2 AGENT PROMPT - JSX LAYOUT SPECIALIST
 // ============================================================================
 
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { filterBrainstormForJSXLayout, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
+import logger from '@/lib/logger';
+
 // Common sections for both creation and editing
 const OUTPUT_FORMAT = `
 <output-format>
@@ -1020,4 +1024,87 @@ export function getJsxLayoutSystemPrompt(isEditing: boolean): string {
 }
 
 // DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
-export const JSX_LAYOUT_SYSTEM_PROMPT = CREATION_PROMPT; 
+export const JSX_LAYOUT_SYSTEM_PROMPT = CREATION_PROMPT;
+
+// Edit mode context type for user prompt
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
+/**
+ * Creates the user prompt for the JSX layout agent based on TCC data
+ * Enhanced with filtered brainstorm data integration and edit mode support
+ */
+export function getJsxLayoutUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
+  // Get JSX Layout specific filtered data
+  const filteredBrainstormData = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
+  
+  let prompt = `Generate JSX component structure for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}`;
+
+  // Add state logic context
+  if (tcc.stateLogic) {
+    prompt += `
+
+STATE VARIABLES:
+${tcc.stateLogic.variables?.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n') || 'No state variables'}
+
+FUNCTIONS TO CONNECT:
+${tcc.stateLogic.functions?.map(f => `- ${f.name}: ${f.description}`).join('\n') || 'No functions'}`;
+  }
+
+  // Add function signatures context
+  if (tcc.definedFunctionSignatures) {
+    prompt += `
+
+FUNCTION SIGNATURES:
+${tcc.definedFunctionSignatures.map(sig => `- ${sig.name}: ${sig.description}`).join('\n')}`;
+  }
+
+  // Add filtered brainstorm context when available
+  if (filteredBrainstormData) {
+    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'JSXLayout');
+    prompt += brainstormContext;
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: true,
+      dataReduction: 'Applied JSX Layout specific filtering'
+    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: false
+    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - layout may be too generic');
+  }
+
+  // Add edit mode context if needed
+  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+    prompt += `
+
+🔄 EDIT MODE:
+Current JSX layout exists. Apply these modifications:
+${editMode.instructions.map(i => i.instructions).join('\n')}
+
+Modify the existing layout while maintaining all core functionality.`;
+  }
+
+  prompt += `
+
+Generate a complete JSX component structure with proper accessibility and responsive design.`;
+
+  return prompt;
+} 

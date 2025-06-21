@@ -14,7 +14,7 @@ import {
   getFallbackModel,
   getModelProvider,
 } from '@/lib/ai/models/model-config';
-import { getJsxLayoutSystemPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
+import { getJsxLayoutSystemPrompt, getJsxLayoutUserPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
 import logger from '@/lib/logger';
 import { filterBrainstormForJSXLayout, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 
@@ -279,7 +279,7 @@ async function generateJsxLayoutWithAI(
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
 
   const systemPrompt = getJsxLayoutSystemPrompt(false);
-  const userPrompt = createUserPrompt(tcc, editMode);
+  const userPrompt = getJsxLayoutUserPrompt(tcc, editMode);
 
   // Isolation test logging
   logger.info({
@@ -352,68 +352,4 @@ function generateFallbackJsxLayout(tcc: ToolConstructionContext): JsxLayoutResul
   };
 }
 
-function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
-  // Get JSX Layout specific filtered data
-  const filteredBrainstormData = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
-  
-  let prompt = `Generate JSX component structure for this tool:
-
-TOOL DETAILS:
-- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}`;
-
-  // Add state logic context
-  if (tcc.stateLogic) {
-    prompt += `
-
-STATE VARIABLES:
-${tcc.stateLogic.variables?.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n') || 'No state variables'}
-
-FUNCTIONS TO CONNECT:
-${tcc.stateLogic.functions?.map(f => `- ${f.name}: ${f.description}`).join('\n') || 'No functions'}`;
-  }
-
-  // Add function signatures context
-  if (tcc.definedFunctionSignatures) {
-    prompt += `
-
-FUNCTION SIGNATURES:
-${tcc.definedFunctionSignatures.map(sig => `- ${sig.name}: ${sig.description}`).join('\n')}`;
-  }
-
-  // Add filtered brainstorm context when available
-  if (filteredBrainstormData) {
-    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'JSXLayout');
-    prompt += brainstormContext;
-
-    logger.info({ 
-      jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: true,
-      dataReduction: 'Applied JSX Layout specific filtering'
-    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
-  } else {
-    logger.warn({ 
-      jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: false
-    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - layout may be too generic');
-  }
-
-  // Add edit mode context if needed
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += `
-
-🔄 EDIT MODE:
-Current JSX layout exists. Apply these modifications:
-${editMode.instructions.map(i => i.instructions).join('\n')}
-
-Modify the existing layout while maintaining all core functionality.`;
-  }
-
-  prompt += `
-
-Generate a complete JSX component structure with proper accessibility and responsive design.`;
-
-  return prompt;
-} 
+ 

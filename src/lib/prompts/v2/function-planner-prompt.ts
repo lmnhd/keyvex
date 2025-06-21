@@ -1,3 +1,20 @@
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { filterBrainstormForFunctionPlanner, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
+import logger from '@/lib/logger';
+
+// Edit mode context type for user prompt
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
 const commonGuidelines = `
 <output-format>
     You MUST return a JSON array of function signatures in this exact format:
@@ -75,6 +92,89 @@ ${commonGuidelines}
 
 export function getFunctionPlannerSystemPrompt(isEditing: boolean): string {
     return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
+}
+
+/**
+ * Creates the user prompt for the function planner based on TCC data
+ * Enhanced with filtered brainstorm data integration and edit mode support
+ */
+export function getFunctionPlannerUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
+  // Get Function Planner specific filtered data
+  const filteredBrainstormData = filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId);
+  
+  // Use brainstorm data for tool description instead of fallback
+  let toolDescription = tcc.userInput?.description;
+  if (!toolDescription && filteredBrainstormData) {
+    toolDescription = `${filteredBrainstormData.coreConcept || 'Business Tool'}: ${filteredBrainstormData.valueProposition || 'A tool to help users make informed decisions.'}`;
+  }
+
+  let prompt = `Please analyze this tool description and provide the function signatures needed:
+
+TOOL DESCRIPTION: ${toolDescription || 'Business calculation tool'}
+TOOL TYPE: ${tcc.userInput.toolType || 'Not specified'}
+
+Additional Context:
+- User Industry: ${tcc.userInput.targetAudience || 'General'}`;
+
+  // Add filtered brainstorm context when available
+  if (filteredBrainstormData) {
+    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'FunctionPlanner');
+    prompt += brainstormContext;
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: true,
+      dataReduction: 'Applied Function Planner specific filtering'
+    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: false
+    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - tool may be too generic');
+  }
+
+  // Add edit mode context if in edit mode
+  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+    prompt += `
+
+🔄 EDIT MODE INSTRUCTIONS:
+You are EDITING existing function signatures. Here are the current functions:
+
+CURRENT FUNCTION SIGNATURES:`;
+
+    if (tcc.definedFunctionSignatures && tcc.definedFunctionSignatures.length > 0) {
+      tcc.definedFunctionSignatures.forEach(func => {
+        prompt += `\n- ${func.name}: ${func.description}`;
+      });
+    } else {
+      prompt += `\n- No existing function signatures found`;
+    }
+
+    prompt += `
+
+EDIT INSTRUCTIONS TO FOLLOW:`;
+
+    editMode.instructions.forEach((instruction, index) => {
+      prompt += `
+
+${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
+${instruction.instructions}
+
+Created: ${instruction.createdAt}`;
+    });
+
+    prompt += `
+
+Please apply these edit instructions to improve the function signatures. Maintain overall consistency while implementing the requested changes.`;
+  }
+
+  prompt += `
+
+Please provide the JSON array of function signatures as specified in the guidelines.`;
+
+  return prompt;
 }
 
 export const FUNCTION_PLANNER_SYSTEM_PROMPT = CREATION_PROMPT;

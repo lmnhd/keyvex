@@ -1040,7 +1040,7 @@ export default function ToolTesterView({
                       <div className="flex flex-col items-center justify-center h-40">
                         <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
                         <p className="mt-2 text-sm text-gray-500">
-                          {workflowMode === 'v1' ? 'V1 tool creation in progress...' : 'Testing selected agent...'}
+                          Testing selected agent...
                         </p>
                       </div>
                     )}
@@ -1055,7 +1055,7 @@ export default function ToolTesterView({
                       <div className="text-center">
                         <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                         <h3 className="text-lg font-semibold">
-                          {workflowMode === 'v1' ? 'V1 Tool Created Successfully!' : 'Agent Test Completed!'}
+                          Agent Test Completed!
                         </h3>
                         <p className="text-sm text-gray-600 mt-2">
                           Models used: {getModelsUsed(testJob).join(', ')}
@@ -1082,10 +1082,7 @@ export default function ToolTesterView({
                     <div className="text-center">
                       <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-gray-500">
-                        {workflowMode === 'v1' 
-                          ? 'TCC Monitor is not available in V1 mode' 
-                          : 'TCC Monitor will be available once TCC data is loaded'
-                        }
+                        TCC Monitor will be available once TCC data is loaded
                       </p>
                     </div>
                   </CardContent>
@@ -2081,7 +2078,7 @@ export default function ToolTesterView({
                           </div>
                         );
                       } else {
-                        // For full generation or V1 mode, display the result as-is
+                        // For full generation, display the result as-is
                         return (
                           <div className="space-y-4">
                     <pre className="p-4 bg-gray-100 dark:bg-gray-800 rounded-md overflow-x-auto max-h-96 text-sm">
@@ -2244,7 +2241,7 @@ export default function ToolTesterView({
           <div className="font-semibold text-yellow-800 dark:text-yellow-200">🐛 Debug State Information</div>
           <div className="text-xs space-y-1 text-yellow-700 dark:text-yellow-300">
             <div>• Available Models: {availableModels.length}</div>
-            <div>• Selected Models (V1): {JSON.stringify(selectedModelIds)}</div>
+            <div>• Selected Models: {JSON.stringify(selectedModelIds)}</div>
             <div>• Default Primary Model: {defaultPrimaryModel || 'None'}</div>
             <div>• First 3 Available: {JSON.stringify(availableModels.slice(0, 3).map(m => ({id: m.id, name: m.name})))}</div>
             <div>• Agent Mapping Keys: {Object.keys(agentModelMapping).join(', ')}</div>

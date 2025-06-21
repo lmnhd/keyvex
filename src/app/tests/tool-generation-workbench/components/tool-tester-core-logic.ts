@@ -671,13 +671,14 @@ export async function runIsolatedAgentTest(
       addLog('debug', 'Running in EDIT mode, using current TCC data from state.', { keys: Object.keys(tcc) });
     }
     
-    // 2. Prepare the request body
+    // 2. Prepare the request body for Universal Agent Route
     const requestBody = {
       jobId: tcc.jobId,
-      selectedModel: modelId,                           // ✅ Correct parameter name
-      mockTcc: tcc,                                    // ✅ Signals isolation
-      isIsolatedTest: true,                            // ✅ Explicit isolation flag
-      editMode: agentMode === 'edit' ? {               // ✅ Correct structure
+      agentType: agentId,                              // ✅ Universal Agent Route parameter
+      selectedModel: modelId,                          // ✅ Model selection
+      tcc: tcc,                                       // ✅ TCC with agentModelMapping
+      isSequentialMode: false,                        // ✅ Isolation mode (not sequential)
+      editMode: agentMode === 'edit' ? {              // ✅ Edit mode support
         isEditMode: true,
         instructions: [{
           targetAgent: agentId,
@@ -690,10 +691,10 @@ export async function runIsolatedAgentTest(
       } : undefined
     };
 
-    addLog('debug', `Sending request to /api/ai/product-tool-creation-v2/agents/${agentId}`, requestBody);
+    addLog('debug', `Sending request to Universal Agent Route for ${agentId}`, requestBody);
 
-    // 3. Make the API call
-    const response = await fetch(`/api/ai/product-tool-creation-v2/agents/${agentId}`, {
+    // 3. Make the API call to Universal Agent Route
+    const response = await fetch('/api/ai/agents/universal', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),

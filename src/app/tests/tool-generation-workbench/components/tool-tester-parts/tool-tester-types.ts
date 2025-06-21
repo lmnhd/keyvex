@@ -31,7 +31,7 @@ export const STORAGE_KEYS = {
 
 export type TccSource = 'brainstorm' | 'mockScenario' | 'savedV2Job' | 'inMemory';
 
-export type WorkflowMode = 'v1' | 'v2' | 'debug';
+export type WorkflowMode = 'v2' | 'debug';
 
 export type AgentMode = 'create' | 'edit';
 

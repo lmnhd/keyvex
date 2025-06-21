@@ -8,14 +8,9 @@ import {
   ValidationResultSchema,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { openai } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import {
-  getPrimaryModel,
-  getModelProvider,
-} from '@/lib/ai/models/model-config';
-import { getValidatorSystemPrompt } from '@/lib/prompts/v2/validator-prompt';
+import { callModelForObject } from '@/lib/ai/model-caller';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+import { getValidatorSystemPrompt, getValidatorUserPrompt } from '@/lib/prompts/v2/validator-prompt';
 import logger from '@/lib/logger';
 
 // Use TCC schema directly
@@ -51,14 +46,6 @@ export interface ValidatorResult {
   updatedTcc: ToolConstructionContext;
 }
 
-function createModelInstance(provider: string, modelId: string) {
-  switch (provider) {
-    case 'openai': return openai(modelId);
-    case 'anthropic': return anthropic(modelId);
-    default: return openai('gpt-4o');
-  }
-}
-
 /**
  * Validator Module - Extracted core logic for unified agent system
  * Validates generated component for syntax errors and quality issues
@@ -81,7 +68,7 @@ export async function executeValidator(request: ValidatorRequest): Promise<Valid
     if (!isIsolatedTest) {
       await emitStepProgress(
         jobId,
-        OrchestrationStepEnum.enum.validating_component,
+        OrchestrationStepEnum.enum.validating_code,
         'in_progress',
         'Validating component code and structure...',
         tcc
@@ -108,9 +95,9 @@ export async function executeValidator(request: ValidatorRequest): Promise<Valid
       validationResult,
       steps: {
         ...tcc.steps,
-        validatingComponent: {
+        validatingCode: {
           status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tcc.steps?.validatingComponent?.startedAt || new Date().toISOString(),
+          startedAt: tcc.steps?.validatingCode?.startedAt || new Date().toISOString(),
           completedAt: new Date().toISOString(),
           result: validationResult,
         },
@@ -128,26 +115,23 @@ export async function executeValidator(request: ValidatorRequest): Promise<Valid
         afterLastUpdated: updatedTcc.updatedAt,
         validationDetails: {
           isValid: updatedTcc.validationResult?.isValid,
-          errorsCount: updatedTcc.validationResult?.errors?.length || 0,
-          warningsCount: updatedTcc.validationResult?.warnings?.length || 0,
-          suggestionsCount: updatedTcc.validationResult?.suggestions?.length || 0,
-          qualityScore: updatedTcc.validationResult?.qualityScore || 0,
-          readabilityScore: updatedTcc.validationResult?.readabilityScore || 0
+          errorPresent: !!updatedTcc.validationResult?.error,
+          hasDetails: !!updatedTcc.validationResult?.details
         },
-        stepStatusUpdate: updatedTcc.steps?.validatingComponent?.status,
-        stepResult: !!updatedTcc.steps?.validatingComponent?.result
+        stepStatusUpdate: updatedTcc.steps?.validatingCode?.status,
+        stepResult: !!updatedTcc.steps?.validatingCode?.result
       }
     }, '✅ Validator Module: TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
     // Emit completion progress for orchestration mode
     if (!isIsolatedTest) {
       const statusMessage = validationResult.isValid 
-        ? `Validation passed with quality score ${validationResult.qualityScore}/100`
-        : `Validation found ${validationResult.errors?.length || 0} errors and ${validationResult.warnings?.length || 0} warnings`;
+        ? `Validation passed successfully`
+        : `Validation found issues: ${validationResult.error || 'Unknown validation errors'}`;
       
       await emitStepProgress(
         jobId,
-        OrchestrationStepEnum.enum.validating_component,
+        OrchestrationStepEnum.enum.validating_code,
         'completed',
         statusMessage,
         updatedTcc
@@ -162,7 +146,7 @@ export async function executeValidator(request: ValidatorRequest): Promise<Valid
     // Emit failure progress
     await emitStepProgress(
       jobId,
-      OrchestrationStepEnum.enum.validating_component,
+      OrchestrationStepEnum.enum.validating_code,
       'failed',
       errorMessage,
       tcc
@@ -177,75 +161,62 @@ async function generateValidationResult(
   selectedModel?: string,
   editMode?: EditModeContext,
 ): Promise<ValidationResult> {
-  let modelConfig: { provider: string; modelId: string };
-  
   // PRIORITY 1: Check TCC agent model mapping first
+  let modelId: string;
   if (tcc.agentModelMapping?.['validator']) {
-    const mappedModel = tcc.agentModelMapping['validator'];
-    const provider = getModelProvider(mappedModel);
-    modelConfig = { 
-      provider: provider !== 'unknown' ? provider : 'openai', 
-      modelId: mappedModel 
-    };
+    modelId = tcc.agentModelMapping['validator'];
     logger.info({ 
       agentName: 'validator', 
-      mappedModel, 
-      provider: modelConfig.provider,
+      mappedModel: modelId,
       source: 'TCC_AGENT_MAPPING' 
     }, '✅ Validator Module: Using TCC AGENT MAPPING model from workbench');
   }
   // PRIORITY 2: User-selected model from request
   else if (selectedModel && selectedModel !== 'default') {
-    const provider = getModelProvider(selectedModel);
-    modelConfig = { provider: provider !== 'unknown' ? provider : 'openai', modelId: selectedModel };
+    modelId = selectedModel;
     logger.info({ 
-      selectedModel, 
-      provider: modelConfig.provider,
+      selectedModel: modelId,
       source: 'REQUEST_PARAMETER' 
     }, '✅ Validator Module: Using REQUEST PARAMETER model');
   } 
   // PRIORITY 3: Fallback to configuration
   else {
     const primaryModel = getPrimaryModel('validator');
-    modelConfig = primaryModel && 'modelInfo' in primaryModel ? { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } : { provider: 'openai', modelId: 'gpt-4o' };
+    modelId = primaryModel?.modelInfo?.id || 'claude-3-7-sonnet-20250219';
     logger.info({ 
-      modelConfig,
+      modelId,
       source: 'CONFIGURATION_FALLBACK' 
     }, '✅ Validator Module: Using CONFIGURATION FALLBACK model');
   }
 
-  logger.info({ ...modelConfig }, '✅ Validator Module: Using model');
-  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
-
-  const systemPrompt = getValidatorSystemPrompt(false);
-  const userPrompt = createUserPrompt(tcc, editMode);
+  const systemPrompt = getValidatorSystemPrompt();
+  const userPrompt = getValidatorUserPrompt(tcc, editMode);
 
   // Isolation test logging
   logger.info({
     jobId: tcc.jobId,
-    modelId: modelConfig.modelId,
+    modelId: modelId,
     systemPromptLength: systemPrompt.length,
     userPromptLength: userPrompt.length,
-    assembledComponentPresent: !!tcc.assembledComponent,
-    componentCodeLength: tcc.assembledComponent?.finalComponentCode?.length || 0
+    finalProductPresent: !!tcc.finalProduct,
+    componentCodeLength: tcc.finalProduct?.componentCode?.length || 0
   }, '✅ Validator Module: ISOLATION DEBUG - Input data analysis');
 
   try {
-    const { object: validationResult } = await generateObject({
-      model: modelInstance,
+    const { object: validationResult } = await callModelForObject<ValidationResult>(modelId, {
       schema: ValidatorOutputSchema,
       prompt: userPrompt,
-      system: systemPrompt,
+      systemPrompt: systemPrompt,
       temperature: 0.1,
       maxTokens: 3000,
+      maxRetries: 3
     });
 
     logger.info({ 
       jobId: tcc.jobId, 
-      modelId: modelConfig.modelId,
+      modelId: modelId,
       isValid: validationResult.isValid,
-      errorsCount: validationResult.errors?.length || 0,
-      warningsCount: validationResult.warnings?.length || 0,
+      hasError: !!validationResult.error,
       aiResponseReceived: true
     }, '✅ Validator Module: Successfully received structured object from AI');
 
@@ -257,85 +228,18 @@ async function generateValidationResult(
 }
 
 function generateFallbackValidation(tcc: ToolConstructionContext): ValidationResult {
-  const hasComponent = !!tcc.assembledComponent?.finalComponentCode;
-  const codeLength = tcc.assembledComponent?.finalComponentCode?.length || 0;
+  const hasComponent = !!tcc.finalProduct?.componentCode;
+  const codeLength = tcc.finalProduct?.componentCode?.length || 0;
   
   return {
     isValid: hasComponent && codeLength > 100,
-    errors: hasComponent ? [] : ['No assembled component found'],
-    warnings: codeLength < 100 ? ['Component code appears too short'] : [],
-    suggestions: [
-      'Consider adding more comprehensive error handling',
-      'Add loading states for better user experience',
-      'Include accessibility attributes where appropriate'
-    ],
-    qualityScore: hasComponent ? Math.min(85, Math.floor(codeLength / 10)) : 0,
-    readabilityScore: hasComponent ? 75 : 0,
-    performanceScore: hasComponent ? 80 : 0,
-    accessibilityScore: hasComponent ? 70 : 0,
-    summary: hasComponent 
-      ? 'Component validation completed with basic checks'
-      : 'No component available for validation'
+    error: hasComponent ? undefined : 'No component code found in finalProduct.componentCode',
+    details: {
+      hasComponent,
+      codeLength,
+      basic_checks: hasComponent ? 'passed' : 'failed'
+    }
   };
 }
 
-function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
-  let prompt = `Validate this React component for errors, warnings, and quality issues:
-
-COMPONENT TO VALIDATE:`;
-
-  // Add assembled component code
-  if (tcc.assembledComponent) {
-    prompt += `
-\`\`\`typescript
-${tcc.assembledComponent.finalComponentCode}
-\`\`\`
-
-COMPONENT METADATA:
-- Name: ${tcc.assembledComponent.componentName}
-- Hooks: ${tcc.assembledComponent.hooks?.join(', ') || 'None'}
-- Functions: ${tcc.assembledComponent.functions?.join(', ') || 'None'}
-- Estimated Lines: ${tcc.assembledComponent.estimatedLines || 0}`;
-  } else {
-    prompt += `
-⚠️ NO COMPONENT CODE FOUND - This is a critical error.`;
-  }
-
-  // Add context from other TCC parts
-  if (tcc.stateLogic) {
-    prompt += `
-
-EXPECTED STATE LOGIC:
-Variables: ${tcc.stateLogic.variables?.map(v => `${v.name}: ${v.type}`).join(', ') || 'None'}
-Functions: ${tcc.stateLogic.functions?.map(f => f.name).join(', ') || 'None'}`;
-  }
-
-  if (tcc.jsxLayout) {
-    prompt += `
-
-EXPECTED ACCESSIBILITY FEATURES:
-${tcc.jsxLayout.accessibilityFeatures?.join(', ') || 'None specified'}`;
-  }
-
-  // Add edit mode context if needed
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += `
-
-🔄 EDIT MODE VALIDATION:
-Recent modifications were made. Pay special attention to:
-${editMode.instructions.map(i => i.instructions).join('\n')}`;
-  }
-
-  prompt += `
-
-Perform comprehensive validation including:
-- Syntax errors and TypeScript issues
-- React best practices
-- Performance considerations
-- Accessibility compliance
-- Code quality and readability
-
-Provide detailed feedback with specific line references where possible.`;
-
-  return prompt;
-} 
+ 

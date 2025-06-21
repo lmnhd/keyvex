@@ -9,7 +9,7 @@ import {
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { callModelForObject } from '@/lib/ai/model-caller';
 import logger from '@/lib/logger';
-import { getFunctionPlannerSystemPrompt } from '@/lib/prompts/v2/function-planner-prompt';
+import { getFunctionPlannerSystemPrompt, getFunctionPlannerUserPrompt } from '@/lib/prompts/v2/function-planner-prompt';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { filterBrainstormForFunctionPlanner, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 
@@ -156,7 +156,7 @@ async function generateFunctionSignatures(
   logger.info({ modelId }, '🔧 FunctionPlanner Module: Using model for generation');
 
   const systemPrompt = getFunctionPlannerSystemPrompt(false);
-  const userPrompt = createUserPrompt(tcc, editMode);
+  const userPrompt = getFunctionPlannerUserPrompt(tcc, editMode);
 
   // Log prompts when in isolated test mode for debugging
   if (isIsolatedTest) {
@@ -229,85 +229,4 @@ async function generateFunctionSignatures(
   }
 }
 
-/**
- * Creates the user prompt for the function planner based on TCC data
- * Enhanced with filtered brainstorm data integration and edit mode support
- */
-function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
-  // Get Function Planner specific filtered data
-  const filteredBrainstormData = filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId);
-  
-  // Use brainstorm data for tool description instead of fallback
-  let toolDescription = tcc.userInput?.description;
-  if (!toolDescription && filteredBrainstormData) {
-    toolDescription = `${filteredBrainstormData.coreConcept || 'Business Tool'}: ${filteredBrainstormData.valueProposition || 'A tool to help users make informed decisions.'}`;
-  }
 
-  let prompt = `Please analyze this tool description and provide the function signatures needed:
-
-TOOL DESCRIPTION: ${toolDescription || 'Business calculation tool'}
-TOOL TYPE: ${tcc.userInput.toolType || 'Not specified'}
-
-Additional Context:
-- User Industry: ${tcc.userInput.targetAudience || 'General'}`;
-
-  // Add filtered brainstorm context when available
-  if (filteredBrainstormData) {
-    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'FunctionPlanner');
-    prompt += brainstormContext;
-
-    logger.info({ 
-      jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: true,
-      dataReduction: 'Applied Function Planner specific filtering'
-    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
-  } else {
-    logger.warn({ 
-      jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: false
-    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - tool may be too generic');
-  }
-
-  // Add edit mode context if in edit mode
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += `
-
-🔄 EDIT MODE INSTRUCTIONS:
-You are EDITING existing function signatures. Here are the current functions:
-
-CURRENT FUNCTION SIGNATURES:`;
-
-    if (tcc.definedFunctionSignatures && tcc.definedFunctionSignatures.length > 0) {
-      tcc.definedFunctionSignatures.forEach(func => {
-        prompt += `\n- ${func.name}: ${func.description}`;
-      });
-    } else {
-      prompt += `\n- No existing function signatures found`;
-    }
-
-    prompt += `
-
-EDIT INSTRUCTIONS TO FOLLOW:`;
-
-    editMode.instructions.forEach((instruction, index) => {
-      prompt += `
-
-${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
-${instruction.instructions}
-
-Created: ${instruction.createdAt}`;
-    });
-
-    prompt += `
-
-Please apply these edit instructions to improve the function signatures. Maintain overall consistency while implementing the requested changes.`;
-  }
-
-  prompt += `
-
-Please provide the JSON array of function signatures as specified in the guidelines.`;
-
-  return prompt;
-}

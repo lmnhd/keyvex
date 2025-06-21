@@ -6,12 +6,23 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
   BrainstormDataSchema,
+  ToolConstructionContext,
+  ValidationResult,
 } from "@/lib/types/product-tool-creation-v2/tcc";
 import { emitStepProgress } from "@/lib/streaming/progress-emitter.server";
 import logger from "@/lib/logger";
 import { requireAuth } from "@/lib/auth/debug";
 import { V2ToolCreationJobService } from "@/lib/db/dynamodb/v2-tool-creation-jobs";
 import { V2ToolCreationJob } from "@/lib/types/v2-tool-creation-job";
+
+// Universal Agent Response Interface - Used by all agents
+interface UniversalAgentResponse {
+  success: boolean;
+  error?: string;
+  updatedTcc: ToolConstructionContext;
+  validationResult?: ValidationResult; // For validator agent
+  [key: string]: unknown; // Allow specific agent result fields
+}
 
 // Input validation schema
 const StartOrchestrationSchema = z.object({
@@ -25,7 +36,6 @@ const StartOrchestrationSchema = z.object({
   }),
   selectedModel: z.string().optional(),
   agentModelMapping: z.record(z.string()).optional(),
-  // Phase 1: Accept brainstorm data for enhanced agent context
   brainstormData: BrainstormDataSchema.optional(),
   testingOptions: z
     .object({
@@ -43,11 +53,177 @@ const StartOrchestrationSchema = z.object({
     .optional(),
 });
 
+// Agent execution sequence with validation requirements
+const AGENT_SEQUENCE = [
+  {
+    name: "function-planner",
+    step: OrchestrationStepEnum.enum.planning_function_signatures,
+    message: "Planning function signatures...",
+    requiredField: "definedFunctionSignatures",
+    skipOption: "skipFunctionPlanner"
+  },
+  {
+    name: "state-design",
+    step: OrchestrationStepEnum.enum.designing_state_logic,
+    message: "Designing state management...",
+    requiredField: "stateLogic",
+    skipOption: "skipStateDesign"
+  },
+  {
+    name: "jsx-layout",
+    step: OrchestrationStepEnum.enum.designing_jsx_layout,
+    message: "Creating JSX layout...",
+    requiredField: "jsxLayout",
+    skipOption: "skipJsxLayout"
+  },
+  {
+    name: "tailwind-styling",
+    step: OrchestrationStepEnum.enum.applying_tailwind_styling,
+    message: "Applying Tailwind styles...",
+    requiredField: "styling",
+    skipOption: "skipTailwindStyling"
+  },
+  {
+    name: "component-assembler",
+    step: OrchestrationStepEnum.enum.assembling_component,
+    message: "Assembling final component...",
+    requiredField: "finalComponentCode",
+    skipOption: "skipComponentAssembler"
+  },
+  {
+    name: "validator",
+    step: OrchestrationStepEnum.enum.validating_code,
+    message: "Validating code...",
+    requiredField: "validationResult",
+    skipOption: "skipValidator"
+  },
+  {
+    name: "tool-finalizer",
+    step: OrchestrationStepEnum.enum.finalizing_tool,
+    message: "Finalizing tool...",
+    requiredField: "finalProduct",
+    skipOption: "skipToolFinalizer"
+  }
+] as const;
+
+/**
+ * Execute a single agent via Universal Agent Route
+ */
+async function executeAgent(
+  jobId: string,
+  agentName: string,
+  tcc: ToolConstructionContext,
+  selectedModel: string,
+  agentModelMapping: Record<string, string> | undefined,
+  request: NextRequest
+) {
+  const agentModel = agentModelMapping?.[agentName] || selectedModel || "gpt-4o";
+  
+  logger.info(
+    { 
+      jobId, 
+      agentName,
+      agentModel,
+      modelSource: agentModelMapping?.[agentName] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
+    },
+    `🚀 ORCHESTRATOR: Executing ${agentName} with model ${agentModel}`
+  );
+
+  const agentUrl = new URL("/api/ai/agents/universal", request.url);
+  const response = await fetch(agentUrl.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jobId,
+      agentType: agentName,
+      selectedModel: agentModel,
+      tcc: tcc,
+      isSequentialMode: true
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`${agentName} failed: ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(`${agentName} failed: ${result.error}`);
+  }
+
+  return result;
+}
+
+/**
+ * Validate agent result and updated TCC
+ */
+function validateAgentResult(
+  jobId: string,
+  agentName: string,
+  result: UniversalAgentResponse,
+  requiredField: string
+): ToolConstructionContext {
+  // Check if agent returned updated TCC
+  if (!result.updatedTcc) {
+    logger.error({
+      jobId,
+      agentName,
+      resultKeys: Object.keys(result),
+      hasUpdatedTcc: !!result.updatedTcc
+    }, `🚀 ORCHESTRATOR: ❌ CRITICAL FAILURE - ${agentName} did not return updatedTcc`);
+    throw new Error(`CRITICAL FAILURE: ${agentName} did not return updatedTcc in sequential mode`);
+  }
+
+  // Check if required field exists using type-safe property access
+  const updatedTcc = result.updatedTcc as ToolConstructionContext & Record<string, unknown>;
+  const hasRequiredField = Boolean(updatedTcc[requiredField]);
+  
+  if (!hasRequiredField) {
+    logger.error({
+      jobId,
+      agentName,
+      updatedTccKeys: Object.keys(result.updatedTcc),
+      requiredField,
+      hasRequiredField
+    }, `🚀 ORCHESTRATOR: ❌ CRITICAL FAILURE - ${agentName} updatedTcc missing ${requiredField}`);
+    throw new Error(`CRITICAL FAILURE: ${agentName} updatedTcc missing required ${requiredField}`);
+  }
+
+  // Special validation for validator
+  if (agentName === "validator" && result.validationResult && !result.validationResult.isValid) {
+    const validationResult = result.validationResult;
+    const errorDetails = validationResult.error || 'Unknown validation errors';
+    const errorCount = validationResult.details?.errorCount || 0;
+    
+    logger.error({
+      jobId,
+      errorCount,
+      errorDetails,
+      validationDetails: validationResult.details
+    }, "🚀 ORCHESTRATOR: ❌ VALIDATION FAILED - STOPPING TOOL GENERATION");
+    
+    throw new Error(`Validation failed with ${errorCount} errors: ${errorDetails}. Auto-correction attempted but failed to resolve all issues.`);
+  }
+
+  logger.info(
+    { 
+      jobId, 
+      agentName,
+      requiredField,
+      hasRequiredField
+    },
+    `🚀 ORCHESTRATOR: ✅ ${agentName} Result - TCC VALIDATION PASSED`
+  );
+
+  return result.updatedTcc;
+}
+
 export async function POST(request: NextRequest) {
   const userId = await requireAuth();
 
   try {
     const body = await request.json();
+    const parsedInput = StartOrchestrationSchema.parse(body);
     const {
       jobId: providedJobId,
       userInput,
@@ -55,7 +231,7 @@ export async function POST(request: NextRequest) {
       agentModelMapping,
       brainstormData,
       testingOptions,
-    } = StartOrchestrationSchema.parse(body);
+    } = parsedInput;
 
     // Generate a new job ID only if one isn't provided
     const jobId = providedJobId || uuidv4();
@@ -67,191 +243,46 @@ export async function POST(request: NextRequest) {
         userId,
         userInputDescription: userInput.description,
         selectedModel: selectedModel || "default",
-        hasBrainstormData: !!brainstormData, // Log whether brainstorm data is present
+        hasBrainstormData: !!brainstormData,
         testingOptions: testingOptions || "none",
       },
-      "🚀 ORCHESTRATION START: Creating new TCC"
+      "🚀 ORCHESTRATOR: Starting simplified sequential flow"
     );
 
-    // 🔍 DEBUG: Log comprehensive brainstorm data structure for debugging
-    if (brainstormData) {
-      logger.info(
-        {
-          jobId,
-          brainstormDataKeys: Object.keys(brainstormData),
-          brainstormDataSize: JSON.stringify(brainstormData).length,
-          coreConcept:
-            brainstormData.coreConcept ||
-            brainstormData.coreWConcept ||
-            "Not specified",
-          valueProposition: brainstormData.valueProposition || "Not specified",
-          suggestedInputsCount: brainstormData.suggestedInputs?.length || 0,
-          keyCalculationsCount: brainstormData.keyCalculations?.length || 0,
-          interactionFlowCount: brainstormData.interactionFlow?.length || 0,
-          hasLeadCaptureStrategy: !!brainstormData.leadCaptureStrategy,
-          hasCalculationLogic:
-            !!brainstormData.calculationLogic &&
-            brainstormData.calculationLogic.length > 0,
-          hasCreativeEnhancements:
-            !!brainstormData.creativeEnhancements &&
-            brainstormData.creativeEnhancements.length > 0,
-        },
-        "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Rich brainstorm data available for agents"
-      );
-
-      // Log specific brainstorm fields for debugging
-      if (
-        brainstormData.suggestedInputs &&
-        brainstormData.suggestedInputs.length > 0
-      ) {
-        logger.info(
-          {
-            jobId,
-            suggestedInputs: brainstormData.suggestedInputs.map((input) => ({
-              label: input.label,
-              type: input.type,
-              description:
-                input.description?.substring(0, 100) +
-                (input.description?.length > 100 ? "..." : ""),
-            })),
-          },
-          "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Suggested inputs that agents will use"
-        );
-      }
-
-      if (
-        brainstormData.keyCalculations &&
-        brainstormData.keyCalculations.length > 0
-      ) {
-        logger.info(
-          {
-            jobId,
-            keyCalculations: brainstormData.keyCalculations.map((calc) => ({
-              name: calc.name,
-              formula:
-                calc.formula?.substring(0, 100) +
-                (calc.formula?.length > 100 ? "..." : ""),
-              description:
-                calc.description?.substring(0, 100) +
-                (calc.description?.length > 100 ? "..." : ""),
-            })),
-          },
-          "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Key calculations that agents will implement"
-        );
-      }
-
-      if (
-        brainstormData.interactionFlow &&
-        brainstormData.interactionFlow.length > 0
-      ) {
-        logger.info(
-          {
-            jobId,
-            interactionFlow: brainstormData.interactionFlow.map((step) => ({
-              step: step.step,
-              title: step.title,
-              description:
-                step.description?.substring(0, 100) +
-                (step.description?.length > 100 ? "..." : ""),
-              userAction:
-                step.userAction?.substring(0, 100) +
-                (step.userAction?.length > 100 ? "..." : ""),
-            })),
-          },
-          "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Interaction flow that agents will design for"
-        );
-      }
-
-      if (brainstormData.leadCaptureStrategy) {
-        logger.info(
-          {
-            jobId,
-            leadCaptureStrategy: {
-              timing: brainstormData.leadCaptureStrategy.timing,
-              method: brainstormData.leadCaptureStrategy.method,
-              incentive:
-                brainstormData.leadCaptureStrategy.incentive?.substring(
-                  0,
-                  100
-                ) +
-                (brainstormData.leadCaptureStrategy.incentive?.length > 100
-                  ? "..."
-                  : ""),
-            },
-          },
-          "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Lead capture strategy for agents"
-        );
-      }
-
-      if (
-        brainstormData.calculationLogic &&
-        brainstormData.calculationLogic.length > 0
-      ) {
-        logger.info(
-          {
-            jobId,
-            calculationLogic: brainstormData.calculationLogic.map((logic) => ({
-              name: logic.name,
-              formula:
-                logic.formula?.substring(0, 100) +
-                (logic.formula?.length > 100 ? "..." : ""),
-            })),
-          },
-          "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] Calculation logic for agents to implement"
-        );
-      }
-    } else {
-      logger.warn(
-        {
-          jobId,
-          userInputDescription: userInput.description,
-          toolType: userInput.toolType || "Not specified",
-          targetAudience: userInput.targetAudience || "Not specified",
-        },
-        "🚀 ORCHESTRATION START: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Agents will work with minimal context only"
-      );
-    }
-
-    // Create initial TCC with userId and brainstorm data (Phase 1)
-    const tcc = createTCC(jobId, userInput, userId, brainstormData);
+    // Create initial TCC with userId and brainstorm data
+    let currentTcc = createTCC(jobId, userInput, userId, brainstormData);
 
     // Add agent model mapping if provided
     if (agentModelMapping) {
-      tcc.agentModelMapping = agentModelMapping;
+      currentTcc.agentModelMapping = agentModelMapping;
     }
 
     logger.info(
-      { jobId, tccId: tcc.jobId, userId },
-      "🚀 ORCHESTRATION START: TCC created (will be passed as props)"
+      { jobId, tccId: currentTcc.jobId, userId },
+      "🚀 ORCHESTRATOR: TCC created - beginning sequential agent execution"
     );
 
     // Emit initial progress
-    const shouldStream = testingOptions?.enableWebSocketStreaming !== false; // default true
+    const shouldStream = testingOptions?.enableWebSocketStreaming !== false;
     if (shouldStream) {
       await emitStepProgress(
-        tcc.jobId,
+        currentTcc.jobId,
         OrchestrationStepEnum.enum.planning_function_signatures,
         "started",
-        "Orchestration started. Beginning function signature planning...",
-        tcc // Pass TCC directly as details
-      );
-
-      logger.info(
-        { jobId: tcc.jobId },
-        "🚀 ORCHESTRATION START: Initial progress emitted"
+        "Orchestration started. Beginning sequential agent execution...",
+        currentTcc
       );
     }
 
-    // Save the initial job state
+    // Save initial job state
     const jobService = new V2ToolCreationJobService();
     const initialJob: V2ToolCreationJob = {
-      id: tcc.jobId,
+      id: currentTcc.jobId,
       userId,
       status: "running",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      // Include any initial tool construction context if available
-      toolConstructionContext: tcc,
+      toolConstructionContext: currentTcc,
     };
 
     try {
@@ -259,603 +290,97 @@ export async function POST(request: NextRequest) {
       logger.info({ jobId }, "✅ Successfully saved initial job state");
     } catch (error) {
       logger.error({ jobId, error }, "❌ Failed to save initial job state");
-      // Consider whether to continue or fail the orchestration
       throw new Error("Failed to save initial job state");
     }
 
-    // Trigger first agent (Function Planner) unless testing options skip it
-    if (!testingOptions?.skipFunctionPlanner) {
-      logger.info(
-        { jobId },
-        "🚀 ORCHESTRATION START: Triggering Function Planner"
-      );
-
-      // ✅ FIXED: Use agent-specific model from agentModelMapping or fall back to selectedModel/default
-      const functionPlannerModel = agentModelMapping?.['function-planner'] || selectedModel || "gpt-4o";
-      
-      logger.info(
-        { 
-          jobId, 
-          functionPlannerModel,
-          modelSource: agentModelMapping?.['function-planner'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-        },
-        "🚀 ORCHESTRATION START: Function Planner model selection"
-      );
-
-      const functionPlannerUrl = new URL(
-        "/api/ai/product-tool-creation-v2/agents/function-planner",
-        request.url
-      );
-      const functionPlannerResponse = await fetch(
-        functionPlannerUrl.toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId,
-            selectedModel: functionPlannerModel,
-            tcc: tcc,
-            isSequentialMode: true
-          }),
-        }
-      );
-
-      if (!functionPlannerResponse.ok) {
-        throw new Error(
-          `Function Planner failed: ${functionPlannerResponse.status}`
-        );
-      }
-
-      // ✅ CRITICAL FIX: Get updated TCC from Function Planner 
-      const functionPlannerResult = await functionPlannerResponse.json();
-      if (!functionPlannerResult.success) {
-        throw new Error(`Function Planner failed: ${functionPlannerResult.error}`);
-      }
-
-      // 🚨 STRICT TCC VALIDATION: Fail outright if Function Planner doesn't return updated TCC
-      if (!functionPlannerResult.updatedTcc) {
-        logger.error({
-          jobId,
-          functionPlannerResultKeys: Object.keys(functionPlannerResult),
-          hasUpdatedTcc: !!functionPlannerResult.updatedTcc
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Function Planner Agent did not return updatedTcc");
-        throw new Error("CRITICAL FAILURE: Function Planner Agent did not return updatedTcc in sequential mode");
-      }
-
-      // 🚨 STRICT TCC FIELD VALIDATION: Ensure function signatures were created
-      if (!functionPlannerResult.updatedTcc.definedFunctionSignatures || functionPlannerResult.updatedTcc.definedFunctionSignatures.length === 0) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(functionPlannerResult.updatedTcc),
-          hasFunctionSignatures: !!functionPlannerResult.updatedTcc.definedFunctionSignatures,
-          functionSignatureCount: functionPlannerResult.updatedTcc.definedFunctionSignatures?.length || 0
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Function Planner Agent updatedTcc missing definedFunctionSignatures");
-        throw new Error("CRITICAL FAILURE: Function Planner Agent updatedTcc missing required definedFunctionSignatures");
-      }
-
-      logger.info(
-        { 
-          jobId, 
-          status: functionPlannerResponse.status,
-          functionSignaturesCreated: functionPlannerResult.updatedTcc.definedFunctionSignatures.length,
-          updatedTccKeys: Object.keys(functionPlannerResult.updatedTcc)
-        },
-        "🚀 ORCHESTRATION START: ✅ Function Planner Result - TCC VALIDATION PASSED"
-      );
-
-      // ✅ RESTORATION: Now trigger State Design with the UPDATED TCC from Function Planner
-      logger.info(
-        { jobId },
-        "🚀 ORCHESTRATION START: Triggering State Design with updated TCC"
-      );
-
-      // ✅ FIXED: Use agent-specific model for State Design
-      const stateDesignModel = agentModelMapping?.['state-design'] || selectedModel || "gpt-4o";
-      
-      logger.info(
-        { 
-          jobId, 
-          stateDesignModel,
-          modelSource: agentModelMapping?.['state-design'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-        },
-        "🚀 ORCHESTRATION START: State Design model selection"
-      );
-
-      const stateDesignUrl = new URL(
-        "/api/ai/product-tool-creation-v2/agents/state-design",
-        request.url
-      );
-      const stateDesignResponse = await fetch(
-        stateDesignUrl.toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId,
-            selectedModel: stateDesignModel,
-            tcc: functionPlannerResult.updatedTcc, // ✅ STRICT: Only use validated TCC
-            isSequentialMode: true
-          }),
-        }
-      );
-
-      if (!stateDesignResponse.ok) {
-        throw new Error(
-          `State Design failed: ${stateDesignResponse.status}`
-        );
-      }
-
-      // ✅ CRITICAL FIX: Get updated TCC from State Design and continue with JSX Layout
-      const stateDesignResult = await stateDesignResponse.json();
-      if (!stateDesignResult.success) {
-        throw new Error(`State Design failed: ${stateDesignResult.error}`);
-      }
-
-      // 🚨 STRICT TCC VALIDATION: Fail outright if State Design doesn't return updated TCC
-      if (!stateDesignResult.updatedTcc) {
-        logger.error({
-          jobId,
-          stateDesignResultKeys: Object.keys(stateDesignResult),
-          hasUpdatedTcc: !!stateDesignResult.updatedTcc
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - State Design Agent did not return updatedTcc");
-        throw new Error("CRITICAL FAILURE: State Design Agent did not return updatedTcc in sequential mode");
-      }
-
-      // 🚨 STRICT TCC FIELD VALIDATION: Ensure stateLogic was created
-      if (!stateDesignResult.updatedTcc.stateLogic) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(stateDesignResult.updatedTcc),
-          hasStateLogic: !!stateDesignResult.updatedTcc.stateLogic
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - State Design Agent updatedTcc missing stateLogic field");
-        throw new Error("CRITICAL FAILURE: State Design Agent updatedTcc missing required stateLogic field");
-      }
-
-      // 🔍 DEBUG: Log what orchestrator received from State Design Agent
-      logger.info(
-        { 
-          jobId, 
-          stateDesignResultKeys: Object.keys(stateDesignResult),
-          hasUpdatedTcc: !!stateDesignResult.updatedTcc,
-          updatedTccKeys: Object.keys(stateDesignResult.updatedTcc),
-          hasStateLogicInResult: !!stateDesignResult.updatedTcc.stateLogic,
-          stateLogicVariableCount: stateDesignResult.updatedTcc.stateLogic?.variables?.length || 0,
-          stateLogicFunctionCount: stateDesignResult.updatedTcc.stateLogic?.functions?.length || 0
-        },
-        "🚀 ORCHESTRATION START: ✅ State Design Result - TCC VALIDATION PASSED"
-      );
-
-      logger.info(
-        { jobId, status: stateDesignResponse.status },
-        "🚀 ORCHESTRATION START: State Design completed, continuing with JSX Layout"
-      );
-
-      // ✅ SEQUENTIAL FLOW: Now trigger JSX Layout with the UPDATED TCC from State Design
-      const jsxLayoutModel = agentModelMapping?.['jsx-layout'] || selectedModel || "gpt-4o";
-      
-      logger.info(
-        { 
-          jobId, 
-          jsxLayoutModel,
-          modelSource: agentModelMapping?.['jsx-layout'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-        },
-        "🚀 ORCHESTRATION START: JSX Layout model selection"
-      );
-
-      const jsxLayoutUrl = new URL(
-        "/api/ai/product-tool-creation-v2/agents/jsx-layout",
-        request.url
-      );
-      const jsxLayoutResponse = await fetch(
-        jsxLayoutUrl.toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId,
-            selectedModel: jsxLayoutModel,
-            tcc: stateDesignResult.updatedTcc, // ✅ STRICT: Only use validated TCC
-            isSequentialMode: true
-          }),
-        }
-      );
-
-      if (!jsxLayoutResponse.ok) {
-        throw new Error(
-          `JSX Layout failed: ${jsxLayoutResponse.status}`
-        );
-      }
-
-      // ✅ CRITICAL FIX: Get updated TCC from JSX Layout and continue with Tailwind Styling
-      const jsxLayoutResult = await jsxLayoutResponse.json();
-      if (!jsxLayoutResult.success) {
-        throw new Error(`JSX Layout failed: ${jsxLayoutResult.error}`);
-      }
-
-      // 🚨 STRICT TCC VALIDATION: Fail outright if JSX Layout doesn't return updated TCC
-      if (!jsxLayoutResult.updatedTcc) {
-        logger.error({
-          jobId,
-          jsxLayoutResultKeys: Object.keys(jsxLayoutResult),
-          hasUpdatedTcc: !!jsxLayoutResult.updatedTcc
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent did not return updatedTcc");
-        throw new Error("CRITICAL FAILURE: JSX Layout Agent did not return updatedTcc in sequential mode");
-      }
-
-      // 🚨 STRICT TCC FIELD VALIDATION: Ensure all previous fields are preserved
-      if (!jsxLayoutResult.updatedTcc.stateLogic) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
-          hasStateLogic: !!jsxLayoutResult.updatedTcc.stateLogic
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent lost stateLogic field from TCC");
-        throw new Error("CRITICAL FAILURE: JSX Layout Agent lost required stateLogic field from TCC");
-      }
-
-      if (!jsxLayoutResult.updatedTcc.jsxLayout) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
-          hasJsxLayout: !!jsxLayoutResult.updatedTcc.jsxLayout
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - JSX Layout Agent updatedTcc missing jsxLayout field");
-        throw new Error("CRITICAL FAILURE: JSX Layout Agent updatedTcc missing required jsxLayout field");
-      }
-
-      // 🔍 DEBUG: Log JSX Layout TCC result
-      logger.info(
-        { 
-          jobId, 
-          jsxLayoutTccKeys: Object.keys(jsxLayoutResult.updatedTcc),
-          hasStateLogic: !!jsxLayoutResult.updatedTcc.stateLogic,
-          hasJsxLayout: !!jsxLayoutResult.updatedTcc.jsxLayout,
-          stateLogicVariableCount: jsxLayoutResult.updatedTcc.stateLogic?.variables?.length || 0,
-          stateLogicFunctionCount: jsxLayoutResult.updatedTcc.stateLogic?.functions?.length || 0
-        },
-        "🚀 ORCHESTRATION START: ✅ JSX Layout Result - TCC VALIDATION PASSED"
-      );
-
-      logger.info(
-        { jobId, status: jsxLayoutResponse.status },
-        "🚀 ORCHESTRATION START: JSX Layout completed, continuing with Tailwind Styling"
-      );
-
-      // ✅ SEQUENTIAL FLOW: Now trigger Tailwind Styling with the UPDATED TCC from JSX Layout
-      const tailwindStylingModel = agentModelMapping?.['tailwind-styling'] || selectedModel || "gpt-4o";
-      
-      logger.info(
-        { 
-          jobId, 
-          tailwindStylingModel,
-          modelSource: agentModelMapping?.['tailwind-styling'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-        },
-        "🚀 ORCHESTRATION START: Tailwind Styling model selection"
-      );
-
-      const tailwindStylingUrl = new URL(
-        "/api/ai/product-tool-creation-v2/agents/tailwind-styling",
-        request.url
-      );
-      const tailwindStylingResponse = await fetch(
-        tailwindStylingUrl.toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId,
-            selectedModel: tailwindStylingModel,
-            tcc: jsxLayoutResult.updatedTcc, // ✅ STRICT: Only use validated TCC
-            isSequentialMode: true
-          }),
-        }
-      );
-
-      if (!tailwindStylingResponse.ok) {
-        throw new Error(
-          `Tailwind Styling failed: ${tailwindStylingResponse.status}`
-        );
-      }
-
-      // ✅ CRITICAL FIX: Get updated TCC from Tailwind Styling and continue with Component Assembler
-      const tailwindStylingResult = await tailwindStylingResponse.json();
-      if (!tailwindStylingResult.success) {
-        throw new Error(`Tailwind Styling failed: ${tailwindStylingResult.error}`);
-      }
-
-      // 🚨 STRICT TCC VALIDATION: Fail outright if Tailwind Styling doesn't return updated TCC
-      if (!tailwindStylingResult.updatedTcc) {
-        logger.error({
-          jobId,
-          tailwindStylingResultKeys: Object.keys(tailwindStylingResult),
-          hasUpdatedTcc: !!tailwindStylingResult.updatedTcc
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent did not return updatedTcc");
-        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent did not return updatedTcc in sequential mode");
-      }
-
-      // 🚨 STRICT TCC FIELD VALIDATION: Ensure all previous fields are preserved
-      if (!tailwindStylingResult.updatedTcc.stateLogic) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
-          hasStateLogic: !!tailwindStylingResult.updatedTcc.stateLogic
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent lost stateLogic field from TCC");
-        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent lost required stateLogic field from TCC");
-      }
-
-      if (!tailwindStylingResult.updatedTcc.jsxLayout) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
-          hasJsxLayout: !!tailwindStylingResult.updatedTcc.jsxLayout
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent lost jsxLayout field from TCC");
-        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent lost required jsxLayout field from TCC");
-      }
-
-      if (!tailwindStylingResult.updatedTcc.styling) {
-        logger.error({
-          jobId,
-          updatedTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
-          hasStyling: !!tailwindStylingResult.updatedTcc.styling
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Tailwind Styling Agent updatedTcc missing styling field");
-        throw new Error("CRITICAL FAILURE: Tailwind Styling Agent updatedTcc missing required styling field");
-      }
-
-      // 🔍 DEBUG: Log Tailwind Styling TCC result
-      logger.info(
-        { 
-          jobId, 
-          tailwindStylingTccKeys: Object.keys(tailwindStylingResult.updatedTcc),
-          hasStateLogic: !!tailwindStylingResult.updatedTcc.stateLogic,
-          hasJsxLayout: !!tailwindStylingResult.updatedTcc.jsxLayout,
-          hasStyling: !!tailwindStylingResult.updatedTcc.styling,
-          stateLogicVariableCount: tailwindStylingResult.updatedTcc.stateLogic?.variables?.length || 0,
-          stateLogicFunctionCount: tailwindStylingResult.updatedTcc.stateLogic?.functions?.length || 0
-        },
-        "🚀 ORCHESTRATION START: ✅ Tailwind Styling Result - TCC VALIDATION PASSED"
-      );
-
-      logger.info(
-        { jobId, status: tailwindStylingResponse.status },
-        "🚀 ORCHESTRATION START: Tailwind Styling completed, continuing with Component Assembler"
-      );
-
-      // ✅ SEQUENTIAL FLOW: Now trigger Component Assembler with the UPDATED TCC from Tailwind Styling
-      const componentAssemblerModel = agentModelMapping?.['component-assembler'] || selectedModel || "claude-3-7-sonnet-20250219";
-      
-      logger.info(
-        { 
-          jobId, 
-          componentAssemblerModel,
-          modelSource: agentModelMapping?.['component-assembler'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-        },
-        "🚀 ORCHESTRATION START: Component Assembler model selection"
-      );
-
-      const componentAssemblerUrl = new URL(
-        "/api/ai/product-tool-creation-v2/agents/component-assembler",
-        request.url
-      );
-      const componentAssemblerResponse = await fetch(
-        componentAssemblerUrl.toString(),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jobId,
-            selectedModel: componentAssemblerModel,
-            tcc: tailwindStylingResult.updatedTcc, // ✅ STRICT: Only use validated TCC
-            isSequentialMode: true
-          }),
-        }
-      );
-
-      if (!componentAssemblerResponse.ok) {
-        throw new Error(
-          `Component Assembler failed: ${componentAssemblerResponse.status}`
-        );
-      }
-
-      // ✅ CRITICAL FIX: Process Component Assembler result and save final tool
-      const componentAssemblerResult = await componentAssemblerResponse.json();
-      if (!componentAssemblerResult.success) {
-        throw new Error(`Component Assembler failed: ${componentAssemblerResult.error}`);
-      }
-
-      // 🚨 STRICT TCC VALIDATION: Ensure Component Assembler returned the final code
-      if (!componentAssemblerResult.finalComponentCode) {
-        logger.error({
-          jobId,
-          componentAssemblerResultKeys: Object.keys(componentAssemblerResult),
-          hasFinalComponentCode: !!componentAssemblerResult.finalComponentCode
-        }, "🚀 ORCHESTRATION START: ❌ CRITICAL FAILURE - Component Assembler did not return finalComponentCode");
-        throw new Error("CRITICAL FAILURE: Component Assembler did not return finalComponentCode");
-      }
-
-      // ✅ CRITICAL FIX: Use Component Assembler's updated TCC (contains finalProduct.componentCode)
-      const componentAssemblerTcc = componentAssemblerResult.updatedTcc || {
-        ...tailwindStylingResult.updatedTcc,
-        componentName: componentAssemblerResult.componentName
-      };
-
-      logger.info(
-        { 
-          jobId, 
-          status: componentAssemblerResponse.status,
-          finalComponentCodeLength: componentAssemblerResult.finalComponentCode.length,
-          componentName: componentAssemblerResult.componentName || 'Unknown'
-        },
-        "🚀 ORCHESTRATION START: ✅ Component Assembler Result - CONTINUING TO VALIDATOR"
-      );
-
-      // ✅ SEQUENTIAL FLOW: Continue with Validator 
-      if (!testingOptions?.skipValidator) {
+    // Execute agents sequentially
+    for (const agent of AGENT_SEQUENCE) {
+      // Check if agent should be skipped
+      if (testingOptions?.[agent.skipOption as keyof typeof testingOptions]) {
         logger.info(
-          { jobId },
-          "🚀 ORCHESTRATION START: Triggering Validator"
+          { jobId, agentName: agent.name },
+          `🚀 ORCHESTRATOR: Skipping ${agent.name} (testing mode)`
         );
+        continue;
+      }
 
-        const validatorModel = agentModelMapping?.['validator'] || selectedModel || "gpt-4o";
-        
-        logger.info(
-          { 
-            jobId, 
-            validatorModel,
-            modelSource: agentModelMapping?.['validator'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-          },
-          "🚀 ORCHESTRATION START: Validator model selection"
-        );
-
-        const validatorUrl = new URL(
-          "/api/ai/product-tool-creation-v2/agents/validator",
-          request.url
-        );
-        const validatorResponse = await fetch(
-          validatorUrl.toString(),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              jobId,
-              selectedModel: validatorModel,
-              tcc: componentAssemblerTcc,
-              isSequentialMode: true
-            }),
-          }
-        );
-
-        if (!validatorResponse.ok) {
-          throw new Error(
-            `Validator failed: ${validatorResponse.status}`
-          );
-        }
-
-        const validatorResult = await validatorResponse.json();
-        if (!validatorResult.success) {
-          throw new Error(`Validator failed: ${validatorResult.error}`);
-        }
-
-        // ✅ CRITICAL FIX: Check actual validation results, not just route success
-        if (validatorResult.validationResult && !validatorResult.validationResult.isValid) {
-          const errorDetails = validatorResult.validationResult.errors?.join('; ') || 'Unknown validation errors';
-          const errorCount = validatorResult.validationResult.errorCount || 0;
-          
-          logger.error({
-            jobId,
-            errorCount,
-            errorDetails,
-            autoCorrectionApplied: validatorResult.validationResult.autoCorrectionApplied
-          }, "🚀 ORCHESTRATION START: ❌ VALIDATION FAILED - STOPPING TOOL GENERATION");
-          
-          throw new Error(`Validation failed with ${errorCount} errors: ${errorDetails}. Auto-correction attempted but failed to resolve all issues.`);
-        }
-
-        logger.info(
-          { jobId, status: validatorResponse.status },
-          "🚀 ORCHESTRATION START: Validator completed, continuing with Tool Finalizer"
-        );
-
-        // ✅ SEQUENTIAL FLOW: Finally, trigger Tool Finalizer
-        if (!testingOptions?.skipToolFinalizer) {
-          logger.info(
-            { jobId },
-            "🚀 ORCHESTRATION START: Triggering Tool Finalizer"
-          );
-
-          const toolFinalizerModel = agentModelMapping?.['tool-finalizer'] || selectedModel || "gpt-4o";
-          
-          logger.info(
-            { 
-              jobId, 
-              toolFinalizerModel,
-              modelSource: agentModelMapping?.['tool-finalizer'] ? 'agentModelMapping' : (selectedModel ? 'selectedModel' : 'default')
-            },
-            "🚀 ORCHESTRATION START: Tool Finalizer model selection"
-          );
-
-          const toolFinalizerUrl = new URL(
-            "/api/ai/product-tool-creation-v2/agents/tool-finalizer",
-            request.url
-          );
-          const toolFinalizerResponse = await fetch(
-            toolFinalizerUrl.toString(),
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                jobId,
-                selectedModel: toolFinalizerModel,
-                tcc: componentAssemblerTcc,
-                isSequentialMode: true
-              }),
-            }
-          );
-
-          if (!toolFinalizerResponse.ok) {
-            throw new Error(
-              `Tool Finalizer failed: ${toolFinalizerResponse.status}`
-            );
-          }
-
-          const toolFinalizerResult = await toolFinalizerResponse.json();
-          if (!toolFinalizerResult.success) {
-            throw new Error(`Tool Finalizer failed: ${toolFinalizerResult.error}`);
-          }
-
-          logger.info(
-            { 
-              jobId, 
-              status: toolFinalizerResponse.status,
-              finalProductCreated: !!toolFinalizerResult.finalProduct
-            },
-            "🚀 ORCHESTRATION START: ✅ Tool Finalizer Result - TOOL GENERATION COMPLETE!"
-          );
-
-          // ✅ FINAL STEP: Emit final completion status
-          await emitStepProgress(
-            jobId,
-            OrchestrationStepEnum.enum.finalizing_tool,
-            'completed',
-            'Tool generation completed successfully! 🎉',
-            tcc // Pass original TCC structure for userId
-          );
-
-          logger.info(
-            { jobId },
-            "🚀 ORCHESTRATION START: COMPLETE SEQUENTIAL FLOW FINISHED - All 6 agents executed successfully!"
-          );
-        } else {
-          logger.info(
-            { jobId },
-            "🚀 ORCHESTRATION START: Skipping Tool Finalizer (testing mode)"
-          );
-        }
-      } else {
-        logger.info(
-          { jobId },
-          "🚀 ORCHESTRATION START: Skipping Validator (testing mode)"
+      // Emit progress
+      if (shouldStream) {
+        await emitStepProgress(
+          jobId,
+          agent.step,
+          "started",
+          agent.message,
+          currentTcc
         );
       }
 
-    } else {
+      // Execute agent
+      const result = await executeAgent(
+        jobId,
+        agent.name,
+        currentTcc,
+        selectedModel || "gpt-4o",
+        agentModelMapping,
+        request
+      );
+
+      // Validate result and update TCC
+      currentTcc = validateAgentResult(
+        jobId,
+        agent.name,
+        result,
+        agent.requiredField
+      );
+
+      // Emit completion
+      if (shouldStream) {
+        await emitStepProgress(
+          jobId,
+          agent.step,
+          "completed",
+          `✅ ${agent.name} completed successfully`,
+          currentTcc
+        );
+      }
+
       logger.info(
-        { jobId },
-        "🚀 ORCHESTRATION START: Skipping Function Planner (testing mode)"
+        { jobId, agentName: agent.name },
+        `🚀 ORCHESTRATOR: ✅ ${agent.name} completed - continuing to next agent`
       );
     }
+
+    // Emit final completion
+    if (shouldStream) {
+      await emitStepProgress(
+        jobId,
+        OrchestrationStepEnum.enum.finalizing_tool,
+        'completed',
+        'Tool generation completed successfully! 🎉',
+        currentTcc
+      );
+    }
+
+    logger.info(
+      { jobId },
+      "🚀 ORCHESTRATOR: ✅ COMPLETE SEQUENTIAL FLOW FINISHED - All agents executed successfully!"
+    );
 
     return NextResponse.json({
       success: true,
       jobId,
-      tccId: tcc.jobId,
-      currentStep: OrchestrationStepEnum.enum.planning_function_signatures,
-      status: OrchestrationStatusEnum.enum.pending,
-      message: "Orchestration started successfully",
+      tccId: currentTcc.jobId,
+      currentStep: OrchestrationStepEnum.enum.finalizing_tool,
+      status: OrchestrationStatusEnum.enum.completed,
+      message: "Orchestration completed successfully",
       webSocketConnected: shouldStream,
       testingMode: !!testingOptions,
     });
+
   } catch (error) {
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },
-      "🚀 ORCHESTRATION START: Error"
+      "🚀 ORCHESTRATOR: Error in simplified flow"
     );
 
     if (error instanceof z.ZodError) {
@@ -872,8 +397,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
       },
       { status: 500 }
     );

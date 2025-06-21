@@ -4,23 +4,18 @@ import {
   ToolConstructionContext,
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
-  FinalizedTool,
-  FinalizedToolSchema,
+  FinalProductToolDefinitionSchema,
+  BrainstormData,
 } from '@/lib/types/product-tool-creation-v2/tcc';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { openai } from '@ai-sdk/openai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateObject } from 'ai';
-import {
-  getPrimaryModel,
-  getModelProvider,
-} from '@/lib/ai/models/model-config';
-import { getToolFinalizerSystemPrompt } from '@/lib/prompts/v2/tool-finalizer-prompt';
+import { callModelForObject } from '@/lib/ai/model-caller';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
+import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '@/lib/prompts/tool-finalizer-prompt';
 import logger from '@/lib/logger';
 
-// Use TCC schema directly
-const ToolFinalizerOutputSchema = FinalizedToolSchema;
-export type ToolFinalizerOutput = FinalizedTool;
+// Use the existing schema from TCC
+const ToolFinalizerOutputSchema = FinalProductToolDefinitionSchema;
+export type ToolFinalizerOutput = z.infer<typeof FinalProductToolDefinitionSchema>;
 
 // Edit mode context type
 type EditModeContext = {
@@ -46,17 +41,9 @@ export interface ToolFinalizerRequest {
 
 export interface ToolFinalizerResult {
   success: boolean;
-  finalizedTool?: FinalizedTool;
+  finalizedTool?: z.infer<typeof FinalProductToolDefinitionSchema>;
   error?: string;
   updatedTcc: ToolConstructionContext;
-}
-
-function createModelInstance(provider: string, modelId: string) {
-  switch (provider) {
-    case 'openai': return openai(modelId);
-    case 'anthropic': return anthropic(modelId);
-    default: return openai('gpt-4o');
-  }
 }
 
 /**
@@ -97,7 +84,7 @@ export async function executeToolFinalizer(request: ToolFinalizerRequest): Promi
       jobId,
       agentName: 'ToolFinalizer',
       tccUpdateDetail: {
-        beforeFinalizedTool: !!tcc.finalizedTool,
+        beforeFinalProduct: !!tcc.finalProduct,
         beforeSteps: Object.keys(tcc.steps || {}),
         beforeLastUpdated: tcc.updatedAt
       }
@@ -105,19 +92,12 @@ export async function executeToolFinalizer(request: ToolFinalizerRequest): Promi
 
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
-      finalizedTool,
-      status: 'completed',
-      steps: {
-        ...tcc.steps,
-        finalizingTool: {
-          status: OrchestrationStatusEnum.enum.completed,
-          startedAt: tcc.steps?.finalizingTool?.startedAt || new Date().toISOString(),
-          completedAt: new Date().toISOString(),
-          result: finalizedTool,
-        },
+      finalProduct: {
+        ...tcc.finalProduct,
+        ...finalizedTool
       },
+      status: 'completed',
       updatedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
     };
 
     // Comprehensive TCC update logging - detailed output
@@ -125,22 +105,17 @@ export async function executeToolFinalizer(request: ToolFinalizerRequest): Promi
       jobId,
       agentName: 'ToolFinalizer',
       tccUpdateDetail: {
-        afterFinalizedTool: !!updatedTcc.finalizedTool,
-        afterSteps: Object.keys(updatedTcc.steps || {}),
+        afterFinalProduct: !!updatedTcc.finalProduct,
         afterLastUpdated: updatedTcc.updatedAt,
         afterStatus: updatedTcc.status,
-        afterCompletedAt: updatedTcc.completedAt,
         toolDetails: {
-          toolId: updatedTcc.finalizedTool?.toolId,
-          toolName: updatedTcc.finalizedTool?.toolName,
-          version: updatedTcc.finalizedTool?.version,
-          category: updatedTcc.finalizedTool?.category,
-          deploymentReady: updatedTcc.finalizedTool?.deploymentReady,
-          hasDocumentation: !!updatedTcc.finalizedTool?.documentation,
-          hasMetadata: !!updatedTcc.finalizedTool?.metadata
-        },
-        stepStatusUpdate: updatedTcc.steps?.finalizingTool?.status,
-        stepResult: !!updatedTcc.steps?.finalizingTool?.result
+          toolId: updatedTcc.finalProduct?.id,
+          toolSlug: updatedTcc.finalProduct?.slug,
+          toolVersion: updatedTcc.finalProduct?.version,
+          toolStatus: updatedTcc.finalProduct?.status,
+          hasMetadata: !!updatedTcc.finalProduct?.metadata,
+          hasComponentCode: !!updatedTcc.finalProduct?.componentCode
+        }
       }
     }, '🏁 ToolFinalizer Module: TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
@@ -150,7 +125,7 @@ export async function executeToolFinalizer(request: ToolFinalizerRequest): Promi
         jobId,
         OrchestrationStepEnum.enum.finalizing_tool,
         'completed',
-        `Successfully finalized ${finalizedTool.toolName} v${finalizedTool.version} - Tool is ${finalizedTool.deploymentReady ? 'ready for deployment' : 'not ready for deployment'}`,
+        `Successfully finalized tool v${finalizedTool.version} - Tool is ready for deployment`,
         updatedTcc
       );
     }
@@ -177,77 +152,65 @@ async function generateFinalizedTool(
   tcc: ToolConstructionContext,
   selectedModel?: string,
   editMode?: EditModeContext,
-): Promise<FinalizedTool> {
-  let modelConfig: { provider: string; modelId: string };
-  
+): Promise<z.infer<typeof FinalProductToolDefinitionSchema>> {
   // PRIORITY 1: Check TCC agent model mapping first
+  let modelId: string;
   if (tcc.agentModelMapping?.['tool-finalizer']) {
-    const mappedModel = tcc.agentModelMapping['tool-finalizer'];
-    const provider = getModelProvider(mappedModel);
-    modelConfig = { 
-      provider: provider !== 'unknown' ? provider : 'openai', 
-      modelId: mappedModel 
-    };
+    modelId = tcc.agentModelMapping['tool-finalizer'];
     logger.info({ 
       agentName: 'tool-finalizer', 
-      mappedModel, 
-      provider: modelConfig.provider,
+      mappedModel: modelId,
       source: 'TCC_AGENT_MAPPING' 
     }, '🏁 ToolFinalizer Module: Using TCC AGENT MAPPING model from workbench');
   }
   // PRIORITY 2: User-selected model from request
   else if (selectedModel && selectedModel !== 'default') {
-    const provider = getModelProvider(selectedModel);
-    modelConfig = { provider: provider !== 'unknown' ? provider : 'openai', modelId: selectedModel };
+    modelId = selectedModel;
     logger.info({ 
-      selectedModel, 
-      provider: modelConfig.provider,
+      selectedModel: modelId,
       source: 'REQUEST_PARAMETER' 
     }, '🏁 ToolFinalizer Module: Using REQUEST PARAMETER model');
   } 
   // PRIORITY 3: Fallback to configuration
   else {
     const primaryModel = getPrimaryModel('toolFinalizer');
-    modelConfig = primaryModel && 'modelInfo' in primaryModel ? { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } : { provider: 'openai', modelId: 'gpt-4o' };
+    modelId = primaryModel?.modelInfo?.id || 'claude-3-7-sonnet-20250219';
     logger.info({ 
-      modelConfig,
+      modelId,
       source: 'CONFIGURATION_FALLBACK' 
     }, '🏁 ToolFinalizer Module: Using CONFIGURATION FALLBACK model');
   }
 
-  logger.info({ ...modelConfig }, '🏁 ToolFinalizer Module: Using model');
-  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
-
   const systemPrompt = getToolFinalizerSystemPrompt(false);
-  const userPrompt = createUserPrompt(tcc, editMode);
+  const userPrompt = getToolFinalizerUserPrompt(tcc, editMode);
 
   // Isolation test logging
   logger.info({
     jobId: tcc.jobId,
-    modelId: modelConfig.modelId,
+    modelId: modelId,
     systemPromptLength: systemPrompt.length,
     userPromptLength: userPrompt.length,
-    assembledComponentPresent: !!tcc.assembledComponent,
+    finalProductPresent: !!tcc.finalProduct,
     validationResultPresent: !!tcc.validationResult,
     validationPassed: tcc.validationResult?.isValid || false
   }, '🏁 ToolFinalizer Module: ISOLATION DEBUG - Input data analysis');
 
   try {
-    const { object: finalizedTool } = await generateObject({
-      model: modelInstance,
+    const { object: finalizedTool } = await callModelForObject<z.infer<typeof FinalProductToolDefinitionSchema>>(modelId, {
       schema: ToolFinalizerOutputSchema,
       prompt: userPrompt,
-      system: systemPrompt,
+      systemPrompt: systemPrompt,
       temperature: 0.2,
       maxTokens: 4000,
+      maxRetries: 3
     });
 
     logger.info({ 
       jobId: tcc.jobId, 
-      modelId: modelConfig.modelId,
-      toolId: finalizedTool.toolId,
-      toolName: finalizedTool.toolName,
-      deploymentReady: finalizedTool.deploymentReady,
+      modelId: modelId,
+      toolId: finalizedTool.id,
+      toolSlug: finalizedTool.slug,
+      toolVersion: finalizedTool.version,
       aiResponseReceived: true
     }, '🏁 ToolFinalizer Module: Successfully received structured object from AI');
 
@@ -258,104 +221,57 @@ async function generateFinalizedTool(
   }
 }
 
-function generateFallbackFinalizedTool(tcc: ToolConstructionContext): FinalizedTool {
-  const toolName = tcc.assembledComponent?.componentName || 'BusinessTool';
-  const isValid = tcc.validationResult?.isValid || false;
+function generateFallbackFinalizedTool(tcc: ToolConstructionContext): z.infer<typeof FinalProductToolDefinitionSchema> {
+  const toolName = tcc.brainstormData?.coreConcept || 'BusinessTool';
+  const timestamp = Date.now();
   
   return {
-    toolId: `tool-${Date.now()}`,
-    toolName,
+    id: `tool-${timestamp}`,
+    slug: toolName.toLowerCase().replace(/\s+/g, '-'),
     version: '1.0.0',
-    category: 'business',
-    description: tcc.userInput?.description || 'A business calculation tool',
-    finalComponentCode: tcc.assembledComponent?.finalComponentCode || '',
-    deploymentReady: isValid,
+    status: 'published',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: 'ai-generator',
     metadata: {
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      author: 'AI Tool Generator',
+      type: 'business-tool',
+      description: tcc.userInput?.description || 'A business calculation tool',
+      targetAudience: 'business professionals',
+      industry: 'general',
+      features: ['calculation', 'analysis'],
+      title: toolName,
+      id: `tool-${timestamp}`,
+      icon: { value: '📊', type: 'emoji' },
+      slug: toolName.toLowerCase().replace(/\s+/g, '-'),
+      shortDescription: tcc.userInput?.description || 'Business tool',
+      category: 'business',
       tags: ['business', 'calculator', 'tool'],
-      complexity: 'medium',
-      estimatedUsageTime: '2-5 minutes'
+      estimatedCompletionTime: 5,
+      difficultyLevel: 'beginner'
     },
-    documentation: {
-      userGuide: `# ${toolName} User Guide\n\nThis tool helps with business calculations.\n\n## How to Use\n1. Enter your values\n2. Click calculate\n3. Review results`,
-      technicalSpecs: `# Technical Specifications\n\n- Framework: React\n- Language: TypeScript\n- Styling: Tailwind CSS\n- Estimated Lines: ${tcc.assembledComponent?.estimatedLines || 0}`,
-      apiReference: '# API Reference\n\nThis tool is self-contained and does not expose external APIs.'
+    componentSet: 'shadcn',
+    componentCode: tcc.finalProduct?.componentCode || '',
+    colorScheme: {
+      primary: '#3b82f6',
+      secondary: '#64748b',
+      background: '#ffffff',
+      surface: '#f8fafc',
+      text: {
+        primary: '#1e293b',
+        secondary: '#64748b',
+        muted: '#94a3b8'
+      },
+      border: '#e2e8f0',
+      success: '#10b981',
+      warning: '#f59e0b',
+      error: '#ef4444'
     },
-    deploymentConfig: {
-      environment: 'production',
-      buildCommand: 'npm run build',
-      startCommand: 'npm start',
-      dependencies: ['react', 'typescript', 'tailwindcss'],
-      environmentVariables: {},
-      healthCheckEndpoint: '/health'
+    analytics: {
+      enabled: true,
+      completions: 0,
+      averageTime: 0
     }
   };
 }
 
-function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
-  let prompt = `Finalize this tool with comprehensive metadata and deployment configuration:
-
-TOOL OVERVIEW:
-- Description: ${tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
-- Job ID: ${tcc.jobId}`;
-
-  // Add component information
-  if (tcc.assembledComponent) {
-    prompt += `
-
-COMPONENT DETAILS:
-- Name: ${tcc.assembledComponent.componentName}
-- Code Length: ${tcc.assembledComponent.finalComponentCode?.length || 0} characters
-- Hooks Used: ${tcc.assembledComponent.hooks?.join(', ') || 'None'}
-- Functions: ${tcc.assembledComponent.functions?.join(', ') || 'None'}
-- Estimated Lines: ${tcc.assembledComponent.estimatedLines || 0}`;
-  }
-
-  // Add validation results
-  if (tcc.validationResult) {
-    prompt += `
-
-VALIDATION RESULTS:
-- Valid: ${tcc.validationResult.isValid ? 'Yes' : 'No'}
-- Errors: ${tcc.validationResult.errors?.length || 0}
-- Warnings: ${tcc.validationResult.warnings?.length || 0}
-- Quality Score: ${tcc.validationResult.qualityScore || 0}/100
-- Readability Score: ${tcc.validationResult.readabilityScore || 0}/100`;
-  }
-
-  // Add brainstorm context for categorization
-  if (tcc.brainstormData) {
-    const brainstormData = tcc.brainstormData as any;
-    prompt += `
-
-TOOL CONTEXT:
-- Tool Type: ${brainstormData.toolType || 'Unknown'}
-- Key Calculations: ${brainstormData.keyCalculations?.map((calc: any) => calc.name).join(', ') || 'None'}
-- Target Industry: ${brainstormData.targetIndustry || 'General'}`;
-  }
-
-  // Add edit mode context if needed
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += `
-
-🔄 EDIT MODE FINALIZATION:
-Recent modifications were made. Update metadata to reflect:
-${editMode.instructions.map(i => i.instructions).join('\n')}`;
-  }
-
-  prompt += `
-
-Generate comprehensive tool finalization including:
-- Unique tool ID and versioning
-- Proper categorization and metadata
-- Complete documentation (user guide, technical specs, API reference)
-- Production-ready deployment configuration
-- Deployment readiness assessment based on validation results
-
-Ensure the tool is properly packaged for production deployment.`;
-
-  return prompt;
-} 
+ 

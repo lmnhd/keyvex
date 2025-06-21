@@ -799,4 +799,98 @@ function generateIndustrySpecificGuidance(industry: string): string {
 }
 
 // DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
-export const TAILWIND_STYLING_SYSTEM_PROMPT = CREATION_PROMPT; 
+export const TAILWIND_STYLING_SYSTEM_PROMPT = CREATION_PROMPT;
+
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { filterBrainstormForTailwindStyling, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
+import logger from '@/lib/logger';
+
+// Edit mode context type for user prompt
+type EditModeContext = {
+  isEditMode: boolean;
+  instructions: Array<{
+    targetAgent: string;
+    editType: 'refine' | 'replace' | 'enhance';
+    instructions: string;
+    priority: 'low' | 'medium' | 'high';
+    createdAt: string;
+  }>;
+  context: string;
+};
+
+/**
+ * Creates the user prompt for the Tailwind styling agent based on TCC data
+ * Enhanced with filtered brainstorm data integration and edit mode support
+ */
+export function getTailwindStylingUserPrompt(
+  tcc: ToolConstructionContext, 
+  editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string
+): string {
+  // Get Tailwind Styling specific filtered data
+  const filteredBrainstormData = filterBrainstormForTailwindStyling(tcc.brainstormData, tcc.jobId);
+  
+  let prompt = `Apply Tailwind CSS styling to this component:
+
+TOOL DETAILS:
+- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}`;
+
+  // Add JSX layout context
+  if (tcc.jsxLayout) {
+    prompt += `
+
+JSX COMPONENT STRUCTURE:
+\`\`\`jsx
+${tcc.jsxLayout.componentStructure}
+\`\`\`
+
+ELEMENT MAP:
+${tcc.jsxLayout.elementMap?.map(el => `- ${el.elementId} (${el.type}): ${el.purpose}`).join('\n') || 'No element map'}`;
+  }
+
+  // Add state logic context for interactive styling
+  if (tcc.stateLogic) {
+    prompt += `
+
+STATE VARIABLES (for interactive styling):
+${tcc.stateLogic.variables?.map(v => `- ${v.name}: ${v.type}`).join('\n') || 'No state variables'}`;
+  }
+
+  // Add filtered brainstorm context when available
+  if (filteredBrainstormData) {
+    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'TailwindStyling');
+    prompt += brainstormContext;
+
+    logger.info({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: true,
+      dataReduction: 'Applied Tailwind Styling specific filtering'
+    }, '🎨 TailwindStyling Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
+  } else {
+    logger.warn({ 
+      jobId: tcc.jobId,
+      promptLength: prompt.length,
+      brainstormContextAdded: false
+    }, '🎨 TailwindStyling Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - styling may be too generic');
+  }
+
+  // Add edit mode context if needed
+  if (isEditMode && editInstructions) {
+    prompt += `
+
+🔄 EDIT MODE:
+Current styling exists. Apply these modifications:
+${editInstructions}
+
+Modify the existing styling while maintaining all core functionality and design consistency.`;
+  }
+
+  prompt += `
+
+Apply professional Tailwind CSS styling with a cohesive color scheme and design tokens.`;
+
+  return prompt;
+} 

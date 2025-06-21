@@ -16,7 +16,7 @@ import {
   getPrimaryModel,
   getModelProvider,
 } from '@/lib/ai/models/model-config';
-import { getStateDesignSystemPrompt } from '@/lib/prompts/v2/state-design-prompt';
+import { getStateDesignSystemPrompt, getStateDesignUserPrompt } from '@/lib/prompts/v2/state-design-prompt';
 import logger from '@/lib/logger';
 import { filterBrainstormForStateDesign } from '@/lib/utils/brainstorm-filter';
 
@@ -234,7 +234,7 @@ async function generateStateLogic(
   const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
 
   const functionSignatures = tcc.definedFunctionSignatures || [];
-  const userPrompt = getUserPrompt(tcc, functionSignatures, editMode, isEditMode, editInstructions);
+  const userPrompt = getStateDesignUserPrompt(tcc, functionSignatures, editMode, isEditMode, editInstructions);
   const systemPrompt = getStateDesignSystemPrompt(false);
 
   // Isolation test logging
@@ -296,70 +296,4 @@ function generateFallbackStateLogic(tcc: ToolConstructionContext, functionSignat
   };
 }
 
-function getUserPrompt(
-  tcc: ToolConstructionContext, 
-  functionSignatures: DefinedFunctionSignature[], 
-  editMode?: EditModeContext,
-  isEditMode?: boolean,
-  editInstructions?: string
-): string {
-  // Get State Design specific filtered data
-  const brainstormData = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
-  
-  // Handle null brainstorm data from filter
-  if (!brainstormData) {
-    logger.warn({ jobId: tcc.jobId }, '🎯 StateDesign Module: Brainstorm filter returned null, using original brainstorm data');
-    // Fallback to original brainstorm data if filter returns null
-    const fallbackData = tcc.brainstormData as any || {};
-    
-    return `Generate React state logic for this tool:
 
-TOOL DETAILS:
-- Tool Type: ${fallbackData.toolType || tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.targetAudience || 'Professionals'}
-- Description: ${tcc.userInput?.description || 'A business calculation tool'}
-
-FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
-
-Generate the complete state logic with variables and functions that match the StateLogic schema exactly.`;
-  }
-
-  let prompt = `Generate React state logic for this tool:
-
-TOOL DETAILS:
-- Tool Type: ${brainstormData.toolType || tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.targetAudience || 'Professionals'}
-- Description: ${tcc.userInput?.description || 'A business calculation tool'}
-
-KEY CALCULATIONS TO IMPLEMENT:
-${brainstormData.keyCalculations?.map(calc => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No calculations defined'}
-
-SUGGESTED INPUTS:
-${brainstormData.suggestedInputs?.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n') || 'No inputs defined'}
-
-FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
-
-🚨 CRITICAL REQUIREMENTS:
-- Generate state variables for ALL suggested inputs
-- Implement ALL keyCalculations as functions
-- Use proper TypeScript types
-- Include validation functions
-- 🚨 FAILURE TO IMPLEMENT ANY keyCalculation = INCOMPLETE TOOL!
-
-Generate the complete state logic matching the StateLogic schema exactly.`;
-
-  // Add edit mode context if needed
-  if (isEditMode && editInstructions) {
-    prompt += `
-
-🔄 EDIT MODE:
-Current state logic exists. Apply these modifications:
-${editInstructions}
-
-Modify the existing state logic while maintaining all core functionality.`;
-  }
-
-  return prompt;
-}
