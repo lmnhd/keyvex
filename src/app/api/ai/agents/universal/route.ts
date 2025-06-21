@@ -1,10 +1,47 @@
-// Universal Agent Route - Phase 2.1 Implementation
-// Single route handles all agents with dynamic switching
-// Preserves all current model selection logic and WebSocket feedback
+// Universal Agent Route - Phase 2.3 Implementation
+// Single route handles all agents with dynamic module execution
+// Integrates all 7 agent modules with unified interfaces
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getProviderFactory } from '@/lib/providers/provider-factory';
-import { filterBrainstormDataForAgent } from '@/lib/utils/brainstorm-filter';
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import logger from '@/lib/logger';
+
+// Import all agent modules
+import { 
+  executeFunctionPlanner, 
+  type FunctionPlannerRequest, 
+  type FunctionPlannerResult 
+} from '@/lib/agents/unified/modules/function-planner';
+import { 
+  executeStateDesign, 
+  type StateDesignRequest, 
+  type StateDesignResult 
+} from '@/lib/agents/unified/modules/state-design';
+import { 
+  executeJSXLayout, 
+  type JSXLayoutRequest, 
+  type JSXLayoutResult 
+} from '@/lib/agents/unified/modules/jsx-layout';
+import { 
+  executeTailwindStyling, 
+  type TailwindStylingRequest, 
+  type TailwindStylingResult 
+} from '@/lib/agents/unified/modules/tailwind-styling';
+import { 
+  executeComponentAssembler, 
+  type ComponentAssemblerRequest, 
+  type ComponentAssemblerResult 
+} from '@/lib/agents/unified/modules/component-assembler';
+import { 
+  executeValidator, 
+  type ValidatorRequest, 
+  type ValidatorResult 
+} from '@/lib/agents/unified/modules/validator';
+import { 
+  executeToolFinalizer, 
+  type ToolFinalizerRequest, 
+  type ToolFinalizerResult 
+} from '@/lib/agents/unified/modules/tool-finalizer';
 
 // Agent type definitions
 export type AgentType = 
@@ -13,15 +50,27 @@ export type AgentType =
   | 'jsx-layout'
   | 'tailwind-styling'
   | 'component-assembler'
-  | 'code-validator'
+  | 'validator'
   | 'tool-finalizer'
   | 'data-requirements-research';
 
 interface UniversalAgentRequest {
   agent: AgentType;
-  tcc: any; // Tool Construction Context
-  agentModelMapping: Record<string, string>;
-  testMode?: boolean;
+  jobId: string;
+  tcc: ToolConstructionContext;
+  selectedModel?: string;
+  isIsolatedTest?: boolean;
+  editMode?: {
+    isEditMode: boolean;
+    instructions: Array<{
+      targetAgent: string;
+      editType: 'refine' | 'replace' | 'enhance';
+      instructions: string;
+      priority: 'low' | 'medium' | 'high';
+      createdAt: string;
+    }>;
+    context: string;
+  };
   retryAttempt?: number;
   previousErrors?: string[];
 }
@@ -29,417 +78,191 @@ interface UniversalAgentRequest {
 interface UniversalAgentResponse {
   success: boolean;
   result?: any;
-  updatedTCC?: any;
+  updatedTcc?: ToolConstructionContext;
   error?: string;
   validationErrors?: string[];
   retryRecommended?: boolean;
 }
 
+// Agent execution mapping
+type AgentExecutor = (request: any) => Promise<any>;
+
+const AGENT_EXECUTORS: Record<AgentType, AgentExecutor> = {
+  'function-planner': executeFunctionPlanner,
+  'state-design': executeStateDesign,
+  'jsx-layout': executeJSXLayout,
+  'tailwind-styling': executeTailwindStyling,
+  'component-assembler': executeComponentAssembler,
+  'validator': executeValidator,
+  'tool-finalizer': executeToolFinalizer,
+  'data-requirements-research': async (request: any) => {
+    // TODO: Implement data-requirements-research module
+    logger.warn({ agent: 'data-requirements-research' }, 'Data requirements research module not yet implemented');
+    return {
+      success: false,
+      error: 'Data requirements research module not yet implemented',
+      updatedTcc: request.tcc
+    };
+  }
+};
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body: UniversalAgentRequest = await request.json();
-    const { agent, tcc, agentModelMapping, testMode = false, retryAttempt = 0, previousErrors = [] } = body;
+    const { 
+      agent, 
+      jobId, 
+      tcc, 
+      selectedModel, 
+      isIsolatedTest = false, 
+      editMode, 
+      retryAttempt = 0, 
+      previousErrors = [] 
+    } = body;
 
-    console.log(`[Universal Agent] Processing ${agent} (attempt ${retryAttempt + 1})`);
+    logger.info({ 
+      agent, 
+      jobId, 
+      retryAttempt, 
+      isIsolatedTest,
+      hasEditMode: !!editMode,
+      previousErrorsCount: previousErrors.length
+    }, `🔄 Universal Agent: Processing ${agent} (attempt ${retryAttempt + 1})`);
 
-    // 1. Model Resolution - Use TCC agentModelMapping or fallback to defaults
-    const selectedModelId = agentModelMapping[agent];
-    if (!selectedModelId) {
+    // Validate required parameters
+    if (!agent || !jobId || !tcc) {
       return NextResponse.json({
         success: false,
-        error: `No model selected for agent: ${agent}`,
+        error: 'Missing required parameters: agent, jobId, or tcc',
       } as UniversalAgentResponse);
     }
 
-    // 2. Brainstorm Filtering - Agent-specific context optimization
-    const filteredBrainstorm = filterBrainstormDataForAgent(tcc.brainstormData || {}, agent);
-    
-    console.log(`[Universal Agent] Filtered brainstorm for ${agent}:`, {
-      originalSize: JSON.stringify(tcc.brainstormData || {}).length,
-      filteredSize: JSON.stringify(filteredBrainstorm).length,
-      reduction: `${Math.round((1 - JSON.stringify(filteredBrainstorm).length / JSON.stringify(tcc.brainstormData || {}).length) * 100)}%`
-    });
-
-    // 3. Dynamic Prompt Loading - Get agent-specific prompts
-    const { systemPrompt, userPrompt } = await getPromptsForAgent(
-      agent, 
-      filteredBrainstorm, 
-      tcc, 
-      previousErrors
-    );
-
-    // 4. AI Execution - Call appropriate agent module with filtered context
-    const providerFactory = getProviderFactory();
-    const model = await providerFactory.getModel(selectedModelId);
-    
-    let aiResult;
-    try {
-      // Use generateObject for structured output (AI-First approach)
-      const schema = await getSchemaForAgent(agent);
-      
-      if (schema) {
-        const result = await model.generateObject({
-          schema,
-          system: systemPrompt,
-          prompt: userPrompt,
-        });
-        aiResult = result.object;
-      } else {
-        // Fallback to generateText for agents without schemas
-        const result = await model.generateText({
-          system: systemPrompt,
-          prompt: userPrompt,
-        });
-        aiResult = { content: result.text };
-      }
-    } catch (error) {
-      console.error(`[Universal Agent] AI execution failed for ${agent}:`, error);
+    // Validate agent type
+    if (!AGENT_EXECUTORS[agent]) {
       return NextResponse.json({
         success: false,
-        error: `AI execution failed: ${error}`,
+        error: `Unknown agent type: ${agent}`,
+      } as UniversalAgentResponse);
+    }
+
+    // Prepare agent request
+    const agentRequest = {
+      jobId,
+      selectedModel,
+      tcc,
+      isIsolatedTest,
+      editMode,
+      retryAttempt,
+      previousErrors
+    };
+
+    logger.info({ 
+      agent, 
+      jobId,
+      tccKeys: Object.keys(tcc),
+      tccStatus: tcc.status,
+      modelSelected: selectedModel || 'default'
+    }, `🔄 Universal Agent: Executing ${agent} module`);
+
+    // Execute agent module
+    const executor = AGENT_EXECUTORS[agent];
+    const result = await executor(agentRequest);
+
+    logger.info({ 
+      agent, 
+      jobId,
+      success: result.success,
+      hasError: !!result.error,
+      hasUpdatedTcc: !!result.updatedTcc
+    }, `🔄 Universal Agent: ${agent} execution completed`);
+
+    // Handle execution failure
+    if (!result.success) {
+      logger.error({ 
+        agent, 
+        jobId, 
+        error: result.error,
+        retryAttempt
+      }, `🔄 Universal Agent: ${agent} execution failed`);
+
+      return NextResponse.json({
+        success: false,
+        error: result.error,
         retryRecommended: retryAttempt < 2,
       } as UniversalAgentResponse);
     }
 
-    // 5. Validation - Multi-layer validation with retry logic
-    const validationResult = await validateAgentResult(agent, aiResult, tcc);
-    
-    if (!validationResult.isValid && validationResult.retryRecommended && retryAttempt < 2) {
-      console.log(`[Universal Agent] Validation failed for ${agent}, retry recommended`);
-      return NextResponse.json({
-        success: false,
-        error: `Validation failed: ${validationResult.errors.join(', ')}`,
-        validationErrors: validationResult.errors,
-        retryRecommended: true,
-      } as UniversalAgentResponse);
-    }
-
-    // Use corrected data if available
-    const finalResult = validationResult.correctedData || aiResult;
-
-    // 6. TCC Update - Update shared TCC state with results
-    const updatedTCC = updateTCCWithAgentResult(tcc, agent, finalResult);
-
-    // 7. Response - Return results with updated TCC for next agent
-    console.log(`[Universal Agent] ${agent} completed successfully:`, {
-      validationPassed: validationResult.isValid,
-      autoCorrected: !!validationResult.correctedData,
-      warningCount: validationResult.warnings?.length || 0,
-    });
+    // Success response
+    logger.info({ 
+      agent, 
+      jobId,
+      resultKeys: Object.keys(result),
+      updatedTccStatus: result.updatedTcc?.status
+    }, `🔄 Universal Agent: ${agent} completed successfully`);
 
     return NextResponse.json({
       success: true,
-      result: finalResult,
-      updatedTCC,
+      result: result.result || result[getResultKey(agent)],
+      updatedTcc: result.updatedTcc,
     } as UniversalAgentResponse);
 
   } catch (error) {
-    console.error('[Universal Agent] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error({ error: errorMessage }, '🔄 Universal Agent: Unexpected error');
+    
     return NextResponse.json({
       success: false,
-      error: `Unexpected error: ${error}`,
+      error: `Unexpected error: ${errorMessage}`,
     } as UniversalAgentResponse);
   }
 }
 
-// Helper Functions
-
-async function getPromptsForAgent(
-  agent: AgentType,
-  filteredBrainstorm: any,
-  tcc: any,
-  previousErrors: string[] = []
-): Promise<{ systemPrompt: string; userPrompt: string }> {
-  // Dynamic prompt loading based on agent type
-  const promptModules: Record<AgentType, () => Promise<any>> = {
-    'function-planner': () => import('@/lib/prompts/function-planner-prompt'),
-    'state-design': () => import('@/lib/prompts/state-design-prompt'),
-    'jsx-layout': () => import('@/lib/prompts/jsx-layout-prompt'),
-    'tailwind-styling': () => import('@/lib/prompts/tailwind-styling-prompt'),
-    'component-assembler': () => import('@/lib/prompts/component-assembler-prompt'),
-    'code-validator': () => import('@/lib/prompts/code-validator-prompt'),
-    'tool-finalizer': () => import('@/lib/prompts/tool-finalizer-prompt'),
-    'data-requirements-research': () => import('@/lib/prompts/v2/data-requirements-research-prompt'),
+// Helper function to get the result key for each agent
+function getResultKey(agent: AgentType): string {
+  const resultKeys: Record<AgentType, string> = {
+    'function-planner': 'functionSignatures',
+    'state-design': 'stateLogic',
+    'jsx-layout': 'jsxLayout',
+    'tailwind-styling': 'styling',
+    'component-assembler': 'assembledComponent',
+    'validator': 'validationResult',
+    'tool-finalizer': 'finalizedTool',
+    'data-requirements-research': 'researchData'
   };
-
-  try {
-    const promptModule = await promptModules[agent]();
-    
-    // Get system prompt
-    const systemPrompt = promptModule.getSystemPrompt ? 
-      promptModule.getSystemPrompt() : 
-      promptModule.systemPrompt || '';
-
-    // Get user prompt with context
-    let userPrompt = '';
-    if (promptModule.getUserPrompt) {
-      userPrompt = promptModule.getUserPrompt(filteredBrainstorm, tcc);
-    } else if (promptModule.userPrompt) {
-      userPrompt = promptModule.userPrompt;
-    }
-
-    // Add validation feedback for retries
-    if (previousErrors.length > 0) {
-      userPrompt += '\n\n--- VALIDATION FEEDBACK FOR RETRY ---\n';
-      userPrompt += 'The previous attempt had the following issues:\n';
-      previousErrors.forEach(error => {
-        userPrompt += `- ${error}\n`;
-      });
-      userPrompt += '\nPlease address these issues in your response.\n';
-    }
-
-    return { systemPrompt, userPrompt };
-
-  } catch (error) {
-    console.error(`[Universal Agent] Failed to load prompts for ${agent}:`, error);
-    return {
-      systemPrompt: `You are a ${agent} agent for tool generation.`,
-      userPrompt: `Process the following data: ${JSON.stringify(filteredBrainstorm)}`
-    };
-  }
+  
+  return resultKeys[agent] || 'result';
 }
 
-async function getSchemaForAgent(agent: AgentType): Promise<any> {
-  // Import agent-specific Zod schemas
-  try {
-    const schemaModules: Record<AgentType, () => Promise<any>> = {
-      'function-planner': () => import('@/lib/schemas/function-planner-schema'),
-      'state-design': () => import('@/lib/schemas/state-design-schema'),
-      'jsx-layout': () => import('@/lib/schemas/jsx-layout-schema'),
-      'tailwind-styling': () => import('@/lib/schemas/tailwind-styling-schema'),
-      'component-assembler': () => import('@/lib/schemas/component-assembler-schema'),
-      'code-validator': () => import('@/lib/schemas/code-validator-schema'),
-      'tool-finalizer': () => import('@/lib/schemas/tool-finalizer-schema'),
-      'data-requirements-research': () => import('@/lib/schemas/data-requirements-research-schema'),
-    };
+// GET method for health check and agent status
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const url = new URL(request.url);
+  const action = url.searchParams.get('action');
 
-    const schemaModule = await schemaModules[agent]();
-    return schemaModule.schema || schemaModule.default;
-
-  } catch (error) {
-    console.warn(`[Universal Agent] No schema found for ${agent}, using text generation`);
-    return null;
+  if (action === 'health') {
+    return NextResponse.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      availableAgents: Object.keys(AGENT_EXECUTORS),
+      version: '2.3'
+    });
   }
-}
 
-async function validateAgentResult(
-  agent: AgentType,
-  result: any,
-  tcc: any
-): Promise<{
-  isValid: boolean;
-  errors: string[];
-  warnings?: string[];
-  correctedData?: any;
-  retryRecommended: boolean;
-}> {
-  // Multi-layer validation implementation
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  let correctedData: any = null;
+  if (action === 'agents') {
+    return NextResponse.json({
+      agents: Object.keys(AGENT_EXECUTORS).map(agent => ({
+        name: agent,
+        implemented: agent !== 'data-requirements-research',
+        module: `@/lib/agents/unified/modules/${agent}`
+      }))
+    });
+  }
 
-  try {
-    // 1. Schema Validation - Basic structure checks
-    const schemaValidation = validateAgentSchema(agent, result);
-    if (!schemaValidation.isValid) {
-      errors.push(...schemaValidation.errors);
+  return NextResponse.json({
+    message: 'Universal Agent Route - Phase 2.3',
+    usage: {
+      POST: 'Execute agent with { agent, jobId, tcc, selectedModel?, isIsolatedTest?, editMode? }',
+      'GET?action=health': 'Health check',
+      'GET?action=agents': 'List available agents'
     }
-
-    // 2. Content Validation - Meaningful content checks
-    const contentValidation = validateAgentContent(agent, result, tcc);
-    if (!contentValidation.isValid) {
-      errors.push(...contentValidation.errors);
-    }
-    warnings.push(...contentValidation.warnings);
-
-    // 3. Auto-correction attempts
-    if (errors.length > 0) {
-      const correctionResult = attemptAutoCorrection(agent, result, errors);
-      if (correctionResult.success) {
-        correctedData = correctionResult.correctedData;
-        warnings.push(`Auto-corrected ${correctionResult.corrections.length} issues`);
-      }
-    }
-
-    return {
-      isValid: errors.length === 0 || !!correctedData,
-      errors,
-      warnings,
-      correctedData,
-      retryRecommended: errors.length > 0 && !correctedData,
-    };
-
-  } catch (error) {
-    console.error(`[Universal Agent] Validation failed for ${agent}:`, error);
-    return {
-      isValid: false,
-      errors: [`Validation process failed: ${error}`],
-      retryRecommended: true,
-    };
-  }
-}
-
-function validateAgentSchema(agent: AgentType, result: any): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
-
-  // Agent-specific schema validation
-  switch (agent) {
-    case 'function-planner':
-      if (!result.functions || !Array.isArray(result.functions)) {
-        errors.push('Functions array is required');
-      }
-      if (!result.stateVariables || !Array.isArray(result.stateVariables)) {
-        errors.push('State variables array is required');
-      }
-      break;
-
-    case 'state-design':
-      if (!result.stateLogic || typeof result.stateLogic !== 'string') {
-        errors.push('State logic string is required');
-      }
-      if (!result.hooks || !Array.isArray(result.hooks)) {
-        errors.push('Hooks array is required');
-      }
-      break;
-
-    case 'jsx-layout':
-      if (!result.jsxLayout || typeof result.jsxLayout !== 'string') {
-        errors.push('JSX layout string is required');
-      }
-      if (!result.components || !Array.isArray(result.components)) {
-        errors.push('Components array is required');
-      }
-      break;
-
-    case 'tailwind-styling':
-      if (!result.styledComponent || typeof result.styledComponent !== 'string') {
-        errors.push('Styled component string is required');
-      }
-      break;
-
-    case 'component-assembler':
-      if (!result.finalComponentCode || typeof result.finalComponentCode !== 'string') {
-        errors.push('Final component code string is required');
-      }
-      if (!result.componentName || typeof result.componentName !== 'string') {
-        errors.push('Component name string is required');
-      }
-      break;
-
-    case 'code-validator':
-      if (typeof result.isValid !== 'boolean') {
-        errors.push('isValid boolean is required');
-      }
-      if (!result.validatedCode || typeof result.validatedCode !== 'string') {
-        errors.push('Validated code string is required');
-      }
-      break;
-
-    case 'tool-finalizer':
-      if (!result.finalTool || typeof result.finalTool !== 'object') {
-        errors.push('Final tool object is required');
-      }
-      break;
-
-    case 'data-requirements-research':
-      if (!result.dataRequirements || !Array.isArray(result.dataRequirements)) {
-        errors.push('Data requirements array is required');
-      }
-      break;
-  }
-
-  return { isValid: errors.length === 0, errors };
-}
-
-function validateAgentContent(
-  agent: AgentType,
-  result: any,
-  tcc: any
-): { isValid: boolean; errors: string[]; warnings: string[] } {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  // Content validation - check for meaningful content
-  if (agent === 'component-assembler' && result.finalComponentCode) {
-    if (result.finalComponentCode.includes('TODO') || 
-        result.finalComponentCode.includes('PLACEHOLDER') ||
-        result.finalComponentCode.length < 500) {
-      warnings.push('Component code appears incomplete or contains placeholders');
-    }
-  }
-
-  return { isValid: errors.length === 0, errors, warnings };
-}
-
-function attemptAutoCorrection(
-  agent: AgentType,
-  result: any,
-  errors: string[]
-): { success: boolean; correctedData?: any; corrections: string[] } {
-  const corrections: string[] = [];
-  let correctedData = { ...result };
-
-  // Simple auto-corrections
-  for (const error of errors) {
-    if (error.includes('array is required')) {
-      const fieldName = error.split(' ')[0].toLowerCase();
-      if (!correctedData[fieldName]) {
-        correctedData[fieldName] = [];
-        corrections.push(`Added missing ${fieldName} array`);
-      }
-    }
-  }
-
-  return {
-    success: corrections.length > 0,
-    correctedData: corrections.length > 0 ? correctedData : undefined,
-    corrections,
-  };
-}
-
-function updateTCCWithAgentResult(tcc: any, agent: AgentType, result: any): any {
-  // Update TCC with agent result based on agent type
-  const updatedTCC = { ...tcc };
-
-  switch (agent) {
-    case 'function-planner':
-      updatedTCC.definedFunctionSignatures = result;
-      break;
-    case 'state-design':
-      updatedTCC.stateDesignResult = result;
-      break;
-    case 'jsx-layout':
-      updatedTCC.jsxLayoutResult = result;
-      break;
-    case 'tailwind-styling':
-      updatedTCC.tailwindStylingResult = result;
-      break;
-    case 'component-assembler':
-      updatedTCC.componentAssemblerResult = result;
-      break;
-    case 'code-validator':
-      updatedTCC.codeValidatorResult = result;
-      break;
-    case 'tool-finalizer':
-      updatedTCC.toolFinalizerResult = result;
-      break;
-    case 'data-requirements-research':
-      updatedTCC.dataRequirementsResearchResult = result;
-      break;
-  }
-
-  // Add orchestration step
-  if (!updatedTCC.orchestrationSteps) {
-    updatedTCC.orchestrationSteps = [];
-  }
-
-  updatedTCC.orchestrationSteps.push({
-    agent,
-    status: 'completed',
-    timestamp: new Date().toISOString(),
-    result,
-    validationPassed: true,
   });
-
-  return updatedTCC;
 } 
