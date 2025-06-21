@@ -546,21 +546,16 @@ export function getStateDesignUserPrompt(
   // Get State Design specific filtered data
   const brainstormData = tcc.brainstormData ? filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId) : null;
   
-  // Handle null brainstorm data from filter
+  // FAIL HARD - No fallbacks that mask real issues!
   if (!brainstormData) {
-    logger.warn({ jobId: tcc.jobId }, '🎯 StateDesign Module: Brainstorm filter returned null, using original brainstorm data');
-    
-    return `Generate React state logic for this tool:
-
-TOOL DETAILS:
-- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
-- Description: ${tcc.userInput?.description || 'A business calculation tool'}
-
-FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
-
-Generate the complete state logic with variables and functions that match the StateLogic schema exactly.`;
+    const errorMessage = `CRITICAL ERROR: StateDesign brainstorm filter returned null for jobId ${tcc.jobId}. This indicates a fundamental issue with the brainstorm data filtering system that must be fixed, not worked around with fallbacks.`;
+    logger.error({ 
+      jobId: tcc.jobId,
+      originalBrainstormKeys: Object.keys(tcc.brainstormData || {}),
+      filterFunction: 'filterBrainstormForStateDesign',
+      tccBrainstormData: !!tcc.brainstormData
+    }, errorMessage);
+    throw new Error(errorMessage);
   }
 
   let prompt = `Generate React state logic for this tool:
