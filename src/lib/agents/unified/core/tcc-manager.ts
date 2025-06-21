@@ -12,10 +12,11 @@ import {
   TailwindStylingResult,
   ComponentAssemblerResult,
   CodeValidatorResult,
-  ToolFinalizerResult
+  ToolFinalizerResult,
+  RetryContext
 } from '@/lib/types/tcc-unified';
 import { 
-  ToolConstructionContext,
+  ToolConstructionContext as BaseTCC,
   createTCC,
   OrchestrationStepEnum,
   OrchestrationStatusEnum
@@ -29,7 +30,7 @@ export class TCCManager {
    * Update TCC with agent result
    */
   updateTCCWithAgentResult<T>(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     agentType: AgentType,
     result: T,
     executionMetadata: {
@@ -40,7 +41,7 @@ export class TCCManager {
       tokensUsed?: number;
       attemptNumber: number;
     }
-  ): ToolConstructionContext {
+  ): UnifiedTCC {
     logger.info({
       jobId: tcc.jobId,
       agentType,
@@ -91,7 +92,7 @@ export class TCCManager {
    * Record agent failure in TCC
    */
   recordAgentFailure(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     agentType: AgentType,
     error: string,
     executionMetadata: {
@@ -101,7 +102,7 @@ export class TCCManager {
       modelUsed: string;
       attemptNumber: number;
     }
-  ): ToolConstructionContext {
+  ): UnifiedTCC {
     logger.warn({
       jobId: tcc.jobId,
       agentType,
@@ -134,7 +135,7 @@ export class TCCManager {
    * Validate TCC completeness for specific agent
    */
   validateTCCForAgent(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     agentType: AgentType
   ): {
     isValid: boolean;
@@ -189,9 +190,9 @@ export class TCCManager {
         break;
 
       case 'component-assembler':
-        if (!tcc.finalComponentCode) {
-          missingFields.push('finalComponentCode');
-          recommendations.push('Component Assembler must provide final component code');
+        if (!tcc.componentAssemblerResult) {
+          missingFields.push('componentAssemblerResult');
+          recommendations.push('Component Assembler must provide assembled code result');
         }
         break;
 
@@ -220,7 +221,7 @@ export class TCCManager {
   /**
    * Get TCC summary for logging and analysis
    */
-  getTCCSummary(tcc: ToolConstructionContext): {
+  getTCCSummary(tcc: UnifiedTCC): {
     jobId: string;
     currentStep: string;
     completedAgents: AgentType[];
@@ -231,18 +232,18 @@ export class TCCManager {
   } {
     const executionHistory = tcc.agentExecutionHistory || [];
     const completedAgents = executionHistory
-      .filter(entry => entry.success)
-      .map(entry => entry.agentType);
+      .filter((entry: any) => entry.success)
+      .map((entry: any) => entry.agentType as AgentType);
 
     const totalExecutionTime = executionHistory
-      .reduce((total, entry) => total + entry.duration, 0);
+      .reduce((total: number, entry: any) => total + (entry.duration || 0), 0);
 
     const modelUsage: Record<string, number> = {};
-    executionHistory.forEach(entry => {
+    executionHistory.forEach((entry: any) => {
       modelUsage[entry.modelUsed] = (modelUsage[entry.modelUsed] || 0) + 1;
     });
 
-    const hasErrors = executionHistory.some(entry => !entry.success);
+    const hasErrors = executionHistory.some((entry: any) => !entry.success);
     const totalAgents = 7; // Total number of agents in the pipeline
     const completionPercentage = Math.round((completedAgents.length / totalAgents) * 100);
 
@@ -260,7 +261,7 @@ export class TCCManager {
   /**
    * Clone TCC for safe modifications
    */
-  cloneTCC(tcc: ToolConstructionContext): ToolConstructionContext {
+  cloneTCC(tcc: UnifiedTCC): UnifiedTCC {
     return JSON.parse(JSON.stringify(tcc));
   }
 
@@ -268,10 +269,10 @@ export class TCCManager {
    * Merge two TCCs (useful for parallel processing scenarios)
    */
   mergeTCCs(
-    baseTcc: ToolConstructionContext,
-    updateTcc: ToolConstructionContext,
+    baseTcc: UnifiedTCC,
+    updateTcc: UnifiedTCC,
     strategy: 'prefer_base' | 'prefer_update' | 'merge_all' = 'prefer_update'
-  ): ToolConstructionContext {
+  ): UnifiedTCC {
     logger.info({
       baseJobId: baseTcc.jobId,
       updateJobId: updateTcc.jobId,
@@ -310,14 +311,14 @@ export class TCCManager {
       'stateLogic',
       'jsxLayout',
       'styling',
-      'finalComponentCode',
+      'componentAssemblerResult',
       'validationResult',
       'finalProduct'
     ] as const;
 
     fieldsToMerge.forEach(field => {
-      const baseValue = baseTcc[field];
-      const updateValue = updateTcc[field];
+      const baseValue = (baseTcc as any)[field];
+      const updateValue = (updateTcc as any)[field];
 
       if (strategy === 'prefer_update' && updateValue !== undefined) {
         (merged as any)[field] = updateValue;
@@ -339,9 +340,9 @@ export class TCCManager {
    * Reset TCC to specific agent step (for retry scenarios)
    */
   resetTCCToStep(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     targetAgent: AgentType
-  ): ToolConstructionContext {
+  ): UnifiedTCC {
     logger.info({
       jobId: tcc.jobId,
       targetAgent
@@ -368,24 +369,30 @@ export class TCCManager {
       switch (agent) {
         case 'function-planner':
           delete resetTcc.definedFunctionSignatures;
+          delete resetTcc.functionPlannerResult;
           break;
         case 'state-design':
           delete resetTcc.stateLogic;
+          delete resetTcc.stateDesignResult;
           break;
         case 'jsx-layout':
           delete resetTcc.jsxLayout;
+          delete resetTcc.jsxLayoutResult;
           break;
         case 'tailwind-styling':
           delete resetTcc.styling;
+          delete resetTcc.tailwindStylingResult;
           break;
         case 'component-assembler':
-          delete resetTcc.finalComponentCode;
+          delete resetTcc.componentAssemblerResult;
           break;
         case 'code-validator':
           delete resetTcc.validationResult;
+          delete resetTcc.codeValidatorResult;
           break;
         case 'tool-finalizer':
           delete resetTcc.finalProduct;
+          delete resetTcc.toolFinalizerResult;
           break;
       }
     });
@@ -393,7 +400,7 @@ export class TCCManager {
     // Remove execution history for reset agents
     if (resetTcc.agentExecutionHistory) {
       resetTcc.agentExecutionHistory = resetTcc.agentExecutionHistory.filter(
-        entry => !agentsToReset.includes(entry.agentType)
+        (entry: any) => !agentsToReset.includes(entry.agentType)
       );
     }
 
@@ -408,7 +415,10 @@ export class TCCManager {
       'tool-finalizer': OrchestrationStepEnum.enum.finalizing_tool
     };
 
-    resetTcc.currentOrchestrationStep = stepMap[targetAgent];
+    const nextStep = stepMap[targetAgent];
+    if (nextStep && this.isValidOrchestrationStep(nextStep)) {
+      resetTcc.currentOrchestrationStep = nextStep as any;
+    }
 
     return resetTcc;
   }
@@ -417,7 +427,7 @@ export class TCCManager {
    * Merge agent result into TCC based on agent type
    */
   private mergeAgentResultIntoTCC<T>(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     agentType: AgentType,
     result: T
   ): void {
@@ -425,36 +435,42 @@ export class TCCManager {
       case 'function-planner':
         const fpResult = result as FunctionPlannerResult;
         tcc.definedFunctionSignatures = fpResult.functionSignatures;
+        tcc.functionPlannerResult = fpResult;
         break;
 
       case 'state-design':
         const sdResult = result as StateDesignResult;
         tcc.stateLogic = sdResult.stateLogic;
+        tcc.stateDesignResult = sdResult;
         break;
 
       case 'jsx-layout':
         const jlResult = result as JsxLayoutResult;
         tcc.jsxLayout = jlResult.jsxLayout;
+        tcc.jsxLayoutResult = jlResult;
         break;
 
       case 'tailwind-styling':
         const tsResult = result as TailwindStylingResult;
         tcc.styling = tsResult.styling;
+        tcc.tailwindStylingResult = tsResult;
         break;
 
       case 'component-assembler':
         const caResult = result as ComponentAssemblerResult;
-        tcc.finalComponentCode = caResult.assembledCode;
+        tcc.componentAssemblerResult = caResult;
         break;
 
       case 'code-validator':
         const cvResult = result as CodeValidatorResult;
         tcc.validationResult = cvResult.validationResult;
+        tcc.codeValidatorResult = cvResult;
         break;
 
       case 'tool-finalizer':
         const tfResult = result as ToolFinalizerResult;
         tcc.finalProduct = tfResult.finalProduct;
+        tcc.toolFinalizerResult = tfResult;
         break;
     }
   }
@@ -463,7 +479,7 @@ export class TCCManager {
    * Update orchestration step based on completed agent
    */
   private updateOrchestrationStep(
-    tcc: ToolConstructionContext,
+    tcc: UnifiedTCC,
     completedAgent: AgentType
   ): void {
     const stepMap: Record<AgentType, string> = {
@@ -477,8 +493,8 @@ export class TCCManager {
     };
 
     const nextStep = stepMap[completedAgent];
-    if (nextStep) {
-      tcc.currentOrchestrationStep = nextStep;
+    if (nextStep && this.isValidOrchestrationStep(nextStep)) {
+      tcc.currentOrchestrationStep = nextStep as any;
     }
 
     // Update step status
@@ -487,12 +503,13 @@ export class TCCManager {
     }
 
     const currentStepKey = this.getStepKeyForAgent(completedAgent);
-    if (currentStepKey) {
-      tcc.steps[currentStepKey] = {
+    if (currentStepKey && this.isValidStepKey(currentStepKey)) {
+      const stepStatus = {
         status: OrchestrationStatusEnum.enum.completed,
-        startedAt: tcc.steps[currentStepKey]?.startedAt || new Date().toISOString(),
+        startedAt: (tcc.steps as any)[currentStepKey]?.startedAt || new Date().toISOString(),
         completedAt: new Date().toISOString()
       };
+      (tcc.steps as any)[currentStepKey] = stepStatus;
     }
   }
 
@@ -511,5 +528,28 @@ export class TCCManager {
     };
 
     return stepKeyMap[agentType] || null;
+  }
+
+  /**
+   * Validate orchestration step
+   */
+  private isValidOrchestrationStep(step: string): boolean {
+    const validSteps = Object.values(OrchestrationStepEnum.enum);
+    return validSteps.includes(step as any);
+  }
+
+  /**
+   * Validate step key
+   */
+  private isValidStepKey(stepKey: string): boolean {
+    const validStepKeys = [
+      'dataRequirementsResearch',
+      'designingStateLogic', 
+      'designingJsxLayout',
+      'applyingTailwindStyling',
+      'assemblingComponent',
+      'validatingCode'
+    ];
+    return validStepKeys.includes(stepKey);
   }
 }
