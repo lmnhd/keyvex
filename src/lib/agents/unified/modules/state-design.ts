@@ -74,11 +74,11 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
   const isEditMode = request.isEditMode || editMode?.isEditMode || false;
   const editInstructions = request.editInstructions || (editMode?.instructions ? editMode.instructions.map(i => i.instructions).join('\n') : undefined);
 
-  logger.info({ jobId }, ' StateDesign Module: Starting state logic design');
+  logger.info({ jobId }, '🎯 StateDesign Module: Starting state logic design');
 
   try {
     if (!tcc) {
-      throw new Error(A valid TCC object was not provided for jobId: );
+      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
     // Emit progress for orchestration mode
@@ -92,9 +92,9 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
       );
     }
 
-    logger.info({ jobId }, ' StateDesign Module: Calling AI to generate state logic...');
+    logger.info({ jobId }, '🎯 StateDesign Module: Calling AI to generate state logic...');
     const stateLogic = await generateStateLogic(tcc, selectedModel, editMode, isEditMode, editInstructions);
-    logger.info({ jobId }, ' StateDesign Module: AI generated state logic successfully');
+    logger.info({ jobId }, '🎯 StateDesign Module: AI generated state logic successfully');
 
     // Comprehensive TCC update logging
     logger.info({
@@ -105,7 +105,7 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
         beforeSteps: Object.keys(tcc.steps || {}),
         beforeLastUpdated: tcc.updatedAt
       }
-    }, ' StateDesign Module: TCC STATE BEFORE UPDATE');
+    }, '🎯 StateDesign Module: TCC STATE BEFORE UPDATE');
 
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
@@ -147,7 +147,7 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
         stepStatusUpdate: updatedTcc.steps?.designingStateLogic?.status,
         stepResult: !!updatedTcc.steps?.designingStateLogic?.result
       }
-    }, ' StateDesign Module: TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
+    }, '🎯 StateDesign Module: TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
 
     logger.info({
       jobId,
@@ -155,7 +155,7 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
         stateVariableCount: updatedTcc.stateLogic?.variables?.length,
         functionCount: updatedTcc.stateLogic?.functions?.length,
       },
-    }, ' StateDesign Module: TCC update prepared');
+    }, '🎯 StateDesign Module: TCC update prepared');
 
     // Emit completion progress for orchestration mode
     if (!isIsolatedTest) {
@@ -163,7 +163,7 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
         jobId,
         OrchestrationStepEnum.enum.designing_state_logic,
         'completed',
-        Successfully designed  state variables and  functions.,
+        `Successfully designed ${updatedTcc.stateLogic?.variables?.length || 0} state variables and ${updatedTcc.stateLogic?.functions?.length || 0} functions.`,
         updatedTcc
       );
     }
@@ -171,7 +171,7 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
     return { success: true, stateLogic, updatedTcc };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error({ jobId, error: errorMessage }, ' StateDesign Module: Error');
+    logger.error({ jobId, error: errorMessage }, '🎯 StateDesign Module: Error');
     
     // Emit failure progress
     await emitStepProgress(
@@ -184,4 +184,182 @@ export async function executeStateDesign(request: StateDesignRequest): Promise<S
     
     return { success: false, error: errorMessage, updatedTcc: tcc };
   }
+}
+
+async function generateStateLogic(
+  tcc: ToolConstructionContext,
+  selectedModel?: string,
+  editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string,
+): Promise<StateLogic> {
+  let modelConfig: { provider: string; modelId: string };
+  
+  // PRIORITY 1: Check TCC agent model mapping first
+  if (tcc.agentModelMapping?.['state-design']) {
+    const mappedModel = tcc.agentModelMapping['state-design'];
+    const provider = getModelProvider(mappedModel);
+    modelConfig = { 
+      provider: provider !== 'unknown' ? provider : 'openai', 
+      modelId: mappedModel 
+    };
+    logger.info({ 
+      agentName: 'state-design', 
+      mappedModel, 
+      provider: modelConfig.provider,
+      source: 'TCC_AGENT_MAPPING' 
+    }, '🎯 StateDesign Module: Using TCC AGENT MAPPING model from workbench');
+  }
+  // PRIORITY 2: User-selected model from request
+  else if (selectedModel && selectedModel !== 'default') {
+    const provider = getModelProvider(selectedModel);
+    modelConfig = { provider: provider !== 'unknown' ? provider : 'openai', modelId: selectedModel };
+    logger.info({ 
+      selectedModel, 
+      provider: modelConfig.provider,
+      source: 'REQUEST_PARAMETER' 
+    }, '🎯 StateDesign Module: Using REQUEST PARAMETER model');
+  } 
+  // PRIORITY 3: Fallback to configuration
+  else {
+    const primaryModel = getPrimaryModel('stateDesigner');
+    modelConfig = primaryModel && 'modelInfo' in primaryModel ? { provider: primaryModel.provider, modelId: primaryModel.modelInfo.id } : { provider: 'openai', modelId: 'gpt-4o' };
+    logger.info({ 
+      modelConfig,
+      source: 'CONFIGURATION_FALLBACK' 
+    }, '🎯 StateDesign Module: Using CONFIGURATION FALLBACK model');
+  }
+
+  logger.info({ ...modelConfig }, '🎯 StateDesign Module: Using model');
+  const modelInstance = createModelInstance(modelConfig.provider, modelConfig.modelId);
+
+  const functionSignatures = tcc.definedFunctionSignatures || [];
+  const userPrompt = getUserPrompt(tcc, functionSignatures, editMode, isEditMode, editInstructions);
+  const systemPrompt = getStateDesignSystemPrompt(false);
+
+  // Isolation test logging
+  logger.info({
+    jobId: tcc.jobId,
+    modelId: modelConfig.modelId,
+    systemPromptLength: systemPrompt.length,
+    userPromptLength: userPrompt.length,
+    functionSignatureCount: functionSignatures.length,
+    brainstormDataPresent: !!tcc.brainstormData,
+    brainstormDataKeys: tcc.brainstormData ? Object.keys(tcc.brainstormData) : [],
+    tccKeys: Object.keys(tcc)
+  }, '🎯 StateDesign Module: ISOLATION DEBUG - Input data analysis');
+
+  try {
+    const { object: stateLogic } = await generateObject({
+      model: modelInstance,
+      schema: StateDesignOutputSchema,
+      prompt: userPrompt,
+      system: systemPrompt,
+      temperature: 0.4,
+      maxTokens: 4000,
+    });
+
+    logger.info({ 
+      jobId: tcc.jobId, 
+      modelId: modelConfig.modelId,
+      variableCount: stateLogic.variables?.length || 0,
+      functionCount: stateLogic.functions?.length || 0,
+      aiResponseReceived: true
+    }, '🎯 StateDesign Module: Successfully received structured object from AI');
+
+    return stateLogic;
+  } catch (error) {
+    logger.error({ error }, '🎯 StateDesign Module: AI call failed. Generating fallback.');
+    return generateFallbackStateLogic(tcc, functionSignatures);
+  }
+}
+
+function generateFallbackStateLogic(tcc: ToolConstructionContext, functionSignatures: DefinedFunctionSignature[]): StateLogic {
+  return {
+    variables: [
+      {
+        name: 'isLoading',
+        type: 'boolean',
+        initialValue: false,
+        description: 'Loading state for the application'
+      }
+    ],
+    functions: [
+      {
+        name: 'handleSubmit',
+        body: 'console.log("Submit clicked");',
+        description: 'Handle form submission',
+        dependencies: []
+      }
+    ],
+    imports: ["import React, { useState } from 'react';"],
+  };
+}
+
+function getUserPrompt(
+  tcc: ToolConstructionContext, 
+  functionSignatures: DefinedFunctionSignature[], 
+  editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string
+): string {
+  // Get State Design specific filtered data
+  const brainstormData = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
+  
+  // Handle null brainstorm data from filter
+  if (!brainstormData) {
+    logger.warn({ jobId: tcc.jobId }, '🎯 StateDesign Module: Brainstorm filter returned null, using original brainstorm data');
+    // Fallback to original brainstorm data if filter returns null
+    const fallbackData = tcc.brainstormData as any || {};
+    
+    return `Generate React state logic for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${fallbackData.toolType || tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.targetAudience || 'Professionals'}
+- Description: ${tcc.userInput?.description || 'A business calculation tool'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
+
+Generate the complete state logic with variables and functions that match the StateLogic schema exactly.`;
+  }
+
+  let prompt = `Generate React state logic for this tool:
+
+TOOL DETAILS:
+- Tool Type: ${brainstormData.toolType || tcc.userInput?.description || 'Business Tool'}
+- Target Audience: ${tcc.targetAudience || 'Professionals'}
+- Description: ${tcc.userInput?.description || 'A business calculation tool'}
+
+KEY CALCULATIONS TO IMPLEMENT:
+${brainstormData.keyCalculations?.map(calc => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No calculations defined'}
+
+SUGGESTED INPUTS:
+${brainstormData.suggestedInputs?.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n') || 'No inputs defined'}
+
+FUNCTION SIGNATURES TO IMPLEMENT:
+${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
+
+🚨 CRITICAL REQUIREMENTS:
+- Generate state variables for ALL suggested inputs
+- Implement ALL keyCalculations as functions
+- Use proper TypeScript types
+- Include validation functions
+- 🚨 FAILURE TO IMPLEMENT ANY keyCalculation = INCOMPLETE TOOL!
+
+Generate the complete state logic matching the StateLogic schema exactly.`;
+
+  // Add edit mode context if needed
+  if (isEditMode && editInstructions) {
+    prompt += `
+
+🔄 EDIT MODE:
+Current state logic exists. Apply these modifications:
+${editInstructions}
+
+Modify the existing state logic while maintaining all core functionality.`;
+  }
+
+  return prompt;
 }
