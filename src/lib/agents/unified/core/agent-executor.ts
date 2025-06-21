@@ -21,15 +21,14 @@ import { RetryManager } from './retry-manager';
 import { BaseAgentModule, AgentExecutionInput } from './base-agent-module';
 import logger from '../../../logger';
 
-// Import unified agent modules
+// Import unified agent modules - ALL IMPLEMENTED!
 import { FunctionPlannerModule } from '../modules/function-planner';
 import { StateDesignModule } from '../modules/state-design';
 import { JSXLayoutModule } from '../modules/jsx-layout';
 import { ComponentAssemblerModule } from '../modules/component-assembler';
-// TODO: Import other modules when they're implemented
-// import { TailwindStylingModule } from '../modules/tailwind-styling';
-// import { CodeValidatorModule } from '../modules/code-validator';
-// import { ToolFinalizerModule } from '../modules/tool-finalizer';
+import { TailwindStylingModule } from '../modules/tailwind-styling';
+import { CodeValidatorModule } from '../modules/code-validator';
+import { ToolFinalizerModule } from '../modules/tool-finalizer';
 
 type AgentResult = 
   | FunctionPlannerResult
@@ -40,16 +39,15 @@ type AgentResult =
   | CodeValidatorResult
   | ToolFinalizerResult;
 
-// Initialize agent modules
+// Initialize agent modules - ALL COMPLETE!
 const agentModules: Record<string, BaseAgentModule> = {
   'function-planner': new FunctionPlannerModule(),
   'state-design': new StateDesignModule(),
   'jsx-layout': new JSXLayoutModule(),
+  'tailwind-styling': new TailwindStylingModule(),
   'component-assembler': new ComponentAssemblerModule(),
-  // TODO: Add other modules when implemented
-  // 'tailwind-styling': new TailwindStylingModule(),
-  // 'code-validator': new CodeValidatorModule(),
-  // 'tool-finalizer': new ToolFinalizerModule(),
+  'code-validator': new CodeValidatorModule(),
+  'tool-finalizer': new ToolFinalizerModule(),
 };
 
 // Initialize retry manager
