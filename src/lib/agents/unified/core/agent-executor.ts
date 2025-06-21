@@ -1,6 +1,6 @@
 /**
  * Agent Executor (Phase 1.2 - Core Infrastructure)
- * Unified execution logic for all agents
+ * Unified execution logic for all agents with retry capability
  */
 
 import { 
@@ -17,6 +17,8 @@ import {
 } from '../../../types/tcc-unified';
 import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import { updateTccWithAgentResult } from './tcc-manager';
+import { RetryManager } from './retry-manager';
+import { BaseAgentModule, AgentExecutionInput } from './base-agent-module';
 import logger from '../../../logger';
 
 // Import unified agent modules
@@ -39,7 +41,7 @@ type AgentResult =
   | ToolFinalizerResult;
 
 // Initialize agent modules
-const agentModules = {
+const agentModules: Record<string, BaseAgentModule> = {
   'function-planner': new FunctionPlannerModule(),
   // TODO: Add other modules when implemented
   // 'state-design': new StateDesignModule(),
@@ -49,6 +51,9 @@ const agentModules = {
   // 'code-validator': new CodeValidatorModule(),
   // 'tool-finalizer': new ToolFinalizerModule(),
 };
+
+// Initialize retry manager
+const retryManager = new RetryManager();
 
 /**
  * Execute agent and return both result and updated TCC
@@ -67,18 +72,42 @@ export async function executeAgent(
     agentType,
     modelId: context.modelConfig.modelId,
     isIsolatedTest: context.isIsolatedTest
-  }, `🚀 Executing unified agent: ${agentType}`);
+  }, `🚀 AGENT EXECUTOR: Starting unified agent execution: ${agentType}`);
 
   try {
     // Get the appropriate agent module
-    const agentModule = agentModules[agentType as keyof typeof agentModules];
+    const agentModule = agentModules[agentType];
     
     if (!agentModule) {
       throw new Error(`Agent module not implemented yet: ${agentType}`);
     }
 
-    // Execute the agent module
-    const result = await agentModule.execute(context, { tcc, rawModelResult });
+    // Validate TCC has required data for this agent
+    const requiredFields = agentModule.getRequiredInputFields();
+    const missingFields = validateTccRequiredFields(tcc, requiredFields);
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required TCC fields for ${agentType}: ${missingFields.join(', ')}`);
+    }
+
+    // Create agent execution input
+    const agentInput: AgentExecutionInput = {
+      tcc,
+      rawModelResult
+    };
+
+    // Execute with retry logic
+    const result = await retryManager.executeWithRetry(
+      { ...context, agentType }, // Ensure agentType is in context
+      async () => {
+        logger.info({
+          jobId: context.jobId,
+          agentType
+        }, `🎯 AGENT EXECUTOR: Executing ${agentType} module`);
+
+        return await agentModule.execute(context, agentInput);
+      }
+    );
     
     const executionTime = Date.now() - startTime;
 
@@ -95,8 +124,9 @@ export async function executeAgent(
       jobId: context.jobId,
       agentType,
       duration: executionTime,
-      success: true
-    }, `✅ Agent execution completed: ${agentType}`);
+      success: true,
+      resultValidation: agentModule.validate(result).score
+    }, `✅ AGENT EXECUTOR: Agent execution completed successfully: ${agentType}`);
 
     return { result, updatedTcc };
   } catch (error) {
@@ -107,42 +137,98 @@ export async function executeAgent(
       jobId: context.jobId,
       agentType,
       duration,
-      error: errorMessage
-    }, `❌ Agent execution failed: ${agentType}`);
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
+    }, `❌ AGENT EXECUTOR: Agent execution failed: ${agentType}`);
 
     throw error;
   }
 }
 
-export function getAgentTimeout(agentType: AgentType): number {
-  const timeouts: Record<AgentType, number> = {
-    'function-planner': 30000,    // 30 seconds
-    'state-design': 45000,        // 45 seconds
-    'jsx-layout': 40000,          // 40 seconds
-    'tailwind-styling': 35000,    // 35 seconds
-    'component-assembler': 60000, // 60 seconds
-    'code-validator': 25000,      // 25 seconds
-    'tool-finalizer': 30000       // 30 seconds
-  };
-
-  return timeouts[agentType] || 30000;
+/**
+ * Validate that TCC has required fields for agent execution
+ */
+function validateTccRequiredFields(tcc: BaseTCC, requiredFields: string[]): string[] {
+  const missingFields: string[] = [];
+  
+  for (const field of requiredFields) {
+    const fieldPath = field.split('.');
+    let current: any = tcc;
+    
+    for (const pathSegment of fieldPath) {
+      if (!current || current[pathSegment] === undefined || current[pathSegment] === null) {
+        missingFields.push(field);
+        break;
+      }
+      current = current[pathSegment];
+    }
+  }
+  
+  return missingFields;
 }
 
+/**
+ * Get timeout for specific agent type
+ */
+export function getAgentTimeout(agentType: AgentType): number {
+  const agentModule = agentModules[agentType];
+  return agentModule?.getTimeout() || 30000; // Default 30 seconds
+}
+
+/**
+ * Validate agent result using the agent module's validation
+ */
 export function validateAgentModule(agentType: AgentType, result: AgentResult): any {
-  const agentModule = agentModules[agentType as keyof typeof agentModules];
+  const agentModule = agentModules[agentType];
   
   if (!agentModule) {
     throw new Error(`Agent module not implemented yet: ${agentType}`);
   }
 
-  // Type-safe validation by casting result to the expected type for each agent
-  switch (agentType) {
-    case 'function-planner':
-      return agentModule.validate(result as FunctionPlannerResult);
-    // TODO: Add other cases when modules are implemented
-    // case 'state-design':
-    //   return agentModule.validate(result as StateDesignResult);
-    default:
-      throw new Error(`Validation not implemented for agent: ${agentType}`);
+  return agentModule.validate(result);
+}
+
+/**
+ * Get agent module information
+ */
+export function getAgentModuleInfo(agentType: AgentType): {
+  type: AgentType;
+  timeout: number;
+  description: string;
+  supportsEditMode: boolean;
+  requiredFields: string[];
+} | null {
+  const agentModule = agentModules[agentType];
+  
+  if (!agentModule) {
+    return null;
   }
+
+  const info = agentModule.getAgentInfo();
+  return {
+    ...info,
+    supportsEditMode: agentModule.supportsEditMode(),
+    requiredFields: agentModule.getRequiredInputFields()
+  };
+}
+
+/**
+ * Get retry statistics for monitoring
+ */
+export function getRetryStatistics() {
+  return retryManager.getRetryStatistics();
+}
+
+/**
+ * Get retry context for specific job and agent
+ */
+export function getRetryContext(jobId: string, agentType: AgentType) {
+  return retryManager.getRetryContext(jobId, agentType);
+}
+
+/**
+ * Clear retry context (for cleanup)
+ */
+export function clearRetryContext(jobId: string, agentType: AgentType) {
+  retryManager.clearRetryContext(jobId, agentType);
 }
