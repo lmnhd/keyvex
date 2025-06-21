@@ -549,13 +549,11 @@ export function getStateDesignUserPrompt(
   // Handle null brainstorm data from filter
   if (!brainstormData) {
     logger.warn({ jobId: tcc.jobId }, '🎯 StateDesign Module: Brainstorm filter returned null, using original brainstorm data');
-    // Fallback to original brainstorm data if filter returns null
-    const fallbackData = tcc.brainstormData || {};
     
     return `Generate React state logic for this tool:
 
 TOOL DETAILS:
-- Tool Type: ${fallbackData.toolType || tcc.userInput?.description || 'Business Tool'}
+- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
 - Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
 - Description: ${tcc.userInput?.description || 'A business calculation tool'}
 

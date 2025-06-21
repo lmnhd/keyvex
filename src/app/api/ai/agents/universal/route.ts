@@ -201,12 +201,23 @@ function convertAgentResultToResponse(agentType: AgentType, result: unknown): Un
       };
       
     case 'tailwind-styling':
-      const tsResult = result as { styling: { styledComponentCode: string; styleMap: Record<string, string>; colorScheme: unknown } };
+      const tsResult = result as { styling: { styledComponentCode: string; styleMap: Record<string, string>; colorScheme: any } };
       return {
         styling: {
           styledComponentCode: tsResult.styling.styledComponentCode,
           styleMap: tsResult.styling.styleMap,
-          colorScheme: tsResult.styling.colorScheme as NonNullable<UniversalAgentResponse['result']>['styling']['colorScheme']
+          colorScheme: tsResult.styling.colorScheme || {
+            primary: 'blue',
+            secondary: 'gray', 
+            accent: 'indigo',
+            background: 'white',
+            surface: 'gray-50',
+            text: { primary: 'gray-900', secondary: 'gray-600', muted: 'gray-400' },
+            border: 'gray-200',
+            success: 'green',
+            warning: 'yellow',
+            error: 'red'
+          }
         },
         metadata: { agentType: 'tailwind-styling' }
       };

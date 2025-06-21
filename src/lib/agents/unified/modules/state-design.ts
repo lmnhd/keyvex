@@ -19,7 +19,13 @@ export async function executeStateDesign(
     isIsolatedTest: context.isIsolatedTest,
     editMode: context.editMode ? {
       isEditMode: context.editMode.isEditMode,
-      instructions: context.editMode.activeEditInstructions || [],
+      instructions: context.editMode.activeEditInstructions?.map(instruction => ({
+        targetAgent: instruction.targetAgent,
+        editType: instruction.editType,
+        instructions: instruction.instructions,
+        priority: instruction.priority,
+        createdAt: instruction.createdAt
+      })) || [],
       context: 'unified_agent_execution'
     } : undefined
   });
