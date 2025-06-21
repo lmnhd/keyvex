@@ -544,7 +544,7 @@ export function getStateDesignUserPrompt(
   editInstructions?: string
 ): string {
   // Get State Design specific filtered data
-  const brainstormData = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
+  const brainstormData = tcc.brainstormData ? filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId) : null;
   
   // Handle null brainstorm data from filter
   if (!brainstormData) {

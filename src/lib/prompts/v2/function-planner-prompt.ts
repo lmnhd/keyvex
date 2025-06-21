@@ -100,7 +100,7 @@ export function getFunctionPlannerSystemPrompt(isEditing: boolean): string {
  */
 export function getFunctionPlannerUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
   // Get Function Planner specific filtered data
-  const filteredBrainstormData = filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId);
+  const filteredBrainstormData = tcc.brainstormData ? filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId) : null;
   
   // Use brainstorm data for tool description instead of fallback
   let toolDescription = tcc.userInput?.description;

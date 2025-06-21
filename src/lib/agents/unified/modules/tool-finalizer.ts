@@ -1,277 +1,60 @@
-// File Path: keyvex_app/src/lib/agents/unified/modules/tool-finalizer.ts
-import { z } from 'zod';
-import {
-  ToolConstructionContext,
-  OrchestrationStepEnum,
-  OrchestrationStatusEnum,
-  FinalProductToolDefinitionSchema,
-  BrainstormData,
-} from '@/lib/types/product-tool-creation-v2/tcc';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { callModelForObject } from '@/lib/ai/model-caller';
-import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
-import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '@/lib/prompts/tool-finalizer-prompt';
-import logger from '@/lib/logger';
-
-// Use the existing schema from TCC
-const ToolFinalizerOutputSchema = FinalProductToolDefinitionSchema;
-export type ToolFinalizerOutput = z.infer<typeof FinalProductToolDefinitionSchema>;
-
-// Edit mode context type
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
-
-// Module interface for the unified agent system
-export interface ToolFinalizerRequest {
-  jobId: string;
-  selectedModel?: string;
-  tcc: ToolConstructionContext;
-  isIsolatedTest?: boolean;
-  editMode?: EditModeContext;
-}
-
-export interface ToolFinalizerResult {
-  success: boolean;
-  finalizedTool?: z.infer<typeof FinalProductToolDefinitionSchema>;
-  error?: string;
-  updatedTcc: ToolConstructionContext;
-}
-
 /**
- * Tool Finalizer Module - Extracted core logic for unified agent system
- * Finalizes the tool with metadata, deployment configuration, and packaging
+ * Tool Finalizer Unified Module (Phase 1.2)
+ * Extracted logic for the unified agent system
  */
-export async function executeToolFinalizer(request: ToolFinalizerRequest): Promise<ToolFinalizerResult> {
-  const { jobId, selectedModel, tcc, isIsolatedTest = false, editMode } = request;
-  
-  // Edit mode detection
-  const isEditMode = editMode?.isEditMode || false;
-  const editInstructions = editMode?.instructions || [];
 
-  logger.info({ jobId, isIsolatedTest }, '🏁 ToolFinalizer Module: Starting tool finalization');
+import { AgentExecutionContext, ToolFinalizerResult } from '@/lib/types/tcc-unified';
+import { ToolConstructionContext, FinalProductToolDefinition } from '@/lib/types/product-tool-creation-v2/tcc';
+import { finalizeTool } from '@/app/api/ai/product-tool-creation-v2/agents/tool-finalizer/core-logic';
 
-  try {
-    if (!tcc) {
-      throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
-    }
+export async function executeToolFinalizer(
+  context: AgentExecutionContext,
+  tcc: ToolConstructionContext
+): Promise<ToolFinalizerResult> {
+  // Use existing core logic
+  const result = await finalizeTool({
+    jobId: context.jobId,
+    selectedModel: context.modelConfig.modelId,
+    tcc
+  });
 
-    // Emit progress for orchestration mode
-    if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.finalizing_tool,
-        'in_progress',
-        'Finalizing tool with metadata and deployment configuration...',
-        tcc
-      );
-    }
-
-    logger.info({ jobId }, '🏁 ToolFinalizer Module: Calling AI to finalize tool...');
-    const finalizedTool = await generateFinalizedTool(tcc, selectedModel, editMode);
-    logger.info({ jobId }, '🏁 ToolFinalizer Module: AI finalization completed');
-
-    // Comprehensive TCC update logging
-    logger.info({
-      jobId,
-      agentName: 'ToolFinalizer',
-      tccUpdateDetail: {
-        beforeFinalProduct: !!tcc.finalProduct,
-        beforeSteps: Object.keys(tcc.steps || {}),
-        beforeLastUpdated: tcc.updatedAt
-      }
-    }, '🏁 ToolFinalizer Module: TCC STATE BEFORE UPDATE');
-
-    const updatedTcc: ToolConstructionContext = {
-      ...tcc,
-      finalProduct: {
-        ...tcc.finalProduct,
-        ...finalizedTool
-      },
-      status: 'completed',
-      updatedAt: new Date().toISOString(),
-    };
-
-    // Comprehensive TCC update logging - detailed output
-    logger.info({
-      jobId,
-      agentName: 'ToolFinalizer',
-      tccUpdateDetail: {
-        afterFinalProduct: !!updatedTcc.finalProduct,
-        afterLastUpdated: updatedTcc.updatedAt,
-        afterStatus: updatedTcc.status,
-        toolDetails: {
-          toolId: updatedTcc.finalProduct?.id,
-          toolSlug: updatedTcc.finalProduct?.slug,
-          toolVersion: updatedTcc.finalProduct?.version,
-          toolStatus: updatedTcc.finalProduct?.status,
-          hasMetadata: !!updatedTcc.finalProduct?.metadata,
-          hasComponentCode: !!updatedTcc.finalProduct?.componentCode
-        }
-      }
-    }, '🏁 ToolFinalizer Module: TCC STATE AFTER UPDATE - COMPREHENSIVE DETAILS');
-
-    // Emit completion progress for orchestration mode
-    if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.finalizing_tool,
-        'completed',
-        `Successfully finalized tool v${finalizedTool.version} - Tool is ready for deployment`,
-        updatedTcc
-      );
-    }
-
-    return { success: true, finalizedTool, updatedTcc };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error({ jobId, error: errorMessage }, '🏁 ToolFinalizer Module: Error');
-    
-    // Emit failure progress
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.finalizing_tool,
-      'failed',
-      errorMessage,
-      tcc
-    );
-    
-    return { success: false, error: errorMessage, updatedTcc: tcc };
-  }
-}
-
-async function generateFinalizedTool(
-  tcc: ToolConstructionContext,
-  selectedModel?: string,
-  editMode?: EditModeContext,
-): Promise<z.infer<typeof FinalProductToolDefinitionSchema>> {
-  // PRIORITY 1: Check TCC agent model mapping first
-  let modelId: string;
-  if (tcc.agentModelMapping?.['tool-finalizer']) {
-    modelId = tcc.agentModelMapping['tool-finalizer'];
-    logger.info({ 
-      agentName: 'tool-finalizer', 
-      mappedModel: modelId,
-      source: 'TCC_AGENT_MAPPING' 
-    }, '🏁 ToolFinalizer Module: Using TCC AGENT MAPPING model from workbench');
-  }
-  // PRIORITY 2: User-selected model from request
-  else if (selectedModel && selectedModel !== 'default') {
-    modelId = selectedModel;
-    logger.info({ 
-      selectedModel: modelId,
-      source: 'REQUEST_PARAMETER' 
-    }, '🏁 ToolFinalizer Module: Using REQUEST PARAMETER model');
-  } 
-  // PRIORITY 3: Fallback to configuration
-  else {
-    const primaryModel = getPrimaryModel('toolFinalizer');
-    modelId = primaryModel?.modelInfo?.id || 'claude-3-7-sonnet-20250219';
-    logger.info({ 
-      modelId,
-      source: 'CONFIGURATION_FALLBACK' 
-    }, '🏁 ToolFinalizer Module: Using CONFIGURATION FALLBACK model');
+  if (!result.success) {
+    throw new Error(result.error || 'Tool finalizer execution failed');
   }
 
-  const systemPrompt = getToolFinalizerSystemPrompt(false);
-  const userPrompt = getToolFinalizerUserPrompt(tcc, editMode);
-
-  // Isolation test logging
-  logger.info({
-    jobId: tcc.jobId,
-    modelId: modelId,
-    systemPromptLength: systemPrompt.length,
-    userPromptLength: userPrompt.length,
-    finalProductPresent: !!tcc.finalProduct,
-    validationResultPresent: !!tcc.validationResult,
-    validationPassed: tcc.validationResult?.isValid || false
-  }, '🏁 ToolFinalizer Module: ISOLATION DEBUG - Input data analysis');
-
-  try {
-    const { object: finalizedTool } = await callModelForObject<z.infer<typeof FinalProductToolDefinitionSchema>>(modelId, {
-      schema: ToolFinalizerOutputSchema,
-      prompt: userPrompt,
-      systemPrompt: systemPrompt,
-      temperature: 0.2,
-      maxTokens: 4000,
-      maxRetries: 3
-    });
-
-    logger.info({ 
-      jobId: tcc.jobId, 
-      modelId: modelId,
-      toolId: finalizedTool.id,
-      toolSlug: finalizedTool.slug,
-      toolVersion: finalizedTool.version,
-      aiResponseReceived: true
-    }, '🏁 ToolFinalizer Module: Successfully received structured object from AI');
-
-    return finalizedTool;
-  } catch (error) {
-    logger.error({ error }, '🏁 ToolFinalizer Module: AI call failed. Generating fallback.');
-    return generateFallbackFinalizedTool(tcc);
-  }
-}
-
-function generateFallbackFinalizedTool(tcc: ToolConstructionContext): z.infer<typeof FinalProductToolDefinitionSchema> {
-  const toolName = tcc.brainstormData?.coreConcept || 'BusinessTool';
-  const timestamp = Date.now();
-  
+  // Convert to unified result format
   return {
-    id: `tool-${timestamp}`,
-    slug: toolName.toLowerCase().replace(/\s+/g, '-'),
-    version: '1.0.0',
-    status: 'published',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    createdBy: 'ai-generator',
+    finalProduct: result.finalProduct as FinalProductToolDefinition,
     metadata: {
-      type: 'business-tool',
-      description: tcc.userInput?.description || 'A business calculation tool',
-      targetAudience: 'business professionals',
-      industry: 'general',
-      features: ['calculation', 'analysis'],
-      title: toolName,
-      id: `tool-${timestamp}`,
-      icon: { value: '📊', type: 'emoji' },
-      slug: toolName.toLowerCase().replace(/\s+/g, '-'),
-      shortDescription: tcc.userInput?.description || 'Business tool',
-      category: 'business',
-      tags: ['business', 'calculator', 'tool'],
-      estimatedCompletionTime: 5,
-      difficultyLevel: 'beginner'
-    },
-    componentSet: 'shadcn',
-    componentCode: tcc.finalProduct?.componentCode || '',
-    colorScheme: {
-      primary: '#3b82f6',
-      secondary: '#64748b',
-      background: '#ffffff',
-      surface: '#f8fafc',
-      text: {
-        primary: '#1e293b',
-        secondary: '#64748b',
-        muted: '#94a3b8'
-      },
-      border: '#e2e8f0',
-      success: '#10b981',
-      warning: '#f59e0b',
-      error: '#ef4444'
-    },
-    analytics: {
-      enabled: true,
-      completions: 0,
-      averageTime: 0
+      completionTime: calculateCompletionTime(),
+      qualityScore: calculateQualityScore(result.finalProduct as FinalProductToolDefinition),
+      readinessLevel: determineReadinessLevel(result.finalProduct as FinalProductToolDefinition)
     }
   };
 }
 
- 
+function calculateCompletionTime(): string {
+  // Simple completion time calculation
+  return new Date().toISOString();
+}
+
+function calculateQualityScore(finalProduct: FinalProductToolDefinition): number {
+  // Simple quality scoring based on completeness
+  let score = 0;
+  
+  if (finalProduct.componentCode) score += 30;
+  if (finalProduct.metadata) score += 20;
+  if (finalProduct.colorScheme) score += 20;
+  if (finalProduct.analytics) score += 15;
+  if (finalProduct.currentStyleMap) score += 15;
+  
+  return score;
+}
+
+function determineReadinessLevel(finalProduct: FinalProductToolDefinition): 'development' | 'staging' | 'production' {
+  const qualityScore = calculateQualityScore(finalProduct);
+  
+  if (qualityScore >= 90) return 'production';
+  if (qualityScore >= 70) return 'staging';
+  return 'development';
+}

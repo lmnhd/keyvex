@@ -1,53 +1,70 @@
 /**
- * Brainstorm Data Filtering Utilities
+ * Brainstorm Data Filtering Utilities (Phase 1.3)
+ * Enhanced for Unified TCC Interface Integration
  * 
  * Each agent should only receive the specific brainstorm data relevant to its task.
  * This prevents context window bloat and improves AI focus on relevant information.
+ * Now works with the unified TCC interface - NO GENERIC TYPES!
  */
 
 import logger from '@/lib/logger';
+import { 
+  AgentType,
+  CoreBrainstormData,
+  FunctionPlannerBrainstormData,
+  StateDesignBrainstormData,
+  JSXLayoutBrainstormData,
+  TailwindStylingBrainstormData,
+  ComponentAssemblerBrainstormData,
+  BrainstormFilterContext
+} from '@/lib/types/tcc-unified';
+import { BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
 
-// Core fields that all agents need
-interface CoreBrainstormData {
-  coreConcept?: string;
-  coreWConcept?: string;
-  valueProposition?: string;
-  toolType?: string;
-  targetAudience?: string;
+/**
+ * Convert raw brainstorm data to typed core data structure
+ * Handles backward compatibility with legacy field names
+ */
+function convertToCoreData(brainstormData: BrainstormData): CoreBrainstormData {
+  return {
+    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified',
+    valueProposition: brainstormData.valueProposition || 'Not specified',
+    toolType: 'calculator', // Default type, can be enhanced
+    targetAudience: 'general', // Default audience, can be enhanced
+    keyCalculations: brainstormData.keyCalculations || [],
+    calculationLogic: brainstormData.calculationLogic || [],
+    suggestedInputs: brainstormData.suggestedInputs || [],
+    interactionFlow: brainstormData.interactionFlow || [],
+    leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
+      timing: 'after_calculation',
+      method: 'email_form',
+      incentive: 'detailed_report'
+    },
+    creativeEnhancements: brainstormData.creativeEnhancements || []
+  };
 }
 
-// Function Planner specific data
-interface FunctionPlannerBrainstormData extends CoreBrainstormData {
-  suggestedInputs?: any[];
-  keyCalculations?: any[];
-  interactionFlow?: any[];
-  creativeEnhancements?: string[];
-}
+/**
+ * Create filter context for logging and analysis
+ */
+function createFilterContext(
+  agentType: AgentType,
+  originalData: BrainstormData,
+  filteredData: Partial<CoreBrainstormData>,
+  fieldsIncluded: string[],
+  fieldsExcluded: string[]
+): BrainstormFilterContext {
+  const originalSize = JSON.stringify(originalData).length;
+  const filteredSize = JSON.stringify(filteredData).length;
+  const reductionPercentage = Math.round(((originalSize - filteredSize) / originalSize) * 100);
 
-// State Design specific data  
-interface StateDesignBrainstormData extends CoreBrainstormData {
-  suggestedInputs?: any[];
-  keyCalculations?: any[];
-  calculationLogic?: any[];
-}
-
-// JSX Layout specific data
-interface JSXLayoutBrainstormData extends CoreBrainstormData {
-  suggestedInputs?: any[];
-  interactionFlow?: any[];
-  keyCalculations?: any[];
-  leadCaptureStrategy?: any;
-}
-
-// Tailwind Styling specific data
-interface TailwindStylingBrainstormData extends CoreBrainstormData {
-  creativeEnhancements?: string[];
-  leadCaptureStrategy?: any;
-}
-
-// Component Assembler specific data
-interface ComponentAssemblerBrainstormData extends CoreBrainstormData {
-  // Component Assembler mainly needs core data for metadata
+  return {
+    agentType,
+    originalDataSize: originalSize,
+    filteredDataSize: filteredSize,
+    reductionPercentage,
+    fieldsIncluded,
+    fieldsExcluded
+  };
 }
 
 /**
@@ -55,33 +72,33 @@ interface ComponentAssemblerBrainstormData extends CoreBrainstormData {
  * Needs: Core data + inputs + calculations + flow + enhancements
  */
 export function filterBrainstormForFunctionPlanner(
-  brainstormData: any,
+  brainstormData: BrainstormData,
   jobId: string
 ): FunctionPlannerBrainstormData | null {
   if (!brainstormData) return null;
 
+  const coreData = convertToCoreData(brainstormData);
   const filtered: FunctionPlannerBrainstormData = {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept,
-    valueProposition: brainstormData.valueProposition,
-    toolType: brainstormData.toolType,
-    targetAudience: brainstormData.targetAudience,
-    suggestedInputs: brainstormData.suggestedInputs,
-    keyCalculations: brainstormData.keyCalculations,
-    interactionFlow: brainstormData.interactionFlow,
-    creativeEnhancements: brainstormData.creativeEnhancements
+    ...coreData // Function Planner needs all core data
   };
 
-  const originalSize = JSON.stringify(brainstormData).length;
-  const filteredSize = JSON.stringify(filtered).length;
-  const reductionPercent = Math.round(((originalSize - filteredSize) / originalSize) * 100);
+  const fieldsIncluded = Object.keys(filtered).filter(key => 
+    filtered[key as keyof FunctionPlannerBrainstormData] !== undefined
+  );
+  const fieldsExcluded: string[] = []; // Function Planner includes all fields
+
+  const filterContext = createFilterContext(
+    'function-planner',
+    brainstormData,
+    filtered,
+    fieldsIncluded,
+    fieldsExcluded
+  );
 
   logger.info({
     jobId,
-    agent: 'FunctionPlanner',
-    originalSize,
-    filteredSize,
-    reductionPercent,
-    fieldsKept: Object.keys(filtered).filter(key => filtered[key as keyof FunctionPlannerBrainstormData] !== undefined).length
+    ...filterContext,
+    fieldsKept: fieldsIncluded.length
   }, '🎯 BRAINSTORM FILTER: Function Planner data filtered');
 
   return filtered;
@@ -92,32 +109,41 @@ export function filterBrainstormForFunctionPlanner(
  * Needs: Core data + inputs + calculations + calculation logic
  */
 export function filterBrainstormForStateDesign(
-  brainstormData: any,
+  brainstormData: BrainstormData,
   jobId: string
 ): StateDesignBrainstormData | null {
   if (!brainstormData) return null;
 
+  const coreData = convertToCoreData(brainstormData);
   const filtered: StateDesignBrainstormData = {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept,
-    valueProposition: brainstormData.valueProposition,
-    toolType: brainstormData.toolType,
-    targetAudience: brainstormData.targetAudience,
-    suggestedInputs: brainstormData.suggestedInputs,
-    keyCalculations: brainstormData.keyCalculations,
-    calculationLogic: brainstormData.calculationLogic
+    coreConcept: coreData.coreConcept,
+    valueProposition: coreData.valueProposition,
+    toolType: coreData.toolType,
+    targetAudience: coreData.targetAudience,
+    suggestedInputs: coreData.suggestedInputs,
+    keyCalculations: coreData.keyCalculations,
+    calculationLogic: coreData.calculationLogic,
+    // Excluded for State Design: interactionFlow, leadCaptureStrategy, creativeEnhancements
+    interactionFlow: [], // Required by interface but empty for State Design
+    leadCaptureStrategy: { timing: '', method: '', incentive: '' }, // Required by interface but empty
+    creativeEnhancements: [] // Required by interface but empty
   };
 
-  const originalSize = JSON.stringify(brainstormData).length;
-  const filteredSize = JSON.stringify(filtered).length;
-  const reductionPercent = Math.round(((originalSize - filteredSize) / originalSize) * 100);
+  const fieldsIncluded = ['coreConcept', 'valueProposition', 'toolType', 'targetAudience', 'suggestedInputs', 'keyCalculations', 'calculationLogic'];
+  const fieldsExcluded = ['interactionFlow', 'leadCaptureStrategy', 'creativeEnhancements'];
+
+  const filterContext = createFilterContext(
+    'state-design',
+    brainstormData,
+    filtered,
+    fieldsIncluded,
+    fieldsExcluded
+  );
 
   logger.info({
     jobId,
-    agent: 'StateDesign',
-    originalSize,
-    filteredSize,
-    reductionPercent,
-    fieldsKept: Object.keys(filtered).filter(key => filtered[key as keyof StateDesignBrainstormData] !== undefined).length
+    ...filterContext,
+    fieldsKept: fieldsIncluded.length
   }, '🎯 BRAINSTORM FILTER: State Design data filtered');
 
   return filtered;
@@ -128,33 +154,41 @@ export function filterBrainstormForStateDesign(
  * Needs: Core data + inputs + interaction flow + calculations + lead capture
  */
 export function filterBrainstormForJSXLayout(
-  brainstormData: any,
+  brainstormData: BrainstormData,
   jobId: string
 ): JSXLayoutBrainstormData | null {
   if (!brainstormData) return null;
 
+  const coreData = convertToCoreData(brainstormData);
   const filtered: JSXLayoutBrainstormData = {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept,
-    valueProposition: brainstormData.valueProposition,
-    toolType: brainstormData.toolType,
-    targetAudience: brainstormData.targetAudience,
-    suggestedInputs: brainstormData.suggestedInputs,
-    interactionFlow: brainstormData.interactionFlow,
-    keyCalculations: brainstormData.keyCalculations,
-    leadCaptureStrategy: brainstormData.leadCaptureStrategy
+    coreConcept: coreData.coreConcept,
+    valueProposition: coreData.valueProposition,
+    toolType: coreData.toolType,
+    targetAudience: coreData.targetAudience,
+    suggestedInputs: coreData.suggestedInputs,
+    interactionFlow: coreData.interactionFlow,
+    keyCalculations: coreData.keyCalculations,
+    leadCaptureStrategy: coreData.leadCaptureStrategy,
+    // Excluded for JSX Layout: calculationLogic, creativeEnhancements
+    calculationLogic: [], // Required by interface but empty for JSX Layout
+    creativeEnhancements: [] // Required by interface but empty
   };
 
-  const originalSize = JSON.stringify(brainstormData).length;
-  const filteredSize = JSON.stringify(filtered).length;
-  const reductionPercent = Math.round(((originalSize - filteredSize) / originalSize) * 100);
+  const fieldsIncluded = ['coreConcept', 'valueProposition', 'toolType', 'targetAudience', 'suggestedInputs', 'interactionFlow', 'keyCalculations', 'leadCaptureStrategy'];
+  const fieldsExcluded = ['calculationLogic', 'creativeEnhancements'];
+
+  const filterContext = createFilterContext(
+    'jsx-layout',
+    brainstormData,
+    filtered,
+    fieldsIncluded,
+    fieldsExcluded
+  );
 
   logger.info({
     jobId,
-    agent: 'JSXLayout',
-    originalSize,
-    filteredSize,
-    reductionPercent,
-    fieldsKept: Object.keys(filtered).filter(key => filtered[key as keyof JSXLayoutBrainstormData] !== undefined).length
+    ...filterContext,
+    fieldsKept: fieldsIncluded.length
   }, '🎯 BRAINSTORM FILTER: JSX Layout data filtered');
 
   return filtered;
@@ -165,31 +199,41 @@ export function filterBrainstormForJSXLayout(
  * Needs: Core data + creative enhancements + lead capture (for styling themes)
  */
 export function filterBrainstormForTailwindStyling(
-  brainstormData: any,
+  brainstormData: BrainstormData,
   jobId: string
 ): TailwindStylingBrainstormData | null {
   if (!brainstormData) return null;
 
+  const coreData = convertToCoreData(brainstormData);
   const filtered: TailwindStylingBrainstormData = {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept,
-    valueProposition: brainstormData.valueProposition,
-    toolType: brainstormData.toolType,
-    targetAudience: brainstormData.targetAudience,
-    creativeEnhancements: brainstormData.creativeEnhancements,
-    leadCaptureStrategy: brainstormData.leadCaptureStrategy
+    coreConcept: coreData.coreConcept,
+    valueProposition: coreData.valueProposition,
+    toolType: coreData.toolType,
+    targetAudience: coreData.targetAudience,
+    creativeEnhancements: coreData.creativeEnhancements,
+    leadCaptureStrategy: coreData.leadCaptureStrategy,
+    // Excluded for Tailwind Styling: suggestedInputs, keyCalculations, calculationLogic, interactionFlow
+    suggestedInputs: [], // Required by interface but empty
+    keyCalculations: [], // Required by interface but empty
+    calculationLogic: [], // Required by interface but empty
+    interactionFlow: [] // Required by interface but empty
   };
 
-  const originalSize = JSON.stringify(brainstormData).length;
-  const filteredSize = JSON.stringify(filtered).length;
-  const reductionPercent = Math.round(((originalSize - filteredSize) / originalSize) * 100);
+  const fieldsIncluded = ['coreConcept', 'valueProposition', 'toolType', 'targetAudience', 'creativeEnhancements', 'leadCaptureStrategy'];
+  const fieldsExcluded = ['suggestedInputs', 'keyCalculations', 'calculationLogic', 'interactionFlow'];
+
+  const filterContext = createFilterContext(
+    'tailwind-styling',
+    brainstormData,
+    filtered,
+    fieldsIncluded,
+    fieldsExcluded
+  );
 
   logger.info({
     jobId,
-    agent: 'TailwindStyling',
-    originalSize,
-    filteredSize,
-    reductionPercent,
-    fieldsKept: Object.keys(filtered).filter(key => filtered[key as keyof TailwindStylingBrainstormData] !== undefined).length
+    ...filterContext,
+    fieldsKept: fieldsIncluded.length
   }, '🎯 BRAINSTORM FILTER: Tailwind Styling data filtered');
 
   return filtered;
@@ -197,108 +241,88 @@ export function filterBrainstormForTailwindStyling(
 
 /**
  * Filter brainstorm data for Component Assembler Agent
- * Needs: Only core data for component metadata
+ * Needs: Complete core data for metadata and context
  */
 export function filterBrainstormForComponentAssembler(
-  brainstormData: any,
+  brainstormData: BrainstormData,
   jobId: string
 ): ComponentAssemblerBrainstormData | null {
   if (!brainstormData) return null;
 
+  const coreData = convertToCoreData(brainstormData);
   const filtered: ComponentAssemblerBrainstormData = {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept,
-    valueProposition: brainstormData.valueProposition,
-    toolType: brainstormData.toolType,
-    targetAudience: brainstormData.targetAudience
+    ...coreData // Component Assembler needs all core data for context
   };
 
-  const originalSize = JSON.stringify(brainstormData).length;
-  const filteredSize = JSON.stringify(filtered).length;
-  const reductionPercent = Math.round(((originalSize - filteredSize) / originalSize) * 100);
+  const fieldsIncluded = Object.keys(filtered).filter(key => 
+    filtered[key as keyof ComponentAssemblerBrainstormData] !== undefined
+  );
+  const fieldsExcluded: string[] = []; // Component Assembler includes all fields
+
+  const filterContext = createFilterContext(
+    'component-assembler',
+    brainstormData,
+    filtered,
+    fieldsIncluded,
+    fieldsExcluded
+  );
 
   logger.info({
     jobId,
-    agent: 'ComponentAssembler',
-    originalSize,
-    filteredSize,
-    reductionPercent,
-    fieldsKept: Object.keys(filtered).filter(key => filtered[key as keyof ComponentAssemblerBrainstormData] !== undefined).length
+    ...filterContext,
+    fieldsKept: fieldsIncluded.length
   }, '🎯 BRAINSTORM FILTER: Component Assembler data filtered');
 
   return filtered;
 }
 
 /**
- * Generate filtered brainstorm context string for prompts
+ * Generate filtered brainstorm context string for AI prompts
+ * Converts filtered data to a structured string for AI consumption
  */
 export function generateFilteredBrainstormContext(
-  filteredData: any,
+  filteredData: CoreBrainstormData,
   agentName: string
 ): string {
-  if (!filteredData) return '';
+  const sections: string[] = [];
 
-  let context = `
+  // Core concept and value
+  sections.push(`## Core Concept\n${filteredData.coreConcept}`);
+  sections.push(`## Value Proposition\n${filteredData.valueProposition}`);
+  sections.push(`## Tool Type\n${filteredData.toolType}`);
+  sections.push(`## Target Audience\n${filteredData.targetAudience}`);
 
-RELEVANT BRAINSTORM CONTEXT (${agentName} specific):
-
-CORE CONCEPT: ${filteredData.coreConcept || 'Not specified'}
-
-VALUE PROPOSITION: ${filteredData.valueProposition || 'Not specified'}`;
-
-  // Add agent-specific sections
-  if (filteredData.suggestedInputs && filteredData.suggestedInputs.length > 0) {
-    context += `
-
-SUGGESTED INPUT FIELDS:`;
-    filteredData.suggestedInputs.forEach((input: any) => {
-      context += `\n- ${input.label} (${input.type}): ${input.description}`;
-    });
-  }
-
+  // Key calculations (if available)
   if (filteredData.keyCalculations && filteredData.keyCalculations.length > 0) {
-    context += `
-
-KEY CALCULATIONS:`;
-    filteredData.keyCalculations.forEach((calc: any) => {
-      context += `\n- ${calc.name}: ${calc.formula} (${calc.description})`;
-    });
+    const calculationsText = filteredData.keyCalculations
+      .map(calc => `- **${calc.name}**: ${calc.formula}\n  ${calc.description}\n  Variables: ${calc.variables.join(', ')}`)
+      .join('\n');
+    sections.push(`## Key Calculations\n${calculationsText}`);
   }
 
+  // Suggested inputs (if available)
+  if (filteredData.suggestedInputs && filteredData.suggestedInputs.length > 0) {
+    const inputsText = filteredData.suggestedInputs
+      .map(input => `- **${input.label}** (${input.type}): ${input.description}${input.required ? ' [Required]' : ''}`)
+      .join('\n');
+    sections.push(`## Suggested Inputs\n${inputsText}`);
+  }
+
+  // Interaction flow (if available)
   if (filteredData.interactionFlow && filteredData.interactionFlow.length > 0) {
-    context += `
-
-INTERACTION FLOW:`;
-    filteredData.interactionFlow.forEach((step: any) => {
-      context += `\n${step.step}. ${step.title}: ${step.userAction}`;
-    });
+    const flowText = filteredData.interactionFlow
+      .map(step => `${step.step}. **${step.title}**: ${step.description}\n   User Action: ${step.userAction}`)
+      .join('\n');
+    sections.push(`## Interaction Flow\n${flowText}`);
   }
 
-  if (filteredData.calculationLogic && filteredData.calculationLogic.length > 0) {
-    context += `
-
-CALCULATION LOGIC:`;
-    filteredData.calculationLogic.forEach((logic: any) => {
-      context += `\n- ${logic.name}: ${logic.formula}`;
-    });
-  }
-
+  // Creative enhancements (if available)
   if (filteredData.creativeEnhancements && filteredData.creativeEnhancements.length > 0) {
-    context += `
-
-CREATIVE ENHANCEMENTS:`;
-    filteredData.creativeEnhancements.forEach((enhancement: string) => {
-      context += `\n- ${enhancement}`;
-    });
+    const enhancementsText = filteredData.creativeEnhancements
+      .map(enhancement => `- ${enhancement}`)
+      .join('\n');
+    sections.push(`## Creative Enhancements\n${enhancementsText}`);
   }
 
-  if (filteredData.leadCaptureStrategy) {
-    context += `
-
-LEAD CAPTURE STRATEGY:
-- Timing: ${filteredData.leadCaptureStrategy.timing}
-- Method: ${filteredData.leadCaptureStrategy.method}
-- Incentive: ${filteredData.leadCaptureStrategy.incentive}`;
-  }
-
-  return context;
+  return `# Brainstorm Context for ${agentName}\n\n${sections.join('\n\n')}`;
 } 

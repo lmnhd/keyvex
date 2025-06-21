@@ -1,232 +1,47 @@
-﻿// File Path: keyvex_app/src/lib/agents/unified/modules/function-planner.ts
-import { z } from 'zod';
-import {
-  ToolConstructionContext,
-  DefinedFunctionSignature,
-  OrchestrationStepEnum,
-  OrchestrationStatusEnum,
-} from '@/lib/types/product-tool-creation-v2/tcc';
-import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-import { callModelForObject } from '@/lib/ai/model-caller';
-import logger from '@/lib/logger';
-import { getFunctionPlannerSystemPrompt, getFunctionPlannerUserPrompt } from '@/lib/prompts/v2/function-planner-prompt';
-import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
-import { filterBrainstormForFunctionPlanner, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
-
-// Edit mode context type
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
-
-// Zod schema for function signatures
-const functionSignaturesSchema = z.object({
-  signatures: z.array(
-    z.object({
-      name: z.string().describe('The camelCase name of the function.'),
-      description: z
-        .string()
-        .describe('A brief explanation of what the function does.'),
-    }),
-  ),
-});
-
-// Module interface for the unified agent system
-export interface FunctionPlannerRequest {
-  jobId: string;
-  selectedModel?: string;
-  tcc: ToolConstructionContext;
-  isIsolatedTest?: boolean;
-  editMode?: EditModeContext;
-}
-
-export interface FunctionPlannerResult {
-  success: boolean;
-  functionSignatures?: DefinedFunctionSignature[];
-  error?: string;
-  updatedTcc: ToolConstructionContext;
-}
-
 /**
- * Function Planner Module - Extracted core logic for unified agent system
- * Plans function signatures needed for component interactivity
+ * Function Planner Unified Module (Phase 1.2)
+ * Extracted logic for the unified agent system
  */
-export async function executeFunctionPlanner(request: FunctionPlannerRequest): Promise<FunctionPlannerResult> {
-  const { jobId, selectedModel, tcc, isIsolatedTest = false, editMode } = request;
 
-  try {
-    logger.info({ jobId }, '🔧 FunctionPlanner Module: Starting function signature planning');
-    
-    if (!tcc || !tcc.agentModelMapping) {
-      throw new Error(`Valid TCC was not provided for jobId: ${jobId}`);
-    }
+import { AgentExecutionContext, FunctionPlannerResult } from '@/lib/types/tcc-unified';
+import { ToolConstructionContext, DefinedFunctionSignature } from '@/lib/types/product-tool-creation-v2/tcc';
+import { planFunctionSignatures } from '@/app/api/ai/product-tool-creation-v2/agents/function-planner/core-logic';
 
-    // Apply user model selection if provided
-    if (selectedModel) {
-      logger.info({ jobId, selectedModel }, '🔧 FunctionPlanner Module: User selected explicit model');
-      tcc.agentModelMapping['function-planner'] = selectedModel;
-    }
+export async function executeFunctionPlanner(
+  context: AgentExecutionContext,
+  tcc: ToolConstructionContext
+): Promise<FunctionPlannerResult> {
+  // Use existing core logic
+  const result = await planFunctionSignatures({
+    jobId: context.jobId,
+    selectedModel: context.modelConfig.modelId,
+    tcc,
+    isIsolatedTest: context.isIsolatedTest,
+    editMode: context.editMode
+  });
 
-    // Emit progress for orchestration mode
-    if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId, 
-        OrchestrationStepEnum.enum.planning_function_signatures,
-        'in_progress',
-        'Beginning function signature planning...',
-        tcc
-      );
-    }
-
-    // Generate function signatures using AI
-    const functionSignatures = await generateFunctionSignatures(tcc, selectedModel, isIsolatedTest, editMode);
-
-    // Update TCC with results
-    const updatedTcc = { ...tcc };
-    updatedTcc.definedFunctionSignatures = functionSignatures;
-    updatedTcc.currentOrchestrationStep = OrchestrationStepEnum.enum.designing_state_logic;
-    updatedTcc.status = OrchestrationStatusEnum.enum.in_progress;
-
-    logger.info({ 
-      jobId,
-      functionSignatureCount: functionSignatures.length,
-      newFunctionNames: functionSignatures.map(f => f.name),
-    }, '🔧 FunctionPlanner Module: Successfully planned function signatures');
-
-    // Emit completion progress for orchestration mode
-    if (!isIsolatedTest) {
-      await emitStepProgress(
-        jobId,
-        OrchestrationStepEnum.enum.planning_function_signatures,
-        'completed',
-        `Successfully planned ${functionSignatures.length} function signatures.`,
-        updatedTcc
-      );
-    }
-
-    return { 
-      success: true, 
-      functionSignatures, 
-      updatedTcc 
-    };
-
-  } catch (error) {
-    logger.error({ jobId, error }, '🔧 FunctionPlanner Module: Error planning function signatures');
-    
-    // Emit failure progress
-    await emitStepProgress(
-      jobId,
-      OrchestrationStepEnum.enum.planning_function_signatures,
-      'failed',
-      error instanceof Error ? error.message : 'Unknown error',
-      tcc
-    );
-    
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-      updatedTcc: tcc
-    };
+  if (!result.success) {
+    throw new Error(result.error || 'Function planner execution failed');
   }
+
+  // Convert to unified result format
+  return {
+    functionSignatures: result.functionSignatures || [],
+    metadata: {
+      totalFunctions: result.functionSignatures?.length || 0,
+      complexityLevel: determineFunctionComplexity(result.functionSignatures || []),
+      estimatedImplementationTime: estimateImplementationTime(result.functionSignatures || [])
+    }
+  };
 }
 
-/**
- * Uses AI to analyze the user input and generate function signatures
- * that will be needed for component interactivity.
- */
-async function generateFunctionSignatures(
-  tcc: ToolConstructionContext,
-  selectedModel?: string,
-  isIsolatedTest?: boolean,
-  editMode?: EditModeContext
-): Promise<DefinedFunctionSignature[]> {
-  const primaryModelInfo = getPrimaryModel('functionPlanner');
-  if (!primaryModelInfo) throw new Error('No primary model configured for FunctionPlanner.');
-  
-  // Use selected model if provided, otherwise fall back to primary
-  const modelId = selectedModel || primaryModelInfo.modelInfo.id;
-  
-  logger.info({ modelId }, '🔧 FunctionPlanner Module: Using model for generation');
-
-  const systemPrompt = getFunctionPlannerSystemPrompt(false);
-  const userPrompt = getFunctionPlannerUserPrompt(tcc, editMode);
-
-  // Log prompts when in isolated test mode for debugging
-  if (isIsolatedTest) {
-    console.log(`\n🔧 ========== FUNCTION PLANNER MODULE - ISOLATION TEST PROMPTS ==========`);
-    console.log(`JobId: ${tcc.jobId}`);
-    console.log(`Model: ${modelId}`);
-    
-    console.log(`\n🔧 SYSTEM PROMPT PREVIEW (first 500 chars):`);
-    console.log(systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''));
-    
-    console.log(`\n🔧 USER PROMPT PREVIEW (first 1000 chars):`);
-    console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : ''));
-    
-    console.log(`\n🔧 FULL SYSTEM PROMPT:`);
-    console.log(systemPrompt);
-    
-    console.log(`\n🔧 FULL USER PROMPT:`);
-    console.log(userPrompt);
-    
-    console.log(`\n🔧 ========== END PROMPTS ==========\n`);
-    
-    logger.info({ 
-      jobId: tcc.jobId,
-      modelId: modelId,
-      systemPromptLength: systemPrompt.length,
-      userPromptLength: userPrompt.length
-    }, '🔧 FunctionPlanner Module: [ISOLATED TEST] Prompt lengths logged to console');
-  }
-
-  try {
-    // Primary model attempt
-    const {
-      object: { signatures },
-    } = await callModelForObject<{ signatures: DefinedFunctionSignature[] }>(modelId, {
-      schema: functionSignaturesSchema,
-      prompt: userPrompt,
-      systemPrompt: systemPrompt,
-      temperature: 0.2,
-      maxTokens: 2000,
-      maxRetries: 3
-    });
-    
-    return signatures;
-  } catch (error) {
-    logger.error({ error, modelId }, `🔧 FunctionPlanner Module: Model call failed`);
-    
-    // Try fallback model if primary failed and fallback is configured
-    const fallbackModelInfo = getFallbackModel('functionPlanner');
-    if (!fallbackModelInfo) {
-      throw new Error(`Function planning failed with model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-    
-    logger.info({ 
-      fallbackModelId: fallbackModelInfo.modelInfo.id,
-      provider: fallbackModelInfo.provider 
-    }, '🔧 FunctionPlanner Module: Attempting fallback model');
-
-    const {
-      object: { signatures },
-    } = await callModelForObject<{ signatures: DefinedFunctionSignature[] }>(fallbackModelInfo.modelInfo.id, {
-      schema: functionSignaturesSchema,
-      prompt: userPrompt,
-      systemPrompt: systemPrompt,
-      temperature: 0.2,
-      maxTokens: 2000,
-      maxRetries: 3
-    });
-    
-    return signatures;
-  }
+function determineFunctionComplexity(signatures: DefinedFunctionSignature[]): 'simple' | 'moderate' | 'complex' {
+  if (signatures.length <= 2) return 'simple';
+  if (signatures.length <= 5) return 'moderate';
+  return 'complex';
 }
 
-
+function estimateImplementationTime(signatures: DefinedFunctionSignature[]): string {
+  const baseTime = signatures.length * 2; // 2 minutes per function
+  return `${baseTime} minutes`;
+}

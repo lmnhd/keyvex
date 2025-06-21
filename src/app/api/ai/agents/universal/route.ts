@@ -1,31 +1,18 @@
-// Universal Agent Route - Phase 2.1 Implementation
-// Single route handles all 7 agents with dynamic switching
-// Preserves model selection, WebSocket feedback, and isolation testing
+/**
+ * Universal Agent Route (Phase 2.1)
+ * Single unified endpoint for all agent executions
+ * Replaces individual agent routes with centralized orchestration
+ */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { AgentType } from '@/lib/types/tcc-unified';
+import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { executeAgent } from '@/lib/agents/unified/core/agent-executor';
+import { createAgentExecutionContext } from '@/lib/agents/unified/core/model-manager';
 import logger from '@/lib/logger';
 
-// Import existing working agent modules
-import { executeFunctionPlanner } from '@/lib/agents/unified/modules/function-planner';
-import { executeStateDesign } from '@/lib/agents/unified/modules/state-design';
-import { executeJSXLayout } from '@/lib/agents/unified/modules/jsx-layout';
-import { executeTailwindStyling } from '@/lib/agents/unified/modules/tailwind-styling';
-import { executeComponentAssembler } from '@/lib/agents/unified/modules/component-assembler';
-import { executeValidator } from '@/lib/agents/unified/modules/validator';
-import { executeToolFinalizer } from '@/lib/agents/unified/modules/tool-finalizer';
-
-// Agent type from the plan
-export type AgentType = 
-  | 'function-planner'
-  | 'state-design'
-  | 'jsx-layout'
-  | 'tailwind-styling'
-  | 'component-assembler'
-  | 'code-validator'
-  | 'tool-finalizer';
-
-// Request schema for universal agent route
+// Request schema for universal agent execution
 const UniversalAgentRequestSchema = z.object({
   agentType: z.enum([
     'function-planner',
@@ -36,149 +23,248 @@ const UniversalAgentRequestSchema = z.object({
     'code-validator',
     'tool-finalizer'
   ]),
-  jobId: z.string(),
+  jobId: z.string().uuid(),
+  tcc: z.custom<ToolConstructionContext>(),
   selectedModel: z.string().optional(),
-  tcc: z.any(), // ToolConstructionContext - using any temporarily for migration
-  isIsolatedTest: z.boolean().optional().default(false),
-  editMode: z.object({
-    isEditMode: z.boolean(),
-    instructions: z.array(z.object({
-      targetAgent: z.string(),
-      editType: z.enum(['refine', 'replace', 'enhance']),
-      instructions: z.string(),
-      priority: z.enum(['low', 'medium', 'high']),
-      createdAt: z.string(),
-    })),
-    context: z.string(),
-  }).optional(),
+  isIsolatedTest: z.boolean().default(false)
 });
 
 type UniversalAgentRequest = z.infer<typeof UniversalAgentRequestSchema>;
 
-export async function POST(request: NextRequest) {
-  logger.info('🚀 Universal Agent Route: Processing request');
+// Unified response interface (no 'any' types!)
+interface UniversalAgentResponse {
+  success: boolean;
+  agentType: AgentType;
+  jobId: string;
+  result?: {
+    functionSignatures?: Array<{
+      name: string;
+      parameters: Array<{ name: string; type: string; description: string }>;
+      description: string;
+    }>;
+    stateLogic?: {
+      variables: Array<{ name: string; type: string; initialValue: string; description: string }>;
+      functions: Array<{ name: string; parameters: string[]; body: string; description: string }>;
+      imports: string[];
+    };
+    jsxLayout?: {
+      componentStructure: string;
+      elementMap: Array<{ elementId: string; type: string; purpose: string }>;
+      accessibilityFeatures?: string[];
+    };
+    styling?: {
+      styledComponentCode: string;
+      styleMap: Record<string, string>;
+      colorScheme: {
+        primary: string;
+        secondary: string;
+        accent: string;
+        background: string;
+        surface: string;
+        text: { primary: string; secondary: string; muted: string };
+        border: string;
+        success: string;
+        warning: string;
+        error: string;
+      };
+    };
+    assembledCode?: string;
+    validationResult?: {
+      isValid: boolean;
+      issues: string[];
+      warnings: string[];
+      suggestions: string[];
+    };
+    finalProduct?: {
+      id: string;
+      componentCode: string;
+      metadata: Record<string, unknown>;
+      colorScheme: Record<string, string>;
+    };
+    metadata?: Record<string, unknown>;
+  };
+  error?: string;
+  executionTime?: number;
+  modelUsed?: string;
+}
 
+export async function POST(request: NextRequest): Promise<NextResponse<UniversalAgentResponse>> {
+  const startTime = Date.now();
+  
   try {
-    // Parse and validate request
     const body = await request.json();
     const validatedRequest = UniversalAgentRequestSchema.parse(body);
-    
-    const { agentType, jobId, selectedModel, tcc, isIsolatedTest, editMode } = validatedRequest;
+    const { agentType, jobId, tcc, selectedModel, isIsolatedTest } = validatedRequest;
 
     logger.info({
-      agentType,
       jobId,
+      agentType,
       selectedModel,
       isIsolatedTest,
-      hasEditMode: !!editMode
-    }, '🎯 Universal Agent Route: Validated request parameters');
+      userId: tcc.userId
+    }, '🔄 Universal Agent Route: Processing request');
 
-    // Dynamic agent execution based on type
-    const result = await executeAgent({
+    // Create execution context
+    const executionContext = createAgentExecutionContext(
       agentType,
       jobId,
-      selectedModel,
       tcc,
-      isIsolatedTest,
-      editMode,
-    });
+      selectedModel,
+      isIsolatedTest
+    );
 
-    logger.info({
+    // Execute the agent
+    const result = await executeAgent(agentType, executionContext, tcc);
+    
+    const executionTime = Date.now() - startTime;
+
+    // Convert result to unified response format
+    const response: UniversalAgentResponse = {
+      success: true,
       agentType,
       jobId,
-      success: result.success,
-      hasError: !!result.error
-    }, '✅ Universal Agent Route: Agent execution completed');
+      result: convertAgentResultToResponse(agentType, result),
+      executionTime,
+      modelUsed: executionContext.modelConfig.modelId
+    };
 
-    return NextResponse.json(result);
+    logger.info({
+      jobId,
+      agentType,
+      executionTime,
+      modelUsed: executionContext.modelConfig.modelId,
+      success: true
+    }, '✅ Universal Agent Route: Request completed successfully');
+
+    return NextResponse.json(response);
 
   } catch (error) {
+    const executionTime = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
     
+    // Extract context from error for better logging
+    const context = extractContextFromError(error);
+    
     logger.error({
+      ...context,
       error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined
+      executionTime
     }, '❌ Universal Agent Route: Request failed');
 
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: errorMessage,
-        message: 'Universal agent execution failed'
-      },
-      { status: 500 }
-    );
+    const errorResponse: UniversalAgentResponse = {
+      success: false,
+      agentType: context.agentType || 'unknown' as AgentType,
+      jobId: context.jobId || 'unknown',
+      error: errorMessage,
+      executionTime
+    };
+
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
-// Dynamic agent execution function
-async function executeAgent(params: {
-  agentType: AgentType;
-  jobId: string;
-  selectedModel?: string;
-  tcc: any; // ToolConstructionContext
-  isIsolatedTest?: boolean;
-  editMode?: any;
-}) {
-  const { agentType, jobId, selectedModel, tcc, isIsolatedTest = false, editMode } = params;
-
-  logger.info({
-    agentType,
-    jobId,
-    modelSelection: selectedModel || 'default',
-    mode: isIsolatedTest ? 'ISOLATION_TEST' : 'PRODUCTION'
-  }, '🔄 Universal Agent Route: Starting agent execution');
-
-  // Agent execution mapping
-  const agentExecutors = {
-    'function-planner': executeFunctionPlanner,
-    'state-design': executeStateDesign,
-    'jsx-layout': executeJSXLayout,
-    'tailwind-styling': executeTailwindStyling,
-    'component-assembler': executeComponentAssembler,
-    'code-validator': executeValidator,
-    'tool-finalizer': executeToolFinalizer,
-  };
-
-  const executor = agentExecutors[agentType];
-  if (!executor) {
-    throw new Error(`No executor found for agent type: ${agentType}`);
+// Convert agent-specific results to unified response format
+function convertAgentResultToResponse(agentType: AgentType, result: unknown): UniversalAgentResponse['result'] {
+  // Type-safe conversion based on agent type
+  switch (agentType) {
+    case 'function-planner':
+      const fpResult = result as { functionSignatures: Array<{ name: string; description: string }> };
+      return {
+        functionSignatures: fpResult.functionSignatures.map(sig => ({
+          name: sig.name,
+          parameters: [], // Simplified for response
+          description: sig.description
+        })),
+        metadata: { agentType: 'function-planner' }
+      };
+      
+    case 'state-design':
+      const sdResult = result as { stateLogic: { variables: unknown[]; functions: unknown[]; imports: string[] } };
+      return {
+        stateLogic: {
+          variables: sdResult.stateLogic.variables as Array<{ name: string; type: string; initialValue: string; description: string }>,
+          functions: sdResult.stateLogic.functions as Array<{ name: string; parameters: string[]; body: string; description: string }>,
+          imports: sdResult.stateLogic.imports
+        },
+        metadata: { agentType: 'state-design' }
+      };
+      
+    case 'jsx-layout':
+      const jlResult = result as { jsxLayout: { componentStructure: string; elementMap: unknown[] } };
+      return {
+        jsxLayout: {
+          componentStructure: jlResult.jsxLayout.componentStructure,
+          elementMap: jlResult.jsxLayout.elementMap as Array<{ elementId: string; type: string; purpose: string }>,
+          accessibilityFeatures: []
+        },
+        metadata: { agentType: 'jsx-layout' }
+      };
+      
+    case 'tailwind-styling':
+      const tsResult = result as { styling: { styledComponentCode: string; styleMap: Record<string, string>; colorScheme: unknown } };
+      return {
+        styling: {
+          styledComponentCode: tsResult.styling.styledComponentCode,
+          styleMap: tsResult.styling.styleMap,
+          colorScheme: tsResult.styling.colorScheme as NonNullable<UniversalAgentResponse['result']>['styling']['colorScheme']
+        },
+        metadata: { agentType: 'tailwind-styling' }
+      };
+      
+    case 'component-assembler':
+      const caResult = result as { assembledCode: string };
+      return {
+        assembledCode: caResult.assembledCode,
+        metadata: { agentType: 'component-assembler' }
+      };
+      
+    case 'code-validator':
+      const cvResult = result as { validationResult: { isValid: boolean; issues: string[]; warnings: string[] } };
+      return {
+        validationResult: {
+          isValid: cvResult.validationResult.isValid,
+          issues: cvResult.validationResult.issues,
+          warnings: cvResult.validationResult.warnings,
+          suggestions: []
+        },
+        metadata: { agentType: 'code-validator' }
+      };
+      
+    case 'tool-finalizer':
+      const tfResult = result as { finalProduct: { id: string; componentCode: string; metadata: Record<string, unknown> } };
+      return {
+        finalProduct: {
+          id: tfResult.finalProduct.id,
+          componentCode: tfResult.finalProduct.componentCode,
+          metadata: tfResult.finalProduct.metadata,
+          colorScheme: {}
+        },
+        metadata: { agentType: 'tool-finalizer' }
+      };
+      
+    default:
+      return { metadata: { agentType, rawResult: result } };
   }
+}
 
-  try {
-    // Execute the specific agent with standardized interface
-    const result = await executor({
-      jobId,
-      selectedModel,
-      tcc,
-      isIsolatedTest,
-      editMode,
-    });
-
-    logger.info({
-      agentType,
-      jobId,
-      success: result.success,
-      resultKeys: Object.keys(result),
-    }, '✅ Universal Agent Route: Agent execution successful');
-
-    return result;
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+// Extract context from error for better logging
+function extractContextFromError(error: unknown): { agentType?: AgentType; jobId?: string } {
+  if (error instanceof Error) {
+    // Try to extract context from error message or stack
+    const message = error.message;
+    const stackTrace = error.stack || '';
     
-    logger.error({
-      agentType,
-      jobId,
-      error: errorMessage
-    }, '❌ Universal Agent Route: Agent execution failed');
-
+    // Simple pattern matching for context extraction
+    const agentTypeMatch = message.match(/agent[:\s]+([a-z-]+)/i);
+    const jobIdMatch = message.match(/job[:\s]+([a-f0-9-]+)/i);
+    
     return {
-      success: false,
-      error: errorMessage,
-      updatedTcc: tcc, // Return original TCC on failure
+      agentType: agentTypeMatch?.[1] as AgentType,
+      jobId: jobIdMatch?.[1]
     };
   }
+  
+  return {};
 }
 
 // Health check endpoint

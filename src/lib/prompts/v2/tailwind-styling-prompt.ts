@@ -829,7 +829,7 @@ export function getTailwindStylingUserPrompt(
   editInstructions?: string
 ): string {
   // Get Tailwind Styling specific filtered data
-  const filteredBrainstormData = filterBrainstormForTailwindStyling(tcc.brainstormData, tcc.jobId);
+  const filteredBrainstormData = tcc.brainstormData ? filterBrainstormForTailwindStyling(tcc.brainstormData, tcc.jobId) : null;
   
   let prompt = `Apply Tailwind CSS styling to this component:
 

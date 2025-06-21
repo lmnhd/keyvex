@@ -1045,7 +1045,7 @@ type EditModeContext = {
  */
 export function getJsxLayoutUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
   // Get JSX Layout specific filtered data
-  const filteredBrainstormData = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
+  const filteredBrainstormData = tcc.brainstormData ? filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId) : null;
   
   let prompt = `Generate JSX component structure for this tool:
 
