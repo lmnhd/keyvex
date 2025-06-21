@@ -1,610 +1,200 @@
-// Universal Agent Route - Phase 2.3 Implementation
-// Single route handles all agents with dynamic module execution
-// Integrates all 7 agent modules with unified interfaces and validation & retry logic
+// Universal Agent Route - Phase 2.1 Implementation
+// Single route handles all 7 agents with dynamic switching
+// Preserves model selection, WebSocket feedback, and isolation testing
 
 import { NextRequest, NextResponse } from 'next/server';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { z } from 'zod';
 import logger from '@/lib/logger';
 
-// Import all agent modules
-import { 
-  executeFunctionPlanner, 
-  type FunctionPlannerRequest, 
-  type FunctionPlannerResult 
-} from '@/lib/agents/unified/modules/function-planner';
-import { 
-  executeStateDesign, 
-  type StateDesignRequest, 
-  type StateDesignResult 
-} from '@/lib/agents/unified/modules/state-design';
-import { 
-  executeJSXLayout, 
-  type JSXLayoutRequest, 
-  type JSXLayoutResult 
-} from '@/lib/agents/unified/modules/jsx-layout';
-import { 
-  executeTailwindStyling, 
-  type TailwindStylingRequest, 
-  type TailwindStylingResult 
-} from '@/lib/agents/unified/modules/tailwind-styling';
-import { 
-  executeComponentAssembler, 
-  type ComponentAssemblerRequest, 
-  type ComponentAssemblerResult 
-} from '@/lib/agents/unified/modules/component-assembler';
-import { 
-  executeValidator, 
-  type ValidatorRequest, 
-  type ValidatorResult 
-} from '@/lib/agents/unified/modules/validator';
-import { 
-  executeToolFinalizer, 
-  type ToolFinalizerRequest, 
-  type ToolFinalizerResult 
-} from '@/lib/agents/unified/modules/tool-finalizer';
+// Import existing working agent modules
+import { executeFunctionPlanner } from '@/lib/agents/unified/modules/function-planner';
+import { executeStateDesign } from '@/lib/agents/unified/modules/state-design';
+import { executeJSXLayout } from '@/lib/agents/unified/modules/jsx-layout';
+import { executeTailwindStyling } from '@/lib/agents/unified/modules/tailwind-styling';
+import { executeComponentAssembler } from '@/lib/agents/unified/modules/component-assembler';
+import { executeValidator } from '@/lib/agents/unified/modules/validator';
+import { executeToolFinalizer } from '@/lib/agents/unified/modules/tool-finalizer';
 
-// Agent type definitions
+// Agent type from the plan
 export type AgentType = 
   | 'function-planner'
   | 'state-design'
   | 'jsx-layout'
   | 'tailwind-styling'
   | 'component-assembler'
-  | 'validator'
-  | 'tool-finalizer'
-  | 'data-requirements-research';
+  | 'code-validator'
+  | 'tool-finalizer';
 
-interface UniversalAgentRequest {
-  agent: AgentType;
-  jobId: string;
-  tcc: ToolConstructionContext;
-  selectedModel?: string;
-  isIsolatedTest?: boolean;
-  editMode?: {
-    isEditMode: boolean;
-    instructions: Array<{
-      targetAgent: string;
-      editType: 'refine' | 'replace' | 'enhance';
-      instructions: string;
-      priority: 'low' | 'medium' | 'high';
-      createdAt: string;
-    }>;
-    context: string;
-  };
-  retryAttempt?: number;
-  previousErrors?: string[];
-}
+// Request schema for universal agent route
+const UniversalAgentRequestSchema = z.object({
+  agentType: z.enum([
+    'function-planner',
+    'state-design', 
+    'jsx-layout',
+    'tailwind-styling',
+    'component-assembler',
+    'code-validator',
+    'tool-finalizer'
+  ]),
+  jobId: z.string(),
+  selectedModel: z.string().optional(),
+  tcc: z.any(), // ToolConstructionContext - using any temporarily for migration
+  isIsolatedTest: z.boolean().optional().default(false),
+  editMode: z.object({
+    isEditMode: z.boolean(),
+    instructions: z.array(z.object({
+      targetAgent: z.string(),
+      editType: z.enum(['refine', 'replace', 'enhance']),
+      instructions: z.string(),
+      priority: z.enum(['low', 'medium', 'high']),
+      createdAt: z.string(),
+    })),
+    context: z.string(),
+  }).optional(),
+});
 
-interface UniversalAgentResponse {
-  success: boolean;
-  result?: any;
-  updatedTcc?: ToolConstructionContext;
-  error?: string;
-  validationErrors?: string[];
-  retryRecommended?: boolean;
-  validationResult?: {
-    isValid: boolean;
-    errors: string[];
-    warnings?: string[];
-    correctedData?: any;
-    autoCorrections?: string[];
-  };
-}
+type UniversalAgentRequest = z.infer<typeof UniversalAgentRequestSchema>;
 
-// Validation result interface
-interface ValidationResult {
-  isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  correctedData?: any;
-  autoCorrections: string[];
-  retryRecommended: boolean;
-}
+export async function POST(request: NextRequest) {
+  logger.info('🚀 Universal Agent Route: Processing request');
 
-// Agent execution mapping
-type AgentExecutor = (request: any) => Promise<any>;
-
-const AGENT_EXECUTORS: Record<AgentType, AgentExecutor> = {
-  'function-planner': executeFunctionPlanner,
-  'state-design': executeStateDesign,
-  'jsx-layout': executeJSXLayout,
-  'tailwind-styling': executeTailwindStyling,
-  'component-assembler': executeComponentAssembler,
-  'validator': executeValidator,
-  'tool-finalizer': executeToolFinalizer,
-  'data-requirements-research': async (request: any) => {
-    // TODO: Implement data-requirements-research module
-    logger.warn({ agent: 'data-requirements-research' }, 'Data requirements research module not yet implemented');
-    return {
-      success: false,
-      error: 'Data requirements research module not yet implemented',
-      updatedTcc: request.tcc
-    };
-  }
-};
-
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const startTime = Date.now();
-  let body: UniversalAgentRequest | undefined;
-  
   try {
-    body = await request.json();
+    // Parse and validate request
+    const body = await request.json();
+    const validatedRequest = UniversalAgentRequestSchema.parse(body);
     
-    // Validate body exists before destructuring
-    if (!body) {
-      return NextResponse.json({
-        success: false,
-        error: 'Request body is missing',
-      } as UniversalAgentResponse);
-    }
-    
-    const { 
-      agent, 
-      jobId, 
-      tcc, 
-      selectedModel, 
-      isIsolatedTest = false, 
-      editMode, 
-      retryAttempt = 0, 
-      previousErrors = [] 
-    } = body;
+    const { agentType, jobId, selectedModel, tcc, isIsolatedTest, editMode } = validatedRequest;
 
-    logger.info({ 
-      agent, 
-      jobId, 
-      retryAttempt, 
+    logger.info({
+      agentType,
+      jobId,
+      selectedModel,
       isIsolatedTest,
-      hasEditMode: !!editMode,
-      previousErrorsCount: previousErrors.length
-    }, `🔄 Universal Agent: Processing ${agent} (attempt ${retryAttempt + 1})`);
+      hasEditMode: !!editMode
+    }, '🎯 Universal Agent Route: Validated request parameters');
 
-    // 1. PARAMETER VALIDATION
-    const paramValidation = validateParameters(agent, jobId, tcc);
-    if (!paramValidation.isValid) {
-      return NextResponse.json({
-        success: false,
-        error: paramValidation.errors.join(', '),
-        validationErrors: paramValidation.errors
-      } as UniversalAgentResponse);
-    }
-
-    // 2. AGENT EXECUTOR VALIDATION
-    if (!AGENT_EXECUTORS[agent]) {
-      return NextResponse.json({
-        success: false,
-        error: `Unknown agent type: ${agent}`,
-      } as UniversalAgentResponse);
-    }
-
-    // 3. PREPARE AGENT REQUEST with retry context
-    const agentRequest = {
+    // Dynamic agent execution based on type
+    const result = await executeAgent({
+      agentType,
       jobId,
       selectedModel,
       tcc,
       isIsolatedTest,
-      editMode: enhanceEditModeWithRetryContext(editMode, previousErrors, retryAttempt),
-      retryAttempt,
-      previousErrors
-    };
+      editMode,
+    });
 
-    logger.info({ 
-      agent, 
-      jobId,
-      tccKeys: Object.keys(tcc),
-      tccStatus: tcc.status,
-      modelSelected: selectedModel || 'default',
-      enhancedEditMode: !!agentRequest.editMode?.isEditMode
-    }, `🔄 Universal Agent: Executing ${agent} module with enhanced context`);
-
-    // 4. EXECUTE AGENT MODULE
-    const executor = AGENT_EXECUTORS[agent];
-    const result = await executor(agentRequest);
-
-    const executionTime = Date.now() - startTime;
-
-    logger.info({ 
-      agent, 
+    logger.info({
+      agentType,
       jobId,
       success: result.success,
-      hasError: !!result.error,
-      hasUpdatedTcc: !!result.updatedTcc,
-      executionTime
-    }, `🔄 Universal Agent: ${agent} execution completed`);
+      hasError: !!result.error
+    }, '✅ Universal Agent Route: Agent execution completed');
 
-    // 5. HARD FAILURE - If agent execution fails, FAIL IMMEDIATELY
-    if (!result.success) {
-      logger.error({ 
-        agent, 
-        jobId, 
-        error: result.error,
-        retryAttempt,
-        executionTime
-      }, `🔄 Universal Agent: ${agent} execution FAILED - HARD FAILURE`);
-
-      return NextResponse.json({
-        success: false,
-        error: result.error,
-        retryRecommended: retryAttempt < 2,
-        validationResult: {
-          isValid: false,
-          errors: [result.error],
-          warnings: [],
-          autoCorrections: [] // NO AUTO-CORRECTIONS
-        }
-      } as UniversalAgentResponse);
-    }
-
-    // 6. STRICT VALIDATION - FAIL FAST, NO FALLBACKS
-    const validationResult = await validateAgentResult(agent, result, tcc, retryAttempt);
-    
-    // 7. HARD FAILURE - If validation fails, FAIL IMMEDIATELY
-    if (!validationResult.isValid) {
-      logger.error({ 
-        agent, 
-        jobId, 
-        validationErrors: validationResult.errors,
-        warnings: validationResult.warnings,
-        retryAttempt
-      }, `🔄 Universal Agent: ${agent} validation FAILED - HARD FAILURE`);
-
-      return NextResponse.json({
-        success: false,
-        error: `VALIDATION FAILED: ${validationResult.errors.join(', ')}`,
-        validationErrors: validationResult.errors,
-        retryRecommended: retryAttempt < 2,
-        validationResult
-      } as UniversalAgentResponse);
-    }
-
-    // 8. USE CORRECTED DATA if auto-correction improved quality
-    const finalResult = validationResult.correctedData || result;
-    const finalResultData = finalResult.result || finalResult[getResultKey(agent)];
-
-    // 9. SUCCESS RESPONSE with QUALITY ASSURANCE
-    logger.info({ 
-      agent, 
-      jobId,
-      resultKeys: Object.keys(finalResult),
-      updatedTccStatus: finalResult.updatedTcc?.status,
-      validationPassed: validationResult.isValid,
-      autoCorrectionApplied: !!validationResult.correctedData,
-      warningsCount: validationResult.warnings.length,
-      executionTime
-    }, `🔄 Universal Agent: ${agent} completed successfully with QUALITY ASSURANCE`);
-
-    return NextResponse.json({
-      success: true,
-      result: finalResultData,
-      updatedTcc: finalResult.updatedTcc,
-      validationResult: {
-        isValid: validationResult.isValid,
-        errors: validationResult.errors,
-        warnings: validationResult.warnings,
-        autoCorrections: validationResult.autoCorrections
-      }
-    } as UniversalAgentResponse);
+    return NextResponse.json(result);
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const executionTime = Date.now() - startTime;
     
-    logger.error({ 
-      error: errorMessage, 
-      executionTime,
-      retryAttempt: body?.retryAttempt || 0
-    }, '🔄 Universal Agent: Unexpected error');
-    
-    return NextResponse.json({
-      success: false,
-      error: `Unexpected error: ${errorMessage}`,
-      retryRecommended: (body?.retryAttempt || 0) < 2,
-    } as UniversalAgentResponse);
+    logger.error({
+      error: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined
+    }, '❌ Universal Agent Route: Request failed');
+
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: errorMessage,
+        message: 'Universal agent execution failed'
+      },
+      { status: 500 }
+    );
   }
 }
 
-// VALIDATION FUNCTIONS
+// Dynamic agent execution function
+async function executeAgent(params: {
+  agentType: AgentType;
+  jobId: string;
+  selectedModel?: string;
+  tcc: any; // ToolConstructionContext
+  isIsolatedTest?: boolean;
+  editMode?: any;
+}) {
+  const { agentType, jobId, selectedModel, tcc, isIsolatedTest = false, editMode } = params;
 
-function validateParameters(agent: AgentType, jobId: string, tcc: ToolConstructionContext): { isValid: boolean; errors: string[] } {
-  const errors: string[] = [];
+  logger.info({
+    agentType,
+    jobId,
+    modelSelection: selectedModel || 'default',
+    mode: isIsolatedTest ? 'ISOLATION_TEST' : 'PRODUCTION'
+  }, '🔄 Universal Agent Route: Starting agent execution');
 
-  if (!agent) errors.push('Missing required parameter: agent');
-  if (!jobId) errors.push('Missing required parameter: jobId');
-  if (!tcc) errors.push('Missing required parameter: tcc');
-  
-  // TCC structure validation
-  if (tcc) {
-    if (!tcc.jobId) errors.push('TCC missing required field: jobId');
-    if (!tcc.userId) errors.push('TCC missing required field: userId (WebSocket emission will fail)');
-    if (jobId !== tcc.jobId) errors.push('Request jobId does not match TCC jobId');
-  }
-
-  return { isValid: errors.length === 0, errors };
-}
-
-function enhanceEditModeWithRetryContext(
-  editMode: any, 
-  previousErrors: string[], 
-  retryAttempt: number
-): any {
-  if (previousErrors.length === 0) return editMode;
-
-  // Enhance edit mode with retry context for AI to understand what failed
-  const retryInstructions = {
-    targetAgent: 'current',
-    editType: 'refine' as const,
-    instructions: `RETRY CONTEXT (Attempt ${retryAttempt + 1}): Previous attempt failed with errors: ${previousErrors.join('; ')}. Please address these specific issues while maintaining all core functionality.`,
-    priority: 'high' as const,
-    createdAt: new Date().toISOString()
+  // Agent execution mapping
+  const agentExecutors = {
+    'function-planner': executeFunctionPlanner,
+    'state-design': executeStateDesign,
+    'jsx-layout': executeJSXLayout,
+    'tailwind-styling': executeTailwindStyling,
+    'component-assembler': executeComponentAssembler,
+    'code-validator': executeValidator,
+    'tool-finalizer': executeToolFinalizer,
   };
 
-  if (!editMode) {
-    return {
-      isEditMode: true,
-      instructions: [retryInstructions],
-      context: 'Retry with error correction'
-    };
+  const executor = agentExecutors[agentType];
+  if (!executor) {
+    throw new Error(`No executor found for agent type: ${agentType}`);
   }
-
-  return {
-    ...editMode,
-    isEditMode: true,
-    instructions: [...(editMode.instructions || []), retryInstructions],
-    context: `${editMode.context || ''} | Retry Context: ${previousErrors.length} errors to fix`
-  };
-}
-
-async function validateAgentResult(
-  agent: AgentType,
-  result: any,
-  tcc: ToolConstructionContext,
-  retryAttempt: number
-): Promise<ValidationResult> {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  const autoCorrections: string[] = [];
-  let correctedData = null;
 
   try {
-    // 1. SCHEMA VALIDATION - Check if result has expected structure
-    const schemaValidation = validateResultSchema(agent, result);
-    errors.push(...schemaValidation.errors);
-    warnings.push(...schemaValidation.warnings);
-
-    // 2. CONTENT VALIDATION - Check if result content is meaningful
-    const contentValidation = validateResultContent(agent, result, tcc);
-    errors.push(...contentValidation.errors);
-    warnings.push(...contentValidation.warnings);
-
-    // 3. AUTO-CORRECTION ATTEMPTS - Try to fix real issues
-    if (errors.length > 0) {
-      const correctionResult = attemptAutoCorrection(agent, result, errors);
-      if (correctionResult.success) {
-        correctedData = correctionResult.correctedData;
-        autoCorrections.push(...correctionResult.corrections);
-        
-        // Re-validate corrected data
-        const revalidation = validateResultSchema(agent, correctedData);
-        if (revalidation.errors.length === 0) {
-          errors.length = 0; // Clear errors if correction worked
-        }
-      }
-    }
-
-    // 4. RETRY RECOMMENDATION LOGIC - Only if correction failed
-    const retryRecommended = errors.length > 0 && retryAttempt < 2 && canRetryForAgent(agent, errors);
+    // Execute the specific agent with standardized interface
+    const result = await executor({
+      jobId,
+      selectedModel,
+      tcc,
+      isIsolatedTest,
+      editMode,
+    });
 
     logger.info({
-      agent,
-      validationSummary: {
-        errorsCount: errors.length,
-        warningsCount: warnings.length,
-        autoCorrectionsCount: autoCorrections.length,
-        retryRecommended,
-        retryAttempt
-      }
-    }, `🔄 Universal Agent: Validation completed for ${agent} - QUALITY FIRST`);
+      agentType,
+      jobId,
+      success: result.success,
+      resultKeys: Object.keys(result),
+    }, '✅ Universal Agent Route: Agent execution successful');
 
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings,
-      correctedData,
-      autoCorrections,
-      retryRecommended
-    };
-
-  } catch (validationError) {
-    logger.error({ agent, validationError }, `🔄 Universal Agent: Validation error for ${agent}`);
-    return {
-      isValid: false,
-      errors: [`Validation error: ${validationError}`],
-      warnings: [],
-      autoCorrections: [],
-      retryRecommended: retryAttempt < 2
-    };
-  }
-}
-
-// QUALITY-FOCUSED AUTO-CORRECTION - Fix real issues, don't mask them
-function attemptAutoCorrection(agent: AgentType, result: any, errors: string[]): { success: boolean; correctedData?: any; corrections: string[] } {
-  const corrections: string[] = [];
-  let correctedData = { ...result };
-
-  try {
-    // ONLY fix REAL structural issues - NOT quality issues
-    if (errors.includes('Missing updatedTcc in result') && result.tcc) {
-      correctedData.updatedTcc = result.tcc;
-      corrections.push('Fixed missing updatedTcc field');
-    }
-
-    // Agent-specific STRUCTURAL corrections only
-    switch (agent) {
-      case 'component-assembler':
-        if (errors.includes('Missing final component code') && result.assembledComponent?.componentCode) {
-          correctedData.assembledComponent.finalComponentCode = result.assembledComponent.componentCode;
-          corrections.push('Mapped componentCode to finalComponentCode');
-        }
-        break;
-    }
-
-    // NO QUALITY FALLBACKS - If content is bad, let it fail!
-    
-    return {
-      success: corrections.length > 0,
-      correctedData: corrections.length > 0 ? correctedData : undefined,
-      corrections
-    };
+    return result;
 
   } catch (error) {
-    return { success: false, corrections: [] };
-  }
-}
-
-function validateResultSchema(agent: AgentType, result: any): { errors: string[]; warnings: string[] } {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  if (!result) {
-    errors.push('Result is null or undefined');
-    return { errors, warnings };
-  }
-
-  if (!result.success) {
-    errors.push('Result indicates failure');
-  }
-
-  if (!result.updatedTcc) {
-    errors.push('Missing updatedTcc in result');
-  }
-
-  // Agent-specific schema validation
-  const expectedKey = getResultKey(agent);
-  if (!result[expectedKey] && !result.result) {
-    errors.push(`Missing expected result key: ${expectedKey}`);
-  }
-
-  // Check for common schema issues
-  if (result.updatedTcc && typeof result.updatedTcc !== 'object') {
-    errors.push('updatedTcc is not an object');
-  }
-
-  return { errors, warnings };
-}
-
-function validateResultContent(agent: AgentType, result: any, tcc: ToolConstructionContext): { errors: string[]; warnings: string[] } {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  // Agent-specific content validation
-  switch (agent) {
-    case 'function-planner':
-      if (result.functionSignatures && result.functionSignatures.length === 0) {
-        warnings.push('No function signatures generated');
-      }
-      break;
+    const errorMessage = error instanceof Error ? error.message : String(error);
     
-    case 'state-design':
-      if (result.stateLogic) {
-        if (!result.stateLogic.variables || result.stateLogic.variables.length === 0) {
-          warnings.push('No state variables defined');
-        }
-        if (!result.stateLogic.functions || result.stateLogic.functions.length === 0) {
-          warnings.push('No state functions defined');
-        }
-      }
-      break;
-    
-    case 'component-assembler':
-      if (result.assembledComponent) {
-        if (!result.assembledComponent.finalComponentCode) {
-          errors.push('Missing final component code');
-        } else if (result.assembledComponent.finalComponentCode.length < 100) {
-          warnings.push('Component code seems too short');
-        }
-      }
-      break;
-    
-    case 'validator':
-      if (result.validationResult && !result.validationResult.hasOwnProperty('isValid')) {
-        errors.push('Validation result missing isValid field');
-      }
-      break;
-  }
+    logger.error({
+      agentType,
+      jobId,
+      error: errorMessage
+    }, '❌ Universal Agent Route: Agent execution failed');
 
-  return { errors, warnings };
+    return {
+      success: false,
+      error: errorMessage,
+      updatedTcc: tcc, // Return original TCC on failure
+    };
+  }
 }
 
-function canRetryForAgent(agent: AgentType, errors: string[]): boolean {
-  // Don't retry for certain types of errors
-  const nonRetryableErrors = [
-    'Missing required parameter',
-    'Unknown agent type',
-    'TCC missing required field'
-  ];
-
-  return !errors.some(error => 
-    nonRetryableErrors.some(nonRetryable => error.includes(nonRetryable))
-  );
-}
-
-// Helper function to get the result key for each agent
-function getResultKey(agent: AgentType): string {
-  const resultKeys: Record<AgentType, string> = {
-    'function-planner': 'functionSignatures',
-    'state-design': 'stateLogic',
-    'jsx-layout': 'jsxLayout',
-    'tailwind-styling': 'styling',
-    'component-assembler': 'assembledComponent',
-    'validator': 'validationResult',
-    'tool-finalizer': 'finalizedTool',
-    'data-requirements-research': 'researchData'
-  };
-  
-  return resultKeys[agent] || 'result';
-}
-
-// GET method for health check and agent status
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  const url = new URL(request.url);
-  const action = url.searchParams.get('action');
-
-  if (action === 'health') {
-    return NextResponse.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      availableAgents: Object.keys(AGENT_EXECUTORS),
-      version: '2.3-QUALITY-FIRST',
-      features: ['validation-retry-correction', 'no-quality-fallbacks', 'fail-fast-approach', 'comprehensive-logging']
-    });
-  }
-
-  if (action === 'agents') {
-    return NextResponse.json({
-      agents: Object.keys(AGENT_EXECUTORS).map(agent => ({
-        name: agent,
-        implemented: agent !== 'data-requirements-research',
-        module: `@/lib/agents/unified/modules/${agent}`,
-        validation: 'strict-with-correction',
-        retry: 'enabled',
-        autoCorrection: 'QUALITY-FOCUSED'
-      }))
-    });
-  }
-
+// Health check endpoint
+export async function GET() {
   return NextResponse.json({
-    message: 'Universal Agent Route - Phase 2.3 QUALITY FIRST',
-    philosophy: 'Perfect tools or fail trying - NO suboptimal fallbacks!',
-    features: [
-      'Validation & retry with intelligent correction',
-      'Auto-correction for structural issues (NOT quality masking)',
-      'FAIL FAST when corrections don\'t achieve quality standards',
-      'Intelligent retry logic with error context',
-      'Comprehensive logging and metrics'
+    status: 'healthy',
+    message: 'Universal Agent Route is operational',
+    supportedAgents: [
+      'function-planner',
+      'state-design',
+      'jsx-layout', 
+      'tailwind-styling',
+      'component-assembler',
+      'code-validator',
+      'tool-finalizer'
     ],
-    usage: {
-      POST: 'Execute agent with { agent, jobId, tcc, selectedModel?, isIsolatedTest?, editMode?, retryAttempt?, previousErrors? }',
-      'GET?action=health': 'Health check with feature status',
-      'GET?action=agents': 'List available agents with capabilities'
-    }
+    timestamp: new Date().toISOString(),
   });
 } 
