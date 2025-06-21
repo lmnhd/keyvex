@@ -19,13 +19,14 @@ import { ToolConstructionContext as BaseTCC } from '@/lib/types/product-tool-cre
 import logger from '@/lib/logger';
 
 // Import unified agent modules
-import { executeFunctionPlanner } from '../modules/function-planner';
-import { executeStateDesign } from '../modules/state-design';
-import { executeJSXLayout } from '../modules/jsx-layout';
-import { executeTailwindStyling } from '../modules/tailwind-styling';
-import { executeComponentAssembler } from '../modules/component-assembler';
-import { executeValidator } from '../modules/code-validator';
-import { executeToolFinalizer } from '../modules/tool-finalizer';
+import { FunctionPlannerModule } from '../modules/function-planner';
+// TODO: Import other modules when they're implemented
+// import { StateDesignModule } from '../modules/state-design';
+// import { JSXLayoutModule } from '../modules/jsx-layout';
+// import { TailwindStylingModule } from '../modules/tailwind-styling';
+// import { ComponentAssemblerModule } from '../modules/component-assembler';
+// import { CodeValidatorModule } from '../modules/code-validator';
+// import { ToolFinalizerModule } from '../modules/tool-finalizer';
 
 type AgentResult = 
   | FunctionPlannerResult
@@ -36,10 +37,23 @@ type AgentResult =
   | CodeValidatorResult
   | ToolFinalizerResult;
 
+// Initialize agent modules
+const agentModules = {
+  'function-planner': new FunctionPlannerModule(),
+  // TODO: Add other modules when implemented
+  // 'state-design': new StateDesignModule(),
+  // 'jsx-layout': new JSXLayoutModule(),
+  // 'tailwind-styling': new TailwindStylingModule(),
+  // 'component-assembler': new ComponentAssemblerModule(),
+  // 'code-validator': new CodeValidatorModule(),
+  // 'tool-finalizer': new ToolFinalizerModule(),
+};
+
 export async function executeAgent(
   agentType: AgentType,
   context: AgentExecutionContext,
-  tcc: BaseTCC
+  tcc: BaseTCC,
+  rawModelResult?: any
 ): Promise<AgentResult> {
   const startTime = Date.now();
   
@@ -53,31 +67,15 @@ export async function executeAgent(
   try {
     let result: AgentResult;
 
-    switch (agentType) {
-      case 'function-planner':
-        result = await executeFunctionPlanner(context, tcc);
-        break;
-      case 'state-design':
-        result = await executeStateDesign(context, tcc);
-        break;
-      case 'jsx-layout':
-        result = await executeJSXLayout(context, tcc);
-        break;
-      case 'tailwind-styling':
-        result = await executeTailwindStyling(context, tcc);
-        break;
-      case 'component-assembler':
-        result = await executeComponentAssembler(context, tcc);
-        break;
-      case 'code-validator':
-        result = await executeValidator(context, tcc);
-        break;
-      case 'tool-finalizer':
-        result = await executeToolFinalizer(context, tcc);
-        break;
-      default:
-        throw new Error(`Unknown agent type: ${agentType}`);
+    // Get the appropriate agent module
+    const agentModule = agentModules[agentType as keyof typeof agentModules];
+    
+    if (!agentModule) {
+      throw new Error(`Agent module not implemented yet: ${agentType}`);
     }
+
+    // Execute the agent module
+    result = await agentModule.execute(context, { tcc, rawModelResult });
 
     const duration = Date.now() - startTime;
     
@@ -116,4 +114,14 @@ export function getAgentTimeout(agentType: AgentType): number {
   };
 
   return timeouts[agentType] || 30000;
+}
+
+export function validateAgentModule(agentType: AgentType, result: AgentResult): any {
+  const agentModule = agentModules[agentType as keyof typeof agentModules];
+  
+  if (!agentModule) {
+    throw new Error(`Agent module not implemented yet: ${agentType}`);
+  }
+
+  return agentModule.validate(result);
 }

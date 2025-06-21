@@ -258,7 +258,7 @@ async function generateFunctionSignatures(
  */
 function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
   // 🎯 FILTERED BRAINSTORM DATA: Only get Function Planner specific data
-  const filteredBrainstormData = filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId);
+  const filteredBrainstormData = tcc.brainstormData ? filterBrainstormForFunctionPlanner(tcc.brainstormData, tcc.jobId) : null;
   
   // 🚨 FIX: Use brainstorm data for tool description instead of fallback
   let toolDescription = tcc.userInput?.description;

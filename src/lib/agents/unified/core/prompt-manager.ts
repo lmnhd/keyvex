@@ -7,20 +7,21 @@ import { AgentType } from '@/lib/types/tcc-unified';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import logger from '@/lib/logger';
 
-// Import all prompt functions
+// Import existing prompt functions
 import { getFunctionPlannerSystemPrompt, getFunctionPlannerUserPrompt } from '@/lib/prompts/v2/function-planner-prompt';
 import { getStateDesignSystemPrompt, getStateDesignUserPrompt } from '@/lib/prompts/v2/state-design-prompt';
 import { getJsxLayoutSystemPrompt, getJsxLayoutUserPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
 import { getTailwindStylingSystemPrompt, getTailwindStylingUserPrompt } from '@/lib/prompts/v2/tailwind-styling-prompt';
-import { getComponentAssemblerSystemPrompt, getComponentAssemblerUserPrompt } from '@/lib/prompts/v2/component-assembler-prompt';
 import { getValidatorSystemPrompt, getValidatorUserPrompt } from '@/lib/prompts/v2/validator-prompt';
-import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '@/lib/prompts/v2/tool-finalizer-prompt';
+// TODO: Import component-assembler and tool-finalizer prompts when they exist
+// import { getComponentAssemblerSystemPrompt, getComponentAssemblerUserPrompt } from '@/lib/prompts/v2/component-assembler-prompt';
+// import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '@/lib/prompts/v2/tool-finalizer-prompt';
 
 export interface PromptContext {
   tcc: ToolConstructionContext;
   agentType: AgentType;
   isIsolatedTest?: boolean;
-  editMode?: boolean;
+  editMode?: any;
   modelId?: string;
   customContext?: Record<string, unknown>;
 }
@@ -37,7 +38,7 @@ export interface PromptResult {
   };
 }
 
-export class PromptManager {
+class PromptManager {
   private promptCache = new Map<string, PromptResult>();
   private readonly cacheExpiry = 5 * 60 * 1000; // 5 minutes
   private readonly maxCacheSize = 100;
@@ -187,46 +188,39 @@ export class PromptManager {
     try {
       switch (agentType) {
         case 'function-planner':
-          systemPrompt = await getFunctionPlannerSystemPrompt();
-          userPrompt = await getFunctionPlannerUserPrompt(tcc, isIsolatedTest, editMode);
+          systemPrompt = getFunctionPlannerSystemPrompt(!!editMode?.isEditMode);
+          userPrompt = getFunctionPlannerUserPrompt(tcc, editMode);
           templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
           break;
 
         case 'state-design':
-          systemPrompt = await getStateDesignSystemPrompt();
-          userPrompt = await getStateDesignUserPrompt(tcc, isIsolatedTest, editMode);
+          systemPrompt = getStateDesignSystemPrompt(!!editMode?.isEditMode);
+          userPrompt = getStateDesignUserPrompt(tcc, tcc.definedFunctionSignatures || [], editMode);
           templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
           break;
 
         case 'jsx-layout':
-          systemPrompt = await getJsxLayoutSystemPrompt();
-          userPrompt = await getJsxLayoutUserPrompt(tcc, isIsolatedTest, editMode);
+          systemPrompt = getJsxLayoutSystemPrompt(!!editMode?.isEditMode);
+          userPrompt = getJsxLayoutUserPrompt(tcc, editMode);
           templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
           break;
 
         case 'tailwind-styling':
-          systemPrompt = await getTailwindStylingSystemPrompt();
-          userPrompt = await getTailwindStylingUserPrompt(tcc, isIsolatedTest, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
-
-        case 'component-assembler':
-          systemPrompt = await getComponentAssemblerSystemPrompt();
-          userPrompt = await getComponentAssemblerUserPrompt(tcc, isIsolatedTest, editMode);
+          systemPrompt = getTailwindStylingSystemPrompt(!!editMode?.isEditMode);
+          userPrompt = getTailwindStylingUserPrompt(tcc, editMode);
           templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
           break;
 
         case 'code-validator':
-          systemPrompt = await getValidatorSystemPrompt();
-          userPrompt = await getValidatorUserPrompt(tcc, isIsolatedTest, editMode);
+          systemPrompt = getValidatorSystemPrompt();
+          userPrompt = getValidatorUserPrompt(tcc, editMode);
           templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
           break;
 
+        // TODO: Implement when prompt files exist
+        case 'component-assembler':
         case 'tool-finalizer':
-          systemPrompt = await getToolFinalizerSystemPrompt();
-          userPrompt = await getToolFinalizerUserPrompt(tcc, isIsolatedTest, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
+          throw new Error(`Prompt functions not implemented yet for agent: ${agentType}`);
 
         default:
           throw new Error(`Unknown agent type: ${agentType}`);
@@ -275,7 +269,7 @@ export class PromptManager {
       `agent:${agentType}`,
       `job:${tcc.jobId}`,
       `test:${isIsolatedTest || false}`,
-      `edit:${editMode || false}`,
+      `edit:${!!editMode?.isEditMode || false}`,
       `model:${modelId || 'default'}`,
       `step:${tcc.currentOrchestrationStep || 'unknown'}`
     ];
@@ -286,7 +280,6 @@ export class PromptManager {
       tcc.stateLogic ? 'sd' : '',
       tcc.jsxLayout ? 'jl' : '',
       tcc.styling ? 'ts' : '',
-      tcc.finalComponentCode ? 'ca' : '',
       tcc.validationResult ? 'cv' : '',
       tcc.finalProduct ? 'tf' : ''
     ].filter(Boolean).join('-');
@@ -391,3 +384,36 @@ export class PromptManager {
     return processedPrompt;
   }
 }
+
+// Create a singleton instance for convenience
+const promptManagerInstance = new PromptManager();
+
+/**
+ * Convenience function for getting prompts for an agent
+ * This function is used by the unified-agent-executor
+ */
+export async function getPromptForAgent(
+  agentType: AgentType, 
+  tcc: ToolConstructionContext, 
+  editMode?: any
+): Promise<{ systemPrompt: string; userPrompt: string }> {
+  const context: PromptContext = {
+    agentType,
+    tcc,
+    isIsolatedTest: false,
+    editMode
+  };
+
+  const result = await promptManagerInstance.getPromptsForAgent(context);
+  
+  return {
+    systemPrompt: result.systemPrompt,
+    userPrompt: result.userPrompt
+  };
+}
+
+/**
+ * Export the PromptManager class and singleton instance
+ */
+export { PromptManager };
+export const promptManager = promptManagerInstance;
