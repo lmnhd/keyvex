@@ -123,5 +123,14 @@ export function validateAgentModule(agentType: AgentType, result: AgentResult): 
     throw new Error(`Agent module not implemented yet: ${agentType}`);
   }
 
-  return agentModule.validate(result);
+  // Type-safe validation by casting result to the expected type for each agent
+  switch (agentType) {
+    case 'function-planner':
+      return agentModule.validate(result as FunctionPlannerResult);
+    // TODO: Add other cases when modules are implemented
+    // case 'state-design':
+    //   return agentModule.validate(result as StateDesignResult);
+    default:
+      throw new Error(`Validation not implemented for agent: ${agentType}`);
+  }
 }
