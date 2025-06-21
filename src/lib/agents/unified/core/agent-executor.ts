@@ -19,6 +19,8 @@ import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-
 import { updateTccWithAgentResult } from './tcc-manager';
 import { RetryManager } from './retry-manager';
 import { BaseAgentModule, AgentExecutionInput } from './base-agent-module';
+import { getPromptManager } from './prompt-manager';
+import { createAgentExecutionContext, resolveAgentModel, createModelConfiguration } from './model-manager';
 import logger from '../../../logger';
 
 // Import unified agent modules - ALL IMPLEMENTED!
@@ -55,7 +57,7 @@ const retryManager = new RetryManager();
 
 /**
  * Execute agent and return both result and updated TCC
- * This is the SINGLE SOURCE OF TRUTH for agent execution
+ * This is the SINGLE SOURCE OF TRUTH for agent execution with integrated managers
  */
 export async function executeAgent(
   agentType: AgentType,
@@ -88,10 +90,42 @@ export async function executeAgent(
       throw new Error(`Missing required TCC fields for ${agentType}: ${missingFields.join(', ')}`);
     }
 
-    // Create agent execution input
+    // 🆕 PHASE 2: Generate prompts using Prompt Manager
+    const promptManager = getPromptManager();
+    const promptConfig = await promptManager.generatePromptConfig({
+      agentType,
+      tcc,
+      context,
+      editMode: context.editMode ? {
+        isEditMode: context.editMode.isEditMode,
+        editInstructions: context.editMode.activeEditInstructions?.[0]?.instructions,
+        currentResult: context.editMode.editHistory?.[0]?.versions?.[0]?.output
+      } : undefined
+    });
+
+    // Validate prompt configuration
+    const promptValidation = promptManager.validatePromptConfig(promptConfig);
+    if (!promptValidation.isValid) {
+      logger.warn({
+        jobId: context.jobId,
+        agentType,
+        warnings: promptValidation.warnings
+      }, '⚠️ AGENT EXECUTOR: Prompt configuration has warnings');
+    }
+
+    logger.info({
+      jobId: context.jobId,
+      agentType,
+      promptLength: promptConfig.metadata.promptLength,
+      contextLength: promptConfig.metadata.contextLength,
+      totalLength: promptConfig.metadata.totalLength
+    }, '📝 AGENT EXECUTOR: Prompt configuration generated');
+
+    // Create enhanced agent execution input with prompt data
     const agentInput: AgentExecutionInput = {
       tcc,
-      rawModelResult
+      rawModelResult,
+      promptConfig // 🆕 Pass prompt configuration to agent modules
     };
 
     // Execute with retry logic
@@ -105,8 +139,9 @@ export async function executeAgent(
       async () => {
         logger.info({
           jobId: context.jobId,
-          agentType
-        }, `🎯 AGENT EXECUTOR: Executing ${agentType} module`);
+          agentType,
+          modelId: context.modelConfig.modelId
+        }, `🎯 AGENT EXECUTOR: Executing ${agentType} module with integrated managers`);
 
         return await agentModule.execute(enhancedContext, agentInput);
       }
@@ -128,7 +163,8 @@ export async function executeAgent(
       agentType,
       duration: executionTime,
       success: true,
-      resultValidation: agentModule.validate(result).score
+      resultValidation: agentModule.validate(result).score,
+      promptUsed: promptConfig.metadata.totalLength
     }, `✅ AGENT EXECUTOR: Agent execution completed successfully: ${agentType}`);
 
     return { result, updatedTcc };

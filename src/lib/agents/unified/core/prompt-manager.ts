@@ -1,419 +1,329 @@
 /**
- * Prompt Manager - Prompt loading and management (Phase 1.2)
- * Provides centralized prompt management for all agents
+ * Prompt Manager (Phase 2.1 - Core Infrastructure Integration)
+ * Centralized prompt management for all unified agents - NO GENERIC TYPES!
  */
 
-import { AgentType } from '@/lib/types/tcc-unified';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
-import logger from '@/lib/logger';
+import { 
+  AgentType,
+  AgentExecutionContext,
+  CoreBrainstormData,
+  FunctionPlannerBrainstormData,
+  StateDesignBrainstormData,
+  JSXLayoutBrainstormData,
+  TailwindStylingBrainstormData,
+  ComponentAssemblerBrainstormData
+} from '../../../types/tcc-unified';
+import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
+import { 
+  filterBrainstormForFunctionPlanner,
+  filterBrainstormForStateDesign,
+  filterBrainstormForJSXLayout,
+  filterBrainstormForTailwindStyling,
+  filterBrainstormForComponentAssembler,
+  generateFilteredBrainstormContext
+} from '../../../utils/brainstorm-filter';
+import logger from '../../../logger';
 
-// Import existing prompt functions
-import { getFunctionPlannerSystemPrompt, getFunctionPlannerUserPrompt } from '@/lib/prompts/v2/function-planner-prompt';
-import { getStateDesignSystemPrompt, getStateDesignUserPrompt } from '@/lib/prompts/v2/state-design-prompt';
-import { getJsxLayoutSystemPrompt, getJsxLayoutUserPrompt } from '@/lib/prompts/v2/jsx-layout-prompt';
-import { getTailwindStylingSystemPrompt, getTailwindStylingUserPrompt } from '@/lib/prompts/v2/tailwind-styling-prompt';
-import { getValidatorSystemPrompt, getValidatorUserPrompt } from '@/lib/prompts/v2/validator-prompt';
-// TODO: Import component-assembler and tool-finalizer prompts when they exist
-// import { getComponentAssemblerSystemPrompt, getComponentAssemblerUserPrompt } from '@/lib/prompts/v2/component-assembler-prompt';
-// import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '@/lib/prompts/v2/tool-finalizer-prompt';
+// Import existing prompt modules from v2 directory (with proper fallbacks)
+import { getFunctionPlannerSystemPrompt, getFunctionPlannerUserPrompt } from '../../../prompts/v2/function-planner-prompt';
+import { getStateDesignSystemPrompt, getStateDesignUserPrompt } from '../../../prompts/v2/state-design-prompt';
+import { getJsxLayoutSystemPrompt, getJsxLayoutUserPrompt } from '../../../prompts/v2/jsx-layout-prompt';
+import { getTailwindStylingSystemPrompt, getTailwindStylingUserPrompt } from '../../../prompts/v2/tailwind-styling-prompt';
+import { getComponentAssemblerSystemPrompt } from '../../../prompts/component-assembler-prompt';
+import { getValidatorSystemPrompt, getValidatorUserPrompt } from '../../../prompts/v2/validator-prompt';
+import { getToolFinalizerSystemPrompt, getToolFinalizerUserPrompt } from '../../../prompts/tool-finalizer-prompt';
 
-export interface PromptContext {
-  tcc: ToolConstructionContext;
-  agentType: AgentType;
-  isIsolatedTest?: boolean;
-  editMode?: any;
-  modelId?: string;
-  customContext?: Record<string, unknown>;
-}
-
-export interface PromptResult {
+/**
+ * Prompt configuration for each agent type
+ */
+interface AgentPromptConfig {
   systemPrompt: string;
   userPrompt: string;
+  contextData: string;
   metadata: {
-    agentType: AgentType;
     promptLength: number;
-    templateVariables: string[];
-    generatedAt: string;
-    cacheKey: string;
+    contextLength: number;
+    totalLength: number;
+    agentType: AgentType;
   };
 }
 
-class PromptManager {
-  private promptCache = new Map<string, PromptResult>();
-  private readonly cacheExpiry = 5 * 60 * 1000; // 5 minutes
-  private readonly maxCacheSize = 100;
+/**
+ * Prompt generation context
+ */
+interface PromptGenerationContext {
+  agentType: AgentType;
+  tcc: BaseTCC;
+  context: AgentExecutionContext;
+  editMode?: {
+    isEditMode: boolean;
+    editInstructions?: string;
+    currentResult?: any;
+  };
+}
 
-  constructor() {}
+/**
+ * PromptManager - Centralized prompt management for all agents
+ */
+export class PromptManager {
+  private static instance: PromptManager;
+
+  private constructor() {}
 
   /**
-   * Get prompts for specific agent with caching
+   * Get singleton instance
    */
-  async getPromptsForAgent(context: PromptContext): Promise<PromptResult> {
-    const cacheKey = this.generateCacheKey(context);
-    
-    // Check cache first
-    const cached = this.promptCache.get(cacheKey);
-    if (cached && this.isCacheValid(cached)) {
-      logger.debug({
-        agentType: context.agentType,
-        cacheKey
-      }, '📝 PromptManager: Using cached prompts');
-      
-      return cached;
+  static getInstance(): PromptManager {
+    if (!PromptManager.instance) {
+      PromptManager.instance = new PromptManager();
     }
+    return PromptManager.instance;
+  }
 
-    // Generate fresh prompts
-    const prompts = await this.generatePrompts(context);
-    
-    // Cache the result
-    this.cachePrompts(cacheKey, prompts);
+  /**
+   * Generate complete prompt configuration for an agent
+   */
+  async generatePromptConfig(
+    promptContext: PromptGenerationContext
+  ): Promise<AgentPromptConfig> {
+    const { agentType, tcc, context, editMode } = promptContext;
     
     logger.info({
-      agentType: context.agentType,
-      systemPromptLength: prompts.systemPrompt.length,
-      userPromptLength: prompts.userPrompt.length,
-      cacheKey
-    }, '📝 PromptManager: Generated fresh prompts');
-
-    return prompts;
-  }
-
-  /**
-   * Invalidate cache for specific agent or all agents
-   */
-  invalidateCache(agentType?: AgentType): void {
-    if (agentType) {
-      // Remove entries for specific agent
-      const keysToDelete = Array.from(this.promptCache.keys())
-        .filter(key => key.includes(`agent:${agentType}`));
-      
-      keysToDelete.forEach(key => this.promptCache.delete(key));
-      
-      logger.info({
-        agentType,
-        deletedKeys: keysToDelete.length
-      }, '📝 PromptManager: Invalidated cache for agent');
-    } else {
-      // Clear entire cache
-      this.promptCache.clear();
-      logger.info({}, '📝 PromptManager: Cleared entire prompt cache');
-    }
-  }
-
-  /**
-   * Get cache statistics
-   */
-  getCacheStats(): {
-    totalEntries: number;
-    cacheHitRate: number;
-    averagePromptLength: number;
-    oldestEntry: string | null;
-    newestEntry: string | null;
-  } {
-    const entries = Array.from(this.promptCache.values());
-    const totalEntries = entries.length;
-    
-    if (totalEntries === 0) {
-      return {
-        totalEntries: 0,
-        cacheHitRate: 0,
-        averagePromptLength: 0,
-        oldestEntry: null,
-        newestEntry: null
-      };
-    }
-
-    const averagePromptLength = Math.round(
-      entries.reduce((sum, entry) => sum + entry.metadata.promptLength, 0) / totalEntries
-    );
-
-    const sortedByTime = entries.sort((a, b) => 
-      new Date(a.metadata.generatedAt).getTime() - new Date(b.metadata.generatedAt).getTime()
-    );
-
-    return {
-      totalEntries,
-      cacheHitRate: 0, // Would need to track hits/misses for accurate calculation
-      averagePromptLength,
-      oldestEntry: sortedByTime[0]?.metadata.generatedAt || null,
-      newestEntry: sortedByTime[sortedByTime.length - 1]?.metadata.generatedAt || null
-    };
-  }
-
-  /**
-   * Preload prompts for all agents (useful for warming cache)
-   */
-  async preloadPrompts(tcc: ToolConstructionContext): Promise<void> {
-    const agentTypes: AgentType[] = [
-      'function-planner',
-      'state-design',
-      'jsx-layout',
-      'tailwind-styling',
-      'component-assembler',
-      'code-validator',
-      'tool-finalizer'
-    ];
-
-    logger.info({
-      jobId: tcc.jobId,
-      agentCount: agentTypes.length
-    }, '📝 PromptManager: Preloading prompts for all agents');
-
-    const preloadPromises = agentTypes.map(agentType => 
-      this.getPromptsForAgent({
-        tcc,
-        agentType,
-        isIsolatedTest: false
-      })
-    );
-
-    await Promise.all(preloadPromises);
-
-    logger.info({
-      jobId: tcc.jobId,
-      cacheSize: this.promptCache.size
-    }, '📝 PromptManager: Completed prompt preloading');
-  }
-
-  /**
-   * Generate prompts for specific agent
-   */
-  private async generatePrompts(context: PromptContext): Promise<PromptResult> {
-    const { agentType, tcc, isIsolatedTest, editMode, modelId } = context;
-
-    let systemPrompt: string;
-    let userPrompt: string;
-    let templateVariables: string[] = [];
+      jobId: context.jobId,
+      agentType,
+      isEditMode: editMode?.isEditMode || false
+    }, '📝 PROMPT MANAGER: Generating prompt configuration');
 
     try {
-      switch (agentType) {
-        case 'function-planner':
-          systemPrompt = getFunctionPlannerSystemPrompt(!!editMode?.isEditMode);
-          userPrompt = getFunctionPlannerUserPrompt(tcc, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
+      // Get filtered brainstorm data for this agent
+      const filteredBrainstormData = await this.getFilteredBrainstormData(agentType, tcc, context.jobId);
+      
+      // Generate system and user prompts
+      const systemPrompt = await this.generateSystemPrompt(agentType, context, editMode);
+      const userPrompt = await this.generateUserPrompt(agentType, tcc, filteredBrainstormData, editMode);
+      
+      // Generate context string
+      const contextData = filteredBrainstormData 
+        ? generateFilteredBrainstormContext(filteredBrainstormData, this.getAgentDisplayName(agentType))
+        : '';
 
-        case 'state-design':
-          systemPrompt = getStateDesignSystemPrompt(!!editMode?.isEditMode);
-          userPrompt = getStateDesignUserPrompt(tcc, tcc.definedFunctionSignatures || [], editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
-
-        case 'jsx-layout':
-          systemPrompt = getJsxLayoutSystemPrompt(!!editMode?.isEditMode);
-          userPrompt = getJsxLayoutUserPrompt(tcc, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
-
-        case 'tailwind-styling':
-          systemPrompt = getTailwindStylingSystemPrompt(!!editMode?.isEditMode);
-          userPrompt = getTailwindStylingUserPrompt(tcc, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
-
-        case 'code-validator':
-          systemPrompt = getValidatorSystemPrompt();
-          userPrompt = getValidatorUserPrompt(tcc, editMode);
-          templateVariables = this.extractTemplateVariables(systemPrompt + userPrompt);
-          break;
-
-        // TODO: Implement when prompt files exist
-        case 'component-assembler':
-        case 'tool-finalizer':
-          throw new Error(`Prompt functions not implemented yet for agent: ${agentType}`);
-
-        default:
-          throw new Error(`Unknown agent type: ${agentType}`);
-      }
-
-      // Apply any custom context processing
-      if (context.customContext) {
-        systemPrompt = this.processCustomContext(systemPrompt, context.customContext);
-        userPrompt = this.processCustomContext(userPrompt, context.customContext);
-      }
-
-      const totalLength = systemPrompt.length + userPrompt.length;
-      const cacheKey = this.generateCacheKey(context);
-
-      return {
+      const config: AgentPromptConfig = {
         systemPrompt,
         userPrompt,
+        contextData,
         metadata: {
-          agentType,
-          promptLength: totalLength,
-          templateVariables,
-          generatedAt: new Date().toISOString(),
-          cacheKey
+          promptLength: systemPrompt.length + userPrompt.length,
+          contextLength: contextData.length,
+          totalLength: systemPrompt.length + userPrompt.length + contextData.length,
+          agentType
         }
       };
 
+      logger.info({
+        jobId: context.jobId,
+        agentType,
+        promptLength: config.metadata.promptLength,
+        contextLength: config.metadata.contextLength,
+        totalLength: config.metadata.totalLength
+      }, '📝 PROMPT MANAGER: Prompt configuration generated successfully');
+
+      return config;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error({
+        jobId: context.jobId,
         agentType,
         error: errorMessage
-      }, '📝 PromptManager: Failed to generate prompts');
-
-      throw new Error(`Failed to generate prompts for ${agentType}: ${errorMessage}`);
+      }, '📝 PROMPT MANAGER: Failed to generate prompt configuration');
+      throw new Error(`Failed to generate prompt for ${agentType}: ${errorMessage}`);
     }
   }
 
   /**
-   * Generate cache key for prompt context
+   * Get filtered brainstorm data for specific agent
    */
-  private generateCacheKey(context: PromptContext): string {
-    const { agentType, tcc, isIsolatedTest, editMode, modelId } = context;
+  private async getFilteredBrainstormData(
+    agentType: AgentType,
+    tcc: BaseTCC,
+    jobId: string
+  ): Promise<CoreBrainstormData | null> {
+    if (!tcc.brainstormData) {
+      logger.warn({ jobId, agentType }, '📝 PROMPT MANAGER: No brainstorm data available');
+      return null;
+    }
+
+    switch (agentType) {
+      case 'function-planner':
+        return filterBrainstormForFunctionPlanner(tcc.brainstormData, jobId);
+      case 'state-design':
+        return filterBrainstormForStateDesign(tcc.brainstormData, jobId);
+      case 'jsx-layout':
+        return filterBrainstormForJSXLayout(tcc.brainstormData, jobId);
+      case 'tailwind-styling':
+        return filterBrainstormForTailwindStyling(tcc.brainstormData, jobId);
+      case 'component-assembler':
+        return filterBrainstormForComponentAssembler(tcc.brainstormData, jobId);
+      case 'code-validator':
+      case 'tool-finalizer':
+        // These agents don't need filtered brainstorm data
+        return null;
+      default:
+        logger.warn({ jobId, agentType }, '📝 PROMPT MANAGER: Unknown agent type for brainstorm filtering');
+        return null;
+    }
+  }
+
+  /**
+   * Generate system prompt for specific agent
+   */
+  private async generateSystemPrompt(
+    agentType: AgentType,
+    context: AgentExecutionContext,
+    editMode?: { isEditMode: boolean; editInstructions?: string }
+  ): Promise<string> {
+    const baseSystemPrompt = await this.getBaseSystemPrompt(agentType, editMode?.isEditMode || false);
     
-    // Create a hash-like key based on context
-    const keyComponents = [
-      `agent:${agentType}`,
-      `job:${tcc.jobId}`,
-      `test:${isIsolatedTest || false}`,
-      `edit:${!!editMode?.isEditMode || false}`,
-      `model:${modelId || 'default'}`,
-      `step:${tcc.currentOrchestrationStep || 'unknown'}`
-    ];
-
-    // Add TCC state indicators
-    const stateIndicators = [
-      tcc.definedFunctionSignatures ? 'fp' : '',
-      tcc.stateLogic ? 'sd' : '',
-      tcc.jsxLayout ? 'jl' : '',
-      tcc.styling ? 'ts' : '',
-      tcc.validationResult ? 'cv' : '',
-      tcc.finalProduct ? 'tf' : ''
-    ].filter(Boolean).join('-');
-
-    if (stateIndicators) {
-      keyComponents.push(`state:${stateIndicators}`);
+    // Add edit mode instructions if applicable
+    if (editMode?.isEditMode && editMode.editInstructions) {
+      return `${baseSystemPrompt}\n\n## EDIT MODE INSTRUCTIONS\nYou are in edit mode. Your task is to modify the existing result based on these instructions:\n${editMode.editInstructions}`;
     }
 
-    return keyComponents.join('|');
+    return baseSystemPrompt;
   }
 
   /**
-   * Check if cached prompt is still valid
+   * Generate user prompt for specific agent
    */
-  private isCacheValid(cached: PromptResult): boolean {
-    const age = Date.now() - new Date(cached.metadata.generatedAt).getTime();
-    return age < this.cacheExpiry;
-  }
-
-  /**
-   * Cache prompts with size management
-   */
-  private cachePrompts(cacheKey: string, prompts: PromptResult): void {
-    // Remove expired entries
-    this.cleanExpiredCache();
-
-    // If cache is full, remove oldest entry
-    if (this.promptCache.size >= this.maxCacheSize) {
-      const oldestKey = this.findOldestCacheKey();
-      if (oldestKey) {
-        this.promptCache.delete(oldestKey);
-      }
+  private async generateUserPrompt(
+    agentType: AgentType,
+    tcc: BaseTCC,
+    filteredBrainstormData: CoreBrainstormData | null,
+    editMode?: { isEditMode: boolean; currentResult?: any }
+  ): Promise<string> {
+    const baseUserPrompt = await this.getBaseUserPrompt(agentType, tcc, filteredBrainstormData);
+    
+    // Add current result if in edit mode
+    if (editMode?.isEditMode && editMode.currentResult) {
+      return `${baseUserPrompt}\n\n## CURRENT RESULT TO EDIT\n${JSON.stringify(editMode.currentResult, null, 2)}`;
     }
 
-    this.promptCache.set(cacheKey, prompts);
+    return baseUserPrompt;
   }
 
   /**
-   * Clean expired cache entries
+   * Get base system prompt for agent type
    */
-  private cleanExpiredCache(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-
-    this.promptCache.forEach((value, key) => {
-      const age = now - new Date(value.metadata.generatedAt).getTime();
-      if (age >= this.cacheExpiry) {
-        keysToDelete.push(key);
+  private async getBaseSystemPrompt(agentType: AgentType, isEditMode: boolean = false): Promise<string> {
+    try {
+      switch (agentType) {
+        case 'function-planner':
+          return getFunctionPlannerSystemPrompt(isEditMode);
+        case 'state-design':
+          return getStateDesignSystemPrompt(isEditMode);
+        case 'jsx-layout':
+          return getJsxLayoutSystemPrompt(isEditMode);
+        case 'tailwind-styling':
+          return getTailwindStylingSystemPrompt(isEditMode);
+        case 'component-assembler':
+          return getComponentAssemblerSystemPrompt();
+        case 'code-validator':
+          return getValidatorSystemPrompt();
+        case 'tool-finalizer':
+          return getToolFinalizerSystemPrompt();
+        default:
+          throw new Error(`Unknown agent type: ${agentType}`);
       }
-    });
-
-    keysToDelete.forEach(key => this.promptCache.delete(key));
+    } catch (error) {
+      logger.warn({ agentType, error: String(error) }, '📝 PROMPT MANAGER: Falling back to basic system prompt');
+      return `You are a ${agentType} agent. Process the provided input and return a structured result.`;
+    }
   }
 
   /**
-   * Find oldest cache key for eviction
+   * Get base user prompt for agent type
    */
-  private findOldestCacheKey(): string | null {
-    let oldestKey: string | null = null;
-    let oldestTime = Date.now();
-
-    this.promptCache.forEach((value, key) => {
-      const time = new Date(value.metadata.generatedAt).getTime();
-      if (time < oldestTime) {
-        oldestTime = time;
-        oldestKey = key;
+  private async getBaseUserPrompt(
+    agentType: AgentType,
+    tcc: BaseTCC,
+    filteredBrainstormData: CoreBrainstormData | null
+  ): Promise<string> {
+    try {
+      switch (agentType) {
+        case 'function-planner':
+          return getFunctionPlannerUserPrompt(tcc, filteredBrainstormData);
+        case 'state-design':
+          return getStateDesignUserPrompt(tcc, filteredBrainstormData);
+        case 'jsx-layout':
+          return getJsxLayoutUserPrompt(tcc, filteredBrainstormData);
+        case 'tailwind-styling':
+          return getTailwindStylingUserPrompt(tcc, filteredBrainstormData);
+        case 'component-assembler':
+          // Component assembler doesn't have a separate user prompt function
+          return `Please assemble the component based on the provided TCC data.`;
+        case 'code-validator':
+          return getValidatorUserPrompt(tcc);
+        case 'tool-finalizer':
+          return getToolFinalizerUserPrompt(tcc);
+        default:
+          throw new Error(`Unknown agent type: ${agentType}`);
       }
-    });
-
-    return oldestKey;
+    } catch (error) {
+      logger.warn({ agentType, error: String(error) }, '📝 PROMPT MANAGER: Falling back to basic user prompt');
+      return `Please process the provided TCC data and return a structured result for ${agentType}.`;
+    }
   }
 
   /**
-   * Extract template variables from prompt text
+   * Get display name for agent
    */
-  private extractTemplateVariables(text: string): string[] {
-    const variablePattern = /\{\{(\w+)\}\}/g;
-    const variables: string[] = [];
-    let match;
+  private getAgentDisplayName(agentType: AgentType): string {
+    const displayNames: Record<AgentType, string> = {
+      'function-planner': 'Function Planner',
+      'state-design': 'State Design Agent',
+      'jsx-layout': 'JSX Layout Agent',
+      'tailwind-styling': 'Tailwind Styling Agent',
+      'component-assembler': 'Component Assembler',
+      'code-validator': 'Code Validator',
+      'tool-finalizer': 'Tool Finalizer'
+    };
+    
+    return displayNames[agentType] || agentType;
+  }
 
-    while ((match = variablePattern.exec(text)) !== null) {
-      if (!variables.includes(match[1])) {
-        variables.push(match[1]);
-      }
+  /**
+   * Validate prompt configuration
+   */
+  validatePromptConfig(config: AgentPromptConfig): { isValid: boolean; warnings: string[] } {
+    const warnings: string[] = [];
+    
+    // Check prompt length limits
+    if (config.metadata.totalLength > 100000) {
+      warnings.push(`Total prompt length (${config.metadata.totalLength}) exceeds recommended limit`);
+    }
+    
+    if (config.metadata.promptLength < 100) {
+      warnings.push('System/user prompt appears very short');
+    }
+    
+    // Check for empty prompts
+    if (!config.systemPrompt.trim()) {
+      warnings.push('System prompt is empty');
+    }
+    
+    if (!config.userPrompt.trim()) {
+      warnings.push('User prompt is empty');
     }
 
-    return variables;
-  }
-
-  /**
-   * Process custom context into prompts
-   */
-  private processCustomContext(prompt: string, customContext: Record<string, unknown>): string {
-    let processedPrompt = prompt;
-
-    Object.entries(customContext).forEach(([key, value]) => {
-      const placeholder = `{{${key}}}`;
-      const replacement = typeof value === 'string' ? value : JSON.stringify(value);
-      processedPrompt = processedPrompt.replace(new RegExp(placeholder, 'g'), replacement);
-    });
-
-    return processedPrompt;
+    return {
+      isValid: warnings.length === 0,
+      warnings
+    };
   }
 }
 
-// Create a singleton instance for convenience
-const promptManagerInstance = new PromptManager();
-
 /**
- * Convenience function for getting prompts for an agent
- * This function is used by the unified-agent-executor
+ * Convenience function to get prompt manager instance
  */
-export async function getPromptForAgent(
-  agentType: AgentType, 
-  tcc: ToolConstructionContext, 
-  editMode?: any
-): Promise<{ systemPrompt: string; userPrompt: string }> {
-  const context: PromptContext = {
-    agentType,
-    tcc,
-    isIsolatedTest: false,
-    editMode
-  };
-
-  const result = await promptManagerInstance.getPromptsForAgent(context);
-  
-  return {
-    systemPrompt: result.systemPrompt,
-    userPrompt: result.userPrompt
-  };
+export function getPromptManager(): PromptManager {
+  return PromptManager.getInstance();
 }
-
-/**
- * Export the PromptManager class and singleton instance
- */
-export { PromptManager };
-export const promptManager = promptManagerInstance;

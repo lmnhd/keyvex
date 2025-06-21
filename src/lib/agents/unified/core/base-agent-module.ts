@@ -18,6 +18,7 @@ import logger from '../../../logger';
 export interface AgentExecutionInput {
   tcc: BaseTCC;
   rawModelResult?: any; // For agents that need raw model output
+  promptConfig?: any; // Prompt configuration from Prompt Manager (Phase 2)
 }
 
 /**
