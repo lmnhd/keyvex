@@ -62,15 +62,15 @@ export async function executeFunctionPlanner(request: FunctionPlannerRequest): P
   const { jobId, selectedModel, tcc, isIsolatedTest = false, editMode } = request;
 
   try {
-    logger.info({ jobId }, ' FunctionPlanner Module: Starting function signature planning');
+    logger.info({ jobId }, '🔧 FunctionPlanner Module: Starting function signature planning');
     
     if (!tcc || !tcc.agentModelMapping) {
-      throw new Error(Valid TCC was not provided for jobId: );
+      throw new Error(`Valid TCC was not provided for jobId: ${jobId}`);
     }
 
     // Apply user model selection if provided
     if (selectedModel) {
-      logger.info({ jobId, selectedModel }, ' FunctionPlanner Module: User selected explicit model');
+      logger.info({ jobId, selectedModel }, '🔧 FunctionPlanner Module: User selected explicit model');
       tcc.agentModelMapping['function-planner'] = selectedModel;
     }
 
@@ -98,7 +98,7 @@ export async function executeFunctionPlanner(request: FunctionPlannerRequest): P
       jobId,
       functionSignatureCount: functionSignatures.length,
       newFunctionNames: functionSignatures.map(f => f.name),
-    }, ' FunctionPlanner Module: Successfully planned function signatures');
+    }, '🔧 FunctionPlanner Module: Successfully planned function signatures');
 
     // Emit completion progress for orchestration mode
     if (!isIsolatedTest) {
@@ -106,7 +106,7 @@ export async function executeFunctionPlanner(request: FunctionPlannerRequest): P
         jobId,
         OrchestrationStepEnum.enum.planning_function_signatures,
         'completed',
-        Successfully planned  function signatures.,
+        `Successfully planned ${functionSignatures.length} function signatures.`,
         updatedTcc
       );
     }
@@ -118,7 +118,7 @@ export async function executeFunctionPlanner(request: FunctionPlannerRequest): P
     };
 
   } catch (error) {
-    logger.error({ jobId, error }, ' FunctionPlanner Module: Error planning function signatures');
+    logger.error({ jobId, error }, '🔧 FunctionPlanner Module: Error planning function signatures');
     
     // Emit failure progress
     await emitStepProgress(
@@ -153,37 +153,37 @@ async function generateFunctionSignatures(
   // Use selected model if provided, otherwise fall back to primary
   const modelId = selectedModel || primaryModelInfo.modelInfo.id;
   
-  logger.info({ modelId }, ' FunctionPlanner Module: Using model for generation');
+  logger.info({ modelId }, '🔧 FunctionPlanner Module: Using model for generation');
 
   const systemPrompt = getFunctionPlannerSystemPrompt(false);
   const userPrompt = createUserPrompt(tcc, editMode);
 
   // Log prompts when in isolated test mode for debugging
   if (isIsolatedTest) {
-    console.log(\n ========== FUNCTION PLANNER MODULE - ISOLATION TEST PROMPTS ==========);
-    console.log(JobId: );
-    console.log(Model: );
+    console.log(`\n🔧 ========== FUNCTION PLANNER MODULE - ISOLATION TEST PROMPTS ==========`);
+    console.log(`JobId: ${tcc.jobId}`);
+    console.log(`Model: ${modelId}`);
     
-    console.log(\n SYSTEM PROMPT PREVIEW (first 500 chars):);
+    console.log(`\n🔧 SYSTEM PROMPT PREVIEW (first 500 chars):`);
     console.log(systemPrompt.substring(0, 500) + (systemPrompt.length > 500 ? '...' : ''));
     
-    console.log(\n USER PROMPT PREVIEW (first 1000 chars):);
+    console.log(`\n🔧 USER PROMPT PREVIEW (first 1000 chars):`);
     console.log(userPrompt.substring(0, 1000) + (userPrompt.length > 1000 ? '...' : ''));
     
-    console.log(\n FULL SYSTEM PROMPT:);
+    console.log(`\n🔧 FULL SYSTEM PROMPT:`);
     console.log(systemPrompt);
     
-    console.log(\n FULL USER PROMPT:);
+    console.log(`\n🔧 FULL USER PROMPT:`);
     console.log(userPrompt);
     
-    console.log(\n ========== END PROMPTS ==========\n);
+    console.log(`\n🔧 ========== END PROMPTS ==========\n`);
     
     logger.info({ 
       jobId: tcc.jobId,
       modelId: modelId,
       systemPromptLength: systemPrompt.length,
       userPromptLength: userPrompt.length
-    }, ' FunctionPlanner Module: [ISOLATED TEST] Prompt lengths logged to console');
+    }, '🔧 FunctionPlanner Module: [ISOLATED TEST] Prompt lengths logged to console');
   }
 
   try {
@@ -201,18 +201,18 @@ async function generateFunctionSignatures(
     
     return signatures;
   } catch (error) {
-    logger.error({ error, modelId },  FunctionPlanner Module: Model call failed);
+    logger.error({ error, modelId }, `🔧 FunctionPlanner Module: Model call failed`);
     
     // Try fallback model if primary failed and fallback is configured
     const fallbackModelInfo = getFallbackModel('functionPlanner');
     if (!fallbackModelInfo) {
-      throw new Error(Function planning failed with model : );
+      throw new Error(`Function planning failed with model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
     
     logger.info({ 
       fallbackModelId: fallbackModelInfo.modelInfo.id,
       provider: fallbackModelInfo.provider 
-    }, ' FunctionPlanner Module: Attempting fallback model');
+    }, '🔧 FunctionPlanner Module: Attempting fallback model');
 
     const {
       object: { signatures },
@@ -240,16 +240,16 @@ function createUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeConte
   // Use brainstorm data for tool description instead of fallback
   let toolDescription = tcc.userInput?.description;
   if (!toolDescription && filteredBrainstormData) {
-    toolDescription = ${filteredBrainstormData.coreConcept || 'Business Tool'}: ;
+    toolDescription = `${filteredBrainstormData.coreConcept || 'Business Tool'}: ${filteredBrainstormData.valueProposition || 'A tool to help users make informed decisions.'}`;
   }
 
-  let prompt = Please analyze this tool description and provide the function signatures needed:
+  let prompt = `Please analyze this tool description and provide the function signatures needed:
 
-TOOL DESCRIPTION: 
-TOOL TYPE: 
+TOOL DESCRIPTION: ${toolDescription || 'Business calculation tool'}
+TOOL TYPE: ${tcc.userInput.toolType || 'Not specified'}
 
 Additional Context:
-- User Industry: ;
+- User Industry: ${tcc.userInput.targetAudience || 'General'}`;
 
   // Add filtered brainstorm context when available
   if (filteredBrainstormData) {
@@ -261,53 +261,53 @@ Additional Context:
       promptLength: prompt.length,
       brainstormContextAdded: true,
       dataReduction: 'Applied Function Planner specific filtering'
-    }, ' FunctionPlanner Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
+    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
   } else {
     logger.warn({ 
       jobId: tcc.jobId,
       promptLength: prompt.length,
       brainstormContextAdded: false
-    }, ' FunctionPlanner Module: [FILTERED BRAINSTORM]  Prompt created WITHOUT brainstorm context - tool may be too generic');
+    }, '🔧 FunctionPlanner Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - tool may be too generic');
   }
 
   // Add edit mode context if in edit mode
   if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += 
+    prompt += `
 
- EDIT MODE INSTRUCTIONS:
+🔄 EDIT MODE INSTRUCTIONS:
 You are EDITING existing function signatures. Here are the current functions:
 
-CURRENT FUNCTION SIGNATURES:;
+CURRENT FUNCTION SIGNATURES:`;
 
     if (tcc.definedFunctionSignatures && tcc.definedFunctionSignatures.length > 0) {
       tcc.definedFunctionSignatures.forEach(func => {
-        prompt += \n- : ;
+        prompt += `\n- ${func.name}: ${func.description}`;
       });
     } else {
-      prompt += \n- No existing function signatures found;
+      prompt += `\n- No existing function signatures found`;
     }
 
-    prompt += 
+    prompt += `
 
-EDIT INSTRUCTIONS TO FOLLOW:;
+EDIT INSTRUCTIONS TO FOLLOW:`;
 
     editMode.instructions.forEach((instruction, index) => {
-      prompt += 
+      prompt += `
 
-.  REQUEST ( priority):
+${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
+${instruction.instructions}
 
-
-Created: ;
+Created: ${instruction.createdAt}`;
     });
 
-    prompt += 
+    prompt += `
 
-Please apply these edit instructions to improve the function signatures. Maintain overall consistency while implementing the requested changes.;
+Please apply these edit instructions to improve the function signatures. Maintain overall consistency while implementing the requested changes.`;
   }
 
-  prompt += 
+  prompt += `
 
-Please provide the JSON array of function signatures as specified in the guidelines.;
+Please provide the JSON array of function signatures as specified in the guidelines.`;
 
   return prompt;
 }
