@@ -97,15 +97,20 @@ export async function executeAgent(
     };
 
     // Execute with retry logic
+    const enhancedContext: AgentExecutionContext = {
+      ...context,
+      agentType
+    };
+    
     const result = await retryManager.executeWithRetry(
-      { ...context, agentType }, // Ensure agentType is in context
+      enhancedContext,
       async () => {
         logger.info({
           jobId: context.jobId,
           agentType
         }, `🎯 AGENT EXECUTOR: Executing ${agentType} module`);
 
-        return await agentModule.execute(context, agentInput);
+        return await agentModule.execute(enhancedContext, agentInput);
       }
     );
     

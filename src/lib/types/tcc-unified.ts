@@ -21,7 +21,7 @@ import {
   EditModeContext,
   StateVariable,
   StateFunction
-} from '@/lib/types/product-tool-creation-v2/tcc';
+} from './product-tool-creation-v2/tcc';
 
 // Enhanced Agent Result Types (Phase 1.1)
 export interface FunctionPlannerResult {
@@ -194,14 +194,6 @@ export interface BrainstormFilterContext {
   fieldsExcluded: string[];
 }
 
-// Agent Module Interface (Phase 1.1)
-export interface AgentModule<TInput, TOutput> {
-  execute(context: AgentExecutionContext, input: TInput): Promise<TOutput>;
-  validate(output: TOutput): ValidationResultEnhanced;
-  getRequiredInputFields(): string[];
-  getOutputSchema(): z.ZodSchema<TOutput>;
-}
-
 // Core Brainstorm Data (Phase 1.3 - Enhanced for filtering)
 export interface CoreBrainstormData {
   coreConcept: string;
@@ -287,4 +279,4 @@ export type {
   OrchestrationStep,
   OrchestrationStatus,
   EditModeContext
-} from '@/lib/types/product-tool-creation-v2/tcc';
+} from './product-tool-creation-v2/tcc';

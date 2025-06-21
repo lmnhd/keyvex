@@ -7,7 +7,7 @@
  * Now works with the unified TCC interface - NO GENERIC TYPES!
  */
 
-import logger from '@/lib/logger';
+import logger from '../logger';
 import { 
   AgentType,
   CoreBrainstormData,
@@ -17,8 +17,8 @@ import {
   TailwindStylingBrainstormData,
   ComponentAssemblerBrainstormData,
   BrainstormFilterContext
-} from '@/lib/types/tcc-unified';
-import { BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
+} from '../types/tcc-unified';
+import { BrainstormData } from '../types/product-tool-creation-v2/tcc';
 
 /**
  * Convert raw brainstorm data to typed core data structure
