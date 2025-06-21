@@ -497,31 +497,84 @@ export async function runIsolatedAgentTest(
 
     // 1. Get the base TCC data based on the selected source
     let tcc: any;
-    if (tccSource === 'brainstorm') {
+    
+    // 🎯 CRITICAL FIX: Check if we have in-memory TCC data from previous agents
+    // This enables TRUE SEQUENTIAL TESTING where agents build on each other's work
+    const hasValidInMemoryTcc = currentTcc && 
+      currentTcc.jobId && 
+      currentTcc.brainstormData && 
+      currentTcc.userInput;
+    
+    // 🚨 SEQUENTIAL MODE: If we have valid in-memory TCC, use it instead of starting fresh
+    if (hasValidInMemoryTcc && tccSource !== 'mockScenario' && tccSource !== 'savedV2Job') {
+      addLog('debug', '🔄 SEQUENTIAL MODE DETECTED: Using in-memory TCC with previous agent results');
+      addLog('debug', `📋 Current TCC state: jobId=${currentTcc.jobId?.slice(0, 8)}..., hasFunction=${!!currentTcc.definedFunctionSignatures}, hasState=${!!currentTcc.stateLogic}, hasLayout=${!!currentTcc.jsxLayout}, hasStyling=${!!currentTcc.styling}`);
+      
+      tcc = {
+        ...currentTcc,
+        // ✅ Ensure agentModelMapping includes current agent
+        agentModelMapping: {
+          ...currentTcc.agentModelMapping,
+          [agentId]: modelId
+        }
+      };
+      
+      addLog('debug', `✅ SEQUENTIAL TCC LOADED: Building on existing work (Function Sigs: ${currentTcc.definedFunctionSignatures?.length || 0}, State Vars: ${currentTcc.stateLogic?.variables?.length || 0})`);
+    }
+    // 🔧 FRESH START MODE: Only create new TCC if no valid in-memory data exists
+    else if (tccSource === 'brainstorm') {
       if (!brainstormId) throw new Error('Brainstorm ID is required for brainstorm TCC source.');
       const brainstorms = await loadLogicResultsFromDB();
       const selectedBrainstorm = brainstorms.find((b: any) => b.id === brainstormId);
       if (!selectedBrainstorm) throw new Error(`Brainstorm with ID ${brainstormId} not found.`);
+      
+      addLog('debug', '🆕 FRESH START MODE: Creating new TCC from brainstorm data');
+      
       tcc = {
         userId,
         jobId: `debug-${uuidv4()}`,
         userInput: selectedBrainstorm.userInput || {},
         brainstormData: selectedBrainstorm.brainstormData || {},
-        stepStatus: {}
+        stepStatus: {},
+        // ✅ CRITICAL FIX: Add agentModelMapping required by agents
+        agentModelMapping: {
+          [agentId]: modelId
+        },
+        // ✅ Add other essential TCC fields that agents expect
+        status: 'in_progress',
+        currentOrchestrationStep: 'planning_function_signatures',
+        targetAudience: selectedBrainstorm.userInput?.targetAudience || 'General users',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        steps: {}
       };
       addLog('debug', 'Loaded TCC from brainstorm', { id: brainstormId });
     } else if (tccSource === 'mockScenario') {
       if (!mockScenarioId) throw new Error('Mock Scenario ID is required.');
       const scenario = getScenarioById(mockScenarioId);
       if (!scenario) throw new Error(`Mock scenario with ID ${mockScenarioId} not found.`);
-      tcc = scenario.tcc;
+      tcc = {
+        ...scenario.tcc,
+        // ✅ Ensure agentModelMapping exists for mock scenarios too
+        agentModelMapping: {
+          ...scenario.tcc.agentModelMapping,
+          [agentId]: modelId
+        }
+      };
       addLog('debug', 'Loaded TCC from mock scenario', { id: mockScenarioId });
     } else if (tccSource === 'savedV2Job') {
       if (!savedV2JobId) throw new Error('Saved V2 Job ID is required.');
       const v2Jobs = await loadV2JobsFromDB();
       const selectedJob = v2Jobs.find((j: any) => j.id === savedV2JobId);
       if (!selectedJob) throw new Error(`V2 Job with ID ${savedV2JobId} not found.`);
-      tcc = selectedJob.toolConstructionContext;
+      tcc = {
+        ...selectedJob.toolConstructionContext,
+        // ✅ Ensure agentModelMapping exists and includes current agent
+        agentModelMapping: {
+          ...selectedJob.toolConstructionContext.agentModelMapping,
+          [agentId]: modelId
+        }
+      };
       addLog('debug', 'Loaded TCC from saved V2 Job', { id: savedV2JobId });
     } else if (tccSource === 'inMemory') {
       if (!currentTcc) {
@@ -534,13 +587,25 @@ export async function runIsolatedAgentTest(
       
       if (currentTcc.brainstormData && currentTcc.definedFunctionSignatures && currentTcc.userInput) {
         addLog('debug', '✅ IN-MEMORY TCC COMPLETE - All essential fields present');
-        tcc = currentTcc;
+        tcc = {
+          ...currentTcc,
+          // ✅ Ensure agentModelMapping exists and includes current agent
+          agentModelMapping: {
+            ...currentTcc.agentModelMapping,
+            [agentId]: modelId
+          }
+        };
       } else {
         // If still missing essential fields, create minimal required structure
         const enhancedTcc = {
           ...currentTcc,
           // ✅ CRITICAL FIX: Ensure jobId exists for all isolation tests
           jobId: currentTcc.jobId || uuidv4(),
+          // ✅ CRITICAL FIX: Add agentModelMapping required by all agents
+          agentModelMapping: {
+            ...currentTcc.agentModelMapping,
+            [agentId]: modelId
+          },
           // Ensure essential fields exist with minimal structure
           userInput: currentTcc.userInput || {
             description: "Enhanced tool from in-memory TCC data",
