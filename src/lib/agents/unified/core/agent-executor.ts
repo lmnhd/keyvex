@@ -13,9 +13,9 @@ import {
   AgentResult, 
   AgentExecutionContext,
   RetryAttemptInfo,
-  ValidationResult
+  ValidationResult,
+  ToolConstructionContext
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import { updateTccWithAgentResult } from './tcc-manager';
 import { RetryManager } from './retry-manager';
 import { BaseAgentModule, AgentExecutionInput } from './base-agent-module';
@@ -66,7 +66,7 @@ const responseParser = getResponseParser();
  */
 interface EnhancedExecutionResult {
   result: AgentResult;
-  updatedTcc: BaseTCC;
+  updatedTcc: ToolConstructionContext;
   validationDetails: {
     validationScore: number;
     errors: string[];
@@ -91,9 +91,9 @@ interface EnhancedExecutionResult {
 export async function executeAgent(
   agentType: AgentType,
   context: AgentExecutionContext,
-  tcc: BaseTCC,
+  tcc: ToolConstructionContext,
   rawModelResult?: RawModelResult
-): Promise<{ result: AgentResult; updatedTcc: BaseTCC }> {
+): Promise<{ result: AgentResult; updatedTcc: ToolConstructionContext }> {
   const startTime = Date.now();
   
   logger.info({
@@ -188,7 +188,7 @@ async function executeAgentWithValidation(
   agentType: AgentType,
   agentModule: BaseAgentModule,
   context: AgentExecutionContext,
-  tcc: BaseTCC,
+  tcc: ToolConstructionContext,
   attemptInfo: RetryAttemptInfo,
   rawModelResult?: RawModelResult
 ): Promise<EnhancedExecutionResult> {

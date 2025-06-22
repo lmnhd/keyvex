@@ -16,11 +16,10 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import {
   AgentType,
-  AgentExecutionContext,
-  AgentResult,
-  RetryAttemptInfo
+  ModelConfiguration,
+  RetryAttemptInfo,
+  ToolConstructionContext
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import { getSystemPrompt, constructUserPrompt } from './prompt-manager';
 import logger from '../../../logger';
 
@@ -73,7 +72,7 @@ export class AIInteractionManager {
   public async executeAgentInteraction(
     agentType: AgentType,
     context: AgentExecutionContext,
-    tcc: BaseTCC,
+    tcc: ToolConstructionContext,
     retryInfo: RetryAttemptInfo,
     outputSchema: z.ZodType<AgentResult>
   ): Promise<AIInteractionResult> {

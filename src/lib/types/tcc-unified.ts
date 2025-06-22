@@ -168,8 +168,8 @@ export interface ToolConstructionContext extends BaseTCC {
   codeValidatorResult?: CodeValidatorResult;
   toolFinalizerResult?: ToolFinalizerResult;
 
-  // Agent execution metadata
-  agentExecutionHistory: Array<{
+  // Agent execution metadata (optional for backward compatibility)
+  agentExecutionHistory?: Array<{
     agentType: AgentType;
     startTime: string;
     endTime?: string;
@@ -181,11 +181,11 @@ export interface ToolConstructionContext extends BaseTCC {
     error?: string;
   }>;
 
-  // Enhanced retry tracking
-  retryHistory: RetryContext[];
+  // Enhanced retry tracking (optional for backward compatibility)
+  retryHistory?: RetryContext[];
   
-  // Model assignment tracking
-  modelAssignments: Record<AgentType, string>;
+  // Model assignment tracking (optional for backward compatibility)
+  modelAssignments?: Record<AgentType, string>;
 }
 
 // Utility Types (Phase 1.1)

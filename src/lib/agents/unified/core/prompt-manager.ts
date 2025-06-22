@@ -11,13 +11,14 @@
 import { 
   AgentType, 
   RetryAttemptInfo,
-  CoreBrainstormData
+  CoreBrainstormData,
+  ToolConstructionContext
 } from '../../../types/tcc-unified';
-import { 
-  ToolConstructionContext as BaseTCC,
-  BrainstormData
-} from '../../../types/product-tool-creation-v2/tcc';
 import {
+  BrainstormData,
+  EditModeContext
+} from '../../../types/product-tool-creation-v2/tcc';
+import { 
   filterBrainstormForFunctionPlanner,
   filterBrainstormForStateDesign,
   filterBrainstormForJSXLayout,
@@ -50,13 +51,6 @@ export function getSystemPrompt(agentType: AgentType): string {
   return prompt;
 }
 
-// ✅ FIXED: Proper interface for edit mode context
-export interface EditModeContext {
-  isEditMode?: boolean;
-  instructions?: string;
-  targetChanges?: string[];
-}
-
 /**
  * Get the user prompt context for a given agent.
  * This function centralizes the logic for filtering brainstorm data.
@@ -85,7 +79,7 @@ function getAgentContext(agentType: AgentType, brainstormData: BrainstormData, j
  */
 export function constructUserPrompt(
   agentType: AgentType,
-  tcc: BaseTCC,
+  tcc: ToolConstructionContext,
   retryInfo: RetryAttemptInfo,
   editMode?: EditModeContext
 ): string {
@@ -165,8 +159,8 @@ export function constructUserPrompt(
  * This is the function that API routes expect to import.
  */
 export async function getPromptForAgent(
-  agentType: AgentType,
-  tcc: BaseTCC,
+  agentType: AgentType, 
+  tcc: ToolConstructionContext, 
   editMode?: EditModeContext
 ): Promise<{ systemPrompt: string; userPrompt: string }> {
   const systemPrompt = getSystemPrompt(agentType);
@@ -174,6 +168,7 @@ export async function getPromptForAgent(
   // Convert editMode to RetryAttemptInfo if needed
   let retryInfo: RetryAttemptInfo;
   if (editMode?.isEditMode) {
+    const firstInstruction = editMode.activeEditInstructions?.[0];
     retryInfo = {
       attemptNumber: 1,
       isFirstAttempt: true,
@@ -183,7 +178,7 @@ export async function getPromptForAgent(
       lastError: null,
       strategy: 'standard',
       adaptedModel: '',
-      adaptedPromptHints: editMode.instructions ? [`Edit Instructions: ${editMode.instructions}`] : []
+      adaptedPromptHints: firstInstruction ? [`Edit Instructions: ${firstInstruction.instructions}`] : []
     };
   } else {
     // Provide a default for non-retry, non-edit scenarios

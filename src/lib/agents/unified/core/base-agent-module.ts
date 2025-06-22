@@ -11,17 +11,17 @@ import {
   AgentType, 
   AgentExecutionContext,
   RetryAttemptInfo,
-  ValidationResult
+  ValidationResult,
+  ToolConstructionContext
 } from '../../../types/tcc-unified';
 import { z } from 'zod';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import logger from '../../../logger';
 
 /**
  * Agent execution input - what every agent receives
  */
 export interface AgentExecutionInput {
-  tcc: BaseTCC;
+  tcc: ToolConstructionContext;
   retryContext?: RetryAttemptInfo; // CRITICAL: Retry context for adaptive behavior
   rawModelResult?: any; // For agents that need raw model output
   promptConfig?: any; // Prompt configuration from Prompt Manager (Phase 2)
@@ -106,7 +106,7 @@ export abstract class BaseAgentModule {
   /**
    * Validate required fields in TCC.
    */
-  validateRequired(tcc: BaseTCC, requiredFields: string[]): RequiredFieldValidation {
+  validateRequired(tcc: ToolConstructionContext, requiredFields: string[]): RequiredFieldValidation {
     const missingFields: string[] = [];
     
     for (const field of requiredFields) {
