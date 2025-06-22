@@ -13,7 +13,7 @@ import {
   TailwindStylingBrainstormData,
   ComponentAssemblerBrainstormData
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext as BaseTCC, DefinedFunctionSignature } from '../../../types/product-tool-creation-v2/tcc';
 import { 
   filterBrainstormForFunctionPlanner,
   filterBrainstormForStateDesign,
@@ -250,15 +250,15 @@ export class PromptManager {
     try {
       switch (agentType) {
         case 'function-planner':
-          return getFunctionPlannerUserPrompt(tcc, filteredBrainstormData);
+          return getFunctionPlannerUserPrompt(tcc, undefined);
         case 'state-design':
-          return getStateDesignUserPrompt(tcc, filteredBrainstormData);
+          const functionSignatures = tcc.definedFunctionSignatures || [];
+          return getStateDesignUserPrompt(tcc, functionSignatures, undefined, false, undefined);
         case 'jsx-layout':
-          return getJsxLayoutUserPrompt(tcc, filteredBrainstormData);
+          return getJsxLayoutUserPrompt(tcc, undefined);
         case 'tailwind-styling':
-          return getTailwindStylingUserPrompt(tcc, filteredBrainstormData);
+          return getTailwindStylingUserPrompt(tcc, undefined);
         case 'component-assembler':
-          // Component assembler doesn't have a separate user prompt function
           return `Please assemble the component based on the provided TCC data.`;
         case 'code-validator':
           return getValidatorUserPrompt(tcc);

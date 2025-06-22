@@ -51,6 +51,7 @@ export class JSXLayoutModule extends BaseAgentModule {
       isValid: true,
       errors: [],
       warnings: [],
+      missingFields: [],
       score: 80
     };
   }

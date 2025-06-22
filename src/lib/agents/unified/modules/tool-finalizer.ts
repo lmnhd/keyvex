@@ -11,6 +11,7 @@ import {
 import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
 import { finalizeTool } from '../../../../app/api/ai/product-tool-creation-v2/agents/tool-finalizer/core-logic';
+import { ProductToolDefinition } from '@/lib/types/product-tool';
 
 /**
  * ToolFinalizerModule - Creates final ProductToolDefinition from validated TCC
@@ -53,7 +54,29 @@ export class ToolFinalizerModule extends BaseAgentModule {
 
       // Convert to unified result format with NO GENERIC TYPES
       const finalizerResult: ToolFinalizerResult = {
-        finalProduct: result.finalProduct!,
+        finalProduct: {
+          ...result.finalProduct!,
+          version: result.finalProduct!.metadata?.version || '1.0.0',
+          createdBy: context.userId || 'unknown',
+          componentSet: 'shadcn' as const,
+          colorScheme: result.finalProduct!.colorScheme || {
+            primary: '#3b82f6',
+            secondary: '#6b7280',
+            background: '#ffffff',
+            surface: '#f9fafb',
+            text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+            border: '#e5e7eb',
+            success: '#10b981',
+            warning: '#f59e0b',
+            error: '#ef4444'
+          },
+          analytics: result.finalProduct!.analytics || {
+            enabled: false,
+            completions: 0,
+            averageTime: 0
+          },
+          status: (result.finalProduct!.status as 'draft' | 'published' | 'archived') || 'draft'
+        },
         metadata: {
           completionTime: this.calculateCompletionTime(input.tcc),
           qualityScore: this.calculateQualityScore(input.tcc, result.finalProduct!),
@@ -133,7 +156,8 @@ export class ToolFinalizerModule extends BaseAgentModule {
       isValid: errors.length === 0,
       errors,
       warnings,
-      score: Math.max(0, score)
+      score: Math.max(0, score),
+      missingFields: []
     };
   }
 

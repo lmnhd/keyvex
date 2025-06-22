@@ -29,6 +29,7 @@ export interface BaseValidationResult {
   errors: string[];
   warnings: string[];
   score: number; // 0-100 quality score
+  missingFields: string[]; // ✅ CRITICAL FIX: Add missing property for TCC validation
 }
 
 /**
@@ -114,23 +115,31 @@ export abstract class BaseAgentModule {
   }
 
   /**
-   * Common validation helper
+   * Validate that TCC has required fields for this agent
+   * ✅ CRITICAL FIX: Made public for agent executor access
    */
-  protected validateRequired(
-    data: any,
-    requiredFields: string[]
-  ): { isValid: boolean; missingFields: string[] } {
+  public validateRequired(tcc: BaseTCC, requiredFields: string[]): BaseValidationResult {
     const missingFields: string[] = [];
     
     for (const field of requiredFields) {
-      if (!data || data[field] === undefined || data[field] === null) {
-        missingFields.push(field);
+      const fieldPath = field.split('.');
+      let current: any = tcc;
+      
+      for (const pathSegment of fieldPath) {
+        if (!current || current[pathSegment] === undefined || current[pathSegment] === null) {
+          missingFields.push(field);
+          break;
+        }
+        current = current[pathSegment];
       }
     }
-
+    
     return {
       isValid: missingFields.length === 0,
-      missingFields
+      missingFields,
+      errors: missingFields.map(field => `Missing required field: ${field}`),
+      warnings: [],
+      score: missingFields.length === 0 ? 100 : Math.max(0, 100 - (missingFields.length * 20))
     };
   }
 

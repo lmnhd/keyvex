@@ -87,6 +87,16 @@ export interface ToolFinalizerResult {
   };
 }
 
+// ✅ CRITICAL FIX: Add missing AgentResult union type
+export type AgentResult = 
+  | FunctionPlannerResult
+  | StateDesignResult
+  | JsxLayoutResult
+  | TailwindStylingResult
+  | ComponentAssemblerResult
+  | CodeValidatorResult
+  | ToolFinalizerResult;
+
 // Agent Type Enumeration
 export type AgentType = 
   | 'function-planner'
