@@ -125,16 +125,7 @@ export interface ValidationResultEnhanced extends ValidationResult {
   passesValidation: boolean;
 }
 
-// Retry Context (Phase 1.1)
-export interface RetryContext {
-  agentType: AgentType;
-  attemptNumber: number;
-  maxAttempts: number;
-  lastError: string;
-  retryReason: 'validation_failed' | 'timeout' | 'model_error' | 'rate_limit';
-  backoffDelay: number;
-  totalRetryTime: number;
-}
+
 
 // Model Configuration (Phase 1.1)
 export interface ModelConfiguration {
@@ -273,6 +264,48 @@ export interface TailwindStylingBrainstormData extends CoreBrainstormData {
 export interface ComponentAssemblerBrainstormData extends CoreBrainstormData {
   // Component Assembler mainly needs core data for metadata
   // Uses all core fields for context
+}
+
+export interface RetryStrategy {
+  maxAttempts: number;
+  backoffStrategy: 'exponential' | 'linear' | 'fixed';
+  enablePromptAdaptation: boolean;
+  enableModelSwitching: boolean;
+  fallbackModels: string[];
+}
+
+export interface RetryAttemptInfo {
+  attemptNumber: number;
+  isFirstAttempt: boolean;
+  isSecondAttempt: boolean;
+  isThirdAttempt: boolean;
+  isFinalAttempt: boolean;
+  lastError: string | null;
+  strategy: 'standard' | 'conservative' | 'aggressive' | 'structured';
+  adaptedModel: string;
+  adaptedPromptHints: string[];
+}
+
+export interface RetryContext {
+  agentType: AgentType;
+  jobId: string;
+  totalAttempts: number;
+  lastError: string | null;
+  adaptationHistory: Array<{
+    attempt: number;
+    error: string;
+    strategy: string;
+    modelUsed: string;
+  }>;
+  startTime: number;
+}
+
+export interface AgentRetryCapabilities {
+  maxAttempts: number;
+  supportsPromptAdaptation: boolean;
+  supportsModelSwitching: boolean;
+  availableFallbackModels: string[];
+  backoffStrategy: 'exponential' | 'linear' | 'fixed';
 }
 
 // Export types for backward compatibility and module usage

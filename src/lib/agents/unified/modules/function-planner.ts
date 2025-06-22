@@ -14,6 +14,7 @@ import {
   ToolConstructionContext as BaseTCC 
 } from '../../../types/product-tool-creation-v2/tcc';
 import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
+import { AIInteractionManager, executeAgentAI } from '../core/ai-interaction-manager';
 import { filterBrainstormForFunctionPlanner } from '../../../utils/brainstorm-filter';
 import logger from '../../../logger';
 
@@ -148,6 +149,7 @@ export class FunctionPlannerModule extends BaseAgentModule {
       errors,
       warnings,
       score,
+      missingFields: [], // No missing fields in output validation
       functionCount: output.functionSignatures.length,
       hasCalculationFunctions: calculationFunctions > 0,
       hasUtilityFunctions: utilityFunctions > 0,
