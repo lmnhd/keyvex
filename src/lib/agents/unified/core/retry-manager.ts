@@ -97,13 +97,14 @@ export class RetryManager {
   private retryContexts: Map<string, RetryContext> = new Map();
 
   /**
-   * Execute function with retry logic
+   * Execute function with retry logic and validation support
+   * CRITICAL FIX: Now supports validation-aware retries
    */
   async executeWithRetry<T>(
     context: AgentExecutionContext,
-    executeFn: () => Promise<T>,
+    executeFn: () => Promise<{ result: T; validation: any }>,
     customRetryConfig?: Partial<RetryConfig>
-  ): Promise<T> {
+  ): Promise<{ result: T; validationResult: any }> {
     const retryConfig = this.getRetryConfig(context.agentType, customRetryConfig);
     const retryContext = this.initializeRetryContext(context);
 
@@ -125,9 +126,15 @@ export class RetryManager {
           maxAttempts: retryConfig.maxAttempts
         }, `🎯 RETRY MANAGER: Attempt ${attempt}/${retryConfig.maxAttempts}`);
 
-        const result = await executeFn();
+        const executionResult = await executeFn();
 
-        // Success - record attempt and return
+        // CRITICAL FIX: Check validation result to determine if retry is needed
+        if (!executionResult.validation.isValid && executionResult.validation.canRetry) {
+          // Validation failed but can retry - treat as retriable error
+          throw new Error(`Validation failed: ${executionResult.validation.errors.join(', ')}`);
+        }
+
+        // Success (either validation passed or validation failed but cannot retry)
         const attemptEnd = Date.now();
         const duration = attemptEnd - attemptStart;
 
@@ -146,10 +153,15 @@ export class RetryManager {
           agentType: context.agentType,
           attempt,
           duration,
-          totalRetryTime: retryContext.totalRetryTime
-        }, '✅ RETRY MANAGER: Execution succeeded');
+          totalRetryTime: retryContext.totalRetryTime,
+          validationPassed: executionResult.validation.isValid,
+          qualityScore: executionResult.validation.qualityScore
+        }, '✅ RETRY MANAGER: Execution completed with validation');
 
-        return result;
+        return {
+          result: executionResult.result,
+          validationResult: executionResult.validation
+        };
       } catch (error) {
         const attemptEnd = Date.now();
         const duration = attemptEnd - attemptStart;
