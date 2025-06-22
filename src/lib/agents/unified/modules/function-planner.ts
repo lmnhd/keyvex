@@ -1,36 +1,43 @@
 /**
- * Function Planner Module (Phase 1.2 - Agent Implementation)
- * Unified Function Planning Agent with strongly typed interfaces
- * NO GENERIC TYPES - Only strongly typed interfaces
+ * Function Planner Unified Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Conforms to the new simplified agent module structure.
  */
 
+import { z } from 'zod';
 import { 
-  AgentExecutionContext,
   FunctionPlannerResult,
-  FunctionPlannerBrainstormData
 } from '../../../types/tcc-unified';
 import { 
-  DefinedFunctionSignature,
-  ToolConstructionContext as BaseTCC 
-} from '../../../types/product-tool-creation-v2/tcc';
-import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
-import { AIInteractionManager, executeAgentAI } from '../core/ai-interaction-manager';
-import { filterBrainstormForFunctionPlanner } from '../../../utils/brainstorm-filter';
-import logger from '../../../logger';
+  BaseAgentModule, 
+  BaseValidationResult 
+} from '../core/base-agent-module';
 
 /**
- * Function Planner specific validation result
+ * Zod schema for the Function Planner's output.
  */
-interface FunctionPlannerValidationResult extends BaseValidationResult {
-  functionCount: number;
-  hasCalculationFunctions: boolean;
-  hasUtilityFunctions: boolean;
-  complexityLevel: 'simple' | 'moderate' | 'complex';
-}
+const FunctionPlannerResultSchema = z.object({
+  functionSignatures: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.array(z.object({
+      name: z.string(),
+      type: z.string(),
+      description: z.string(),
+      required: z.boolean()
+    })),
+    returnType: z.string(),
+    category: z.enum(['calculation', 'utility', 'validation']),
+    complexity: z.enum(['simple', 'moderate', 'complex'])
+  })),
+  metadata: z.object({
+    totalFunctions: z.number(),
+    complexityLevel: z.enum(['simple', 'moderate', 'complex']),
+    estimatedImplementationTime: z.string()
+  })
+});
 
 /**
- * Function Planner Module
- * Analyzes brainstorm data and creates function signatures for the tool
+ * FunctionPlannerModule - Now a configuration and validation provider.
  */
 export class FunctionPlannerModule extends BaseAgentModule {
   constructor() {
@@ -38,242 +45,75 @@ export class FunctionPlannerModule extends BaseAgentModule {
   }
 
   /**
-   * Execute function planning
+   * Exposes the Zod schema for this agent's output.
    */
-  async execute(
-    context: AgentExecutionContext,
-    input: AgentExecutionInput
-  ): Promise<FunctionPlannerResult> {
-    this.logExecution(context, 'start');
-
-    try {
-      // Validate input
-      const validation = this.validateInput(input);
-      if (!validation.isValid) {
-        throw new Error(`Invalid input: ${validation.missingFields.join(', ')}`);
-      }
-
-      // Filter brainstorm data for function planner
-      const filteredBrainstorm = filterBrainstormForFunctionPlanner(
-        input.tcc.brainstormData!,
-        context.jobId
-      );
-
-      if (!filteredBrainstorm) {
-        throw new Error('Failed to filter brainstorm data for function planner');
-      }
-
-      // Generate function signatures using AI Interaction Manager
-      const aiResult = await executeAgentAI<FunctionPlannerResult>(
-        'function-planner',
-        context,
-        input.tcc,
-        {
-          useStructuredOutput: true
-        }
-      );
-
-      if (!aiResult.success || !aiResult.data) {
-        throw new Error(`AI interaction failed: ${aiResult.errors.join(', ')}`);
-      }
-
-      const functionSignatures = aiResult.data.functionSignatures;
-
-      // Use AI result directly (already properly structured)
-      const result: FunctionPlannerResult = aiResult.data;
-
-      // Validate result
-      const resultValidation = this.validate(result);
-      if (!resultValidation.isValid) {
-        throw new Error(`Invalid result: ${resultValidation.errors.join(', ')}`);
-      }
-
-      this.logExecution(context, 'success', {
-        functionsGenerated: functionSignatures.length,
-        complexityLevel: result.metadata.complexityLevel
-      });
-
-      return result;
-    } catch (error) {
-      this.handleExecutionError(context, error, 'function planning');
-    }
+  getOutputSchema(): z.ZodSchema<any> {
+    return FunctionPlannerResultSchema;
   }
 
   /**
-   * Validate function planner result
+   * Validate the function planner's structured output.
    */
-  validate(output: FunctionPlannerResult): FunctionPlannerValidationResult {
+  validate(output: FunctionPlannerResult): BaseValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
+    let score = 100;
 
-    // Check if we have function signatures
     if (!output.functionSignatures || output.functionSignatures.length === 0) {
       errors.push('No function signatures generated');
+      score -= 50;
+    } else {
+      // Validate each function signature
+      output.functionSignatures.forEach((func, index) => {
+        if (!func.name) {
+          errors.push(`Function ${index} missing name`);
+          score -= 10;
+        }
+        if (!func.description) {
+          errors.push(`Function ${func.name || index} missing description`);
+          score -= 10;
+        }
+                 // Additional validation can be added here when the exact interface is known
+      });
     }
 
-    // Validate each function signature
-    let calculationFunctions = 0;
-    let utilityFunctions = 0;
-
-    for (const func of output.functionSignatures) {
-      if (!func.name || func.name.trim().length === 0) {
-        errors.push('Function signature missing name');
-      }
-      if (!func.description || func.description.trim().length === 0) {
-        errors.push(`Function ${func.name} missing description`);
-      }
-
-      // Categorize functions
-      if (func.name.toLowerCase().includes('calculate') || 
-          func.name.toLowerCase().includes('compute')) {
-        calculationFunctions++;
-      } else {
-        utilityFunctions++;
-      }
-    }
-
-    // Check metadata
     if (!output.metadata) {
       errors.push('Missing metadata');
+      score -= 20;
     } else {
-      if (output.metadata.totalFunctions !== output.functionSignatures.length) {
-        warnings.push('Metadata totalFunctions does not match actual count');
+      if (!output.metadata.complexityLevel) {
+        errors.push('Missing complexity level in metadata');
+        score -= 10;
+      }
+      if (!output.metadata.estimatedImplementationTime) {
+        warnings.push('Missing estimated implementation time');
+        score -= 5;
       }
     }
-
-    // Calculate score
-    let score = 100;
-    score -= errors.length * 20; // -20 for each error
-    score -= warnings.length * 5; // -5 for each warning
-    score = Math.max(0, score);
 
     return {
       isValid: errors.length === 0,
       errors,
       warnings,
-      score,
-      missingFields: [], // No missing fields in output validation
-      functionCount: output.functionSignatures.length,
-      hasCalculationFunctions: calculationFunctions > 0,
-      hasUtilityFunctions: utilityFunctions > 0,
-      complexityLevel: output.metadata.complexityLevel
+      score: Math.max(0, score),
+      missingFields: []
     };
   }
 
   /**
-   * Get required input fields
+   * Define the required TCC fields for this agent.
    */
   getRequiredInputFields(): string[] {
-    return ['tcc.brainstormData'];
+    return [
+      'brainstormData.keyCalculations',
+      'brainstormData.suggestedInputs'
+    ];
   }
 
   /**
-   * Get agent description
+   * Provide a description for logging.
    */
   protected getAgentDescription(): string {
-    return 'Analyzes brainstorm data and generates function signatures for tool implementation';
-  }
-
-  /**
-   * Validate input for function planner
-   */
-  private validateInput(input: AgentExecutionInput): { isValid: boolean; missingFields: string[] } {
-    const requiredFields = ['tcc.brainstormData'];
-    const missingFields: string[] = [];
-
-    if (!input.tcc) {
-      missingFields.push('tcc');
-      return { isValid: false, missingFields };
-    }
-
-    if (!input.tcc.brainstormData) {
-      missingFields.push('tcc.brainstormData');
-    }
-
-    return {
-      isValid: missingFields.length === 0,
-      missingFields
-    };
-  }
-
-  // Note: Function generation now handled by AI Interaction Manager
-  // Old programmatic generation removed in favor of centralized AI approach
-
-  /**
-   * Generate camelCase function name from display name
-   */
-  private generateFunctionName(displayName: string): string {
-    return displayName
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, '')
-      .split(' ')
-      .map((word, index) => 
-        index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)
-      )
-      .join('');
-  }
-
-  /**
-   * Determine complexity level
-   */
-  private determineComplexityLevel(signatures: DefinedFunctionSignature[]): 'simple' | 'moderate' | 'complex' {
-    const totalFunctions = signatures.length;
-    
-    // Analyze complexity based on function names and descriptions
-    let complexityScore = 0;
-    
-    for (const sig of signatures) {
-      // Add points for calculation functions (more complex)
-      if (sig.name.toLowerCase().includes('calculate') || 
-          sig.name.toLowerCase().includes('compute')) {
-        complexityScore += 2;
-      }
-      
-      // Add points for validation functions
-      if (sig.name.toLowerCase().includes('validate')) {
-        complexityScore += 1;
-      }
-      
-      // Add points for long descriptions (indicates complexity)
-      if (sig.description && sig.description.length > 100) {
-        complexityScore += 1;
-      }
-    }
-
-    // Determine complexity based on function count and complexity score
-    const avgComplexity = complexityScore / totalFunctions;
-    
-    if (totalFunctions <= 3 && avgComplexity <= 2) {
-      return 'simple';
-    } else if (totalFunctions <= 6 && avgComplexity <= 4) {
-      return 'moderate';
-    } else {
-      return 'complex';
-    }
-  }
-
-  /**
-   * Estimate implementation time
-   */
-  private estimateImplementationTime(signatures: DefinedFunctionSignature[]): string {
-    const totalFunctions = signatures.length;
-    const complexity = this.determineComplexityLevel(signatures);
-    
-    let baseMinutes = totalFunctions * 15; // 15 minutes per function
-    
-    switch (complexity) {
-      case 'simple':
-        baseMinutes *= 1;
-        break;
-      case 'moderate':
-        baseMinutes *= 1.5;
-        break;
-      case 'complex':
-        baseMinutes *= 2;
-        break;
-    }
-
-    const hours = Math.ceil(baseMinutes / 60);
-    return hours === 1 ? '1 hour' : `${hours} hours`;
+    return 'Analyzes brainstorm data and generates function signatures for tool implementation.';
   }
 } 

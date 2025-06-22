@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
       hasEditMode: !!editMode
     }, `🚀 UNIFIED EXECUTOR: Starting ${agentType} execution`);
 
+    // Create a version of editMode that matches what getPromptForAgent expects
+    const promptEditMode = editMode ? {
+      isEditMode: editMode.isEditMode,
+      instructions: editMode.context,
+    } : undefined;
+
     // 🎯 BREAKPOINT 2: Model configuration
     const primaryModelInfo = getPrimaryModel(agentType === 'function-planner' ? 'functionPlanner' : 'logicArchitect');
     if (!primaryModelInfo) {
@@ -116,7 +122,7 @@ export async function POST(request: NextRequest) {
     // 🎯 BREAKPOINT 3: AI model call execution
     let rawModelResult;
     try {
-      const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, editMode);
+      const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, promptEditMode);
       
       logger.info({
         jobId,
@@ -164,7 +170,7 @@ export async function POST(request: NextRequest) {
         }, `🔄 UNIFIED EXECUTOR: Attempting fallback model`);
 
         try {
-          const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, editMode);
+          const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, promptEditMode);
           const schema = getSchemaForAgent(agentType);
           
           const fallbackResponse = await callModelForObject(fallbackModelInfo.modelInfo.id, {

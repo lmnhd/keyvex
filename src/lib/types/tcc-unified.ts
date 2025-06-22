@@ -14,14 +14,37 @@ import {
   StateLogic,
   JsxLayout,
   Styling,
-  ValidationResult,
-  FinalProductToolDefinition,
   OrchestrationStep,
   OrchestrationStatus,
   EditModeContext,
   StateVariable,
   StateFunction
 } from './product-tool-creation-v2/tcc';
+import { ProductToolDefinition } from './product-tool';
+
+// ✅ UNIFIED VALIDATION RESULT - SINGLE SOURCE OF TRUTH
+// Replaces BaseValidationResult, ValidationResult, ValidationResultEnhanced, ValidationResultDetail
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
+  suggestions?: string[];
+  score: number; // 0-100 quality score
+  overallScore?: number; // Alias for backward compatibility
+  missingFields: string[];
+  details?: any; // For additional validation context (e.g., Babel codeFrame)
+  passesValidation?: boolean; // Alias for isValid for backward compatibility
+}
+
+// Validation Error Types (Enhanced)
+export interface ValidationError {
+  type: 'syntax' | 'type' | 'logic' | 'security' | 'performance';
+  severity: 'error' | 'warning' | 'info';
+  message: string;
+  line?: number;
+  column?: number;
+  suggestion?: string;
+}
 
 // Enhanced Agent Result Types (Phase 1.1)
 export interface FunctionPlannerResult {
@@ -79,7 +102,7 @@ export interface CodeValidatorResult {
 }
 
 export interface ToolFinalizerResult {
-  finalProduct: FinalProductToolDefinition;
+  finalProduct: ProductToolDefinition;
   metadata: {
     completionTime: string;
     qualityScore: number;
@@ -106,26 +129,6 @@ export type AgentType =
   | 'component-assembler'
   | 'code-validator'
   | 'tool-finalizer';
-
-// Validation Types (Phase 1.1)
-export interface ValidationError {
-  type: 'syntax' | 'type' | 'logic' | 'security' | 'performance';
-  severity: 'error' | 'warning' | 'info';
-  message: string;
-  line?: number;
-  column?: number;
-  suggestion?: string;
-}
-
-export interface ValidationResultEnhanced extends ValidationResult {
-  errors: ValidationError[];
-  warnings: ValidationError[];
-  suggestions: ValidationError[];
-  overallScore: number;
-  passesValidation: boolean;
-}
-
-
 
 // Model Configuration (Phase 1.1)
 export interface ModelConfiguration {
@@ -281,7 +284,7 @@ export interface RetryAttemptInfo {
   isThirdAttempt: boolean;
   isFinalAttempt: boolean;
   lastError: string | null;
-  strategy: 'standard' | 'conservative' | 'aggressive' | 'structured';
+  strategy: 'standard' | 'validation-focused' | 'conservative' | 'aggressive';
   adaptedModel: string;
   adaptedPromptHints: string[];
 }
@@ -317,8 +320,6 @@ export type {
   StateLogic,
   JsxLayout,
   Styling,
-  ValidationResult,
-  FinalProductToolDefinition,
   OrchestrationStep,
   OrchestrationStatus,
   EditModeContext

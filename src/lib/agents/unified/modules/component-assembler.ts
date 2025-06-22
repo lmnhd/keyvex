@@ -1,91 +1,46 @@
 /**
- * Component Assembler Unified Module (Phase 2)
- * Properly extends BaseAgentModule - NO GENERIC TYPES!
+ * Component Assembler Unified Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Conforms to the new simplified agent module structure.
  */
 
+import { z } from 'zod';
 import { 
-  AgentExecutionContext, 
   ComponentAssemblerResult,
-  AgentType
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
-import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
-import { generateAssembledComponent } from '../../../../app/api/ai/product-tool-creation-v2/agents/component-assembler/core-logic';
-import logger from '../../../logger';
+import { 
+  BaseAgentModule, 
+  BaseValidationResult 
+} from '../core/base-agent-module';
 
 /**
- * ComponentAssemblerModule - Combines JSX layout, state logic, and styling into final React component
+ * Zod schema for the Component Assembler's output.
+ */
+const ComponentAssemblerResultSchema = z.object({
+  assembledCode: z.string(),
+  metadata: z.object({
+    codeLength: z.number(),
+    estimatedRenderTime: z.string(),
+    bundleSize: z.string()
+  })
+});
+
+/**
+ * ComponentAssemblerModule - Now a configuration and validation provider.
  */
 export class ComponentAssemblerModule extends BaseAgentModule {
   constructor() {
-    super('component-assembler' as AgentType, 60000); // 60 second timeout for complex assembly
+    super('component-assembler', 60000); // 60 second timeout for complex assembly
   }
 
   /**
-   * Execute component assembly
+   * Exposes the Zod schema for this agent's output.
    */
-  async execute(
-    context: AgentExecutionContext,
-    input: AgentExecutionInput
-  ): Promise<ComponentAssemblerResult> {
-    this.logExecution(context, 'start', {
-      hasTcc: !!input.tcc,
-      hasJsxLayout: !!input.tcc.jsxLayout,
-      hasStateLogic: !!input.tcc.stateLogic,
-      hasStyling: !!input.tcc.styling
-    });
-
-    try {
-      // Validate required inputs
-      const validation = this.validateRequired(input.tcc, this.getRequiredInputFields());
-      if (!validation.isValid) {
-        throw new Error(`Missing required fields: ${validation.missingFields.join(', ')}`);
-      }
-
-      // Use existing core logic with enhanced error handling
-      const result = await generateAssembledComponent({
-        jobId: context.jobId,
-        selectedModel: context.modelConfig.modelId,
-        tcc: input.tcc,
-        isIsolatedTest: context.isIsolatedTest,
-        editMode: context.editMode
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Component assembly execution failed');
-      }
-
-      if (!result.assembledComponent) {
-        throw new Error('Component assembly succeeded but no assembled component returned');
-      }
-
-      // Convert to unified result format with NO GENERIC TYPES
-      const assemblerResult: ComponentAssemblerResult = {
-        assembledCode: result.assembledComponent.finalComponentCode,
-        metadata: {
-          codeLength: result.assembledComponent.finalComponentCode.length,
-          estimatedRenderTime: this.estimateRenderTime(result.assembledComponent.finalComponentCode),
-          bundleSize: this.estimateBundleSize(result.assembledComponent.finalComponentCode)
-        }
-      };
-
-      this.logExecution(context, 'success', {
-        codeLength: assemblerResult.metadata.codeLength,
-        estimatedRenderTime: assemblerResult.metadata.estimatedRenderTime,
-        bundleSize: assemblerResult.metadata.bundleSize,
-        componentName: result.assembledComponent.componentName,
-        hooksUsed: result.assembledComponent.hooks?.length || 0,
-        functionsCount: result.assembledComponent.functions?.length || 0
-      });
-
-      return assemblerResult;
-    } catch (error) {
-      this.handleExecutionError(context, error, 'component assembly');
-    }
+  getOutputSchema(): z.ZodSchema<any> {
+    return ComponentAssemblerResultSchema;
   }
 
   /**
-   * Validate component assembler result
+   * Validate the component assembler's structured output.
    */
   validate(output: ComponentAssemblerResult): BaseValidationResult {
     const errors: string[] = [];
@@ -151,7 +106,7 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   }
 
   /**
-   * Get required input fields
+   * Define the required TCC fields for this agent.
    */
   getRequiredInputFields(): string[] {
     return [
@@ -162,13 +117,6 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   }
 
   /**
-   * Get agent description
-   */
-  protected getAgentDescription(): string {
-    return 'Combines JSX layout, state logic, and styling into final executable React component';
-  }
-
-  /**
    * Support edit mode
    */
   supportsEditMode(): boolean {
@@ -176,37 +124,9 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   }
 
   /**
-   * Private helper: Estimate render time based on component complexity
+   * Provide a description for logging.
    */
-  private estimateRenderTime(componentCode: string): string {
-    const lines = componentCode.split('\n').length;
-    const stateHooks = (componentCode.match(/useState/g) || []).length;
-    const effectHooks = (componentCode.match(/useEffect/g) || []).length;
-    
-    // Simple heuristic based on complexity
-    if (lines < 50 && stateHooks < 3) {
-      return '< 1ms';
-    } else if (lines < 200 && stateHooks < 10) {
-      return '< 5ms';
-    } else if (lines < 500) {
-      return '< 10ms';
-    } else {
-      return '< 20ms';
-    }
-  }
-
-  /**
-   * Private helper: Estimate bundle size
-   */
-  private estimateBundleSize(componentCode: string): string {
-    const bytes = new Blob([componentCode]).size;
-    
-    if (bytes < 1024) {
-      return `${bytes}B`;
-    } else if (bytes < 1024 * 1024) {
-      return `${(bytes / 1024).toFixed(1)}KB`;
-    } else {
-      return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-    }
+  protected getAgentDescription(): string {
+    return 'Combines JSX layout, state logic, and styling into final executable React component.';
   }
 } 

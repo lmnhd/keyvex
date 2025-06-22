@@ -1,14 +1,19 @@
 /**
- * Base Agent Module (Phase 1.2 - Core Infrastructure)
- * Abstract base class for all unified agent modules
- * NO GENERIC TYPES - Only strongly typed interfaces
+ * Base Agent Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Agent modules are now primarily for configuration and validation, not execution.
+ * 
+ * CRITICAL FIX: Now accepts and uses retry context for adaptive behavior
+ * - Modules can access attempt number, previous errors, and strategy hints
+ * - Enables sophisticated retry strategies as planned in Phase 2.3
  */
 
 import { 
+  AgentType, 
   AgentExecutionContext,
-  ValidationResultEnhanced,
-  AgentType
+  RetryAttemptInfo,
+  ValidationResult
 } from '../../../types/tcc-unified';
+import { z } from 'zod';
 import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import logger from '../../../logger';
 
@@ -17,24 +22,19 @@ import logger from '../../../logger';
  */
 export interface AgentExecutionInput {
   tcc: BaseTCC;
+  retryContext?: RetryAttemptInfo; // CRITICAL: Retry context for adaptive behavior
   rawModelResult?: any; // For agents that need raw model output
   promptConfig?: any; // Prompt configuration from Prompt Manager (Phase 2)
 }
 
-/**
- * Base validation result for all agents
- */
-export interface BaseValidationResult {
+export interface RequiredFieldValidation {
   isValid: boolean;
-  errors: string[];
-  warnings: string[];
-  score: number; // 0-100 quality score
-  missingFields: string[]; // ✅ CRITICAL FIX: Add missing property for TCC validation
+  missingFields: string[];
 }
 
 /**
- * Abstract base class for all agent modules
- * Each agent type will extend this with their specific input/output types
+ * Base Agent Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Agent modules are now primarily for configuration and validation, not execution.
  */
 export abstract class BaseAgentModule {
   protected readonly agentType: AgentType;
@@ -46,20 +46,28 @@ export abstract class BaseAgentModule {
   }
 
   /**
-   * Execute the agent - must be implemented by each agent
+   * DEPRECATED: Execution is now handled by the central AgentExecutor.
+   * This method is no longer called.
    */
-  abstract execute(
-    context: AgentExecutionContext, 
-    input: AgentExecutionInput
-  ): Promise<any>;
+  // abstract execute(
+  //   context: AgentExecutionContext,
+  //   input: AgentExecutionInput
+  // ): Promise<any>;
 
   /**
-   * Validate the agent's output - must be implemented by each agent
+   * Validate the structured data returned by the AI.
+   * ✅ UPDATED: Now uses unified ValidationResult interface
    */
-  abstract validate(output: any): BaseValidationResult;
+  abstract validate(output: any): ValidationResult;
 
   /**
-   * Get required input fields for this agent
+   * ✅ NEW: Expose the Zod schema for the expected AI output.
+   * This is used by the AIInteractionManager to ensure structured responses.
+   */
+  abstract getOutputSchema(): z.ZodSchema<any>;
+
+  /**
+   * Get the list of TCC fields required for this agent to run.
    */
   abstract getRequiredInputFields(): string[];
 
@@ -79,87 +87,38 @@ export abstract class BaseAgentModule {
   }
 
   /**
-   * Get agent description - should be overridden by each agent
+   * A description of the agent's purpose.
    */
-  protected getAgentDescription(): string {
-    return `${this.agentType} agent module`;
-  }
+  protected abstract getAgentDescription(): string;
 
   /**
-   * Common logging helper for all agents
+   * Standard execution logging (can be used for other purposes now).
    */
-  protected logExecution(
-    context: AgentExecutionContext,
-    phase: 'start' | 'success' | 'error',
-    metadata?: Record<string, any>
-  ): void {
-    const logData = {
+  protected log(phase: string, context: { jobId: string }, metadata?: any): void {
+    logger.info({
       jobId: context.jobId,
       agentType: this.agentType,
-      modelId: context.modelConfig.modelId,
-      isIsolatedTest: context.isIsolatedTest,
+      phase,
       ...metadata
-    };
-
-    switch (phase) {
-      case 'start':
-        logger.info(logData, `🚀 ${this.agentType}: Starting execution`);
-        break;
-      case 'success':
-        logger.info(logData, `✅ ${this.agentType}: Execution completed successfully`);
-        break;
-      case 'error':
-        logger.error(logData, `❌ ${this.agentType}: Execution failed`);
-        break;
-    }
+    }, `[${this.agentType}] ${phase}`);
   }
 
   /**
-   * Validate that TCC has required fields for this agent
-   * ✅ CRITICAL FIX: Made public for agent executor access
+   * Validate required fields in TCC.
    */
-  public validateRequired(tcc: BaseTCC, requiredFields: string[]): BaseValidationResult {
+  validateRequired(tcc: BaseTCC, requiredFields: string[]): RequiredFieldValidation {
     const missingFields: string[] = [];
     
     for (const field of requiredFields) {
-      const fieldPath = field.split('.');
-      let current: any = tcc;
-      
-      for (const pathSegment of fieldPath) {
-        if (!current || current[pathSegment] === undefined || current[pathSegment] === null) {
-          missingFields.push(field);
-          break;
-        }
-        current = current[pathSegment];
+      if (!this.hasNestedProperty(tcc, field)) {
+        missingFields.push(field);
       }
     }
-    
+
     return {
       isValid: missingFields.length === 0,
-      missingFields,
-      errors: missingFields.map(field => `Missing required field: ${field}`),
-      warnings: [],
-      score: missingFields.length === 0 ? 100 : Math.max(0, 100 - (missingFields.length * 20))
+      missingFields
     };
-  }
-
-  /**
-   * Common error handling
-   */
-  protected handleExecutionError(
-    context: AgentExecutionContext,
-    error: unknown,
-    phase: string
-  ): never {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    this.logExecution(context, 'error', {
-      phase,
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined
-    });
-
-    throw new Error(`${this.agentType} failed during ${phase}: ${errorMessage}`);
   }
 
   /**
@@ -174,5 +133,89 @@ export abstract class BaseAgentModule {
    */
   supportsEditMode(): boolean {
     return false; // Override in agents that support edit mode
+  }
+
+  /**
+   * ✅ NEW: Check if agent is being retried and adapt behavior
+   * This is called by agent modules to adjust their strategy
+   */
+  protected isRetryAttempt(input: AgentExecutionInput): boolean {
+    return !!(input.retryContext && input.retryContext.attemptNumber > 1);
+  }
+
+  /**
+   * ✅ NEW: Get retry strategy hints for adaptive behavior
+   */
+  protected getRetryHints(input: AgentExecutionInput): string[] {
+    return input.retryContext?.adaptedPromptHints || [];
+  }
+
+  /**
+   * ✅ NEW: Get current retry attempt number
+   */
+  protected getAttemptNumber(input: AgentExecutionInput): number {
+    return input.retryContext?.attemptNumber || 1;
+  }
+
+  /**
+   * ✅ NEW: Get last error message for context
+   */
+  protected getLastError(input: AgentExecutionInput): string | null {
+    return input.retryContext?.lastError || null;
+  }
+
+  /**
+   * ✅ NEW: Get current retry strategy
+   */
+  protected getRetryStrategy(input: AgentExecutionInput): string {
+    return input.retryContext?.strategy || 'standard';
+  }
+
+  /**
+   * ✅ NEW: Check if this is a specific attempt number
+   */
+  protected isFirstAttempt(input: AgentExecutionInput): boolean {
+    return input.retryContext?.isFirstAttempt ?? true;
+  }
+
+  protected isSecondAttempt(input: AgentExecutionInput): boolean {
+    return input.retryContext?.isSecondAttempt ?? false;
+  }
+
+  protected isThirdAttempt(input: AgentExecutionInput): boolean {
+    return input.retryContext?.isThirdAttempt ?? false;
+  }
+
+  protected isFinalAttempt(input: AgentExecutionInput): boolean {
+    return input.retryContext?.isFinalAttempt ?? false;
+  }
+
+  /**
+   * ✅ NEW: Log retry-aware execution info
+   */
+  protected logRetryAwareExecution(context: AgentExecutionContext, input: AgentExecutionInput, phase: string, metadata?: any): void {
+    const retryInfo = input.retryContext;
+    
+    logger.info({
+      jobId: context.jobId,
+      agentType: this.agentType,
+      phase,
+      attemptNumber: retryInfo?.attemptNumber || 1,
+      isRetry: this.isRetryAttempt(input),
+      retryStrategy: retryInfo?.strategy || 'standard',
+      hasLastError: !!(retryInfo?.lastError),
+      promptHints: retryInfo?.adaptedPromptHints?.length || 0,
+      adaptedModel: retryInfo?.adaptedModel,
+      ...metadata
+    }, `🔄 ${this.agentType.toUpperCase()}: ${phase} (attempt ${retryInfo?.attemptNumber || 1}${retryInfo?.strategy ? `, strategy: ${retryInfo.strategy}` : ''})`);
+  }
+
+  /**
+   * Check if nested property exists
+   */
+  private hasNestedProperty(obj: any, path: string): boolean {
+    return path.split('.').reduce((current, prop) => {
+      return current && current[prop] !== undefined && current[prop] !== null;
+    }, obj) !== undefined;
   }
 } 

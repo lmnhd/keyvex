@@ -1,99 +1,57 @@
 /**
- * JSX Layout Unified Module (Phase 2)
- * Properly extends BaseAgentModule - NO GENERIC TYPES!
+ * JSX Layout Unified Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Conforms to the new simplified agent module structure.
  */
 
 import { z } from 'zod';
 import { 
-  AgentExecutionContext, 
   JsxLayoutResult,
-  AgentType,
-  JSXLayoutBrainstormData
+  AgentResult
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
-import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
-import { AIInteractionManager } from '../core/ai-interaction-manager';
-import { filterBrainstormForJSXLayout, generateFilteredBrainstormContext } from '../../../utils/brainstorm-filter';
-import logger from '../../../logger';
+import { 
+  BaseAgentModule, 
+  BaseValidationResult 
+} from '../core/base-agent-module';
 
-// Zod schema for JSX Layout result - STRONGLY TYPED
-const jsxLayoutSchema = z.object({
-  componentStructure: z.string().describe('The complete JSX component structure as a single string of semantic HTML'),
-  elementMap: z.array(z.object({
-    elementId: z.string().describe('The unique ID of the HTML element'),
-    type: z.string().describe('The HTML tag type (e.g., "div", "input", "button")'),
-    purpose: z.string().describe("A brief description of the element's role"),
-    placeholderClasses: z.array(z.string()).describe('An array of placeholder CSS class names')
-  })).optional().default([]).describe('An array of objects mapping element IDs to their details'),
-  accessibilityFeatures: z.array(z.string()).optional().default(['Basic semantic HTML']).describe('A list of key accessibility features implemented'),
-  responsiveBreakpoints: z.array(z.string()).optional().default(['mobile', 'desktop']).describe('A list of responsive breakpoints considered')
+/**
+ * Zod schema for the JSX Layout's output.
+ */
+const JSXLayoutResultSchema = z.object({
+  jsxLayout: z.object({
+    componentStructure: z.string(),
+    elementMap: z.array(z.object({
+      elementId: z.string(),
+      type: z.string(),
+      purpose: z.string(),
+      placeholderClasses: z.array(z.string())
+    })),
+    accessibilityFeatures: z.array(z.string()),
+    responsiveBreakpoints: z.array(z.string())
+  }),
+  metadata: z.object({
+    componentCount: z.number(),
+    nestingDepth: z.number(),
+    accessibilityScore: z.number()
+  })
 });
 
 /**
- * JSXLayoutModule - Generates React component structure with semantic HTML
+ * JSXLayoutModule - Now a configuration and validation provider.
  */
 export class JSXLayoutModule extends BaseAgentModule {
-  private aiManager: AIInteractionManager;
-
   constructor() {
-    super('jsx-layout' as AgentType, 30000); // 30 second timeout
-    this.aiManager = new AIInteractionManager();
+    super('jsx-layout', 30000); // 30 second timeout
   }
 
   /**
-   * Execute JSX layout generation
+   * Exposes the Zod schema for this agent's output.
    */
-  async execute(
-    context: AgentExecutionContext,
-    input: AgentExecutionInput
-  ): Promise<JsxLayoutResult> {
-    this.logExecution(context, 'start', {
-      hasTcc: !!input.tcc,
-      hasBrainstormData: !!input.tcc.brainstormData,
-      hasFunctionSignatures: !!(input.tcc.definedFunctionSignatures || input.tcc.functionSignatures),
-      hasStateLogic: !!input.tcc.stateLogic
-    });
-
-    try {
-      // Validate required inputs
-      const validation = this.validateRequired(input.tcc, this.getRequiredInputFields());
-      if (!validation.isValid) {
-        throw new Error(`Missing required fields: ${validation.missingFields.join(', ')}`);
-      }
-
-      // Generate JSX layout using centralized AI interaction
-      const jsxLayoutData = await this.generateJsxLayoutWithAI(context, input.tcc);
-
-      // Convert to unified result format with NO GENERIC TYPES
-      const jsxLayoutResult: JsxLayoutResult = {
-        jsxLayout: {
-          componentStructure: jsxLayoutData.componentStructure,
-          layoutDecisions: jsxLayoutData.elementMap || [],
-          accessibilityFeatures: jsxLayoutData.accessibilityFeatures || ['Basic semantic HTML'],
-          responsiveBreakpoints: jsxLayoutData.responsiveBreakpoints || ['mobile', 'desktop']
-        },
-        metadata: {
-          componentCount: this.countComponents(jsxLayoutData.componentStructure),
-          nestingDepth: this.calculateNestingDepth(jsxLayoutData.componentStructure),
-          accessibilityScore: this.calculateAccessibilityScore(jsxLayoutData.accessibilityFeatures || [])
-        }
-      };
-
-      this.logExecution(context, 'success', {
-        componentCount: jsxLayoutResult.metadata.componentCount,
-        nestingDepth: jsxLayoutResult.metadata.nestingDepth,
-        accessibilityScore: jsxLayoutResult.metadata.accessibilityScore,
-        hasElementMap: jsxLayoutResult.jsxLayout.layoutDecisions.length > 0
-      });
-
-      return jsxLayoutResult;
-    } catch (error) {
-      this.handleExecutionError(context, error, 'JSX layout generation');
-    }
+  getOutputSchema(): z.ZodType<AgentResult> {
+    return JSXLayoutResultSchema;
   }
 
   /**
-   * Validate JSX layout result
+   * Validate the JSX layout's structured output.
    */
   validate(output: JsxLayoutResult): BaseValidationResult {
     const errors: string[] = [];
@@ -121,8 +79,8 @@ export class JSXLayoutModule extends BaseAgentModule {
         }
       }
 
-      if (!output.jsxLayout.layoutDecisions || output.jsxLayout.layoutDecisions.length === 0) {
-        warnings.push('No layout decisions provided');
+      if (!output.jsxLayout.elementMap || output.jsxLayout.elementMap.length === 0) {
+        warnings.push('No element map provided');
         score -= 5;
       }
 
@@ -163,20 +121,14 @@ export class JSXLayoutModule extends BaseAgentModule {
   }
 
   /**
-   * Get required input fields
+   * Define the required TCC fields for this agent.
    */
   getRequiredInputFields(): string[] {
     return [
-      'brainstormData',
+      'brainstormData.suggestedInputs',
+      'brainstormData.interactionFlow',
       'definedFunctionSignatures'
     ];
-  }
-
-  /**
-   * Get agent description
-   */
-  protected getAgentDescription(): string {
-    return 'Generates semantic React component structure with accessibility features and responsive design';
   }
 
   /**
@@ -187,156 +139,9 @@ export class JSXLayoutModule extends BaseAgentModule {
   }
 
   /**
-   * Private helper: Generate JSX layout using AI
+   * Provide a description for logging.
    */
-  private async generateJsxLayoutWithAI(
-    context: AgentExecutionContext,
-    tcc: BaseTCC
-  ): Promise<z.infer<typeof jsxLayoutSchema>> {
-    // Build user prompt with filtered brainstorm data
-    let userPrompt = this.buildUserPrompt(tcc);
-
-    // Handle edit mode if present
-    if (context.editMode?.isEditMode && context.editMode.instructions.length > 0) {
-      userPrompt += this.buildEditModePrompt(context.editMode, tcc);
-    }
-
-    // Use centralized AI interaction
-    const result = await this.aiManager.executeAgentAI({
-      context,
-      systemPrompt: this.getSystemPrompt(),
-      userPrompt,
-      schema: jsxLayoutSchema,
-      agentName: 'JSXLayout'
-    });
-
-    return result;
-  }
-
-  /**
-   * Private helper: Build user prompt with filtered brainstorm data
-   */
-  private buildUserPrompt(tcc: BaseTCC): string {
-    let toolDescription = 'Business calculation tool';
-    
-    if (tcc.brainstormData) {
-      const brainstorm = tcc.brainstormData;
-      toolDescription = `${brainstorm.coreConcept || brainstorm.coreWConcept || 'Business Tool'}: ${brainstorm.valueProposition || 'A tool to help users make informed decisions.'}`;
-    } else {
-      toolDescription = tcc.userInput?.description || toolDescription;
-    }
-
-    let userPrompt = `Tool: ${toolDescription}
-Target Audience: ${tcc.targetAudience || 'General users'}
-
-Function Signatures:
-${
-  (tcc.definedFunctionSignatures || tcc.functionSignatures)
-    ?.map(sig => `- ${sig.name}: ${sig.description}`)
-    .join('\n') || 'None'
-}
-
-State Logic Available:
-${
-  tcc.stateLogic?.variables?.map(v => `- ${v.name}: ${v.type}`).join('\n') ||
-  'None'
-}`;
-
-    // Add filtered brainstorm context
-    if (tcc.brainstormData) {
-      const filteredBrainstormData = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
-      
-      if (filteredBrainstormData) {
-        const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'JSXLayout');
-        userPrompt += brainstormContext;
-      }
-    }
-
-    return userPrompt;
-  }
-
-  /**
-   * Private helper: Build edit mode prompt
-   */
-  private buildEditModePrompt(editMode: any, tcc: BaseTCC): string {
-    let editPrompt = `
-
-🔄 EDIT MODE INSTRUCTIONS:
-You are EDITING an existing JSX layout. Here is the current layout:
-
-CURRENT LAYOUT:
-\`\`\`jsx
-${tcc.jsxLayout?.componentStructure || 'No existing layout found'}
-\`\`\`
-
-EDIT INSTRUCTIONS TO FOLLOW:`;
-
-    editMode.instructions.forEach((instruction: any, index: number) => {
-      editPrompt += `
-
-${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):
-${instruction.instructions}
-
-Created: ${instruction.createdAt}`;
-    });
-
-    editPrompt += `
-
-Please apply these edit instructions to create an improved version of the JSX layout. Maintain the structure where appropriate but implement the requested changes.`;
-
-    return editPrompt;
-  }
-
-  /**
-   * Private helper: Get system prompt
-   */
-  private getSystemPrompt(): string {
-    // Import the existing system prompt
-    const { getJsxLayoutSystemPrompt } = require('../../../prompts/v2/jsx-layout-prompt');
-    return getJsxLayoutSystemPrompt(false);
-  }
-
-  /**
-   * Private helper: Count components in JSX
-   */
-  private countComponents(jsx: string): number {
-    const componentMatches = jsx.match(/<[a-zA-Z][^>]*>/g) || [];
-    return componentMatches.length;
-  }
-
-  /**
-   * Private helper: Calculate nesting depth
-   */
-  private calculateNestingDepth(jsx: string): number {
-    let maxDepth = 0;
-    let currentDepth = 0;
-    
-    for (let i = 0; i < jsx.length; i++) {
-      if (jsx[i] === '<') {
-        if (jsx[i + 1] === '/') {
-          currentDepth--;
-        } else {
-          currentDepth++;
-          maxDepth = Math.max(maxDepth, currentDepth);
-        }
-      }
-    }
-    
-    return maxDepth;
-  }
-
-  /**
-   * Private helper: Calculate accessibility score
-   */
-  private calculateAccessibilityScore(features: string[]): number {
-    let score = 0;
-    
-    // Basic scoring based on accessibility features
-    if (features.includes('Basic semantic HTML')) score += 20;
-    if (features.some(f => f.toLowerCase().includes('aria'))) score += 30;
-    if (features.some(f => f.toLowerCase().includes('keyboard'))) score += 25;
-    if (features.some(f => f.toLowerCase().includes('screen reader'))) score += 25;
-    
-    return Math.min(100, score);
+  protected getAgentDescription(): string {
+    return 'Generates semantic React component structure with accessibility features and responsive design.';
   }
 } 

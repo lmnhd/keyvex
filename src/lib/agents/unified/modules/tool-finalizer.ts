@@ -1,123 +1,55 @@
 /**
- * Tool Finalizer Unified Module (Phase 1.2)
- * Properly extends BaseAgentModule - NO GENERIC TYPES!
+ * Tool Finalizer Unified Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Conforms to the new simplified agent module structure.
  */
 
+import { z } from 'zod';
 import { 
-  AgentExecutionContext, 
   ToolFinalizerResult,
-  AgentType
+  AgentResult,
+  ValidationResult
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
-import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
-import { finalizeTool } from '../../../../app/api/ai/product-tool-creation-v2/agents/tool-finalizer/core-logic';
-import { ProductToolDefinition } from '@/lib/types/product-tool';
+import { 
+  BaseAgentModule
+} from '../core/base-agent-module';
+import { ProductToolDefinitionSchema } from '@/lib/types/product-tool.schema';
 
 /**
- * ToolFinalizerModule - Creates final ProductToolDefinition from validated TCC
+ * Zod schema for the ToolFinalizer's output.
+ * Uses the main ProductToolDefinitionSchema.
+ */
+const ToolFinalizerResultSchema = z.object({
+  finalProduct: ProductToolDefinitionSchema,
+  metadata: z.object({
+    completionTime: z.string(),
+    qualityScore: z.number(),
+    readinessLevel: z.enum(['development', 'staging', 'production']),
+  }),
+});
+
+/**
+ * ToolFinalizerModule - Now a configuration and validation provider.
  */
 export class ToolFinalizerModule extends BaseAgentModule {
   constructor() {
-    super('tool-finalizer' as AgentType, 10000); // 10 second timeout
+    super('tool-finalizer', 10000); // 10 second timeout
   }
 
   /**
-   * Execute tool finalization
+   * Exposes the Zod schema for this agent's output.
    */
-  async execute(
-    context: AgentExecutionContext,
-    input: AgentExecutionInput
-  ): Promise<ToolFinalizerResult> {
-    this.logExecution(context, 'start', {
-      hasTcc: !!input.tcc,
-      hasValidationResult: !!input.tcc.validationResult,
-      hasFinalProduct: !!input.tcc.finalProduct
-    });
-
-    try {
-      // Validate required inputs
-      const validation = this.validateRequired(input.tcc, this.getRequiredInputFields());
-      if (!validation.isValid) {
-        throw new Error(`Missing required fields: ${validation.missingFields.join(', ')}`);
-      }
-
-      // Use existing core logic
-      const result = await finalizeTool({
-        jobId: context.jobId,
-        selectedModel: context.modelConfig.modelId,
-        tcc: input.tcc
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Tool finalization execution failed');
-      }
-
-      // Convert to unified result format with NO GENERIC TYPES
-      const finalizerResult: ToolFinalizerResult = {
-        finalProduct: {
-          ...result.finalProduct!,
-          version: result.finalProduct!.metadata?.version || '1.0.0',
-          createdBy: context.userId || 'unknown',
-          componentSet: 'shadcn' as const,
-          metadata: {
-            ...result.finalProduct!.metadata,
-            targetAudience: result.finalProduct!.metadata?.targetAudience || 'general',
-            industry: result.finalProduct!.metadata?.industry || 'general',
-            shortDescription: result.finalProduct!.metadata?.shortDescription || result.finalProduct!.metadata?.description || 'No description',
-            category: result.finalProduct!.metadata?.category || 'general',
-            tags: result.finalProduct!.metadata?.tags || [],
-            estimatedCompletionTime: result.finalProduct!.metadata?.estimatedCompletionTime || 5,
-            difficultyLevel: result.finalProduct!.metadata?.difficultyLevel || 'beginner',
-            features: result.finalProduct!.metadata?.features || [],
-            icon: result.finalProduct!.metadata?.icon || { type: 'lucide', value: 'Package' }
-          },
-          colorScheme: result.finalProduct!.colorScheme || {
-            primary: '#3b82f6',
-            secondary: '#6b7280',
-            background: '#ffffff',
-            surface: '#f9fafb',
-            text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
-            border: '#e5e7eb',
-            success: '#10b981',
-            warning: '#f59e0b',
-            error: '#ef4444'
-          },
-          analytics: result.finalProduct!.analytics || {
-            enabled: false,
-            completions: 0,
-            averageTime: 0
-          },
-          status: (result.finalProduct!.status as 'draft' | 'published' | 'archived') || 'draft'
-        },
-        metadata: {
-          completionTime: this.calculateCompletionTime(input.tcc),
-          qualityScore: this.calculateQualityScore(input.tcc, result.finalProduct!),
-          readinessLevel: this.determineReadinessLevel(input.tcc)
-        }
-      };
-
-      this.logExecution(context, 'success', {
-        completionTime: finalizerResult.metadata.completionTime,
-        qualityScore: finalizerResult.metadata.qualityScore,
-        readinessLevel: finalizerResult.metadata.readinessLevel,
-        toolId: result.finalProduct?.id
-      });
-
-      return finalizerResult;
-    } catch (error) {
-      this.handleExecutionError(context, error, 'tool finalization');
-    }
+  getOutputSchema(): z.ZodType<AgentResult> {
+    return ToolFinalizerResultSchema;
   }
 
   /**
-   * Validate finalizer result
+   * Validate the finalizer's structured output.
    */
-  validate(output: ToolFinalizerResult): BaseValidationResult {
+  validate(output: ToolFinalizerResult): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let score = 100;
 
-    // Check required final product fields
     if (!output.finalProduct) {
       errors.push('Missing final product object');
       score -= 50;
@@ -126,42 +58,32 @@ export class ToolFinalizerModule extends BaseAgentModule {
         errors.push('Missing final product ID');
         score -= 20;
       }
-      
       if (!output.finalProduct.componentCode) {
         errors.push('Missing component code');
         score -= 30;
       }
-
-      if (!output.finalProduct.metadata) {
-        errors.push('Missing final product metadata');
-        score -= 20;
-      } else {
-        if (!output.finalProduct.metadata.title) {
-          warnings.push('Missing tool title');
-          score -= 5;
-        }
-        
-        if (!output.finalProduct.metadata.description) {
-          warnings.push('Missing tool description');
-          score -= 5;
-        }
+      if (!output.finalProduct.metadata?.title) {
+        warnings.push('Missing tool title');
+        score -= 5;
+      }
+      // Validate required fields for finalized tools
+      if (!output.finalProduct.version) {
+        errors.push('Missing version for finalized tool');
+        score -= 15;
+      }
+      if (!output.finalProduct.status) {
+        errors.push('Missing status for finalized tool');
+        score -= 15;
+      }
+      if (!output.finalProduct.createdBy) {
+        errors.push('Missing createdBy for finalized tool');
+        score -= 10;
       }
     }
 
-    // Check metadata
-    if (!output.metadata) {
-      warnings.push('Missing finalizer metadata');
-      score -= 5;
-    } else {
-      if (output.metadata.qualityScore < 70) {
-        warnings.push('Low quality score detected');
-        score -= 15;
-      }
-
-      if (output.metadata.readinessLevel === 'development') {
-        warnings.push('Tool still in development readiness level');
-        score -= 10;
-      }
+    if (output.metadata?.qualityScore < 70) {
+      warnings.push('Low quality score detected');
+      score -= 15;
     }
 
     return {
@@ -174,7 +96,7 @@ export class ToolFinalizerModule extends BaseAgentModule {
   }
 
   /**
-   * Get required input fields
+   * Define the required TCC fields for this agent.
    */
   getRequiredInputFields(): string[] {
     return [
@@ -184,84 +106,9 @@ export class ToolFinalizerModule extends BaseAgentModule {
   }
 
   /**
-   * Get agent description
+   * Provide a description for logging.
    */
   protected getAgentDescription(): string {
-    return 'Creates final ProductToolDefinition with metadata, styling, and packaging for deployment';
-  }
-
-  /**
-   * Support edit mode
-   */
-  supportsEditMode(): boolean {
-    return false; // Finalizer doesn't need edit mode
-  }
-
-  /**
-   * Private helper: Calculate completion time
-   */
-  private calculateCompletionTime(tcc: BaseTCC): string {
-    const startTime = tcc.createdAt ? new Date(tcc.createdAt).getTime() : Date.now();
-    const endTime = Date.now();
-    const durationMs = endTime - startTime;
-    
-    const minutes = Math.floor(durationMs / 60000);
-    const seconds = Math.floor((durationMs % 60000) / 1000);
-    
-    return `${minutes}m ${seconds}s`;
-  }
-
-  /**
-   * Private helper: Calculate quality score
-   */
-  private calculateQualityScore(tcc: BaseTCC, finalProduct: any): number {
-    let score = 100;
-    
-    // Deduct points for validation issues
-    if (tcc.validationResult && !tcc.validationResult.isValid) {
-      score -= 20;
-    }
-    
-    // Check for complete metadata
-    if (!finalProduct.metadata?.title || !finalProduct.metadata?.description) {
-      score -= 10;
-    }
-    
-    // Check for styling completeness
-    if (!tcc.styling?.styleMap || Object.keys(tcc.styling.styleMap).length === 0) {
-      score -= 15;
-    }
-    
-    // Check for state logic completeness
-    if (!tcc.stateLogic?.variables || tcc.stateLogic.variables.length === 0) {
-      score -= 10;
-    }
-    
-    return Math.max(0, score);
-  }
-
-  /**
-   * Private helper: Determine readiness level
-   */
-  private determineReadinessLevel(tcc: BaseTCC): 'development' | 'staging' | 'production' {
-    // Check validation status
-    if (!tcc.validationResult || !tcc.validationResult.isValid) {
-      return 'development';
-    }
-    
-    // Check completeness of all components
-    const hasCompleteComponents = !!(
-      tcc.stateLogic &&
-      tcc.jsxLayout &&
-      tcc.styling &&
-      tcc.finalProduct
-    );
-    
-    if (!hasCompleteComponents) {
-      return 'development';
-    }
-    
-    // If validation passes and all components exist, consider staging ready
-    return 'staging';
+    return 'Creates final ProductToolDefinition with metadata, styling, and packaging for deployment.';
   }
 }

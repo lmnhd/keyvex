@@ -1,80 +1,56 @@
 /**
- * Tailwind Styling Unified Module (Phase 1.2)
- * Properly extends BaseAgentModule - NO GENERIC TYPES!
+ * Tailwind Styling Unified Module (Phase 1.2 - Refactored for Centralized Execution)
+ * Conforms to the new simplified agent module structure.
  */
 
+import { z } from 'zod';
 import { 
-  AgentExecutionContext, 
   TailwindStylingResult,
-  AgentType
 } from '../../../types/tcc-unified';
-import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
-import { BaseAgentModule, AgentExecutionInput, BaseValidationResult } from '../core/base-agent-module';
-import { applyStyling } from '../../../../app/api/ai/product-tool-creation-v2/agents/tailwind-styling/core-logic';
+import { 
+  BaseAgentModule, 
+  BaseValidationResult 
+} from '../core/base-agent-module';
 
 /**
- * TailwindStylingModule - Applies comprehensive Tailwind CSS styling
+ * Zod schema for the Tailwind Styling's output.
+ */
+const TailwindStylingResultSchema = z.object({
+  styling: z.object({
+    styledComponentCode: z.string(),
+    styleMap: z.record(z.string()),
+    colorScheme: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      background: z.string(),
+      text: z.string(),
+      accent: z.string()
+    }).optional()
+  }),
+  metadata: z.object({
+    classCount: z.number(),
+    responsiveBreakpoints: z.array(z.string()),
+    colorSchemeType: z.string()
+  })
+});
+
+/**
+ * TailwindStylingModule - Now a configuration and validation provider.
  */
 export class TailwindStylingModule extends BaseAgentModule {
   constructor() {
-    super('tailwind-styling' as AgentType, 15000); // 15 second timeout
+    super('tailwind-styling', 15000); // 15 second timeout
   }
 
   /**
-   * Execute Tailwind styling application
+   * Exposes the Zod schema for this agent's output.
    */
-  async execute(
-    context: AgentExecutionContext,
-    input: AgentExecutionInput
-  ): Promise<TailwindStylingResult> {
-    this.logExecution(context, 'start', {
-      hasTcc: !!input.tcc,
-      hasJsxLayout: !!input.tcc.jsxLayout
-    });
-
-    try {
-      // Validate required inputs
-      const validation = this.validateRequired(input.tcc, this.getRequiredInputFields());
-      if (!validation.isValid) {
-        throw new Error(`Missing required fields: ${validation.missingFields.join(', ')}`);
-      }
-
-      // Use existing core logic
-      const result = await applyStyling({
-        jobId: context.jobId,
-        selectedModel: context.modelConfig.modelId,
-        tcc: input.tcc,
-        isIsolatedTest: context.isIsolatedTest
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || 'Tailwind styling execution failed');
-      }
-
-      // Convert to unified result format with NO GENERIC TYPES
-      const stylingResult: TailwindStylingResult = {
-        styling: result.styling!,
-        metadata: {
-          classCount: this.countTailwindClasses(result.styling?.styledComponentCode || ''),
-          responsiveBreakpoints: this.extractResponsiveBreakpoints(result.styling?.styledComponentCode || ''),
-          colorSchemeType: this.determineColorSchemeType(result.styling!)
-        }
-      };
-
-      this.logExecution(context, 'success', {
-        classCount: stylingResult.metadata.classCount,
-        responsiveBreakpoints: stylingResult.metadata.responsiveBreakpoints.length,
-        colorSchemeType: stylingResult.metadata.colorSchemeType
-      });
-
-      return stylingResult;
-    } catch (error) {
-      this.handleExecutionError(context, error, 'styling application');
-    }
+  getOutputSchema(): z.ZodSchema<any> {
+    return TailwindStylingResultSchema;
   }
 
   /**
-   * Validate styling result
+   * Validate the styling's structured output.
    */
   validate(output: TailwindStylingResult): BaseValidationResult {
     const errors: string[] = [];
@@ -120,25 +96,19 @@ export class TailwindStylingModule extends BaseAgentModule {
       isValid: errors.length === 0,
       errors,
       warnings,
-      score: Math.max(0, score)
+      score: Math.max(0, score),
+      missingFields: []
     };
   }
 
   /**
-   * Get required input fields
+   * Define the required TCC fields for this agent.
    */
   getRequiredInputFields(): string[] {
     return [
       'jsxLayout.componentStructure',
-      'jsxLayout.elementMap'
+      'brainstormData.creativeEnhancements'
     ];
-  }
-
-  /**
-   * Get agent description
-   */
-  protected getAgentDescription(): string {
-    return 'Applies comprehensive Tailwind CSS styling with responsive design and color schemes';
   }
 
   /**
@@ -149,41 +119,9 @@ export class TailwindStylingModule extends BaseAgentModule {
   }
 
   /**
-   * Private helper: Count Tailwind classes
+   * Provide a description for logging.
    */
-  private countTailwindClasses(styledCode: string): number {
-    const classMatches = styledCode.match(/className="[^"]*"/g) || [];
-    let totalClasses = 0;
-    
-    classMatches.forEach(match => {
-      const classes = match.replace(/className="/, '').replace(/"$/, '').split(' ');
-      totalClasses += classes.filter(cls => cls.trim().length > 0).length;
-    });
-    
-    return totalClasses;
-  }
-
-  /**
-   * Private helper: Extract responsive breakpoints
-   */
-  private extractResponsiveBreakpoints(styledCode: string): string[] {
-    const breakpoints = new Set<string>();
-    const responsiveMatches = styledCode.match(/\b(sm|md|lg|xl|2xl):/g) || [];
-    
-    responsiveMatches.forEach(match => {
-      breakpoints.add(match.replace(':', ''));
-    });
-    
-    return Array.from(breakpoints);
-  }
-
-  /**
-   * Private helper: Determine color scheme type
-   */
-  private determineColorSchemeType(styling: any): string {
-    if (styling?.colorScheme) {
-      return 'custom';
-    }
-    return 'default';
+  protected getAgentDescription(): string {
+    return 'Applies comprehensive Tailwind CSS styling with responsive design and color schemes.';
   }
 }

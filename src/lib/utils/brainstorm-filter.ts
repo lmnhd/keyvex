@@ -24,7 +24,7 @@ import { BrainstormData } from '../types/product-tool-creation-v2/tcc';
  * Convert raw brainstorm data to typed core data structure
  * Handles backward compatibility with legacy field names
  */
-function convertToCoreData(brainstormData: BrainstormData): CoreBrainstormData {
+export function convertToCoreData(brainstormData: BrainstormData): CoreBrainstormData {
   // Ensure keyCalculations have all required fields
   const keyCalculations = (brainstormData.keyCalculations || []).map(calc => ({
     name: calc.name || 'Unknown Calculation',
