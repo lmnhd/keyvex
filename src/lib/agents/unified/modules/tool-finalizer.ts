@@ -59,6 +59,18 @@ export class ToolFinalizerModule extends BaseAgentModule {
           version: result.finalProduct!.metadata?.version || '1.0.0',
           createdBy: context.userId || 'unknown',
           componentSet: 'shadcn' as const,
+          metadata: {
+            ...result.finalProduct!.metadata,
+            targetAudience: result.finalProduct!.metadata?.targetAudience || 'general',
+            industry: result.finalProduct!.metadata?.industry || 'general',
+            shortDescription: result.finalProduct!.metadata?.shortDescription || result.finalProduct!.metadata?.description || 'No description',
+            category: result.finalProduct!.metadata?.category || 'general',
+            tags: result.finalProduct!.metadata?.tags || [],
+            estimatedCompletionTime: result.finalProduct!.metadata?.estimatedCompletionTime || 5,
+            difficultyLevel: result.finalProduct!.metadata?.difficultyLevel || 'beginner',
+            features: result.finalProduct!.metadata?.features || [],
+            icon: result.finalProduct!.metadata?.icon || { type: 'lucide', value: 'Package' }
+          },
           colorScheme: result.finalProduct!.colorScheme || {
             primary: '#3b82f6',
             secondary: '#6b7280',
