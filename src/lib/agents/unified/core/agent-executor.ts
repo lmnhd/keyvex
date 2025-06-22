@@ -150,3 +150,35 @@ export function isAgentAvailable(agentType: AgentType): boolean {
 export function getAgentModule(agentType: AgentType): BaseAgentModule | null {
   return agentModules[agentType] || null;
 }
+
+/**
+ * Get agent timeout for a specific agent type
+ */
+export function getAgentTimeout(agentType: AgentType): number {
+  const agentModule = agentModules[agentType];
+  if (!agentModule) {
+    throw new Error(`Agent module not found: ${agentType}`);
+  }
+  return agentModule.getTimeout();
+}
+
+/**
+ * Validate agent module result
+ */
+export function validateAgentModule(agentType: AgentType, result: AgentResult): any {
+  const agentModule = agentModules[agentType];
+  if (!agentModule) {
+    throw new Error(`Agent module not found: ${agentType}`);
+  }
+  
+  // Use the module's validate method
+  const validation = agentModule.validate(result);
+  
+  return {
+    isValid: validation.isValid,
+    errors: validation.errors,
+    warnings: validation.warnings,
+    overallScore: validation.score,
+    missingFields: validation.missingFields
+  };
+}

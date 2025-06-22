@@ -327,3 +327,50 @@ export class PromptManager {
 export function getPromptManager(): PromptManager {
   return PromptManager.getInstance();
 }
+
+/**
+ * Convenience function to get prompts for an agent
+ * This is what the route is trying to import
+ */
+export async function getPromptForAgent(
+  agentType: AgentType,
+  tcc: BaseTCC,
+  editMode?: { isEditMode: boolean; instructions?: any[]; context?: string }
+): Promise<{ systemPrompt: string; userPrompt: string }> {
+  const promptManager = getPromptManager();
+  
+  // Create execution context (minimal for prompt generation)
+  const executionContext: AgentExecutionContext = {
+    jobId: tcc.jobId || 'prompt-generation',
+    agentType,
+    modelConfig: {
+      modelId: 'claude-3-5-sonnet-20241022',
+      provider: 'anthropic',
+      maxTokens: 4000,
+      temperature: 0.2
+    },
+    isIsolatedTest: false,
+    timeout: 30000,
+    retryConfig: {
+      maxAttempts: 3,
+      backoffMultiplier: 2,
+      baseDelay: 1000
+    }
+  };
+
+  const promptConfig = await promptManager.generatePromptConfig({
+    agentType,
+    tcc,
+    context: executionContext,
+    editMode: editMode ? {
+      isEditMode: editMode.isEditMode,
+      editInstructions: editMode.instructions?.join('\n') || editMode.context,
+      currentResult: undefined
+    } : undefined
+  });
+
+  return {
+    systemPrompt: promptConfig.systemPrompt,
+    userPrompt: promptConfig.userPrompt
+  };
+}
