@@ -275,8 +275,7 @@ export class ResponseParser {
       stateLogic: {
         variables: data.stateLogic.variables || [],
         functions: data.stateLogic.functions || [],
-        imports: data.stateLogic.imports || [],
-        hooks: data.stateLogic.hooks || []
+        imports: data.stateLogic.imports || []
       },
       metadata: {
         stateVariableCount: data.stateLogic.variables?.length || 0,
@@ -294,7 +293,7 @@ export class ResponseParser {
     return {
       jsxLayout: {
         componentStructure: data.jsxLayout.componentStructure,
-        layoutDecisions: data.jsxLayout.layoutDecisions || {},
+        elementMap: data.jsxLayout.elementMap || [],
         accessibilityFeatures: data.jsxLayout.accessibilityFeatures || [],
         responsiveBreakpoints: data.jsxLayout.responsiveBreakpoints || []
       },
@@ -318,9 +317,16 @@ export class ResponseParser {
         colorScheme: data.styling.colorScheme || {
           primary: '#3b82f6',
           secondary: '#6b7280',
-          background: '#ffffff'
+          background: '#ffffff',
+          surface: '#f9fafb',
+          accent: '#8b5cf6',
+          text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
+          border: '#e5e7eb',
+          success: '#10b981',
+          warning: '#f59e0b',
+          error: '#ef4444'
         },
-        responsiveFeatures: data.styling.responsiveFeatures || []
+        designTokens: data.styling.designTokens || {}
       },
       metadata: {
         classCount: data.metadata?.classCount || 0,
@@ -353,10 +359,12 @@ export class ResponseParser {
     return {
       validationResult: {
         isValid: data.validationResult.isValid || false,
-        errors: data.validationResult.errors || [],
-        warnings: data.validationResult.warnings || [],
-        suggestions: data.validationResult.suggestions || [],
-        score: data.validationResult.score || 0
+        error: data.validationResult.error || (data.validationResult.errors && data.validationResult.errors.length > 0 ? data.validationResult.errors.join('; ') : undefined),
+        details: data.validationResult.details || {
+          warnings: data.validationResult.warnings || [],
+          suggestions: data.validationResult.suggestions || [],
+          score: data.validationResult.score || 0
+        }
       },
       metadata: {
         issuesFound: data.metadata?.issuesFound || 0,

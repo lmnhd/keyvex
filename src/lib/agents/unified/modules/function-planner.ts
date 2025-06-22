@@ -63,21 +63,24 @@ export class FunctionPlannerModule extends BaseAgentModule {
         throw new Error('Failed to filter brainstorm data for function planner');
       }
 
-      // Generate function signatures
-      const functionSignatures = await this.generateFunctionSignatures(
+      // Generate function signatures using AI Interaction Manager
+      const aiResult = await executeAgentAI<FunctionPlannerResult>(
+        'function-planner',
         context,
-        filteredBrainstorm
+        input.tcc,
+        {
+          useStructuredOutput: true
+        }
       );
 
-      // Create result
-      const result: FunctionPlannerResult = {
-        functionSignatures,
-        metadata: {
-          totalFunctions: functionSignatures.length,
-          complexityLevel: this.determineComplexityLevel(functionSignatures),
-          estimatedImplementationTime: this.estimateImplementationTime(functionSignatures)
-        }
-      };
+      if (!aiResult.success || !aiResult.data) {
+        throw new Error(`AI interaction failed: ${aiResult.errors.join(', ')}`);
+      }
+
+      const functionSignatures = aiResult.data.functionSignatures;
+
+      // Use AI result directly (already properly structured)
+      const result: FunctionPlannerResult = aiResult.data;
 
       // Validate result
       const resultValidation = this.validate(result);
@@ -193,48 +196,8 @@ export class FunctionPlannerModule extends BaseAgentModule {
     };
   }
 
-  /**
-   * Generate function signatures from brainstorm data
-   */
-  private async generateFunctionSignatures(
-    context: AgentExecutionContext,
-    brainstormData: FunctionPlannerBrainstormData
-  ): Promise<DefinedFunctionSignature[]> {
-    const signatures: DefinedFunctionSignature[] = [];
-
-    // Generate calculation functions from key calculations
-    for (const calc of brainstormData.keyCalculations) {
-      const signature: DefinedFunctionSignature = {
-        name: this.generateFunctionName(calc.name),
-        description: `${calc.description} - Formula: ${calc.formula} - Variables: ${calc.variables.join(', ')}`
-      };
-      signatures.push(signature);
-    }
-
-    // Generate utility functions from calculation logic
-    for (const logic of brainstormData.calculationLogic) {
-      const signature: DefinedFunctionSignature = {
-        name: this.generateFunctionName(logic.name),
-        description: `Process ${logic.name} calculation - Dependencies: ${logic.dependencies.join(', ')} - Output: ${logic.outputFormat}`
-      };
-      signatures.push(signature);
-    }
-
-    // Add validation function
-    signatures.push({
-      name: 'validateInputs',
-      description: `Validate all user inputs before calculations - Inputs: ${brainstormData.suggestedInputs.map(input => `${input.id}(${input.type})`).join(', ')}`
-    });
-
-    logger.info({
-      jobId: context.jobId,
-      functionsGenerated: signatures.length,
-      calculationFunctions: brainstormData.keyCalculations.length,
-      utilityFunctions: brainstormData.calculationLogic.length
-    }, '🔧 Function Planner: Generated function signatures');
-
-    return signatures;
-  }
+  // Note: Function generation now handled by AI Interaction Manager
+  // Old programmatic generation removed in favor of centralized AI approach
 
   /**
    * Generate camelCase function name from display name
