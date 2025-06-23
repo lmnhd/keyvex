@@ -152,13 +152,4 @@ export class AIInteractionManager {
       };
     }
   }
-}
-
-/**
- * DEPRECATED - This function should no longer be used.
- * Logic is now centralized in AIInteractionManager.executeAgentInteraction
- * Kept for reference during refactoring, to be deleted later.
- */
-export async function executeAgentAI<T>(): Promise<never> {
-    throw new Error("executeAgentAI is deprecated and should not be used. All AI interactions must go through the centralized AIInteractionManager.executeAgentInteraction method called by the AgentExecutor.");
 } 
