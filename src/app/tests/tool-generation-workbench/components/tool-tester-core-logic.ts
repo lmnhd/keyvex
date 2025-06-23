@@ -9,9 +9,6 @@ import {
   validateBrainstormResult
 } from '../types/unified-brainstorm-types';
 
-// Import progress emitter for WebSocket updates
-import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
-
 // Using console logging for test utilities
 
 export { loadLogicResultsFromDB };
@@ -106,28 +103,8 @@ async function startV2ToolCreation(
     for (let i = 0; i < agentSequence.length; i++) {
       const agentType = agentSequence[i];
       const agentModel = agentModelMapping?.[agentType] || modelId;
-      const stepName = stepNameMapping[agentType] || 'initialization';
       
       console.log(`🔄 [UNIFIED-WORKFLOW] Step ${i + 1}/${agentSequence.length}: Executing ${agentType} with model ${agentModel}`);
-      
-      // Emit WebSocket progress update - Agent starting
-      try {
-        await emitStepProgress(
-          actualJobId,
-          stepName as any, // Type assertion for valid step name
-          'in_progress',
-          `Executing ${agentType} agent with ${agentModel}`,
-          { 
-            agentType, 
-            modelUsed: agentModel, 
-            stepNumber: i + 1, 
-            totalSteps: agentSequence.length,
-            workflowMode: 'unified_sequential'
-          }
-        );
-      } catch (wsError) {
-        console.warn(`⚠️ [WEBSOCKET] Failed to emit progress for ${agentType}:`, wsError);
-      }
       
       const requestBody = {
         jobId: actualJobId,
@@ -146,83 +123,19 @@ async function startV2ToolCreation(
 
       if (!response.ok) {
         const errorData = await response.json();
-        
-        // Emit WebSocket progress update - Agent failed
-        try {
-          await emitStepProgress(
-            actualJobId,
-            stepName as any,
-            'failed',
-            `Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`,
-            { agentType, error: errorData.error, stepNumber: i + 1, totalSteps: agentSequence.length }
-          );
-        } catch (wsError) {
-          console.warn(`⚠️ [WEBSOCKET] Failed to emit failure progress for ${agentType}:`, wsError);
-        }
-        
         throw new Error(`Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`);
       }
 
       const agentResult = await response.json();
       
       if (!agentResult.success) {
-        // Emit WebSocket progress update - Agent failed
-        try {
-          await emitStepProgress(
-            actualJobId,
-            stepName as any,
-            'failed',
-            `Agent ${agentType} execution failed: ${agentResult.error}`,
-            { agentType, error: agentResult.error, stepNumber: i + 1, totalSteps: agentSequence.length }
-          );
-        } catch (wsError) {
-          console.warn(`⚠️ [WEBSOCKET] Failed to emit failure progress for ${agentType}:`, wsError);
-        }
-        
         throw new Error(`Agent ${agentType} execution failed: ${agentResult.error}`);
       }
 
       // Update TCC with the agent's result for next step
       currentTcc = agentResult.updatedTcc;
       
-      // Emit WebSocket progress update - Agent completed
-      try {
-        await emitStepProgress(
-          actualJobId,
-          stepName as any,
-          'completed',
-          `${agentType} completed successfully`,
-          { 
-            agentType, 
-            modelUsed: agentModel, 
-            stepNumber: i + 1, 
-            totalSteps: agentSequence.length,
-            executionTime: agentResult.executionTime,
-            validationScore: agentResult.validationScore
-          }
-        );
-      } catch (wsError) {
-        console.warn(`⚠️ [WEBSOCKET] Failed to emit completion progress for ${agentType}:`, wsError);
-      }
-      
       console.log(`✅ [UNIFIED-WORKFLOW] ${agentType} completed successfully - TCC updated for next step`);
-    }
-
-    // Emit final workflow completion progress
-    try {
-      await emitStepProgress(
-        actualJobId,
-        'finalizing_tool',
-        'completed',
-        'Complete workflow finished successfully!',
-        { 
-          totalAgentsExecuted: agentSequence.length,
-          workflowMode: 'unified_sequential',
-          finalTccKeys: Object.keys(currentTcc || {})
-        }
-      );
-    } catch (wsError) {
-      console.warn(`⚠️ [WEBSOCKET] Failed to emit final completion progress:`, wsError);
     }
 
     console.log(`🎉 [UNIFIED-WORKFLOW] All agents completed successfully! Job ID: ${actualJobId}`);
@@ -346,18 +259,16 @@ export async function runTccFinalizationSteps(
       
       console.log(`🔧 [FINALIZATION] Step ${i + 1}/3: ${agentType}...`);
       
-      const requestBody = {
-        jobId: currentTcc.jobId,
-        agentType: agentType,
-        selectedModel: agentModel,
-        tcc: currentTcc,
-        isIsolatedTest: true // Prevent triggering next step automatically
-      };
-
       const response = await fetch('/api/ai/agents/universal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          jobId: currentTcc.jobId,
+          agentType: agentType,
+          selectedModel: agentModel,
+          tcc: currentTcc,
+          isIsolatedTest: true // Prevent triggering next step automatically
+        }),
       });
       
       if (!response.ok) {
