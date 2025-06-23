@@ -62,7 +62,7 @@ async function startV2ToolCreation(
   
   // Create initial TCC from brainstorm data for unified workflow
   const initialTcc = {
-    userId: brainstormResult.userId || 'workbench-user',
+    userId: 'workbench-user', // BrainstormResult doesn't have userId property
     jobId: actualJobId,
     userInput: brainstormResult.userInput || {},
     brainstormData: brainstormResult.brainstormData || {},
@@ -88,6 +88,17 @@ async function startV2ToolCreation(
       'tool-finalizer'
     ];
 
+    // Map agent types to valid step names for emitStepProgress
+    const stepNameMapping: Record<string, string> = {
+      'function-planner': 'planning_function_signatures',
+      'state-design': 'designing_state_logic',
+      'jsx-layout': 'designing_jsx_layout',
+      'tailwind-styling': 'applying_tailwind_styling',
+      'component-assembler': 'assembling_component',
+      'code-validator': 'validating_code',
+      'tool-finalizer': 'finalizing_tool'
+    };
+
     let currentTcc = initialTcc;
     
     console.log(`🚀 [UNIFIED-WORKFLOW] Starting sequential execution of ${agentSequence.length} agents`);
@@ -95,6 +106,7 @@ async function startV2ToolCreation(
     for (let i = 0; i < agentSequence.length; i++) {
       const agentType = agentSequence[i];
       const agentModel = agentModelMapping?.[agentType] || modelId;
+      const stepName = stepNameMapping[agentType] || 'initialization';
       
       console.log(`🔄 [UNIFIED-WORKFLOW] Step ${i + 1}/${agentSequence.length}: Executing ${agentType} with model ${agentModel}`);
       
@@ -102,7 +114,7 @@ async function startV2ToolCreation(
       try {
         await emitStepProgress(
           actualJobId,
-          agentType.replace('-', '_'), // Convert to step name format
+          stepName as any, // Type assertion for valid step name
           'running',
           `Executing ${agentType} agent with ${agentModel}`,
           { 
@@ -139,7 +151,7 @@ async function startV2ToolCreation(
         try {
           await emitStepProgress(
             actualJobId,
-            agentType.replace('-', '_'),
+            stepName as any,
             'failed',
             `Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`,
             { agentType, error: errorData.error, stepNumber: i + 1, totalSteps: agentSequence.length }
@@ -158,7 +170,7 @@ async function startV2ToolCreation(
         try {
           await emitStepProgress(
             actualJobId,
-            agentType.replace('-', '_'),
+            stepName as any,
             'failed',
             `Agent ${agentType} execution failed: ${agentResult.error}`,
             { agentType, error: agentResult.error, stepNumber: i + 1, totalSteps: agentSequence.length }
@@ -177,7 +189,7 @@ async function startV2ToolCreation(
       try {
         await emitStepProgress(
           actualJobId,
-          agentType.replace('-', '_'),
+          stepName as any,
           'completed',
           `${agentType} completed successfully`,
           { 
