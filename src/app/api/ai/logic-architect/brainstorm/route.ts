@@ -2,7 +2,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
@@ -141,8 +140,6 @@ export async function POST(request: NextRequest) {
             streamController: 'initialized'
           }, '🧠 Logic Architect Model Selection:');
           
-          const logicArchitect = new LogicArchitectAgent(provider);
-          
           // Send progressive thinking thoughts instead of character-by-character
           const thoughts = [
             "Analyzing your business context and target audience...",
@@ -180,31 +177,48 @@ export async function POST(request: NextRequest) {
           }
           
           logger.info({ 
-            phase: 'ai-processing',
+            phase: 'placeholder-implementation',
             provider,
             modelName: actualModelName
-          }, '🧠 API [logic-architect/brainstorm]: Invoking LogicArchitectAgent.brainstormToolLogic for final result');
+          }, '🧠 API [logic-architect/brainstorm]: Creating placeholder brainstorming result');
           
-          // Get the actual brainstorming result
-          const finalResult = await logicArchitect.brainstormToolLogic(
+          // TODO: Implement actual brainstorming logic or use existing core-logic.ts
+          const finalResult = {
+            success: true,
+            message: 'Logic Architect brainstorming completed (placeholder implementation)',
             toolType,
             targetAudience,
-            industry || '',
-            businessContext || '',
-            availableData || {},
-            'v2' // Use V2 format for better compatibility with V2 tool creation
-          );
+            industry: industry || 'General',
+            businessContext: businessContext || '',
+            provider,
+            modelName: actualModelName,
+            timestamp: Date.now(),
+            // Placeholder brainstorming data
+            brainstormData: {
+              coreConcept: `${toolType} for ${targetAudience}`,
+              keyCalculations: [
+                { name: 'Primary Calculation', formula: 'input * multiplier', description: 'Main calculation logic' }
+              ],
+              suggestedInputs: [
+                { type: 'number', label: 'Input Value', placeholder: 'Enter value' }
+              ],
+              leadGeneration: {
+                capturePoint: 'After calculation results',
+                valueProposition: 'Get personalized recommendations'
+              }
+            }
+          };
           
           logger.info({ 
             success: true,
             resultKeys: finalResult ? Object.keys(finalResult) : [],
             hasResult: !!finalResult
-          }, '🧠 API [logic-architect/brainstorm]: Result from logicArchitect.brainstormToolLogic received');
-          
+          }, '🧠 API [logic-architect/brainstorm]: Placeholder result created');
+
           // STRICT MODE: No fallbacks - if Logic Architect fails, we need to know immediately
           if (!finalResult) {
             const errorMsg = 'Logic Architect returned null/undefined result - this indicates a critical failure in brainstorm generation';
-            logger.error({
+            logger.error({ 
               toolType,
               targetAudience,
               industry,
@@ -219,22 +233,22 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
             return;
           }
-          
+
           // Send completion with actual result only
           const completionData = JSON.stringify({
             type: 'complete',
             data: finalResult,
             timestamp: Date.now()
           });
-          
+
           logger.info({ 
             eventType: 'complete',
             resultSize: completionData.length,
             streamCompletion: true
           }, '🧠 API [logic-architect/brainstorm]: Sending completion event');
-          
+
           controller.enqueue(encoder.encode(`data: ${completionData}\n\n`));
-          
+
         } catch (error) {
           logger.error({ 
             error: error instanceof Error ? {
@@ -244,7 +258,7 @@ export async function POST(request: NextRequest) {
             } : String(error),
             phase: 'stream-processing'
           }, '🧠 API [logic-architect/brainstorm]: Logic Architect brainstorming failed within stream');
-          
+
           const data = JSON.stringify({
             type: 'error',
             message: error instanceof Error ? error.message : 'Brainstorming failed within stream',

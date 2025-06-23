@@ -9,6 +9,21 @@ export interface BehaviorEvent {
   data?: Record<string, any>;
 }
 
+export interface ToolGenerationEvent {
+  toolDefinitionId: string;
+  toolName: string;
+  toolType: string;
+  context: any;
+  success: boolean;
+  duration?: number;
+  error?: string;
+  validationResults: any[];
+}
+
+export interface BehaviorTracker {
+  trackToolGeneration(event: ToolGenerationEvent): void;
+}
+
 export function trackBehavior(event: BehaviorEvent): void {
   // Placeholder implementation
   console.log('Behavior tracking not implemented:', event);
@@ -19,7 +34,17 @@ export function getBehaviorData(): BehaviorEvent[] {
   return [];
 }
 
+export function getBehaviorTracker(): BehaviorTracker {
+  // Placeholder implementation
+  return {
+    trackToolGeneration(event: ToolGenerationEvent): void {
+      console.log('Tool generation tracking not implemented:', event);
+    }
+  };
+}
+
 export default {
   trackBehavior,
-  getBehaviorData
+  getBehaviorData,
+  getBehaviorTracker
 }; 
