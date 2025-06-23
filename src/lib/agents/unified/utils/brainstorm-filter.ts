@@ -9,11 +9,9 @@
 import { 
   AgentType,
   CoreBrainstormData,
-  FunctionPlannerBrainstormData,
   StateDesignBrainstormData,
   JSXLayoutBrainstormData,
   TailwindStylingBrainstormData,
-  ComponentAssemblerBrainstormData,
   BrainstormFilterContext
 } from '@/lib/types/tcc-unified';
 import { BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
@@ -136,11 +134,11 @@ function createFilterContext(
 function filterForFunctionPlanner(
   brainstormData: BrainstormData,
   jobId: string
-): FunctionPlannerBrainstormData {
+): CoreBrainstormData {
   const coreData = convertToUnifiedCoreData(brainstormData);
   
   // Function Planner needs all core data for comprehensive function planning
-  const filtered: FunctionPlannerBrainstormData = { ...coreData };
+  const filtered: CoreBrainstormData = { ...coreData };
 
   const fieldsIncluded = Object.keys(filtered);
   const fieldsExcluded: string[] = []; // Function Planner includes all fields
@@ -300,11 +298,11 @@ function filterForTailwindStyling(
 function filterForComponentAssembler(
   brainstormData: BrainstormData,
   jobId: string
-): ComponentAssemblerBrainstormData {
+): CoreBrainstormData {
   const coreData = convertToUnifiedCoreData(brainstormData);
   
   // Component Assembler needs core context for metadata
-  const filtered: ComponentAssemblerBrainstormData = { ...coreData };
+  const filtered: CoreBrainstormData = { ...coreData };
 
   const fieldsIncluded = Object.keys(filtered);
   const fieldsExcluded: string[] = []; // Component Assembler includes all for context

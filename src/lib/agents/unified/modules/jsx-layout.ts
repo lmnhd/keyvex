@@ -6,11 +6,11 @@
 import { z } from 'zod';
 import { 
   JsxLayoutResult,
-  AgentResult
+  AgentResult,
+  ValidationResult
 } from '../../../types/tcc-unified';
 import { 
-  BaseAgentModule, 
-  BaseValidationResult 
+  BaseAgentModule
 } from '../core/base-agent-module';
 
 /**
@@ -51,14 +51,13 @@ export class JSXLayoutModule extends BaseAgentModule {
   }
 
   /**
-   * Validate the JSX layout's structured output.
+   * Validate the layout agent's structured output.
    */
-  validate(output: JsxLayoutResult): BaseValidationResult {
+  validate(output: JsxLayoutResult): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let score = 100;
 
-    // Check required JSX layout fields
     if (!output.jsxLayout) {
       errors.push('Missing JSX layout object');
       score -= 50;
@@ -66,48 +65,32 @@ export class JSXLayoutModule extends BaseAgentModule {
       if (!output.jsxLayout.componentStructure) {
         errors.push('Missing component structure');
         score -= 30;
-      } else {
-        // Basic JSX validation
-        if (!output.jsxLayout.componentStructure.includes('<')) {
-          errors.push('Component structure does not contain valid JSX');
-          score -= 25;
-        }
-        
-        if (output.jsxLayout.componentStructure.length < 50) {
-          warnings.push('Component structure seems too short');
-          score -= 10;
-        }
       }
-
       if (!output.jsxLayout.elementMap || output.jsxLayout.elementMap.length === 0) {
-        warnings.push('No element map provided');
-        score -= 5;
+        warnings.push('No element mapping provided');
+        score -= 10;
       }
-
       if (!output.jsxLayout.accessibilityFeatures || output.jsxLayout.accessibilityFeatures.length === 0) {
         warnings.push('No accessibility features specified');
+        score -= 15;
+      }
+      if (!output.jsxLayout.responsiveBreakpoints || output.jsxLayout.responsiveBreakpoints.length === 0) {
+        warnings.push('No responsive breakpoints specified');
         score -= 10;
       }
     }
 
-    // Check metadata
     if (!output.metadata) {
-      warnings.push('Missing JSX layout metadata');
+      warnings.push('Missing metadata');
       score -= 5;
     } else {
-      if (output.metadata.componentCount === 0) {
-        warnings.push('Component count is zero');
+      if (output.metadata.accessibilityScore < 70) {
+        warnings.push('Low accessibility score');
         score -= 10;
       }
-
-      if (output.metadata.nestingDepth > 10) {
-        warnings.push('Very deep nesting detected - may impact performance');
+      if (output.metadata.nestingDepth > 5) {
+        warnings.push('High nesting depth may impact performance');
         score -= 5;
-      }
-
-      if (output.metadata.accessibilityScore < 50) {
-        warnings.push('Low accessibility score');
-        score -= 15;
       }
     }
 

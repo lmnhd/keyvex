@@ -19,14 +19,11 @@ import { z } from 'zod';
 import { 
   AgentType, 
   AgentExecutionContext,
-  ModelConfiguration,
   ToolConstructionContext as UnifiedTCC
 } from '@/lib/types/tcc-unified';
+import { ModelConfiguration, createModelConfig } from '@/lib/ai/model-configuration';
 import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { executeAgent, getAgentTimeout, validateAgentModule } from '@/lib/agents/unified/core/agent-executor';
-import { callModelForObject } from '@/lib/ai/model-caller';
-import { getPromptForAgent } from '@/lib/agents/unified/core/prompt-manager';
-import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
 // Request schema
@@ -68,34 +65,20 @@ export async function POST(request: NextRequest) {
       hasEditMode: !!editMode
     }, `🚀 UNIFIED EXECUTOR: Starting ${agentType} execution`);
 
-    // Create a version of editMode that matches what getPromptForAgent expects
-    const promptEditMode = editMode ? {
-      isEditMode: editMode.isEditMode,
-      instructions: editMode.context,
-    } : undefined;
-
     // 🎯 BREAKPOINT 2: Model configuration
-    const primaryModelInfo = getPrimaryModel(agentType === 'function-planner' ? 'functionPlanner' : 'logicArchitect');
-    if (!primaryModelInfo) {
-      throw new Error(`No primary model configured for ${agentType}`);
-    }
-
-    const modelId = selectedModel || primaryModelInfo.modelInfo.id;
+    const modelId = selectedModel || 'claude-3-7-sonnet-20250219'; // Default model
     const timeout = getAgentTimeout(agentType);
 
-    const modelConfig: ModelConfiguration = {
-      modelId,
-      provider: primaryModelInfo.provider as 'openai' | 'anthropic',
-      maxTokens: 4000,
-      temperature: 0.2
-    };
+    const modelConfig = createModelConfig(modelId, {
+      temperature: 0.2,
+      maxTokens: 4000
+    });
 
     logger.info({
       jobId,
       agentType,
       modelId,
-      timeout,
-      provider: primaryModelInfo.provider
+      timeout
     }, `🎯 UNIFIED EXECUTOR: Model configuration set`);
 
     // Create execution context
@@ -119,87 +102,10 @@ export async function POST(request: NextRequest) {
       } : undefined
     };
 
-    // 🎯 BREAKPOINT 3: AI model call execution
-    let rawModelResult;
-    try {
-      const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, promptEditMode);
-      
-      logger.info({
-        jobId,
-        agentType,
-        systemPromptLength: systemPrompt.length,
-        userPromptLength: userPrompt.length
-      }, `🎯 UNIFIED EXECUTOR: Prompts loaded`);
-
-      // Get the appropriate schema for the agent
-      const schema = getSchemaForAgent(agentType);
-      
-      const modelResponse = await callModelForObject(modelId, {
-        schema,
-        prompt: userPrompt,
-        systemPrompt,
-        temperature: modelConfig.temperature,
-        maxTokens: modelConfig.maxTokens,
-        maxRetries: 3
-      });
-
-      rawModelResult = modelResponse.object;
-      
-      logger.info({
-        jobId,
-        agentType,
-        modelId,
-        responseKeys: Object.keys(rawModelResult || {})
-      }, `✅ UNIFIED EXECUTOR: AI model call successful`);
-
-    } catch (modelError) {
-      logger.error({
-        jobId,
-        agentType,
-        modelId,
-        error: modelError instanceof Error ? modelError.message : String(modelError)
-      }, `❌ UNIFIED EXECUTOR: AI model call failed`);
-
-      // 🎯 BREAKPOINT 6: Retry logic - Try fallback model
-      const fallbackModelInfo = getFallbackModel(agentType === 'function-planner' ? 'functionPlanner' : 'logicArchitect');
-      if (fallbackModelInfo) {
-        logger.info({
-          jobId,
-          agentType,
-          fallbackModelId: fallbackModelInfo.modelInfo.id
-        }, `🔄 UNIFIED EXECUTOR: Attempting fallback model`);
-
-        try {
-          const { systemPrompt, userPrompt } = await getPromptForAgent(agentType, tcc, promptEditMode);
-          const schema = getSchemaForAgent(agentType);
-          
-          const fallbackResponse = await callModelForObject(fallbackModelInfo.modelInfo.id, {
-            schema,
-            prompt: userPrompt,
-            systemPrompt,
-            temperature: modelConfig.temperature,
-            maxTokens: modelConfig.maxTokens,
-            maxRetries: 2
-          });
-
-          rawModelResult = fallbackResponse.object;
-          
-          logger.info({
-            jobId,
-            agentType,
-            fallbackModelId: fallbackModelInfo.modelInfo.id
-          }, `✅ UNIFIED EXECUTOR: Fallback model successful`);
-
-        } catch (fallbackError) {
-          throw new Error(`Both primary and fallback models failed: ${modelError instanceof Error ? modelError.message : String(modelError)}`);
-        }
-      } else {
-        throw modelError;
-      }
-    }
-
-    // 🎯 BREAKPOINT 4: Agent module processing
-    const agentResult = await executeAgent(agentType, executionContext, tcc, rawModelResult);
+    // 🎯 BREAKPOINT 3: CENTRALIZED Agent Execution (includes AI calls)
+    // ✅ ARCHITECTURAL FIX: All AI calling logic is now centralized in executeAgent
+    // No more scattered AI calls - single source of truth!
+    const agentResult = await executeAgent(agentType, executionContext, tcc);
     
     logger.info({
       jobId,
@@ -232,7 +138,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         duration,
         modelId,
-        provider: primaryModelInfo.provider,
+        provider: modelId.includes('claude') ? 'anthropic' : 'openai',
         executionTime: new Date().toISOString()
       }
     };
@@ -272,30 +178,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Get the appropriate Zod schema for each agent type
- */
-function getSchemaForAgent(agentType: AgentType): z.ZodSchema<any> {
-  switch (agentType) {
-    case 'function-planner':
-      return z.object({
-        signatures: z.array(
-          z.object({
-            name: z.string(),
-            description: z.string()
-          })
-        )
-      });
-    
-    // TODO: Add schemas for other agents when implemented
-    case 'state-design':
-    case 'jsx-layout':
-    case 'tailwind-styling':
-    case 'component-assembler':
-    case 'code-validator':
-    case 'tool-finalizer':
-      throw new Error(`Schema not implemented yet for agent: ${agentType}`);
-    
-    default:
-      throw new Error(`Unknown agent type: ${agentType}`);
-  }
-} 
+ * ✅ ARCHITECTURAL FIX: Schemas are now handled by individual agent modules
+ * This route no longer needs to know about agent-specific schemas
+ * All schema logic is centralized in the agent modules themselves
+ */ 

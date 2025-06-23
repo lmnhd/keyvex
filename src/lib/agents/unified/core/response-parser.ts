@@ -43,7 +43,17 @@ export type StateDesignRawResponse = { stateLogic?: Partial<StateLogic>, metadat
 export type JsxLayoutRawResponse = { jsxLayout?: Partial<JsxLayout>, metadata?: Partial<JsxLayoutResult['metadata']> };
 export type TailwindStylingRawResponse = { styling?: Partial<Styling>, metadata?: Partial<TailwindStylingResult['metadata']> };
 export type ComponentAssemblerRawResponse = Partial<ComponentAssemblerResult>;
-export type CodeValidatorRawResponse = { validationResult?: Partial<ValidationResult>, metadata?: Partial<CodeValidatorResult['metadata']> };
+export type CodeValidatorRawResponse = { 
+  validationResult?: {
+    isValid?: boolean;
+    errors?: string[];
+    warnings?: string[];
+    score?: number;
+    missingFields?: string[];
+    details?: any;
+  }, 
+  metadata?: Partial<CodeValidatorResult['metadata']> 
+};
 export type ToolFinalizerRawResponse = { finalProduct?: Partial<ProductToolDefinition>, metadata?: Partial<ToolFinalizerResult['metadata']> };
 
 /**
@@ -299,7 +309,10 @@ export class ResponseParser {
     return {
       validationResult: {
         isValid: data.validationResult.isValid || false,
-        error: data.validationResult.error,
+        errors: data.validationResult.errors || [],
+        warnings: data.validationResult.warnings || [],
+        score: data.validationResult.score || 70,
+        missingFields: data.validationResult.missingFields || [],
         details: data.validationResult.details,
       },
       metadata: {

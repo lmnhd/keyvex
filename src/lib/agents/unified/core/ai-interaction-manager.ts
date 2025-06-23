@@ -16,10 +16,12 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import {
   AgentType,
-  ModelConfiguration,
   RetryAttemptInfo,
-  ToolConstructionContext
+  ToolConstructionContext,
+  AgentResult,
+  AgentExecutionContext
 } from '../../../types/tcc-unified';
+import { ModelConfiguration } from '../../../ai/model-configuration';
 import { getSystemPrompt, constructUserPrompt } from './prompt-manager';
 import logger from '../../../logger';
 

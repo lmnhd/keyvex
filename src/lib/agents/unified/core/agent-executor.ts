@@ -91,8 +91,7 @@ interface EnhancedExecutionResult {
 export async function executeAgent(
   agentType: AgentType,
   context: AgentExecutionContext,
-  tcc: ToolConstructionContext,
-  rawModelResult?: RawModelResult
+  tcc: ToolConstructionContext
 ): Promise<{ result: AgentResult; updatedTcc: ToolConstructionContext }> {
   const startTime = Date.now();
   
@@ -128,8 +127,7 @@ export async function executeAgent(
           agentModule,
           context,
           tcc,
-          attemptInfo,
-          rawModelResult
+          attemptInfo
         );
       }
     );
@@ -189,8 +187,7 @@ async function executeAgentWithValidation(
   agentModule: BaseAgentModule,
   context: AgentExecutionContext,
   tcc: ToolConstructionContext,
-  attemptInfo: RetryAttemptInfo,
-  rawModelResult?: RawModelResult
+  attemptInfo: RetryAttemptInfo
 ): Promise<EnhancedExecutionResult> {
   const executionStartTime = Date.now();
 

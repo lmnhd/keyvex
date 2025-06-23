@@ -130,16 +130,8 @@ export type AgentType =
   | 'code-validator'
   | 'tool-finalizer';
 
-// Model Configuration (Phase 1.1)
-export interface ModelConfiguration {
-  provider: 'openai' | 'anthropic';
-  modelId: string;
-  temperature: number;
-  maxTokens: number;
-  topP?: number;
-  frequencyPenalty?: number;
-  presencePenalty?: number;
-}
+// ✅ CENTRALIZED: Import ModelConfiguration from dedicated module
+import { ModelConfiguration } from '../ai/model-configuration';
 
 // Agent Execution Context (Phase 1.1)
 export interface AgentExecutionContext {
@@ -159,14 +151,13 @@ export interface AgentExecutionContext {
 
 // Unified Tool Construction Context (Phase 1.1)
 export interface ToolConstructionContext extends BaseTCC {
-  // Enhanced agent results with proper typing
-  functionPlannerResult?: FunctionPlannerResult;
-  stateDesignResult?: StateDesignResult;
-  jsxLayoutResult?: JsxLayoutResult;
-  tailwindStylingResult?: TailwindStylingResult;
-  componentAssemblerResult?: ComponentAssemblerResult;
-  codeValidatorResult?: CodeValidatorResult;
-  toolFinalizerResult?: ToolFinalizerResult;
+  // ✅ REMOVED UNUSED FIELDS: Individual agent result fields were never used in the codebase
+  // The system actually uses the base TCC fields directly:
+  // - tcc.functionSignatures (not tcc.functionPlannerResult)
+  // - tcc.stateLogic (not tcc.stateDesignResult)
+  // - tcc.jsxLayout (not tcc.jsxLayoutResult)
+  // - tcc.styling (not tcc.tailwindStylingResult)
+  // - tcc.finalProduct (not tcc.toolFinalizerResult)
 
   // Agent execution metadata (optional for backward compatibility)
   agentExecutionHistory?: Array<{
@@ -244,10 +235,11 @@ export interface CoreBrainstormData {
 }
 
 // Agent-specific filtered brainstorm data interfaces (Phase 1.3)
-export interface FunctionPlannerBrainstormData extends CoreBrainstormData {
-  // Function Planner needs: Core data + inputs + calculations + flow + enhancements
-  // All core fields are included
-}
+// ✅ SIMPLIFIED: Removed redundant types that were identical to CoreBrainstormData
+
+// Agents that need ALL brainstorm data use CoreBrainstormData directly:
+// - Function Planner: Uses CoreBrainstormData (was FunctionPlannerBrainstormData)
+// - Component Assembler: Uses CoreBrainstormData (was ComponentAssemblerBrainstormData)
 
 export interface StateDesignBrainstormData extends CoreBrainstormData {
   // State Design needs: Core data + inputs + calculations + calculation logic
@@ -262,11 +254,6 @@ export interface JSXLayoutBrainstormData extends CoreBrainstormData {
 export interface TailwindStylingBrainstormData extends CoreBrainstormData {
   // Tailwind Styling needs: Core data + creative enhancements + lead capture (for styling themes)
   // Excludes: suggestedInputs, keyCalculations, calculationLogic, interactionFlow
-}
-
-export interface ComponentAssemblerBrainstormData extends CoreBrainstormData {
-  // Component Assembler mainly needs core data for metadata
-  // Uses all core fields for context
 }
 
 export interface RetryStrategy {
@@ -324,3 +311,6 @@ export type {
   OrchestrationStatus,
   EditModeContext
 } from './product-tool-creation-v2/tcc';
+
+// Re-export centralized types for backward compatibility
+export type { ModelConfiguration } from '../ai/model-configuration';

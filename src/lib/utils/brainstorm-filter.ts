@@ -1,6 +1,12 @@
 /**
- * Brainstorm Data Filtering Utilities (Phase 1.3)
+ * Brainstorm Data Filtering Utilities (Phase 1.3 - SIMPLIFIED)
  * Enhanced for Unified TCC Interface Integration
+ * 
+ * ✅ REDUNDANCY ELIMINATION COMPLETED:
+ * - Removed FunctionPlannerBrainstormData (now uses CoreBrainstormData directly)
+ * - Removed ComponentAssemblerBrainstormData (now uses CoreBrainstormData directly)
+ * - Kept specialized filtered types: StateDesign, JSXLayout, TailwindStyling
+ * - All filtering functionality preserved - agents still get exactly the data they need
  * 
  * Each agent should only receive the specific brainstorm data relevant to its task.
  * This prevents context window bloat and improves AI focus on relevant information.
@@ -11,11 +17,9 @@ import logger from '../logger';
 import { 
   AgentType,
   CoreBrainstormData,
-  FunctionPlannerBrainstormData,
   StateDesignBrainstormData,
   JSXLayoutBrainstormData,
   TailwindStylingBrainstormData,
-  ComponentAssemblerBrainstormData,
   BrainstormFilterContext
 } from '../types/tcc-unified';
 import { BrainstormData } from '../types/product-tool-creation-v2/tcc';
@@ -109,20 +113,21 @@ function createFilterContext(
 /**
  * Filter brainstorm data for Function Planner Agent
  * Needs: Core data + inputs + calculations + flow + enhancements
+ * ✅ SIMPLIFIED: Returns CoreBrainstormData directly (no filtering needed)
  */
 export function filterBrainstormForFunctionPlanner(
   brainstormData: BrainstormData,
   jobId: string
-): FunctionPlannerBrainstormData | null {
+): CoreBrainstormData | null {
   if (!brainstormData) return null;
 
   const coreData = convertToCoreData(brainstormData);
-  const filtered: FunctionPlannerBrainstormData = {
+  const filtered: CoreBrainstormData = {
     ...coreData // Function Planner needs all core data
   };
 
   const fieldsIncluded = Object.keys(filtered).filter(key => 
-    filtered[key as keyof FunctionPlannerBrainstormData] !== undefined
+    filtered[key as keyof CoreBrainstormData] !== undefined
   );
   const fieldsExcluded: string[] = []; // Function Planner includes all fields
 
@@ -281,20 +286,21 @@ export function filterBrainstormForTailwindStyling(
 /**
  * Filter brainstorm data for Component Assembler Agent
  * Needs: Complete core data for metadata and context
+ * ✅ SIMPLIFIED: Returns CoreBrainstormData directly (no filtering needed)
  */
 export function filterBrainstormForComponentAssembler(
   brainstormData: BrainstormData,
   jobId: string
-): ComponentAssemblerBrainstormData | null {
+): CoreBrainstormData | null {
   if (!brainstormData) return null;
 
   const coreData = convertToCoreData(brainstormData);
-  const filtered: ComponentAssemblerBrainstormData = {
+  const filtered: CoreBrainstormData = {
     ...coreData // Component Assembler needs all core data for context
   };
 
   const fieldsIncluded = Object.keys(filtered).filter(key => 
-    filtered[key as keyof ComponentAssemblerBrainstormData] !== undefined
+    filtered[key as keyof CoreBrainstormData] !== undefined
   );
   const fieldsExcluded: string[] = []; // Component Assembler includes all fields
 
