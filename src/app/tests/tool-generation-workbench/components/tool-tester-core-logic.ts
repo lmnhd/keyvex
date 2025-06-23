@@ -55,89 +55,9 @@ async function startV2ToolCreation(
   console.log(`🔍 [V2-START] Starting V2 tool creation with unified BrainstormResult`);
   console.log(`🔍 [V2-START] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
   
-  if (jobId) {
-    console.log(`🔍 [V2-START] Using provided jobId: ${jobId}`);
-  } else {
-    console.log(`⚠️ [V2-START] No jobId provided - server will generate new one`);
-  }
-
-  // --- PHASE 2: DIRECT ACCESS TO UNIFIED STRUCTURE ---
-  // No more complex extraction - direct access to typed data
-  const description = (brainstormResult.userInput as any).businessContext;
-  if (!description || description.trim().length === 0) {
-    throw new Error('Description is required but was empty');
-  }
-  
-  console.log('🔍 [V2-START] Using description:', description);
-  console.log('🔍 [V2-START] Brainstorm data keys:', Object.keys(brainstormResult.brainstormData as any));
-  
-  // --- PHASE 2: DIRECT VALIDATION ---
-  // Validate that all required fields are present in the brainstorm data
-  const brainstormData = brainstormResult.brainstormData as any;
-  const requiredFields = [
-    'valueProposition',
-    'keyCalculations', 
-    'interactionFlow',
-    'leadCaptureStrategy',
-    'creativeEnhancements',
-    'suggestedInputs',
-    'calculationLogic',
-    'promptOptions'
-  ];
-  
-  const missingFields = requiredFields.filter(field => {
-    const value = brainstormData[field];
-    return value === undefined || value === null || (Array.isArray(value) && value.length === 0);
-  });
-  
-  if (missingFields.length > 0) {
-    console.error('🚨 [V2-START] CRITICAL VALIDATION FAILURE - Missing required brainstorm fields:', missingFields);
-    console.error('🚨 [V2-START] Available fields:', Object.keys(brainstormData));
-    
-    throw new Error(`CRITICAL BRAINSTORM DATA VALIDATION FAILURE: Missing required fields: ${missingFields.join(', ')}. This indicates a problem with the brainstorm generation process.`);
-  }
-  
-  console.log('✅ [V2-START] All required brainstorm fields are present and valid');
-
-  const requestBody = {
-    jobId: jobId,
-    userInput: {
-      description: description.trim(),
-      targetAudience: (brainstormResult.userInput as any).targetAudience,
-      industry: (brainstormResult.userInput as any).industry,
-      toolType: (brainstormResult.userInput as any).toolType,
-      features: [] // No features in unified structure
-    },
-    selectedModel: modelId,
-    agentModelMapping: agentModelMapping || {},
-    brainstormData: brainstormData, // Direct access to validated data
-    testingOptions: {
-      enableWebSocketStreaming: true,
-      enableTccOperations: true,
-      enableOrchestrationTriggers: true
-    }
-  };
-
-  console.log('🔍 [V2-START] Request body created with unified structure');
-
-  const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(requestBody),
-  });
-
-  const responseData = await response.json();
-
-  if (!response.ok || !responseData.success) {
-    const errorMessage = responseData.error || responseData.message || `HTTP ${response.status}: ${response.statusText}`;
-    console.error(`[V2 Start] API error response:`, responseData);
-    throw new Error(errorMessage);
-  }
-
-  console.log(`🔍 [V2-START] Response jobId: ${responseData.jobId}`);
-  return { jobId: responseData.jobId };
+  // TEMPORARY FIX: The V2 orchestration API has been removed during cleanup
+  // Return a proper error instead of causing 404/JSON parsing errors
+  throw new Error('V2 Orchestration API has been removed. The /api/ai/product-tool-creation-v2/orchestrate/start endpoint no longer exists. Please use individual agent testing mode instead of V2 orchestration workflow.');
 }
 
 export async function runToolCreationProcess(
