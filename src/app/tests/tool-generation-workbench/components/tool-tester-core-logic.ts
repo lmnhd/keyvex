@@ -115,7 +115,7 @@ async function startV2ToolCreation(
         await emitStepProgress(
           actualJobId,
           stepName as any, // Type assertion for valid step name
-          'running',
+          'in_progress',
           `Executing ${agentType} agent with ${agentModel}`,
           { 
             agentType, 
