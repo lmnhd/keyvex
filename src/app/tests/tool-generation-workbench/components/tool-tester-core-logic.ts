@@ -9,6 +9,9 @@ import {
   validateBrainstormResult
 } from '../types/unified-brainstorm-types';
 
+// Import progress emitter for WebSocket updates
+import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
+
 // Using console logging for test utilities
 
 export { loadLogicResultsFromDB };
@@ -52,12 +55,172 @@ async function startV2ToolCreation(
   agentModelMapping?: Record<string, string>,
   jobId?: string
 ): Promise<{ jobId: string }> {
-  console.log(`🔍 [V2-START] Starting V2 tool creation with unified BrainstormResult`);
-  console.log(`🔍 [V2-START] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
+  console.log(`🔍 [UNIFIED-WORKFLOW] Starting unified workflow with sequential agent execution`);
+  console.log(`🔍 [UNIFIED-WORKFLOW] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
   
-  // TEMPORARY FIX: The V2 orchestration API has been removed during cleanup
-  // Return a proper error instead of causing 404/JSON parsing errors
-  throw new Error('V2 Orchestration API has been removed. The /api/ai/product-tool-creation-v2/orchestrate/start endpoint no longer exists. Please use individual agent testing mode instead of V2 orchestration workflow.');
+  const actualJobId = jobId || `workflow-${Date.now()}`;
+  
+  // Create initial TCC from brainstorm data for unified workflow
+  const initialTcc = {
+    userId: brainstormResult.userId || 'workbench-user',
+    jobId: actualJobId,
+    userInput: brainstormResult.userInput || {},
+    brainstormData: brainstormResult.brainstormData || {},
+    stepStatus: {},
+    agentModelMapping: agentModelMapping || { 'default': modelId },
+    status: 'in_progress',
+    currentOrchestrationStep: 'planning_function_signatures',
+    targetAudience: brainstormResult.userInput?.targetAudience || 'General users',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    steps: {}
+  };
+
+  try {
+    // Execute all 7 agents in sequence using the unified architecture
+    const agentSequence = [
+      'function-planner',
+      'state-design', 
+      'jsx-layout',
+      'tailwind-styling',
+      'component-assembler',
+      'code-validator',
+      'tool-finalizer'
+    ];
+
+    let currentTcc = initialTcc;
+    
+    console.log(`🚀 [UNIFIED-WORKFLOW] Starting sequential execution of ${agentSequence.length} agents`);
+
+    for (let i = 0; i < agentSequence.length; i++) {
+      const agentType = agentSequence[i];
+      const agentModel = agentModelMapping?.[agentType] || modelId;
+      
+      console.log(`🔄 [UNIFIED-WORKFLOW] Step ${i + 1}/${agentSequence.length}: Executing ${agentType} with model ${agentModel}`);
+      
+      // Emit WebSocket progress update - Agent starting
+      try {
+        await emitStepProgress(
+          actualJobId,
+          agentType.replace('-', '_'), // Convert to step name format
+          'running',
+          `Executing ${agentType} agent with ${agentModel}`,
+          { 
+            agentType, 
+            modelUsed: agentModel, 
+            stepNumber: i + 1, 
+            totalSteps: agentSequence.length,
+            workflowMode: 'unified_sequential'
+          }
+        );
+      } catch (wsError) {
+        console.warn(`⚠️ [WEBSOCKET] Failed to emit progress for ${agentType}:`, wsError);
+      }
+      
+      const requestBody = {
+        jobId: actualJobId,
+        agentType: agentType,
+        selectedModel: agentModel,
+        tcc: currentTcc,
+        isIsolatedTest: false, // This is full workflow, not isolated testing
+        retryAttempt: 0
+      };
+
+      const response = await fetch('/api/ai/agents/universal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        
+        // Emit WebSocket progress update - Agent failed
+        try {
+          await emitStepProgress(
+            actualJobId,
+            agentType.replace('-', '_'),
+            'failed',
+            `Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`,
+            { agentType, error: errorData.error, stepNumber: i + 1, totalSteps: agentSequence.length }
+          );
+        } catch (wsError) {
+          console.warn(`⚠️ [WEBSOCKET] Failed to emit failure progress for ${agentType}:`, wsError);
+        }
+        
+        throw new Error(`Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`);
+      }
+
+      const agentResult = await response.json();
+      
+      if (!agentResult.success) {
+        // Emit WebSocket progress update - Agent failed
+        try {
+          await emitStepProgress(
+            actualJobId,
+            agentType.replace('-', '_'),
+            'failed',
+            `Agent ${agentType} execution failed: ${agentResult.error}`,
+            { agentType, error: agentResult.error, stepNumber: i + 1, totalSteps: agentSequence.length }
+          );
+        } catch (wsError) {
+          console.warn(`⚠️ [WEBSOCKET] Failed to emit failure progress for ${agentType}:`, wsError);
+        }
+        
+        throw new Error(`Agent ${agentType} execution failed: ${agentResult.error}`);
+      }
+
+      // Update TCC with the agent's result for next step
+      currentTcc = agentResult.updatedTcc;
+      
+      // Emit WebSocket progress update - Agent completed
+      try {
+        await emitStepProgress(
+          actualJobId,
+          agentType.replace('-', '_'),
+          'completed',
+          `${agentType} completed successfully`,
+          { 
+            agentType, 
+            modelUsed: agentModel, 
+            stepNumber: i + 1, 
+            totalSteps: agentSequence.length,
+            executionTime: agentResult.executionTime,
+            validationScore: agentResult.validationScore
+          }
+        );
+      } catch (wsError) {
+        console.warn(`⚠️ [WEBSOCKET] Failed to emit completion progress for ${agentType}:`, wsError);
+      }
+      
+      console.log(`✅ [UNIFIED-WORKFLOW] ${agentType} completed successfully - TCC updated for next step`);
+    }
+
+    // Emit final workflow completion progress
+    try {
+      await emitStepProgress(
+        actualJobId,
+        'finalizing_tool',
+        'completed',
+        'Complete workflow finished successfully!',
+        { 
+          totalAgentsExecuted: agentSequence.length,
+          workflowMode: 'unified_sequential',
+          finalTccKeys: Object.keys(currentTcc || {})
+        }
+      );
+    } catch (wsError) {
+      console.warn(`⚠️ [WEBSOCKET] Failed to emit final completion progress:`, wsError);
+    }
+
+    console.log(`🎉 [UNIFIED-WORKFLOW] All agents completed successfully! Job ID: ${actualJobId}`);
+    
+    return { jobId: actualJobId };
+    
+  } catch (error) {
+    console.error(`❌ [UNIFIED-WORKFLOW] Workflow failed:`, error);
+    throw error;
+  }
 }
 
 export async function runToolCreationProcess(
@@ -161,220 +324,87 @@ export async function runTccFinalizationSteps(
       }
     });
     
-    // Step 1: Component Assembly
-    console.log('🔧 Starting Component Assembly...');
-    const assemblerResponse = await fetch('/api/ai/product-tool-creation-v2/agents/component-assembler', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        jobId: tcc.jobId,
-        selectedModel: agentModelMapping?.['component-assembler'],
-        mockTcc: tcc,                                    // ✅ Signals isolation
+    // Execute the final 3 agents in sequence using the unified architecture
+    const finalizationAgents = ['component-assembler', 'code-validator', 'tool-finalizer'];
+    let currentTcc = { ...tcc };
+    
+    for (let i = 0; i < finalizationAgents.length; i++) {
+      const agentType = finalizationAgents[i];
+      const agentModel = agentModelMapping?.[agentType] || 'claude-3-7-sonnet-20250219';
+      
+      console.log(`🔧 [FINALIZATION] Step ${i + 1}/3: ${agentType}...`);
+      
+      const requestBody = {
+        jobId: currentTcc.jobId,
+        agentType: agentType,
+        selectedModel: agentModel,
+        tcc: currentTcc,
         isIsolatedTest: true // Prevent triggering next step automatically
-      })
-    });
-    
-    if (!assemblerResponse.ok) {
-      throw new Error(`Component Assembler failed: ${assemblerResponse.statusText}`);
-    }
-    
-    const assemblerResult = await assemblerResponse.json();
-    if (!assemblerResult.success) {
-      throw new Error(`Component Assembler error: ${assemblerResult.error}`);
-    }
-    
-    intermediateResults.assembledComponent = assemblerResult.assembledComponent;
-    const updatedTccAfterAssembly = assemblerResult.updatedTcc;
-    
-    // 🔍 LOG TCC AFTER ASSEMBLY
-    console.log(`🔍 [FINALIZATION-ASSEMBLY] TCC Keys:`, Object.keys(updatedTccAfterAssembly || {}).join(', '));
-    console.log(`🔍 [FINALIZATION-ASSEMBLY] TCC Structure:`, {
-      hasJsxLayout: !!updatedTccAfterAssembly?.jsxLayout,
-      hasStateLogic: !!updatedTccAfterAssembly?.stateLogic,
-      hasStyling: !!updatedTccAfterAssembly?.styling,
-      hasAssembledCode: !!updatedTccAfterAssembly?.assembledComponentCode,
-      assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
-      hasFinalProduct: !!updatedTccAfterAssembly?.finalProduct,
-    });
+      };
 
-    // 📊 CONSOLE LOGGING - AFTER ASSEMBLY
-    console.log('🔍 [TCC-FINALIZATION] Component Assembly completed', {
-      jobId,
-      phase: 'after_assembly',
-      tccKeys: Object.keys(updatedTccAfterAssembly || {}),
-      tccStructure: {
-        hasJsxLayout: !!updatedTccAfterAssembly?.jsxLayout,
-        hasStateLogic: !!updatedTccAfterAssembly?.stateLogic,
-        hasStyling: !!updatedTccAfterAssembly?.styling,
-        hasAssembledCode: !!updatedTccAfterAssembly?.assembledComponentCode,
-        assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
-        hasFinalProduct: !!updatedTccAfterAssembly?.finalProduct,
-      }
-    });
-    
-    console.log('✅ Component Assembly completed');
-    
-    // Step 2: Validation
-    console.log('🔍 Starting Validation...');
-    
-    // Debug: Log what we're sending to the validator
-    console.log('🔍 VALIDATOR DEBUG - Request payload:', {
-      jobId: tcc.jobId,
-      selectedModel: agentModelMapping?.['validator'],
-      hasTcc: !!updatedTccAfterAssembly,
-      tccKeys: updatedTccAfterAssembly ? Object.keys(updatedTccAfterAssembly) : [],
-      assembledCodeLength: updatedTccAfterAssembly?.assembledComponentCode?.length || 0,
-      isIsolatedTest: true
-    });
-    
-    const validatorResponse = await fetch('/api/ai/product-tool-creation-v2/agents/validator', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        jobId: tcc.jobId,
-        selectedModel: agentModelMapping?.['validator'],
-        mockTcc: updatedTccAfterAssembly,                // ✅ Chain isolation
-        isIsolatedTest: true // Prevent triggering next step automatically
-      })
-    });
-    
-    console.log('🔍 VALIDATOR DEBUG - Response status:', validatorResponse.status, validatorResponse.statusText);
-    
-    if (!validatorResponse.ok) {
-      const errorText = await validatorResponse.text();
-      console.log('🔍 VALIDATOR DEBUG - Error response body:', errorText);
-      throw new Error(`Validator failed: ${validatorResponse.statusText}`);
-    }
-    
-    const validatorResult = await validatorResponse.json();
-    if (!validatorResult.success) {
-      throw new Error(`Validator error: ${validatorResult.error}`);
-    }
-    
-    intermediateResults.validationResult = validatorResult.validationResult;
-    const updatedTccAfterValidation = validatorResult.updatedTcc;
-    
-    // 🔍 LOG TCC AFTER VALIDATION
-    console.log(`🔍 [FINALIZATION-VALIDATION] TCC Keys:`, Object.keys(updatedTccAfterValidation || {}).join(', '));
-    console.log(`🔍 [FINALIZATION-VALIDATION] TCC Structure:`, {
-      hasJsxLayout: !!updatedTccAfterValidation?.jsxLayout,
-      hasStateLogic: !!updatedTccAfterValidation?.stateLogic,
-      hasStyling: !!updatedTccAfterValidation?.styling,
-      hasAssembledCode: !!updatedTccAfterValidation?.assembledComponentCode,
-      assembledCodeLength: updatedTccAfterValidation?.assembledComponentCode?.length || 0,
-      hasFinalProduct: !!updatedTccAfterValidation?.finalProduct,
-      validationResult: updatedTccAfterValidation?.validationResult?.isValid || false,
-    });
-
-    // 📊 CONSOLE LOGGING - AFTER VALIDATION
-    console.log('🔍 [TCC-FINALIZATION] Validation completed', {
-      jobId,
-      phase: 'after_validation',
-      tccKeys: Object.keys(updatedTccAfterValidation || {}),
-      tccStructure: {
-        hasJsxLayout: !!updatedTccAfterValidation?.jsxLayout,
-        hasStateLogic: !!updatedTccAfterValidation?.stateLogic,
-        hasStyling: !!updatedTccAfterValidation?.styling,
-        hasAssembledCode: !!updatedTccAfterValidation?.assembledComponentCode,
-        assembledCodeLength: updatedTccAfterValidation?.assembledComponentCode?.length || 0,
-        hasFinalProduct: !!updatedTccAfterValidation?.finalProduct,
-        validationResult: updatedTccAfterValidation?.validationResult?.isValid || false,
-      }
-    });
-    
-    console.log('✅ Validation completed');
-    
-    // Step 3: Tool Finalization
-    console.log('🎯 Starting Tool Finalization...');
-    const finalizerResponse = await fetch('/api/ai/product-tool-creation-v2/agents/tool-finalizer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        jobId: tcc.jobId,
-        selectedModel: agentModelMapping?.['tool-finalizer'],
-        mockTcc: updatedTccAfterValidation,              // ✅ Chain isolation
-        isIsolatedTest: true // Prevent triggering next step automatically
-      })
-    });
-    
-    if (!finalizerResponse.ok) {
-      throw new Error(`Tool Finalizer failed: ${finalizerResponse.statusText}`);
-    }
-    
-    const finalizerResult = await finalizerResponse.json();
-    if (!finalizerResult.success) {
-      throw new Error(`Tool Finalizer error: ${finalizerResult.error}`);
-    }
-    
-    // 🔍 LOG FINAL TCC STATE
-    const finalTcc = finalizerResult.updatedTcc;
-    console.log(`🔍 [FINALIZATION-COMPLETE] Final TCC Keys:`, Object.keys(finalTcc || {}).join(', '));
-    console.log(`🔍 [FINALIZATION-COMPLETE] Final TCC Structure:`, {
-      hasJsxLayout: !!finalTcc?.jsxLayout,
-      hasStateLogic: !!finalTcc?.stateLogic,
-      hasStyling: !!finalTcc?.styling,
-      hasAssembledCode: !!finalTcc?.assembledComponentCode,
-      assembledCodeLength: finalTcc?.assembledComponentCode?.length || 0,
-      hasFinalProduct: !!finalTcc?.finalProduct,
-      finalProductLength: finalTcc?.finalProduct?.componentCode?.length || 0,
-    });
-    
-    // Log final product details
-    if (finalizerResult.finalProduct) {
-      console.log(`🔍 [FINALIZATION-COMPLETE] Final Product:`, {
-        hasComponentCode: !!finalizerResult.finalProduct.componentCode,
-        componentCodeLength: finalizerResult.finalProduct.componentCode?.length || 0,
-        hasMetadata: !!finalizerResult.finalProduct.metadata,
-        toolName: finalizerResult.finalProduct.metadata?.name || 'unknown',
-        description: finalizerResult.finalProduct.metadata?.description || 'no description',
+      const response = await fetch('/api/ai/agents/universal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`${agentType} failed: ${errorData.error || 'Unknown error'}`);
+      }
+      
+      const agentResult = await response.json();
+      if (!agentResult.success) {
+        throw new Error(`${agentType} error: ${agentResult.error}`);
+      }
+      
+      // Store intermediate results and update TCC
+      if (agentType === 'component-assembler') {
+        intermediateResults.assembledComponent = agentResult.result;
+      } else if (agentType === 'code-validator') {
+        intermediateResults.validationResult = agentResult.result;
+      }
+      
+      currentTcc = agentResult.updatedTcc;
+      
+      // 🔍 LOG TCC AFTER EACH STEP
+      console.log(`🔍 [FINALIZATION-${agentType.toUpperCase()}] TCC Keys:`, Object.keys(currentTcc || {}).join(', '));
+      console.log(`🔍 [FINALIZATION-${agentType.toUpperCase()}] TCC Structure:`, {
+        hasJsxLayout: !!currentTcc?.jsxLayout,
+        hasStateLogic: !!currentTcc?.stateLogic,
+        hasStyling: !!currentTcc?.styling,
+        hasAssembledCode: !!currentTcc?.assembledComponentCode,
+        assembledCodeLength: currentTcc?.assembledComponentCode?.length || 0,
+        hasFinalProduct: !!currentTcc?.finalProduct,
+        hasValidationResult: !!currentTcc?.validationResult,
+      });
+
+      console.log(`✅ [FINALIZATION] ${agentType} completed successfully`);
+    }
+    
+    // Extract final product from the tool-finalizer result
+    const finalProduct = currentTcc?.finalProduct;
+    
+    if (!finalProduct) {
+      throw new Error('Tool finalization did not produce a final product');
     }
 
-    // 📊 CONSOLE LOGGING - FINALIZATION COMPLETE
-    console.log('🔍 [TCC-FINALIZATION] Finalization process completed successfully', {
-      jobId,
-      phase: 'finalization_complete',
-      finalTccKeys: Object.keys(finalTcc || {}),
-      finalTccStructure: {
-        hasJsxLayout: !!finalTcc?.jsxLayout,
-        hasStateLogic: !!finalTcc?.stateLogic,
-        hasStyling: !!finalTcc?.styling,
-        hasAssembledCode: !!finalTcc?.assembledComponentCode,
-        assembledCodeLength: finalTcc?.assembledComponentCode?.length || 0,
-        hasFinalProduct: !!finalTcc?.finalProduct,
-        finalProductLength: finalTcc?.finalProduct?.componentCode?.length || 0,
-      },
-      finalProduct: finalizerResult.finalProduct ? {
-        hasComponentCode: !!finalizerResult.finalProduct.componentCode,
-        componentCodeLength: finalizerResult.finalProduct.componentCode?.length || 0,
-        hasMetadata: !!finalizerResult.finalProduct.metadata,
-        toolName: finalizerResult.finalProduct.metadata?.name || 'unknown',
-        description: finalizerResult.finalProduct.metadata?.description || 'no description',
-      } : null
-    });
-    
-    console.log('✅ Tool Finalization completed');
+    console.log('🎉 [TCC-FINALIZATION] All finalization steps completed successfully');
     
     return {
       success: true,
-      finalProduct: finalizerResult.finalProduct,
+      finalProduct,
       intermediateResults
     };
-    
+
   } catch (error) {
-    console.error('❌ TCC Finalization Steps Failed:', error);
-    console.log(`🔍 [FINALIZATION-ERROR] Error: ${error instanceof Error ? error.message : String(error)}`);
-    
-    // 📊 CONSOLE LOGGING - FINALIZATION ERROR
-    console.error('🔍 [TCC-FINALIZATION] Finalization process failed', {
-      jobId: tcc?.jobId || 'unknown',
-      phase: 'finalization_error',
-      error: error instanceof Error ? error.message : String(error),
-    });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ [TCC-FINALIZATION] Finalization failed:', errorMessage);
     
     return {
       success: false,
-      error: error instanceof Error ? error.message : String(error)
+      error: errorMessage,
+      intermediateResults: {}
     };
   }
 }
