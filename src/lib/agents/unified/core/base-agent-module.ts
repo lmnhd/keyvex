@@ -46,15 +46,6 @@ export abstract class BaseAgentModule {
   }
 
   /**
-   * DEPRECATED: Execution is now handled by the central AgentExecutor.
-   * This method is no longer called.
-   */
-  // abstract execute(
-  //   context: AgentExecutionContext,
-  //   input: AgentExecutionInput
-  // ): Promise<any>;
-
-  /**
    * Validate the structured data returned by the AI.
    * ✅ UPDATED: Now uses unified ValidationResult interface
    */
