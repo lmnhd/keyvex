@@ -86,7 +86,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // WebSocket logging state
   const [wsLogs, setWsLogs] = useState<string[]>([]);
-  const [streamingExample, setStreamingExample] = useState<string>('');
   
   // Add refs for auto-scrolling
   const wsLogsEndRef = useRef<HTMLDivElement>(null);
@@ -124,45 +123,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       console.error(`❌ [WebSocket Error] ${message}`, data);
     } else if (type === 'debug') {
       console.log(`🐛 [WebSocket Debug] ${message}`, data);
-    }
-  }, []);
-
-  // Clear logs function
-  const clearLogsAndProgress = useCallback(() => {
-    setWsLogs([]);
-    setProgressUpdates && setProgressUpdates([]);
-    setCurrentStep('');
-    setError(null);
-    addWSLog('🧹 Logs cleared - starting fresh test');
-  }, [addWSLog]);
-
-  // WebSocket debug information state similar to test page
-  const [wsDebugInfo, setWsDebugInfo] = useState({
-    envVar: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
-    hasEnvVar: !!process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
-    finalUrl: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || 'Not Set',
-    isPlaceholder: (process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '').includes('your-websocket-api'),
-    connectionAttempts: 0,
-    lastConnectionTime: null as string | null,
-    lastMessageTime: null as string | null
-  });
-
-  // LocalStorage utilities
-  const saveToLocalStorage = useCallback((key: string, value: any) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.warn('Failed to save to localStorage:', error);
-    }
-  }, []);
-
-  const loadFromLocalStorage = useCallback((key: string, defaultValue: any = null) => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : defaultValue;
-    } catch (error) {
-      console.warn('Failed to load from localStorage:', error);
-      return defaultValue;
     }
   }, []);
 
@@ -213,22 +173,34 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [addWSLog, assembledCode]);
 
-  // Enhanced progress monitoring with detailed logging
-  const enhancedHandleJobUpdate = useCallback((progress: StepProgress) => {
-    // Log detailed progress information
-    addDetailedWSLog('message', `Step Progress: ${progress.stepName} -> ${progress.status}`, {
-      jobId: progress.jobId,
-      message: progress.message,
-      dataKeys: progress.data ? Object.keys(progress.data) : [],
-      isFallback: progress.isFallback
-    });
-    
-    // Call the original handler
-    handleJobUpdate(progress);
-  }, [handleJobUpdate, addDetailedWSLog]);
-
-  const { connect, disconnect, connectionStatus, progressUpdates, messages, setProgressUpdates } = useToolGenerationStream({ 
-    onProgress: enhancedHandleJobUpdate,
+  // Get the hook's return values 
+  const { 
+    connect, 
+    disconnect, 
+    connectionStatus, 
+    progressUpdates, 
+    messages, 
+    setProgressUpdates 
+  }: {
+    connect: () => Promise<void>;
+    disconnect: () => void;
+    connectionStatus: 'connecting' | 'connected' | 'error' | 'fallback';
+    progressUpdates: StepProgress[];
+    messages: Array<{ type: string; data: any }>;
+    setProgressUpdates: React.Dispatch<React.SetStateAction<StepProgress[]>>;
+  } = useToolGenerationStream({ 
+    onProgress: (progress) => {
+      // Log detailed progress information
+      addDetailedWSLog('message', `Step Progress: ${progress.stepName} -> ${progress.status}`, {
+        jobId: progress.jobId,
+        message: progress.message,
+        dataKeys: progress.data ? Object.keys(progress.data) : [],
+        isFallback: progress.isFallback
+      });
+      
+      // Call the original handler
+      handleJobUpdate(progress);
+    },
     onMessage: (message) => {
       addDetailedWSLog('message', `WebSocket message received: ${message.type}`, message.data);
     },
@@ -237,19 +209,44 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }) as any; // Add type assertion since connect is now async
 
+  // Clear logs function - now setProgressUpdates is available
+  const clearLogsAndProgress = useCallback(() => {
+    setWsLogs([]);
+    setProgressUpdates([]);
+    setCurrentStep('');
+    setError(null);
+    addWSLog('🧹 Logs cleared - starting fresh test');
+  }, [addWSLog, setProgressUpdates]);
 
-  // Enhanced connection monitoring
-  useEffect(() => {
-    if (connectionStatus === 'connected') {
-      addDetailedWSLog('connection', 'WebSocket connection established successfully');
-    } else if (connectionStatus === 'connecting') {
-      addDetailedWSLog('connection', 'Attempting WebSocket connection...');
-    } else if (connectionStatus === 'error') {
-      addDetailedWSLog('error', 'WebSocket connection failed');
-    } else if (connectionStatus === 'fallback') {
-      addDetailedWSLog('debug', 'Using fallback mode - no real WebSocket connection');
+  // WebSocket debug information state similar to test page
+  const [wsDebugInfo, setWsDebugInfo] = useState({
+    envVar: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
+    hasEnvVar: !!process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT,
+    finalUrl: process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || 'Not Set',
+    isPlaceholder: (process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '').includes('your-websocket-api'),
+    connectionAttempts: 0,
+    lastConnectionTime: null as string | null,
+    lastMessageTime: null as string | null
+  });
+
+  // LocalStorage utilities
+  const saveToLocalStorage = useCallback((key: string, value: any) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.warn('Failed to save to localStorage:', error);
     }
-  }, [connectionStatus, addDetailedWSLog]);
+  }, []);
+
+  const loadFromLocalStorage = useCallback((key: string, defaultValue: any = null) => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch (error) {
+      console.warn('Failed to load from localStorage:', error);
+      return defaultValue;
+    }
+  }, []);
 
   // Auto-scroll effect for WebSocket logs
   useEffect(() => {
@@ -523,8 +520,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       // CRITICAL FIX: Create a single UUID that will be used throughout the entire process
       const jobId = uuidv4();
       
-      // Connect with the SAME jobId that will be used for the actual process
-      await connect(jobId, userId);
+      // Connect WebSocket - no parameters needed based on hook signature
+      await connect();
       
       await new Promise(resolve => setTimeout(resolve, 1000));
       
@@ -534,8 +531,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addWSLog(`✅ Using unified BrainstormResult format directly`);
       
       // Pass the unified brainstorm directly to the tool creation process
+      // Fix: Use correct parameter order - brainstorm, modelId, agentModelMapping, jobId
       const newJob = await runToolCreationProcess(
         brainstorm, // ✅ Already in unified BrainstormResult format
+        selectedModelIds[0] || defaultPrimaryModel || 'gpt-4o', // Use first selected model as primary
         agentModelMapping,
         jobId // CRITICAL: Pass the same jobId
       );
@@ -575,7 +574,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         });
         setOrchestrationStatus('paused');
         addWSLog(`Orchestration paused for job ${testJob.jobId}`);
-        connect(testJob.jobId, userId);
+        // Connect WebSocket - no parameters needed
+        await connect();
       } catch (error) {
         console.error('Failed to pause orchestration:', error);
         setError('Failed to pause the orchestration process.');
@@ -594,7 +594,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         });
         setOrchestrationStatus('free');
         addWSLog(`Orchestration resumed for job ${testJob.jobId}`);
-        connect(testJob.jobId, userId);
+        // Connect WebSocket - no parameters needed
+        await connect();
       } catch (error) {
         console.error('Failed to resume orchestration:', error);
         setError('Failed to resume the orchestration process.');
@@ -622,7 +623,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       
       // Only connect WebSocket if we have a real job ID (not for isolated agent tests)
       if (testJob?.jobId && !testJob.jobId.startsWith('debug-')) {
-        connect(testJob.jobId, userId);
+        await connect();
       }
 
       const result = await runTccFinalizationSteps(activeTccData, agentModelMapping);
@@ -669,21 +670,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         return <WifiOff className="h-4 w-4 text-red-500" />;
       default:
         return <WifiOff className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const getConnectionStatusText = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return 'WebSocket Connected';
-      case 'fallback':
-        return 'FALLBACK MODE (In-Memory)';
-      case 'connecting':
-        return 'Connecting...';
-      case 'error':
-        return 'Connection Error';
-      default:
-        return 'Disconnected';
     }
   };
 

@@ -20,21 +20,27 @@ export const useToolTesterData = (newBrainstormFlag?: number, userId?: string) =
   const fetchDefaultModel = useCallback(async () => {
     console.log('🎯 fetchDefaultModel: Starting default model fetch...');
     try {
-      const response = await fetch('/api/ai/create-tool'); 
+      const response = await fetch('/api/ai/logic-architect/brainstorm'); 
       if (response.ok) {
         const data = await response.json();
         console.log('🎯 Default model API response:', data);
         if (data.success && data.defaultModel?.primary?.id) {
           console.log('✅ Setting default primary model:', data.defaultModel.primary.id);
           setDefaultPrimaryModel(data.defaultModel.primary.id);
+        } else if (data.defaultPrimaryModel) {
+          console.log('✅ Setting default primary model (fallback):', data.defaultPrimaryModel);
+          setDefaultPrimaryModel(data.defaultPrimaryModel);
         } else {
-          console.warn('⚠️ No valid default model in response');
+          console.warn('⚠️ No valid default model in response, using fallback');
+          setDefaultPrimaryModel('claude-3-7-sonnet-20250219');
         }
       } else {
         console.error('❌ Default model API request failed:', response.status);
+        setDefaultPrimaryModel('claude-3-7-sonnet-20250219');
       }
     } catch (error) {
       console.warn('Failed to fetch default model, using fallback:', error);
+      setDefaultPrimaryModel('claude-3-7-sonnet-20250219');
     }
   }, []);
 
