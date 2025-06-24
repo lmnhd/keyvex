@@ -12,8 +12,6 @@ import {
   BrainstormData,
   DefinedFunctionSignature,
   StateLogic,
-  JsxLayout,
-  Styling,
   OrchestrationStep,
   OrchestrationStatus,
   EditModeContext,
@@ -21,6 +19,24 @@ import {
   StateFunction
 } from './product-tool-creation-v2/tcc';
 import { ProductToolDefinition } from './product-tool';
+
+// ✅ NEW: Type for initializing the TCC
+export interface InitialTcc {
+  userId: string;
+  jobId: string;
+  userInput: {
+    description: string; // Required by base TCC schema
+    toolType?: string;
+    targetAudience?: string;
+    businessContext?: string;
+    selectedModel?: string;
+    industry?: string;
+    features?: string[];
+  };
+  brainstormData: BrainstormData;
+  agentModelMapping: Record<AgentType, string>;
+  stepStatus?: Record<string, 'pending' | 'in_progress' | 'completed' | 'failed'>;
+}
 
 // ✅ UNIFIED VALIDATION RESULT - SINGLE SOURCE OF TRUTH
 // Replaces BaseValidationResult, ValidationResult, ValidationResultEnhanced, ValidationResultDetail
@@ -62,6 +78,31 @@ export interface StateDesignResult {
     stateVariableCount: number;
     functionCount: number;
     complexityScore: number;
+  };
+}
+
+// ✅ MISSING TYPE: Add JsxLayout interface referenced by JsxLayoutResult
+export interface JsxLayout {
+  componentStructure: string;
+  elementMap: Array<{ elementId: string; type: string; purpose: string }>;
+  accessibilityFeatures?: string[];
+}
+
+// ✅ MISSING TYPE: Add Styling interface referenced by TailwindStylingResult
+export interface Styling {
+  styledComponentCode: string;
+  styleMap: Record<string, string>;
+  colorScheme: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    background: string;
+    surface: string;
+    text: { primary: string; secondary: string; muted: string };
+    border: string;
+    success: string;
+    warning: string;
+    error: string;
   };
 }
 
@@ -313,8 +354,8 @@ export type {
   BrainstormData,
   DefinedFunctionSignature,
   StateLogic,
-  JsxLayout,
-  Styling,
+  JsxLayout as JsxLayoutType,
+  Styling as StylingType,
   OrchestrationStep,
   OrchestrationStatus,
   EditModeContext

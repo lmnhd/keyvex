@@ -22,7 +22,7 @@ export interface ModelOption {
 
 export type AgentModelMapping = Record<string, string>;
 
-export type OrchestrationStatus = 'free' | 'paused' | 'runone';
+export type OrchestrationStatus = 'free' | 'paused' | 'runone' | 'running_v2';
 
 export const STORAGE_KEYS = {
   selectedModels: 'tool-generation-workbench-selected-models',

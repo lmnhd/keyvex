@@ -296,7 +296,7 @@ ${CORE_LAYOUT_RULES}
             2. Input Section: CardContent with grid layout for inputs
             3. Action Section: CardFooter with primary action buttons
             4. Results Section: Separate Card below the main tool card
-
+            
     </layout-problems-to-avoid>
 </layout-design-guidelines>
 
@@ -314,12 +314,12 @@ ${CORE_LAYOUT_RULES}
         <div data-style-id="results-container" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div data-style-id="main-chart-area" className="lg:col-span-2">
             {/* Chart component goes here */}
-          </div>
+                  </div>
           <div data-style-id="metrics-panel">
             <h3 data-style-id="metrics-title">Key Metrics</h3>
             {/* Metrics like ROI, Savings, etc. go here */}
-          </div>
-        </div>
+                    </div>
+                  </div>
         '''
 
         **Pattern 2: Multiple Charts with Context**
@@ -331,12 +331,12 @@ ${CORE_LAYOUT_RULES}
           <div data-style-id="summary-block">
             <h3 data-style-id="summary-title">Overall Analysis</h3>
             <p data-style-id="summary-text">Your investment shows strong potential...</p>
-          </div>
+                      </div>
           <div data-style-id="chart-grid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Chart 1 */}
             {/* Chart 2 */}
-          </div>
-        </div>
+                      </div>
+                    </div>
         '''
 
         **Pattern 3: Dashboard-Style Results Grid**
@@ -350,11 +350,11 @@ ${CORE_LAYOUT_RULES}
             {/* KPI Card 2 */}
             {/* KPI Card 3 */}
             {/* KPI Card 4 */}
-          </div>
+                  </div>
           <div data-style-id="main-dashboard-chart" className="mt-4">
             {/* Main chart */}
-          </div>
-        </div>
+                  </div>
+                </div>
         '''
     </layout-patterns-for-results>
 
@@ -387,8 +387,8 @@ ${CORE_LAYOUT_RULES}
             <SelectValue placeholder="Select an option" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="option1">Option 1</SelectItem>
-            <SelectItem value="option2">Option 2</SelectItem>
+              <SelectItem value="option1">Option 1</SelectItem>
+              <SelectItem value="option2">Option 2</SelectItem>
           </SelectContent>
         </Select>
         \`\`\`
@@ -402,7 +402,7 @@ ${CORE_LAYOUT_RULES}
     <slider-component-pattern>
         **✅ CORRECT PATTERN FOR SLIDER:**
         \`\`\`jsx
-        <Slider
+        <Slider 
           defaultValue={[50]}
           max={100}
           step={1}
@@ -465,12 +465,12 @@ ${CORE_LAYOUT_RULES}
             <p className="font-semibold">{/* Tool Title Goes Here */}</p>
             <p>{/* Tool Description Goes Here */}</p>
             <p className="mt-1 text-xs">{/* User Instructions Hint Goes Here */}</p>
-          </div>
+    </div>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
 </mandatory-info-popup>
-
+    
 `;
 
 // Edit-specific prompt
@@ -499,7 +499,7 @@ ${CORE_LAYOUT_RULES}
  * @returns The system prompt as a string.
  */
 export function getJsxLayoutSystemPrompt(isEditing: boolean): string {
-  return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
+    return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
 }
 
 /**
@@ -577,4 +577,4 @@ export function getJsxLayoutUserPrompt(
     - Accessibility features and proper semantic structure
 </component-requirements>
 `;
-}
+} 

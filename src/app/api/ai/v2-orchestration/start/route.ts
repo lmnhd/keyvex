@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../../../../../lib/logger';
 import { emitStepProgress, emitTccUpdate } from '../../../../../lib/streaming/progress-emitter.server';
+import { requireAuth } from '@/lib/auth/debug';
 
 // Import direct agent execution (instead of HTTP calls)
 import { executeAgent } from '../../../../../lib/agents/unified/core/agent-executor';
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
   const startTime = Date.now();
   
   try {
+    const userId = await requireAuth();
     const body = await request.json();
     
     // 🔍 DEBUG: Log the incoming request body
@@ -85,7 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
 
     // Create initial TCC from brainstorm data
     const initialTcc = {
-      userId: 'workbench-user',
+      userId: userId,
       jobId,
       userInput: {
         description: brainstormData.userInput.businessContext || 'Tool description not provided',
@@ -269,6 +271,7 @@ async function processAgentsInBackground(
           'failed',
           `Workflow failed at ${agentType}: ${errorMessage}`,
           {
+            userId: currentTcc.userId,
             failedAgent: agentType,
             step: `${i + 1}/${agentSequence.length}`,
             error: errorMessage,
@@ -276,6 +279,9 @@ async function processAgentsInBackground(
           }
         );
         
+        // 📊 Also emit the final TCC so the workbench can inspect the failure state
+        await emitTccUpdate(jobId, { ...currentTcc, status: 'failed', error: errorMessage }, 'orchestrator');
+
         return; // Stop processing
       }
     }

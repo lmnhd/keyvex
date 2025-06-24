@@ -98,7 +98,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     { id: 'jsx-layout', name: 'JSX Layout Agent', description: 'Creates component structure' },
     { id: 'tailwind-styling', name: 'Tailwind Styling Agent', description: 'Applies complete styling system' },
     { id: 'component-assembler', name: 'Component Assembler', description: 'Combines all agent outputs' },
-    { id: 'validator', name: 'Validator Agent', description: 'Validates generated code' },
+    { id: 'code-validator', name: 'Code Validator Agent', description: 'Validates generated code' },
     { id: 'tool-finalizer', name: 'Tool Finalizer', description: 'Creates final tool definition' }
   ], []);
 
@@ -171,7 +171,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         console.warn('Final tool data structure:', progress.data);
       }
     }
-  }, [addWSLog, assembledCode]);
+  }, [addWSLog]);
 
   // Get the hook's return values 
   const { 
@@ -182,9 +182,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     messages, 
     setProgressUpdates 
   }: {
-    connect: () => Promise<void>;
+    connect: (jobId: string, userId: string) => Promise<void>;
     disconnect: () => void;
-    connectionStatus: 'connecting' | 'connected' | 'error' | 'fallback';
+    connectionStatus: ConnectionStatus;
     progressUpdates: StepProgress[];
     messages: Array<{ type: string; data: any }>;
     setProgressUpdates: React.Dispatch<React.SetStateAction<StepProgress[]>>;
@@ -241,7 +241,21 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         timestamp: new Date().toISOString()
       });
     }
-  }) as any; // Add type assertion since connect is now async
+  });
+
+  useEffect(() => {
+    // Automatically connect on initial load
+    if (userId) {
+      // Create a temporary job ID for the connection
+      const initialJobId = `session-${uuidv4()}`;
+      console.log(`Attempting to connect with userId: ${userId} and initialJobId: ${initialJobId}`);
+      connect(initialJobId, userId);
+    }
+
+    return () => {
+      disconnect();
+    };
+  }, [userId]);
 
   // Clear logs function - now setProgressUpdates is available
   const clearLogsAndProgress = useCallback(() => {
@@ -462,14 +476,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   };
 
   const handleSubmit = async () => {
-    // Clear logs and progress indicators when starting new test
+    // Reset state before starting
     clearLogsAndProgress();
-    
-    // For load mode, we don't need to generate - the user should use the Load Selected Item button
-    if (loadMode === 'load') {
-      setError("Please use the 'Load Selected Item' button in the Load Saved Items section to load an existing item.");
-      return;
-    }
     
     if (workflowMode === 'debug') {
       const debugParams = {
@@ -530,6 +538,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     
     if (!selectedBrainstormId) {
       setError("Please select a brainstorm.");
+      setIsLoading(false);
       return;
     }
     setError(null);
@@ -543,124 +552,82 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     const brainstorm = savedBrainstorms.find(b => b.id === selectedBrainstormId);
     if (!brainstorm) {
       setError("Selected brainstorm data not found.");
+      setIsLoading(false);
       return;
     }
     
     setIsLoading(true);
+    addWSLog(`Creating V2 job for brainstorm: ${brainstorm.id}...`);
 
     try {
-      addWSLog(`Connecting to WebSocket first...`);
-
-      // CRITICAL FIX: Create a single UUID that will be used throughout the entire process
-      const jobId = uuidv4();
-      
-      // Connect WebSocket - no parameters needed based on hook signature
-      await connect();
-      
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      addWSLog(`WebSocket connected. Starting V2 orchestration with jobId: ${jobId}...`);
-      
-      // ✅ Brainstorm is already in unified BrainstormResult format - no conversion needed!
-      addWSLog(`✅ Using unified BrainstormResult format directly`);
-      
-      // Pass the unified brainstorm directly to the tool creation process
-      // Fix: Use correct parameter order - brainstorm, modelId, agentModelMapping, jobId
       const newJob = await runToolCreationProcess(
-        brainstorm, // ✅ Already in unified BrainstormResult format
-        selectedModelIds[0] || defaultPrimaryModel || 'gpt-4o', // Use first selected model as primary
-        agentModelMapping,
-        jobId // CRITICAL: Pass the same jobId
+        brainstorm, 
+        agentModelMapping[Object.keys(agentModelMapping)[0]] || defaultPrimaryModel || 'gpt-4o',
+        agentModelMapping
       );
-
-      setTestJob(newJob);
-
-      if (newJob.jobId && newJob.status !== 'error') {
-        addWSLog(`Job created (${newJob.jobId}). WebSocket already connected and ready!`);
-      } else {
-        throw new Error(newJob.error || 'Job creation failed without a specific error.');
+      if (!newJob || !newJob.jobId) {
+        throw new Error("Tool creation process failed to return a valid job.");
       }
+      
+      setTestJob(newJob);
+      setSavedV2JobIds(prev => new Set(prev).add(newJob.jobId!));
+      
+      const jobToSave = {
+        id: newJob.jobId,
+        timestamp: newJob.startTime,
+        productToolDefinition: newJob.result as ProductToolDefinition,
+        toolConstructionContext: newJob.toolConstructionContext,
+      };
+      await saveV2JobToDB(jobToSave);
+      
+      fetchSavedV2Jobs();
+      
+      addWSLog(`Connecting to WebSocket with new jobId: ${newJob.jobId}...`);
+      await connect(newJob.jobId, userId);
 
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : 'An unknown error occurred';
-      setError(errorMsg);
-      addWSLog(`Error during orchestration start: ${errorMsg}`);
-      setTestJob(prev => ({
-          ...(prev || { modelId: 'unknown', startTime: Date.now() }),
-          status: 'error',
-          error: errorMsg,
-          endTime: Date.now()
-      }));
-      disconnect();
+      addWSLog(`Job created (${newJob.jobId}). WebSocket connected and ready!`);
+      
+      // The V2 orchestration is already started by runToolCreationProcess.
+      // The redundant call below has been removed.
+      setOrchestrationStatus('running_v2');
+
+    } catch (err: any) {
+      const errorMessage = err.message || 'An unknown error occurred during tool creation.';
+      setError(errorMessage);
+      addWSLog(`❌ Error starting V2 job: ${errorMessage}`);
+      setOrchestrationStatus('free');
     } finally {
       setIsLoading(false);
     }
   };
-  // ...
 
   const handlePause = async () => {
-    if (testJob?.jobId) {
-      try {
-        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/pause`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: testJob.jobId }),
-        });
-        setOrchestrationStatus('paused');
-        addWSLog(`Orchestration paused for job ${testJob.jobId}`);
-        // Connect WebSocket - no parameters needed
-        await connect();
-      } catch (error) {
-        console.error('Failed to pause orchestration:', error);
-        setError('Failed to pause the orchestration process.');
-        addWSLog(`Failed to pause orchestration: ${error}`);
-      }
-    }
+    if (!testJob || orchestrationStatus !== 'running_v2') return;
+    addWSLog(`Pausing orchestration for job: ${testJob.jobId}`);
+    // Future implementation: API call to pause backend job
   };
 
   const handleResume = async () => {
-    if (testJob?.jobId) {
-      try {
-        await fetch(`/api/ai/product-tool-creation-v2/orchestrate/resume`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ jobId: testJob.jobId }),
-        });
-        setOrchestrationStatus('free');
-        addWSLog(`Orchestration resumed for job ${testJob.jobId}`);
-        // Connect WebSocket - no parameters needed
-        await connect();
-      } catch (error) {
-        console.error('Failed to resume orchestration:', error);
-        setError('Failed to resume the orchestration process.');
-        addWSLog(`Failed to resume orchestration: ${error}`);
-      }
-    }
+    if (!testJob || orchestrationStatus !== 'paused') return;
+    addWSLog(`Resuming orchestration for job: ${testJob.jobId}`);
+    // Future implementation: API call to resume backend job
   };
 
-  // ...
-
   const handleTccFinalization = async () => {
-    // CRITICAL FIX: Check both testJob.result.updatedTcc AND tccData state for isolated agent tests
-    const tccFromTestJob = testJob?.result && 'updatedTcc' in testJob.result ? (testJob.result as any).updatedTcc : null;
-    const activeTccData = tccFromTestJob || tccData;
-    
-    if (!activeTccData) {
-      setError('No TCC data available for finalization. Run an agent test first.');
+    if (!testJob?.jobId) {
+      setError('No active job to finalize.');
       return;
     }
+    
+    setIsLoading(true);
+    setError(null);
 
+    addWSLog(`Connecting to WebSocket for TCC finalization...`);
+    await connect(testJob.jobId, userId);
+    
+    addWSLog(`Running finalization steps for job: ${testJob.jobId}...`);
     try {
-      setIsLoading(true);
-      setError(null);
-      addWSLog(`Starting TCC Finalization - running final 3 steps...`);
-      
-      // Only connect WebSocket if we have a real job ID (not for isolated agent tests)
-      if (testJob?.jobId && !testJob.jobId.startsWith('debug-')) {
-        await connect();
-      }
-
-      const result = await runTccFinalizationSteps(activeTccData, agentModelMapping);
+      const result = await runTccFinalizationSteps(testJob.jobId);
 
       if (result.success && result.finalProduct) {
         // Update the test job with the final product
@@ -690,8 +657,6 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   };
 
-
-
   const getConnectionStatusIcon = () => {
     switch (connectionStatus) {
       case 'connected':
@@ -710,15 +675,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const getConnectionStatusBadge = () => {
     switch (connectionStatus) {
       case 'connected':
-        return <Badge variant="outline" className="text-xs text-green-700 border-green-300">Real WebSocket</Badge>;
-      case 'fallback':
-        return <Badge variant="destructive" className="text-xs">FALLBACK MODE</Badge>;
+        return <Badge variant="outline" className="text-xs text-green-700 border-green-300">Live</Badge>;
       case 'connecting':
-        return <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-300">Connecting</Badge>;
+        return <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-400">Connecting</Badge>;
       case 'error':
         return <Badge variant="destructive" className="text-xs">Error</Badge>;
+      case 'fallback':
+        return <Badge variant="destructive" className="text-xs">Polling Fallback</Badge>;
+      case 'polling':
+        return <Badge variant="outline" className="text-xs text-blue-700 border-blue-400">Polling</Badge>;
       default:
-        return <Badge variant="outline" className="text-xs">Disconnected</Badge>;
+        return <Badge variant="secondary" className="text-xs">Offline</Badge>;
     }
   };
 
@@ -969,6 +936,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addWSLog(`Failed to update tool: ${error}`);
     }
   };
+
+  useEffect(() => {
+    if (availableAgents.length > 0) {
+      setSelectedAgent(availableAgents[0].id);
+    }
+  }, [availableAgents]);
 
   return (
     <ToolTesterView

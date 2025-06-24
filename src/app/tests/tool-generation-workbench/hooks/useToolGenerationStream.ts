@@ -34,7 +34,6 @@ export interface UseToolGenerationStreamOptions {
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '';
-const TEST_USER_ID = process.env.NEXT_PUBLIC_DEBUG_USER_ID || 'debug-user-123';
 
 // --- Hook ---
 
@@ -97,10 +96,23 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
+
     if (wsRef.current) {
-      wsRef.current.close(1000, 'User disconnected');
+      // If the socket is trying to connect, we can't close it, but we can
+      // prevent its event handlers from firing if it eventually succeeds.
+      // This effectively orphans the connection attempt, preventing the error.
+      if (wsRef.current.readyState !== WebSocket.OPEN) {
+        wsRef.current.onopen = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onclose = null;
+      } else {
+        // If the connection is open, close it normally.
+        wsRef.current.close(1000, 'User disconnected');
+      }
       wsRef.current = null;
     }
+    
     setConnectionStatus('disconnected');
     activeJobIdRef.current = null;
     activeUserIdRef.current = null;
@@ -112,22 +124,19 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
       data: { action: 'manual_disconnect' }
     };
     setMessages(prev => [...prev, disconnectMessage]);
-  }, [stopPolling]);
+  }, [stopPolling, setMessages]);
 
-  const connect = useCallback(async (jobId: string, userId?: string) => {
+  const connect = useCallback(async (jobId: string, userId: string) => {
+    if (!userId) {
+      console.error('[WebSocket] Connection attempt failed: userId is missing.');
+      onError?.('Connection failed: User ID is required.');
+      setConnectionStatus('error');
+      return;
+    }
+    
     disconnect();
     activeJobIdRef.current = jobId;
-    let actualUserId = userId || TEST_USER_ID;
-    activeUserIdRef.current = actualUserId; // Store for polling
-    try {
-      const response = await fetch('/api/debug/get-user-id');
-      if (response.ok) {
-        const data = await response.json();
-        actualUserId = data.userId || TEST_USER_ID;
-      }
-    } catch (error) {
-      console.warn('[WebSocket] Failed to get userId from backend, using default.');
-    }
+    activeUserIdRef.current = userId; // Store for polling
 
     if (!WEBSOCKET_URL) {
       console.error('🚨 [FALLBACK MODE] NO WEBSOCKET URL - FALLBACK MODE DISABLED!');
@@ -144,11 +153,11 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
     }
 
     setConnectionStatus('connecting');
-    addMessage('system', { action: 'connecting', jobId, url: WEBSOCKET_URL });
+    addMessage('system', { action: 'connecting', jobId, userId, url: WEBSOCKET_URL });
 
     try {
       const url = new URL(WEBSOCKET_URL);
-      url.searchParams.set('userId', actualUserId);
+      url.searchParams.set('userId', userId);
       url.searchParams.set('jobId', jobId);
       
       const ws = new WebSocket(url.toString());
@@ -248,51 +257,30 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
           setConnectionStatus('disconnected');
           addMessage('system', { action: 'connection_closed_normal', code: event.code, reason: event.reason });
         } else {
-          // Unexpected closure - treat as error
-          console.error('🚨 [WebSocket] Connection closed unexpectedly - NO POLLING FALLBACK!');
-          console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
+          // Abnormal closure - likely an error
+          console.error('❌ [WebSocket] Connection closed abnormally, starting fallback.', { code: event.code, reason: event.reason });
           setConnectionStatus('error');
-          addMessage('system', { action: 'connection_failed', code: event.code, reason: event.reason });
-          onError?.(`WebSocket connection closed unexpectedly (code: ${event.code}). No fallback available.`);
+          addMessage('system', { action: 'connection_closed_abnormal', code: event.code, reason: event.reason });
+          startPolling();
         }
-        
-        activeJobIdRef.current = null;
-        activeUserIdRef.current = null;
       };
 
-      ws.onerror = (errorEvent) => {
-        console.error('[WebSocket] Connection error:', errorEvent);
-        
-        // NO FALLBACK - Let it fail completely  
-        console.error('🚨 [WebSocket] Connection error - NO POLLING FALLBACK!');
-        console.error('🚨 [WebSocket] Fix the WebSocket connection instead of masking with polling');
+      ws.onerror = (event) => {
+        console.error('[WebSocket] A connection error occurred. This is often due to the server being unavailable or an issue with the WebSocket URL. Check the browser\'s Network tab for more details on the failed WebSocket handshake.', event);
         setConnectionStatus('error');
-        onError?.('WebSocket connection error. No fallback available.');
-        addMessage('system', { action: 'connection_error', error: 'WebSocket connection error' });
-        wsRef.current = null;
-        activeJobIdRef.current = null;
-        activeUserIdRef.current = null;
+        const errorMessage = 'A WebSocket connection error occurred. Check the browser\'s developer console (Network tab) for more details.';
+        addMessage('system', { action: 'error', error: errorMessage });
+        onError?.(errorMessage);
+        // Don't start polling immediately, let onclose handle it to avoid duplicate logic
       };
-
     } catch (error) {
-      console.error('[WebSocket] Error creating connection:', error);
+      console.error('[WebSocket] Failed to connect:', error);
       setConnectionStatus('error');
-      onError?.('Failed to create WebSocket connection.');
+      addMessage('system', { action: 'connection_failed', error });
+      onError?.('Failed to establish WebSocket connection.');
+      startPolling(); // If connection fails to even start, begin polling
     }
-  }, [disconnect, setConnectionStatus, addMessage, onProgress, stopPolling]);
+  }, [disconnect, addMessage, onError, onProgress, startPolling, options.onTccUpdate]);
 
- 
-  
-  useEffect(() => {
-    return () => disconnect();
-  }, [disconnect]);
-
-  return {
-    connect,
-    disconnect,
-    connectionStatus,
-    messages,
-    progressUpdates,
-    setProgressUpdates,
-  };
+  return { connect, disconnect, connectionStatus, messages, progressUpdates, setProgressUpdates };
 };

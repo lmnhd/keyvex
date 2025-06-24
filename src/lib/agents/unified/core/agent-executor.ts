@@ -32,6 +32,9 @@ import { TailwindStylingModule } from '../modules/tailwind-styling';
 import { CodeValidatorModule } from '../modules/code-validator';
 import { ToolFinalizerModule } from '../modules/tool-finalizer';
 
+// Import custom executor
+import { executeTailwindStylingTwoStep } from '../modules/tailwind-styling-executor';
+
 // ✅ FIXED: Proper interface instead of 'any' type for raw model results
 export interface RawModelResult {
   [key: string]: unknown;
@@ -143,12 +146,19 @@ export async function executeAgent(
         adaptedPromptHints: []
       };
 
-      const result = await executeAgentWithValidation(agentType, agentModule, context, tcc, attemptInfo);
+      let resultData: AgentResult;
+
+      if (agentType === 'tailwind-styling') {
+        resultData = await executeTailwindStylingTwoStep(context, tcc);
+      } else {
+        const executionResult = await executeAgentWithValidation(agentType, agentModule, context, tcc, attemptInfo);
+        resultData = executionResult.result;
+      }
       
       // Success - return simplified result
       return {
-        result: result.result,
-        updatedTcc: result.updatedTcc
+        result: resultData,
+        updatedTcc: tcc // Placeholder, TCC update is handled within agents now
       };
 
     } catch (error) {
@@ -263,27 +273,40 @@ async function executeAgentWithValidation(
   attemptInfo: RetryAttemptInfo
 ): Promise<EnhancedExecutionResult> {
   const executionStartTime = Date.now();
-
+  
   logger.info({
     jobId: context.jobId,
     agentType,
     attemptNumber: attemptInfo.attemptNumber,
-    isRetry: attemptInfo.attemptNumber > 1,
+    isRetry: !attemptInfo.isFirstAttempt,
     retryStrategy: attemptInfo.strategy,
     executionType: 'ai'
   }, `🔄 AGENT EXECUTOR: Executing AI agent ${agentType} (attempt ${attemptInfo.attemptNumber})`);
 
   try {
-    // Step 1: Execute AI interaction via the centralized manager
-    // The agent module itself is only used for its schema and validation logic now.
-    const outputSchema = agentModule.getOutputSchema();
-    const aiResult = await aiManager.executeAgentInteraction(
-      agentType,
-      context,
-      tcc,
-      attemptInfo,
-      outputSchema
-    );
+    let aiResult: { success: boolean; rawResponse: any; errors: string[]; metadata: any; };
+
+    // --- Custom Executor Logic for Tailwind Styling ---
+    if (agentType === 'tailwind-styling') {
+      const stylingResult = await executeTailwindStylingTwoStep(context, tcc);
+      // We mock the aiResult structure to fit into the existing validation pipeline
+      aiResult = {
+        success: true,
+        rawResponse: stylingResult,
+        errors: [],
+        metadata: { modelUsed: context.modelConfig.modelId, tokensUsed: null } // Tokens are handled inside the custom executor
+      };
+    } else {
+      // Standard execution for all other agents
+      const outputSchema = agentModule.getOutputSchema();
+      aiResult = await aiManager.executeAgentInteraction(
+        agentType,
+        context,
+        tcc,
+        attemptInfo,
+        outputSchema
+      );
+    }
 
     if (!aiResult.success) {
       throw new Error(`AI interaction failed: ${aiResult.errors.join(', ')}`);
@@ -333,7 +356,7 @@ async function executeAgentWithValidation(
     const executionTime = Date.now() - executionStartTime;
     return {
       result: parseResult.data!,
-      updatedTcc: tcc,
+      updatedTcc: tcc, // TCC is updated via reference in agents
       validationDetails: {
         validationScore: parseResult.metadata.validationScore,
         errors: parseResult.errors,

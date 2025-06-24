@@ -799,4 +799,80 @@ Modify the existing styling while maintaining all core functionality and design 
 Apply professional Tailwind CSS styling with a cohesive color scheme and design tokens.`;
 
   return prompt;
+}
+
+// ============================================================================
+// NEW TWO-STEP PROMPT GENERATION
+// ============================================================================
+
+/**
+ * Creates the user prompt for the first step of Tailwind styling:
+ * generating the styleMap and colorScheme.
+ */
+export function getTailwindStyling_Step1_StyleMap_Prompt(
+  tcc: ToolConstructionContext
+): string {
+  const componentStructure = tcc.jsxLayout?.componentStructure;
+  if (!componentStructure) {
+    throw new Error('Missing component structure for Tailwind styling');
+  }
+
+  const userPrompt = `
+    Analyze the following JSX component structure and generate a comprehensive 'styleMap' and 'colorScheme' based on the FUTURISTIC DEVICE STYLING SYSTEM.
+
+    **TOOL DETAILS:**
+    - Tool Type: ${tcc.userInput.toolType}
+    - Target Audience: ${tcc.targetAudience}
+    - Creative Enhancements: ${tcc.brainstormData?.creativeEnhancements?.join(', ') || 'N/A'}
+
+    **JSX STRUCTURE TO STYLE:**
+    \`\`\`jsx
+    ${componentStructure}
+    \`\`\`
+
+    Your task is to:
+    1.  Create a 'styleMap' object. The keys should be the 'data-style-id' attributes from the JSX, and the values should be the full Tailwind CSS class strings.
+    2.  Create a 'colorScheme' object based on the principles provided.
+    3.  Return ONLY the 'styleMap' and 'colorScheme' in the specified JSON format. DO NOT generate the full styled component code yet.
+  `;
+  
+  return userPrompt;
+}
+
+/**
+ * Creates the user prompt for the second step of Tailwind styling:
+ * generating the final styled component code.
+ */
+export function getTailwindStyling_Step2_ComponentCode_Prompt(
+  tcc: ToolConstructionContext,
+  styleMap: Record<string, string>
+): string {
+  const componentStructure = tcc.jsxLayout?.componentStructure;
+  if (!componentStructure) {
+    throw new Error('Missing component structure for Tailwind styling');
+  }
+
+  const userPrompt = `
+    You are given a JSX component structure and a 'styleMap' object containing Tailwind CSS classes for each styled element.
+    Your task is to inject these classes into the JSX and return the final, fully styled component code, along with the required metadata.
+
+    **STYLE MAP TO APPLY:**
+    \`\`\`json
+    ${JSON.stringify(styleMap, null, 2)}
+    \`\`\`
+
+    **ORIGINAL JSX STRUCTURE:**
+    \`\`\`jsx
+    ${componentStructure}
+    \`\`\`
+
+    **INSTRUCTIONS:**
+    1.  Iterate through the 'styleMap'.
+    2.  For each key (which corresponds to a 'data-style-id' in the JSX), replace the 'data-style-id' attribute with a 'className' attribute containing the value from the styleMap.
+    3.  Generate the final, complete 'styledComponentCode'.
+    4.  Generate the 'metadata' object by analyzing the final code.
+    5.  Return the 'styledComponentCode' and 'metadata' in the specified JSON format.
+  `;
+
+  return userPrompt;
 } 
