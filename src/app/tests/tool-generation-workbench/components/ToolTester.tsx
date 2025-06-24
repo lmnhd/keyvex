@@ -18,6 +18,7 @@ import {
   AgentMode
 } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
+import { useTccPersistence } from '../hooks/useTccPersistence';
 import ToolTesterView from './tool-tester-parts/tool-tester-view';
 import { Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -79,29 +80,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [agentMode, setAgentMode] = useState<AgentMode>('create');
   const [editMessage, setEditMessage] = useState('');
   
-  // TCC monitoring state
-  const [tccData, setTccData] = useState<any>(null);
-  const [currentStep, setCurrentStep] = useState<string>('');
-  const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
-
-  // WebSocket logging state
+  // WebSocket logging state - moved up to define addDetailedWSLog early
   const [wsLogs, setWsLogs] = useState<string[]>([]);
   
-  // Add refs for auto-scrolling
-  const wsLogsEndRef = useRef<HTMLDivElement>(null);
-  const progressSummaryEndRef = useRef<HTMLDivElement>(null);
-
-  // Available agents for individual testing (memoized to prevent re-creation)
-  const availableAgents = React.useMemo(() => [
-    { id: 'function-planner', name: 'Function Signature Planner', description: 'Plans tool functions and signatures' },
-    { id: 'state-design', name: 'State Design Agent', description: 'Designs React state management' },
-    { id: 'jsx-layout', name: 'JSX Layout Agent', description: 'Creates component structure' },
-    { id: 'tailwind-styling', name: 'Tailwind Styling Agent', description: 'Applies complete styling system' },
-    { id: 'component-assembler', name: 'Component Assembler', description: 'Combines all agent outputs' },
-    { id: 'code-validator', name: 'Code Validator Agent', description: 'Validates generated code' },
-    { id: 'tool-finalizer', name: 'Tool Finalizer', description: 'Creates final tool definition' }
-  ], []);
-
   const addWSLog = useCallback((message: string) => {
     setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
   }, []);
@@ -125,6 +106,36 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       console.log(`🐛 [WebSocket Debug] ${message}`, data);
     }
   }, []);
+  
+  // 🛡️ TCC PERSISTENCE: Use the TCC persistence hook for robust state management
+  const {
+    tccData,
+    lastValidTcc,
+    tccHistory,
+    updateTccWithBackup,
+    recoverLastValidTcc,
+    safeClearTcc,
+    hasTccBackup,
+    setTccData
+  } = useTccPersistence(addDetailedWSLog);
+
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
+
+  // Add refs for auto-scrolling
+  const wsLogsEndRef = useRef<HTMLDivElement>(null);
+  const progressSummaryEndRef = useRef<HTMLDivElement>(null);
+
+  // Available agents for individual testing (memoized to prevent re-creation)
+  const availableAgents = React.useMemo(() => [
+    { id: 'function-planner', name: 'Function Signature Planner', description: 'Plans tool functions and signatures' },
+    { id: 'state-design', name: 'State Design Agent', description: 'Designs React state management' },
+    { id: 'jsx-layout', name: 'JSX Layout Agent', description: 'Creates component structure' },
+    { id: 'tailwind-styling', name: 'Tailwind Styling Agent', description: 'Applies complete styling system' },
+    { id: 'component-assembler', name: 'Component Assembler', description: 'Combines all agent outputs' },
+    { id: 'code-validator', name: 'Code Validator Agent', description: 'Validates generated code' },
+    { id: 'tool-finalizer', name: 'Tool Finalizer', description: 'Creates final tool definition' }
+  ], []);
 
   const handleJobUpdate = useCallback((progress: StepProgress) => {
     addWSLog(progress.message || `Progress for ${progress.stepName}: ${progress.status}`);
@@ -141,7 +152,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
 
     if (actualTcc) {
-      setTccData(actualTcc);
+      // 🛡️ Use backup system instead of direct setTccData
+      updateTccWithBackup(actualTcc, 'jobUpdate');
       if (actualTcc.assembledComponentCode) {
         setAssembledCode(actualTcc.assembledComponentCode);
         addWSLog('✅ Assembled code received from TCC update!');
@@ -171,7 +183,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         console.warn('Final tool data structure:', progress.data);
       }
     }
-  }, [addWSLog]);
+  }, [addWSLog, updateTccWithBackup]);
 
   // Get the hook's return values 
   const { 
@@ -216,8 +228,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         hasFinalProduct: !!updatedTcc?.finalProduct
       });
       
-      // Update TCC data in real-time
-      setTccData(updatedTcc);
+      // 🛡️ Use backup system for WebSocket TCC updates
+      updateTccWithBackup(updatedTcc, `websocket-${agentType}`);
       
       // Update assembled code if available
       if (updatedTcc?.assembledComponentCode) {
@@ -546,7 +558,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setAssembledCode(null);
     setFinalProduct(null);
     setWsLogs([]);
-    setTccData(null);
+    // 🛡️ Use safe clear instead of setTccData(null) to maintain backup
+    safeClearTcc(true); // Preserve backup when starting new operation
     setCurrentStep('');
 
     const brainstorm = savedBrainstorms.find(b => b.id === selectedBrainstormId);
@@ -696,7 +709,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setError(null);
     setTestJob(null);
     setAssembledCode(null);
-    setTccData(null);
+    // 🛡️ Use safe clear instead of setTccData(null) to maintain backup
+    safeClearTcc(false); // Don't preserve backup when loading new item
     setFinalProduct(null);
 
     try {
@@ -762,10 +776,13 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
             console.log('DEBUG: jobToLoad is truthy. productToolDefinition:', JSON.stringify(jobToLoad.productToolDefinition, null, 2));
             setTestJob(jobToLoad);
             setAssembledCode(jobToLoad.productToolDefinition?.componentCode || JSON.stringify(jobToLoad.result, null, 2) || '');
-            setTccData(jobToLoad.toolConstructionContext || null);
+            // 🛡️ Use backup system when loading TCC from saved job
+            if (jobToLoad.toolConstructionContext) {
+              updateTccWithBackup(jobToLoad.toolConstructionContext, 'loaded-job');
+            }
             if (selectedLoadItem.type === 'v2job' || selectedLoadItem.type === 'tool') {
               setWorkflowMode('v2' as const);
-          }
+            }
             setOrchestrationStatus('free' as const);
             addWSLog(`Loaded item: ${selectedLoadItem.id} from ${loadSource}`);
             alert(`Successfully loaded '${jobToLoad.productToolDefinition?.metadata.title}'.`);
