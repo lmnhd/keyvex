@@ -8,9 +8,9 @@ import {
   FunctionPlannerResult,
 } from '../../../types/tcc-unified';
 import { 
-  BaseAgentModule, 
-  BaseValidationResult 
+  BaseAgentModule
 } from '../core/base-agent-module';
+import { ValidationResult } from '../../../types/tcc-unified';
 
 /**
  * Zod schema for the Function Planner's output.
@@ -54,7 +54,7 @@ export class FunctionPlannerModule extends BaseAgentModule {
   /**
    * Validate the function planner's structured output.
    */
-  validate(output: FunctionPlannerResult): BaseValidationResult {
+  validate(output: FunctionPlannerResult): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let score = 100;

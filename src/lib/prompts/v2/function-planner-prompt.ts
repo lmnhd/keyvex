@@ -1,19 +1,6 @@
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { filterBrainstormForFunctionPlanner, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
-
-// Edit mode context type for user prompt
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
 
 const commonGuidelines = `
 <output-format>
@@ -136,7 +123,7 @@ Additional Context:
   }
 
   // Add edit mode context if in edit mode
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
+  if (editMode?.isEditMode && editMode.activeEditInstructions && editMode.activeEditInstructions.length > 0) {
     prompt += `
 
 🔄 EDIT MODE INSTRUCTIONS:
@@ -156,7 +143,7 @@ CURRENT FUNCTION SIGNATURES:`;
 
 EDIT INSTRUCTIONS TO FOLLOW:`;
 
-    editMode.instructions.forEach((instruction, index) => {
+    editMode.activeEditInstructions.forEach((instruction, index) => {
       prompt += `
 
 ${index + 1}. ${instruction.editType.toUpperCase()} REQUEST (${instruction.priority} priority):

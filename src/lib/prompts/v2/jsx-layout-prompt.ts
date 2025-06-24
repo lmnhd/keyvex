@@ -2,7 +2,7 @@
 // V2 AGENT PROMPT - JSX LAYOUT SPECIALIST
 // ============================================================================
 
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { filterBrainstormForJSXLayout, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
 
@@ -11,8 +11,20 @@ const OUTPUT_FORMAT = `
 <output-format>
     You MUST return a clean JSON object in this exact format, with no extra commentary:
     {
-      "componentStructure": "string - a multi-line string of JSX defining the complete component layout."
+      "jsxLayout": {
+        "componentStructure": "string - a multi-line string of JSX defining the complete component layout.",
+        "elementMap": [],
+        "accessibilityFeatures": [],
+        "responsiveBreakpoints": []
+      },
+      "metadata": {
+        "componentCount": 0,
+        "nestingDepth": 0,
+        "accessibilityScore": 0
+      }
     }
+    
+    🚨 CRITICAL: Keep elementMap, accessibilityFeatures, and responsiveBreakpoints as EMPTY ARRAYS to prevent token limit issues. Only populate componentStructure with the JSX layout.
 </output-format>
 `;
 
@@ -51,6 +63,52 @@ You are a "JSX Layout Specialist" agent. Your expertise is in creating clean, we
 
 ${OUTPUT_FORMAT}
 ${CORE_LAYOUT_RULES}
+
+<data-driven-jsx-layout>
+    🚀 **USE RESEARCH DATA TO BUILD DYNAMIC LAYOUTS**
+    The brainstorm may contain \`researchData\` or \`mockData\`. You MUST use this data to dynamically generate parts of your JSX layout. This is critical for creating realistic and functional tools.
+
+    **1. Dynamically Populate Select Dropdowns:**
+    - If the state design includes an array of options (e.g., \`marketingChannels\`), you MUST use \`.map()\` to generate the \`<SelectItem>\` components dynamically.
+    - This connects the UI to the data, making the dropdowns functional.
+
+    *Příklad:*
+    If the state contains \`marketingChannels = ['Google Ads', 'Facebook Ads', 'SEO']\`, generate this JSX:
+    \`\`\`jsx
+    <Select>
+      <SelectTrigger>
+        <SelectValue placeholder="Select a channel" />
+      </SelectTrigger>
+      <SelectContent>
+        {marketingChannels.map(channel => (
+          <SelectItem key={channel} value={channel}>
+            {channel}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+    \`\`\`
+
+    **2. Display Researched Data:**
+    - If \`researchData\` contains key-value pairs (e.g., \`average_home_price: 450000\`), you MUST create display elements to show this data.
+    - Use components like \`<Card>\`, \`<Alert>\`, or simple text elements to present this information to the user.
+
+    *Příklad:*
+    If \`researchData\` has \`{"average_interest_rate": 4.5, "market_condition": "Stable"}\`, display it like this:
+    \`\`\`jsx
+    <Card data-style-id="market-data-card">
+      <CardHeader>
+        <CardTitle>Market Snapshot</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>Average Interest Rate: {researchData.average_interest_rate}%</p>
+        <p>Market Condition: {researchData.market_condition}</p>
+      </CardContent>
+    </Card>
+    \`\`\`
+
+    🔥 FAILURE TO USE THIS DATA will result in a generic, non-functional tool. Your primary job is to connect the provided data to the UI.
+</data-driven-jsx-layout>
 
 <futuristic-device-design-principles>
     🚀 **CRITICAL DESIGN TRANSFORMATION**: Create tools that look like SOPHISTICATED SCIENTIFIC INSTRUMENTS, not web forms!
@@ -236,875 +294,287 @@ ${CORE_LAYOUT_RULES}
             
             1. Header Section: CardHeader with title, description, info popup
             2. Input Section: CardContent with grid layout for inputs
-            3. Action Section: CardFooter with primary buttons (bg-gray-50)
-            4. Lead Capture Section: CardContent with lead form (bg-blue-50, border-t)
-            5. Results Section: CardContent with results grid (bg-green-50, border-t)
-            
-            Each section should have distinct styling and proper spacing.
+            3. Action Section: CardFooter with primary action buttons
+            4. Results Section: Separate Card below the main tool card
+
     </layout-problems-to-avoid>
+</layout-design-guidelines>
 
-    <ux-enhancement-requirements>
-        🚨 **CRITICAL UX MANDATES** - These are NOT optional:
+<professional-results-display>
+    **📊 CRITICAL RESULTS DISPLAY PATTERNS - AVOID TINY CHARTS!**
+    
+    The results section MUST be professional, clear, and provide context. Do not just drop a tiny chart on the page.
 
-        <input-field-requirements>
-            **COMPLETE IMPLEMENTATION**: You MUST implement EVERY SINGLE input field from the brainstorm data's suggestedInputs array. Missing inputs = FAILURE.
-            
-            **USER-FRIENDLY LABELS**: Transform technical jargon into clear, everyday language:
-            - "Current Assets" → "Cash & Short-term Assets (e.g., cash, inventory, receivables)"
-            - "Current Liabilities" → "Short-term Debts (e.g., bills due within 1 year)"
-            - "Net Income" → "Profit After Taxes (your bottom-line profit)"
-            - "Revenue" → "Total Sales Revenue (gross income before expenses)"
-            - "Total Liabilities" → "All Business Debts (short-term + long-term)"
-            - "Shareholders' Equity" → "Owner's Investment (your stake in the business)"
-
-            **EXAMPLE VALUES**: Include realistic placeholder text in EVERY input:
-            - placeholder="e.g., $75,000" for cash/asset fields
-            - placeholder="e.g., $25,000" for liability fields
-            - placeholder="e.g., $180,000" for revenue fields
-
-            **HELP TEXT**: Add small descriptive text under each label explaining what to include:
-            - <p className="text-sm text-gray-600">Include cash, inventory, and money owed to you</p>
-        </input-field-requirements>
-
-        <tooltip-requirements>
-            **MANDATORY TOOLTIPS**: Every financial/technical input MUST have a tooltip with:
-            - Clear definition of the term
-            - Examples of what to include/exclude
-            - Typical ranges or benchmarks
-
-            **Implementation Pattern**:
-            '''jsx'''   
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Label className="flex items-center gap-1">
-                    Cash & Short-term Assets
-                    <Info className="h-4 w-4 text-gray-400" />
-                  </Label>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="max-w-xs">
-                    <p className="font-semibold">Current Assets</p>
-                    <p>Money and items that can be converted to cash within 1 year.</p>
-                    <p className="mt-1 text-xs">Includes: Cash, bank accounts, inventory, customer payments due</p>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            '''end jsx'''
-        </tooltip-requirements>
-
-        <calculation-display-requirements>
-            **SHOW ALL CALCULATIONS**: Display ALL calculations from brainstorm data's keyCalculations array, not just one.
-            
-            **MEANINGFUL RESULTS**: Format results with context:
-            - "Liquidity Ratio: 2.1 (Good - you can cover short-term debts 2x over)"
-            - "Profit Margin: 12% (Above average for most industries)"
-            - "Debt-to-Equity: 0.8 (Moderate leverage - manageable debt level)"
-
-            **VISUAL INDICATORS**: Use color coding and icons:
-            - Green for good ratios
-            - Yellow for caution
-            - Red for concerning ratios
-
-            **🚨 USE CHARTS FOR RESULTS**: When displaying calculation results, strongly consider using charts:
-            - BarChart for comparing multiple metrics (e.g., different financial ratios)
-            - PieChart for showing breakdowns (e.g., expense categories, asset allocation)
-            - LineChart for trends or projections (e.g., growth forecasts)
-            - RadialBarChart for single scores or ratings (e.g., overall health score)
-            - Charts make results more engaging and easier to understand than plain numbers
-            
-            **🚨 PROFESSIONAL RESULTS DISPLAY REQUIREMENTS:**
-            - MINIMUM chart size: 400x400px (width={400} height={400})
-            - PREFERRED chart size: 500x500px for optimal readability
-            - FORBIDDEN: Charts smaller than 300x300px (users can't read them)
-            - REQUIRED: Supporting metrics and context around charts
-            - REQUIRED: Professional layout with chart + metrics side-by-side
-        </calculation-display-requirements>
-
-        <professional-results-layout-patterns>
-            **📊 CRITICAL: PROFESSIONAL RESULTS DISPLAY LAYOUTS**
-            
-            🚨 NEVER create tiny, isolated charts! Results must be comprehensive and readable.
-            
-            **PATTERN 1: Large Chart with Side Metrics**
-            '''jsx'''
-            <Card data-style-id="results-card">
-              <CardHeader>
-                <CardTitle data-style-id="results-title">Analysis Results</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Left: Large Chart */}
-                  <div data-style-id="chart-container">
-                    <h3 data-style-id="chart-title">Portfolio Breakdown</h3>
-                    <div data-style-id="chart-wrapper" style={{width: '500px', height: '500px'}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={portfolioData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={180}>
-                            <Cell key="stocks" fill="#4ade80" />
-                            <Cell key="bonds" fill="#60a5fa" />
-                            <Cell key="cash" fill="#fbbf24" />
-                          </Pie>
-                          <RechartsTooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  
-                  {/* Right: Supporting Metrics */}
-                  <div data-style-id="metrics-panel" className="space-y-6">
-                    <div data-style-id="primary-metric">
-                      <h4 data-style-id="metric-label">Total Portfolio Value</h4>
-                      <p data-style-id="metric-value">\${totalValue.toLocaleString()}</p>
-                      <p data-style-id="metric-change">+15.2% YTD</p>
-                    </div>
-                    
-                    <div data-style-id="breakdown-metrics" className="space-y-4">
-                      <div data-style-id="metric-row" className="flex justify-between">
-                        <span data-style-id="metric-name">Stocks (65%)</span>
-                        <span data-style-id="metric-amount">$127,500</span>
-                      </div>
-                      <div data-style-id="metric-row" className="flex justify-between">
-                        <span data-style-id="metric-name">Bonds (30%)</span>
-                        <span data-style-id="metric-amount">$58,800</span>
-                      </div>
-                      <div data-style-id="metric-row" className="flex justify-between">
-                        <span data-style-id="metric-name">Cash (5%)</span>
-                        <span data-style-id="metric-amount">$9,800</span>
-                      </div>
-                    </div>
-                    
-                    <div data-style-id="performance-indicators">
-                      <h4 data-style-id="performance-title">Performance Indicators</h4>
-                      <div data-style-id="indicator-grid" className="grid grid-cols-2 gap-4">
-                        <div data-style-id="indicator-item">
-                          <p data-style-id="indicator-value">8.5%</p>
-                          <p data-style-id="indicator-label">Annual Return</p>
-                        </div>
-                        <div data-style-id="indicator-item">
-                          <p data-style-id="indicator-value">0.85</p>
-                          <p data-style-id="indicator-label">Sharpe Ratio</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            '''end jsx'''
-            
-            **PATTERN 2: Multiple Charts with Context**
-            '''jsx'''
-            <Card data-style-id="results-card">
-              <CardHeader>
-                <CardTitle data-style-id="results-title">Comprehensive Analysis</CardTitle>
-                <div data-style-id="summary-stats" className="grid grid-cols-3 gap-4 mt-4">
-                  <div data-style-id="stat-item">
-                    <p data-style-id="stat-value">$156,000</p>
-                    <p data-style-id="stat-label">Total Value</p>
-                  </div>
-                  <div data-style-id="stat-item">
-                    <p data-style-id="stat-value">+12.8%</p>
-                    <p data-style-id="stat-label">Growth Rate</p>
-                  </div>
-                  <div data-style-id="stat-item">
-                    <p data-style-id="stat-value">A+</p>
-                    <p data-style-id="stat-label">Risk Rating</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div data-style-id="chart-section-1">
-                    <h3 data-style-id="chart-1-title">Performance Over Time</h3>
-                    <div data-style-id="chart-1-wrapper" style={{width: '100%', height: '400px'}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={performanceData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" />
-                          <YAxis />
-                          <RechartsTooltip />
-                          <Legend />
-                          <Line type="monotone" dataKey="value" stroke="#4ade80" strokeWidth={3} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  
-                  <div data-style-id="chart-section-2">
-                    <h3 data-style-id="chart-2-title">Risk Assessment</h3>
-                    <div data-style-id="chart-2-wrapper" style={{width: '100%', height: '400px'}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadialBarChart data={riskData}>
-                          <RadialBar dataKey="score" cornerRadius={10} fill="#60a5fa" />
-                          <RechartsTooltip />
-                        </RadialBarChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div data-style-id="risk-details" className="mt-4">
-                      <p data-style-id="risk-score">Risk Score: 7.2/10</p>
-                      <p data-style-id="risk-description">Moderate-High Risk Profile</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            '''end jsx'''
-            
-            **PATTERN 3: Dashboard-Style Results Grid**
-            '''jsx'''
-            <Card data-style-id="results-card">
-              <CardHeader>
-                <CardTitle data-style-id="results-title">Business Health Dashboard</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {/* Top: Key Metrics Row */}
-                <div data-style-id="key-metrics" className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <div data-style-id="metric-card-1">
-                    <h4 data-style-id="metric-1-label">Revenue</h4>
-                    <p data-style-id="metric-1-value">$2.4M</p>
-                    <p data-style-id="metric-1-change">+18% vs last year</p>
-                  </div>
-                  <div data-style-id="metric-card-2">
-                    <h4 data-style-id="metric-2-label">Profit Margin</h4>
-                    <p data-style-id="metric-2-value">23.5%</p>
-                    <p data-style-id="metric-2-change">+2.1% improvement</p>
-                  </div>
-                  <div data-style-id="metric-card-3">
-                    <h4 data-style-id="metric-3-label">Cash Flow</h4>
-                    <p data-style-id="metric-3-value">$485K</p>
-                    <p data-style-id="metric-3-change">Healthy</p>
-                  </div>
-                  <div data-style-id="metric-card-4">
-                    <h4 data-style-id="metric-4-label">Health Score</h4>
-                    <p data-style-id="metric-4-value">8.7/10</p>
-                    <p data-style-id="metric-4-change">Excellent</p>
-                  </div>
-                </div>
-                
-                {/* Bottom: Large Chart */}
-                <div data-style-id="main-chart-section">
-                  <h3 data-style-id="main-chart-title">Revenue Breakdown by Category</h3>
-                  <div data-style-id="main-chart-wrapper" style={{width: '100%', height: '500px'}}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={revenueData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="category" />
-                        <YAxis />
-                        <RechartsTooltip />
-                        <Legend />
-                        <Bar dataKey="amount" fill="#4ade80" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            '''end jsx'''
-            
-            **🚨 CRITICAL REQUIREMENTS FOR ALL RESULTS DISPLAYS:**
-            1. **Large Charts**: Minimum 400x400px, prefer 500x500px
-            2. **Supporting Context**: Always include metrics, labels, and explanations
-            3. **Professional Layout**: Use grid layouts to organize chart + metrics
-            4. **Comprehensive Data**: Show totals, breakdowns, and key insights
-            5. **Visual Hierarchy**: Clear titles, sections, and data organization
-            6. **Responsive Design**: Charts adapt to screen size with ResponsiveContainer
-            
-            **FORBIDDEN PATTERNS:**
-            - ❌ Tiny charts without context (200x200px or smaller)
-            - ❌ Charts without supporting metrics or explanations
-            - ❌ Single chart floating alone without additional data
-            - ❌ Poor layout that doesn't utilize horizontal space
-            - ❌ Missing titles, labels, or context for chart data
-        </professional-results-layout-patterns>
-
-        <progressive-disclosure>
-            **STEP-BY-STEP APPROACH**: For complex tools, consider:
-            1. Start with basic inputs visible
-            2. "Advanced Options" section for additional inputs
-            3. Clear "Calculate" button to trigger all calculations
-            4. Results section that expands with explanations
-        </progressive-disclosure>
-    </ux-enhancement-requirements>
-
-    <responsive-design-structure>
-        - **Mobile-first**: Default to a single-column layout.
-        - **Tablet (768px+)**: Expand to two-column grids for inputs and results.
-        - **Desktop (1024px+)**: Utilize two or three-column grids to create a dashboard-like experience.
-    </responsive-design-structure>
-
-    <mandatory-info-popup-structure>
-        - Every tool MUST include an info popup in the header.
-        - It must be implemented using TooltipProvider, Tooltip, TooltipTrigger, and TooltipContent.
-        - The trigger should be a ghost 'Button' with an 'Info' icon.
-        - The content must have placeholders for a title, description, and usage instructions.
-    </mandatory-info-popup-structure>
-
-    <data-style-id-requirements>
-        - Assign descriptive IDs like 'main-container', 'input-revenue', 'submit-button', 'results-grid'.
-    </data-style-id-requirements>
-
-    <available-shadcn-components>
-        **COMPREHENSIVE COMPONENT LIBRARY** - Use these components to create rich, interactive experiences:
-
-        **LAYOUT & CONTAINERS:**
-        - Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter
-        - Accordion, AccordionContent, AccordionItem, AccordionTrigger
-        - Dialog, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription
-
-        **FORM INPUTS:**
-        - Input (text, number, email, etc.)
-        - Textarea (multi-line text)
-        - Select, SelectTrigger, SelectContent, SelectItem, SelectValue, SelectGroup, SelectLabel
-        - RadioGroup, RadioGroupItem (single choice from options)
-        - Checkbox (multiple selections)
-        - Slider (numeric range selection - PERFECT for amounts, percentages, ratings!)
-        - Switch (toggle on/off states)
-
-        **🚨 CRITICAL RADIX UI EVENT HANDLER PATTERNS:**
+    <layout-patterns-for-results>
+        **Pattern 1: Large Chart with Side Metrics**
+        - Main chart area (min 400x400px)
+        - Side panel (1/3 width) for key metrics, summaries, and interpretation
         
-        **🚨 CRITICAL SELECT COMPONENT PATTERN:**
-        '''jsx'''
-        <Select value={stateValue} onValueChange={setStateValue}>
-          <SelectTrigger data-style-id="select-trigger">
+        '''jsx
+        <div data-style-id="results-container" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div data-style-id="main-chart-area" className="lg:col-span-2">
+            {/* Chart component goes here */}
+          </div>
+          <div data-style-id="metrics-panel">
+            <h3 data-style-id="metrics-title">Key Metrics</h3>
+            {/* Metrics like ROI, Savings, etc. go here */}
+          </div>
+        </div>
+        '''
+
+        **Pattern 2: Multiple Charts with Context**
+        - Two or more charts side-by-side
+        - A summary/context block above or below the charts
+        
+        '''jsx
+        <div data-style-id="multi-chart-container">
+          <div data-style-id="summary-block">
+            <h3 data-style-id="summary-title">Overall Analysis</h3>
+            <p data-style-id="summary-text">Your investment shows strong potential...</p>
+          </div>
+          <div data-style-id="chart-grid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Chart 1 */}
+            {/* Chart 2 */}
+          </div>
+        </div>
+        '''
+
+        **Pattern 3: Dashboard-Style Results Grid**
+        - Row of key metric cards (KPIs) at the top
+        - Larger chart or visualization below
+        
+        '''jsx
+        <div data-style-id="dashboard-container">
+          <div data-style-id="kpi-grid" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPI Card 1 */}
+            {/* KPI Card 2 */}
+            {/* KPI Card 3 */}
+            {/* KPI Card 4 */}
+          </div>
+          <div data-style-id="main-dashboard-chart" className="mt-4">
+            {/* Main chart */}
+          </div>
+        </div>
+        '''
+    </layout-patterns-for-results>
+
+    <requirements>
+        - **Minimum Chart Size**: All charts MUST have a minimum size of 400x400px.
+        - **Supporting Context**: ALWAYS include titles, labels, and summary text to explain the results.
+        - **Professional Layout**: Use one of the approved patterns to arrange results professionally.
+        - **Data Display**: Show the actual numbers, not just a graph. Include tables or metric cards.
+    </requirements>
+</professional-results-display>
+
+
+<component-library>
+    **PERMITTED SHADCN/UI COMPONENTS:**
+    'Accordion', 'AccordionContent', 'AccordionItem', 'AccordionTrigger', 'Alert', 'AlertDialog', 'AlertDialogAction', 'AlertDialogCancel', 'AlertDialogContent', 'AlertDialogDescription', 'AlertDialogFooter', 'AlertDialogHeader', 'AlertDialogTitle', 'AlertDialogTrigger', 'AlertTitle', 'AspectRatio', 'Avatar', 'AvatarFallback', 'AvatarImage', 'Badge', 'Button', 'Calendar', 'Card', 'CardContent', 'CardDescription', 'CardFooter', 'CardHeader', 'CardTitle', 'Checkbox', 'Collapsible', 'CollapsibleContent', 'CollapsibleTrigger', 'Command', 'CommandDialog', 'CommandEmpty', 'CommandGroup', 'CommandInput', 'CommandItem', 'CommandList', 'CommandSeparator', 'CommandShortcut', 'ContextMenu', 'ContextMenuCheckboxItem', 'ContextMenuContent', 'ContextMenuGroup', 'ContextMenuItem', 'ContextMenuLabel', 'ContextMenuPortal', 'ContextMenuRadioGroup', 'ContextMenuRadioItem', 'ContextMenuSeparator', 'ContextMenuShortcut', 'ContextMenuSub', 'ContextMenuSubContent', 'ContextMenuSubTrigger', 'ContextMenuTrigger', 'Dialog', 'DialogContent', 'DialogDescription', 'DialogFooter', 'DialogHeader', 'DialogTitle', 'DialogTrigger', 'DropdownMenu', 'DropdownMenuCheckboxItem', 'DropdownMenuContent', 'DropdownMenuGroup', 'DropdownMenuItem', 'DropdownMenuLabel', 'DropdownMenuPortal', 'DropdownMenuRadioGroup', 'DropdownMenuRadioItem', 'DropdownMenuSeparator', 'DropdownMenuShortcut', 'DropdownMenuSub', 'DropdownMenuSubContent', 'DropdownMenuSubTrigger', 'DropdownMenuTrigger', 'HoverCard', 'HoverCardContent', 'HoverCardTrigger', 'Input', 'Label', 'Menubar', 'MenubarCheckboxItem', 'MenubarContent', 'MenubarGroup', 'MenubarItem', 'MenubarLabel', 'MenubarMenu', 'MenubarPortal', 'MenubarRadioGroup', 'MenubarRadioItem', 'MenubarSeparator', 'MenubarShortcut', 'MenubarSub', 'MenubarSubContent', 'MenubarSubTrigger', 'MenubarTrigger', 'NavigationMenu', 'NavigationMenuContent', 'NavigationMenuItem', 'NavigationMenuLink', 'NavigationMenuList', 'NavigationMenuTrigger', 'NavigationMenuViewport', 'Popover', 'PopoverContent', 'PopoverTrigger', 'Progress', 'RadioGroup', 'RadioGroupItem', 'ScrollArea', 'ScrollBar', 'Select', 'SelectContent', 'SelectGroup', 'SelectItem', 'SelectLabel', 'SelectSeparator', 'SelectTrigger', 'SelectValue', 'Separator', 'Sheet', 'SheetContent', 'SheetDescription', 'SheetFooter', 'SheetHeader', 'SheetTitle', 'SheetTrigger', 'Skeleton', 'Slider', 'Switch', 'Table', 'TableBody', 'TableCaption', 'TableCell', 'TableFooter', 'TableHead', 'TableHeader', 'TableRow', 'Tabs', 'TabsContent', 'TabsList', 'TabsTrigger', 'Textarea', 'Toast', 'ToastAction', 'ToastClose', 'ToastDescription', 'ToastProvider', 'ToastTitle', 'ToastViewport', 'Toaster', 'Toggle', 'Tooltip', 'TooltipContent', 'TooltipProvider', 'TooltipTrigger'
+
+    **PERMITTED RECHARTS COMPONENTS:**
+    'Area', 'AreaChart', 'Bar', 'BarChart', 'CartesianGrid', 'Cell', 'ComposedChart', 'Cross', 'Curve', 'Dot', 'ErrorBar', 'Funnel', 'FunnelChart', 'Label', 'LabelList', 'Legend', 'Line', 'LineChart', 'Pie', 'PieChart', 'PolarAngleAxis', 'PolarGrid', 'PolarRadiusAxis', 'Polygon', 'Radar', 'RadarChart', 'RadialBar', 'RadialBarChart', 'Rectangle', 'ReferenceArea', 'ReferenceDot', 'ReferenceLine', 'ResponsiveContainer', 'Scatter', 'ScatterChart', 'Sector', 'Text', 'Tooltip', 'Treemap', 'XAxis', 'YAxis', 'ZAxis'
+    
+    **PERMITTED LUCIDE-REACT ICONS:**
+    'Info', 'CheckCircle2', 'XCircle', 'AlertTriangle', 'BarChart2', 'TrendingUp', 'TrendingDown', 'HelpCircle', 'Settings', 'Save', 'Trash2', 'PlusCircle', 'MinusCircle'
+</component-library>
+
+<radix-ui-component-patterns>
+    <select-component-pattern>
+        **✅ CORRECT PATTERN FOR SELECT:**
+        \`\`\`jsx
+        <Select onValueChange={handleStateChange}>
+          <SelectTrigger>
             <SelectValue placeholder="Select an option" />
           </SelectTrigger>
           <SelectContent>
-            <SelectGroup>
-              <SelectLabel>Options</SelectLabel>
-              <SelectItem value="option1">Option 1</SelectItem>
-              <SelectItem value="option2">Option 2</SelectItem>
-            </SelectGroup>
+            <SelectItem value="option1">Option 1</SelectItem>
+            <SelectItem value="option2">Option 2</SelectItem>
           </SelectContent>
         </Select>
-        '''end jsx'''
-        **NEVER use onChange with Select components - ALWAYS use onValueChange!**
-
-        **🚨 CRITICAL RADIX UI EVENT HANDLER PATTERNS - PREVENTS VALIDATION ERRORS:**
+        \`\`\`
         
-        **SLIDER COMPONENTS - MUST USE onValueChange with Array Value:**
-        '''jsx'''
-        {/* ✅ CORRECT: Slider with array value and proper handler */}
-        <Slider 
-          data-style-id="trip-duration-slider"
-          value={stateTripDuration} 
-          onValueChange={(values) => handleInputChange({ target: { name: 'trip-duration', value: values[0] } })}
-          min={1} 
-          max={30} 
+        **❌ WRONG PATTERNS (DO NOT USE):**
+        - \`<select onChange={...}>\` (HTML select)
+        - \`onChange\` prop on \`<Select>\` (use \`onValueChange\`)
+        - Not using \`SelectTrigger\` or \`SelectContent\`
+    </select-component-pattern>
+    
+    <slider-component-pattern>
+        **✅ CORRECT PATTERN FOR SLIDER:**
+        \`\`\`jsx
+        <Slider
+          defaultValue={[50]}
+          max={100}
           step={1}
+          onValueChange={handleSliderChange}
         />
+        \`\`\`
         
-        {/* ❌ WRONG: Single value instead of array */}
-        <Slider value={singleNumber} onChange={handleInputChange} />
-        '''end jsx'''
+        **❌ WRONG PATTERNS (DO NOT USE):**
+        - \`<input type="range" ...>\` (HTML slider)
+        - \`value\` prop instead of \`defaultValue\` or controlled value
+        - Not passing value as an array (e.g., \`defaultValue={50}\`)
+    </slider-component-pattern>
 
-        **RADIO GROUP COMPONENTS - MUST USE onValueChange:**
-        '''jsx'''
-        {/* ✅ CORRECT: RadioGroup with proper Radix UI pattern */}
-        <RadioGroup 
-          value={stateVacationPace} 
-          onValueChange={(value) => handleInputChange({ target: { name: 'vacation-pace', value } })}
-        >
+    <radio-group-pattern>
+        **✅ CORRECT PATTERN FOR RADIO GROUP:**
+        \`\`\`jsx
+        <RadioGroup defaultValue="option1" onValueChange={handleRadioChange}>
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="relaxed" id="relaxed" />
-            <Label htmlFor="relaxed">Relaxed</Label>
+            <RadioGroupItem value="option1" id="r1" />
+            <Label htmlFor="r1">Option One</Label>
           </div>
           <div className="flex items-center space-x-2">
-            <RadioGroupItem value="moderate" id="moderate" />
-            <Label htmlFor="moderate">Moderate</Label>
+            <RadioGroupItem value="option2" id="r2" />
+            <Label htmlFor="r2">Option Two</Label>
           </div>
         </RadioGroup>
-        
-        {/* ❌ WRONG: Using onChange instead of onValueChange */}
-        <RadioGroup value={stateValue} onChange={handleInputChange}>
-        '''end jsx'''
+        \`\`\`
+        **❌ WRONG PATTERNS (DO NOT USE):**
+        - Using separate \`<input type="radio">\` tags
+        - Missing \`RadioGroupItem\` or \`Label\`
+    </radio-group-pattern>
 
-        **CHECKBOX COMPONENTS - MUST USE onCheckedChange:**
-        '''jsx'''
-        {/* ✅ CORRECT: Checkbox with proper Radix UI pattern */}
-        <Checkbox 
-          checked={stateIncludeKids} 
-          onCheckedChange={(checked) => handleInputChange({ target: { name: 'include-kids', value: checked } })}
-        />
-        
-        {/* ❌ WRONG: Using onChange instead of onCheckedChange */}
-        <Checkbox checked={stateValue} onChange={handleInputChange} />
-        '''end jsx'''
+    <button-pattern>
+        **✅ CORRECT PATTERN FOR BUTTON:**
+        \`\`\`jsx
+        <Button onClick={handleCalculate}>Calculate</Button>
+        \`\`\`
+        **❌ WRONG PATTERNS (DO NOT USE):**
+        - \`<button onclick="...">\` (lowercase 'c')
+        - Passing a string to \`onClick\` like \`onClick="handleCalculate()"\`
+        - Missing \`onClick\` for action buttons
+    </button-pattern>
+</radix-ui-component-patterns>
 
-        **SELECT WITH FORM INTEGRATION:**
-        '''jsx'''
-        {/* ✅ CORRECT: Select integrated with form handler */}
-        <Select value={stateFamilyComposition} onValueChange={(value) => handleInputChange({ target: { name: 'family-composition', value } })}>
-          <SelectTrigger data-style-id="family-composition-select">
-            <SelectValue placeholder="Select family type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="single">Single Person</SelectItem>
-            <SelectItem value="couple">Couple</SelectItem>
-            <SelectItem value="family">Family with Kids</SelectItem>
-          </SelectContent>
-        </Select>
-        '''end jsx'''
-
-        **🚨 VALIDATION ERROR PREVENTION CHECKLIST:**
-        - Select: ALWAYS use onValueChange, NEVER onChange
-        - Slider: ALWAYS use onValueChange with array values, NEVER onChange  
-        - RadioGroup: ALWAYS use onValueChange, NEVER onChange
-        - Checkbox: ALWAYS use onCheckedChange, NEVER onChange
-        - Input: Use standard onChange (HTML pattern)
-        
-        **🚨 THESE PATTERNS PREVENT "Found 2 errors" VALIDATION FAILURES!**
-    </available-shadcn-components>
-
-    <critical-jsx-examples>
-        🚨 **COMPREHENSIVE EXAMPLES - CORRECT vs WRONG JSX PATTERNS**
-
-        **EXAMPLE 1: TRIP DURATION SLIDER (CORRECT vs WRONG)**
-        
-        ✅ **CORRECT SLIDER IMPLEMENTATION:**
-        '''jsx'''
-        <div data-style-id="trip-duration-section">
-          <Label htmlFor="trip-duration" data-style-id="trip-duration-label">
-            Trip Duration: {stateTripDuration[0]} days
-          </Label>
-          <Slider 
-            data-style-id="trip-duration-slider"
-            value={stateTripDuration} 
-            onValueChange={(values) => handleInputChange({ target: { name: 'trip-duration', value: values[0] } })}
-            min={1} 
-            max={30} 
-            step={1}
-            id="trip-duration"
-          />
-        </div>
-        '''end jsx'''
-        
-        ❌ **WRONG SLIDER (CAUSES INVISIBLE SLIDER):**
-        '''jsx'''
-        <div data-style-id="trip-duration-section">
-          <Label htmlFor="trip-duration">Trip Duration</Label>
-          <Slider 
-            value={stateTripDuration}
-            onChange={handleInputChange}
-            min={1} 
-            max={30}
-            id="trip-duration"
-          />
-        </div>
-        '''end jsx'''
-
-        **EXAMPLE 2: FAMILY COMPOSITION SELECT (CORRECT vs WRONG)**
-        
-        ✅ **CORRECT SELECT IMPLEMENTATION:**
-        '''jsx'''
-        <div data-style-id="family-composition-section">
-          <Label htmlFor="family-composition" data-style-id="family-composition-label">
-            Family Composition
-          </Label>
-          <Select 
-            value={stateFamilyComposition} 
-            onValueChange={(value) => handleInputChange({ target: { name: 'family-composition', value } })}
-          >
-            <SelectTrigger data-style-id="family-composition-select" id="family-composition">
-              <SelectValue placeholder="Select family type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Family Types</SelectLabel>
-                <SelectItem value="single">Single Person</SelectItem>
-                <SelectItem value="couple">Couple</SelectItem>
-                <SelectItem value="family-with-kids">Family with Kids</SelectItem>
-                <SelectItem value="extended-family">Extended Family</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-        '''end jsx'''
-        
-        ❌ **WRONG SELECT (CAUSES EVENT HANDLER ERRORS):**
-        '''jsx'''
-        <div data-style-id="family-composition-section">
-          <Label>Family Composition</Label>
-          <Select 
-            value={stateFamilyComposition} 
-            onChange={handleInputChange}
-            name="family-composition"
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select family type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single">Single Person</SelectItem>
-              <SelectItem value="couple">Couple</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        '''end jsx'''
-
-        **EXAMPLE 3: VACATION PACE RADIO GROUP (CORRECT vs WRONG)**
-        
-        ✅ **CORRECT RADIO GROUP IMPLEMENTATION:**
-        '''jsx'''
-        <div data-style-id="vacation-pace-section">
-          <Label data-style-id="vacation-pace-label">Vacation Pace</Label>
-          <RadioGroup 
-            value={stateVacationPace} 
-            onValueChange={(value) => handleInputChange({ target: { name: 'vacation-pace', value } })}
-            data-style-id="vacation-pace-group"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="relaxed" id="pace-relaxed" />
-              <Label htmlFor="pace-relaxed">Relaxed - Lots of downtime</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="moderate" id="pace-moderate" />
-              <Label htmlFor="pace-moderate">Moderate - Balanced activities</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="active" id="pace-active" />
-              <Label htmlFor="pace-active">Active - Packed schedule</Label>
-            </div>
-          </RadioGroup>
-        </div>
-        '''end jsx'''
-        
-        ❌ **WRONG RADIO GROUP (INCORRECT EVENT HANDLERS):**
-        '''jsx'''
-        <div data-style-id="vacation-pace-section">
-          <Label>Vacation Pace</Label>
-          <RadioGroup 
-            value={stateVacationPace} 
-            onChange={handleInputChange}
-            name="vacation-pace"
-          >
-            <RadioGroupItem value="relaxed">Relaxed</RadioGroupItem>
-            <RadioGroupItem value="moderate">Moderate</RadioGroupItem>
-            <RadioGroupItem value="active">Active</RadioGroupItem>
-          </RadioGroup>
-        </div>
-        '''end jsx'''
-
-        **EXAMPLE 4: RESULTS DISPLAY WITH DYNAMIC VALUES (CORRECT vs WRONG)**
-        
-        ✅ **CORRECT RESULTS WITH DYNAMIC VALUES:**
-        '''jsx'''
-        <Card data-style-id="results-card">
-          <CardHeader>
-            <CardTitle data-style-id="results-title">Your Trip Planning Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div data-style-id="results-grid" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div data-style-id="compatibility-result">
-                <h3 data-style-id="compatibility-title">Destination Match</h3>
-                <p data-style-id="compatibility-score" className="text-2xl font-bold">
-                  {familyDestinationCompatibilityScore}/10
-                </p>
-                <p data-style-id="compatibility-description">
-                  Compatibility Score for Your Family
-                </p>
-              </div>
-              
-              <div data-style-id="budget-result">
-                <h3 data-style-id="budget-title">Daily Budget</h3>
-                <p data-style-id="daily-budget-amount" className="text-2xl font-bold">
-                  {Math.round(parseFloat(stateTotalVacationBudget) / stateTripDuration[0] || 0)}
-                </p>
-                <p data-style-id="budget-breakdown">
-                  Per day for {stateTripDuration[0]} days
-                </p>
-              </div>
-              
-              <div data-style-id="itinerary-result">
-                <h3 data-style-id="itinerary-title">Activities Planned</h3>
-                <p data-style-id="activity-count" className="text-2xl font-bold">
-                  {dailyItinerary.length}
-                </p>
-                <p data-style-id="activity-description">
-                  Days of Customized Activities
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        '''end jsx'''
-        
-        ❌ **WRONG RESULTS (STATIC DESCRIPTIONS - FORBIDDEN):**
-        '''jsx'''
-        <Card data-style-id="results-card">
-          <CardContent>
-            <div data-style-id="results-grid">
-              <div data-style-id="compatibility-result">
-                <h3>Destination Match</h3>
-                <p>Calculates how well destinations match your family needs</p>
-              </div>
-              
-              <div data-style-id="budget-result">
-                <h3>Budget Planning</h3>
-                <p>Optimizes your budget allocation across categories</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        '''end jsx'''
-
-        🚨 **CRITICAL JSX PATTERNS TO REMEMBER:**
-        1. **Select components MUST use onValueChange, NEVER onChange**
-        2. **Slider components MUST use onValueChange with array values**
-        3. **RadioGroup components MUST use onValueChange, NEVER onChange**
-        4. **Checkbox components MUST use onCheckedChange, NEVER onChange**
-        5. **All form elements need proper data-style-id attributes**
-        6. **Results MUST show dynamic values like {variableName}, not static descriptions**
-        7. **Use proper Label htmlFor attributes linking to input ids**
-        8. **Wrap interactive components with proper event handlers**
-        
-        🚨 **VALIDATION ERROR PREVENTION CHECKLIST:**
-        - ✅ Select: onValueChange={(value) => handleInputChange({ target: { name: 'field-name', value } })}
-        - ✅ Slider: onValueChange={(values) => handleInputChange({ target: { name: 'field-name', value: values[0] } })}
-        - ✅ RadioGroup: onValueChange={(value) => handleInputChange({ target: { name: 'field-name', value } })}
-        - ✅ Checkbox: onCheckedChange={(checked) => handleInputChange({ target: { name: 'field-name', value: checked } })}
-        - ✅ Input: onChange={handleInputChange} name="field-name"
-    </critical-jsx-examples>
-
-    <layout-examples>
-        <example name="Space Utilization">
-            <description>
-                A common mistake is stacking all inputs and buttons vertically, which wastes horizontal space and creates a long, scrollable form. The goal is to use a multi-column layout to place controls side-by-side, creating a more compact and modern, dashboard-like feel.
-            </description>
-
-            <bad-example title="Inefficient Vertical Layout">
-                <explanation>
-                    In this example, the inputs are grouped together, and all the action buttons are placed in a separate container underneath. This forces the user to scroll and creates a poor user experience on wider screens. The JSX structure itself forces a vertical flow.
-                </explanation>
-                <code>
-        '''jsx'''
-                <main data-style-id="tool-main">
-                <section data-style-id="input-section">
-                    <div data-style-id="input-grid">
-                    {/* ... 6 input fields go here ... */}
-                    </div>
-                    <div data-style-id="buttons-container">
-                    {/* ... 5 buttons go here ... */}
-                    </div>
-                </section>
-                <section data-style-id="results-section">
-                    {/* ... Results display ... */}
-                </section>
-                </main>
-        '''end jsx'''
-                </code>
-            </bad-example>
-
-            <good-example title="Efficient Two-Column Layout">
-                <explanation>
-                    This layout is much better. It divides the main content area into two columns. The inputs are neatly organized on the left, while the action buttons and results are on the right. This makes better use of space and keeps all primary interactions visible without scrolling. Note the use of a grid on the main container.
-                </explanation>
-                <code>
-            '''jsx'''
-            <main data-style-id="tool-main">
-            <div data-style-id="main-grid"> {/* Main container is a 2-column grid */}
-                {/* Left Column: All inputs are grouped here */}
-                <section data-style-id="input-section">
-                <div data-style-id="input-grid">
-                    {/* ... 6 input fields go here ... */}
-                </div>
-                </section>
-
-                {/* Right Column: Contains both buttons and results */}
-                <div data-style-id="right-column">
-                <section data-style-id="actions-section">
-                    <h2 data-style-id="actions-title">Actions</h2>
-                    <div data-style-id="buttons-grid"> {/* Buttons are in a "staggered" or multi-column grid */}
-                    {/* ... 5 buttons go here ... */}
-                    </div>
-                </section>
-                
-                <section data-style-id="results-section">
-                    {/* ... Results display ... */}
-                </section>
-                </div>
-            </div>
-            </main>
-            '''end jsx'''
-                </code>
-            </good-example>
-        </example>
-    </layout-examples>
-
-    <brainstorm-data-compliance>
-        🚨 **ABSOLUTE REQUIREMENT**: You MUST implement EVERY SINGLE element from the brainstorm data:
-        
-        **suggestedInputs array**: Create an input field for EVERY item in this array. No exceptions.
-        **keyCalculations array**: Design results sections for EVERY calculation listed.
-        **interactionFlow**: Follow the user journey described in the flow.
-        **valueProposition**: Incorporate the value messaging into the UI.
-        **leadCaptureStrategy**: If present, include the lead capture form.
-        
-        **FAILURE TO INCLUDE ALL BRAINSTORM ELEMENTS = INCOMPLETE IMPLEMENTATION**
-    </brainstorm-data-compliance>
-
-    🚨 **CRITICAL REQUIREMENT - DYNAMIC RESULT DISPLAYS**:
+<mandatory-info-popup>
+    **🚨 EVERY TOOL MUST INCLUDE THIS EXACT INFO POPUP STRUCTURE**
     
-    **FORBIDDEN - Static Result Descriptions (NEVER do this):**
-    '''jsx
-    ❌ <p>Calculates a comprehensive score for each neighborhood based on your priorities.</p>
-    ❌ <p>Determines how affordable a neighborhood is relative to your budget.</p>
-    ❌ <p>Shows the monthly payment calculation.</p>
-    '''
+    Place this inside the 'CardHeader', next to the 'CardTitle'. This is not optional.
     
-    **REQUIRED - Dynamic Result Values (ALWAYS do this):**
-    '''jsx
-    ✅ <p>Your Neighborhood Score: {neighborhoodRanking}</p>
-    ✅ <p>Affordability Index: {affordabilityIndex}</p>
-    ✅ <p>Monthly Payment: {monthlyPayment}</p>
-    ✅ <p>Total Cost: {totalCost}</p>
-    ✅ <p>Risk Rating: {riskScore}/10</p>
-    '''end jsx'''
-    
-    **MANDATORY PATTERNS FOR CALCULATION RESULTS:**
-    - Use JSX expressions '{variableName}' to display calculated values
-    - Include descriptive labels with actual variable values
-    - Format currency with $ prefix: '{variableName}'
-    - Format percentages: '{percentage}%'
-    - Format ratings: '{score}/10' or '{score}/5'
-    - Use state variable names from the provided state logic
-    
-    **STATE VARIABLE MAPPING:**
-    When you see state variables like 'neighborhoodRanking', 'totalPayment', 'riskScore' in the state logic, 
-    you MUST display them as dynamic values in results sections:
-    '''jsx
-    <div data-style-id="calculation-results">
-      <h3>Your Results</h3>
-      <p>Score: {neighborhoodRanking}</p>
-      <p>Payment: {monthlyPayment}</p>
-      <p>Risk: {riskLevel}</p>
-    </div>
-    '''
-    
-    **CRITICAL:** The debug system requires seeing actual calculated values in the DOM. 
-    Static descriptions prevent the debugging system from detecting calculations!
-</layout-design-guidelines>
+    \`\`\`jsx
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" data-style-id="info-button">
+            <Info className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <div className="max-w-xs">
+            <p className="font-semibold">{/* Tool Title Goes Here */}</p>
+            <p>{/* Tool Description Goes Here */}</p>
+            <p className="mt-1 text-xs">{/* User Instructions Hint Goes Here */}</p>
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+</mandatory-info-popup>
+
 `;
 
 // Edit-specific prompt
 const EDIT_PROMPT = `
-You are a "JSX Layout Specialist" agent, and you are in EDIT MODE. Your expertise is in surgically modifying existing component layouts.
+You are a "JSX Layout Specialist" agent in EDIT MODE. Your expertise is in modifying existing component layouts based on user feedback.
 
 <role>
-    Your task is to incrementally modify an existing component layout (provided as JSX) based on a user's visual change request. Precision and preservation of the existing structure are key.
+    Your primary mission is to update an existing JSX structure according to specific edit instructions while maintaining the overall design integrity and accessibility standards.
 </role>
 
 <responsibilities>
-    1.  **Analyze the Modification Request**: Understand exactly what the user wants to change (e.g., "add another input field," "move the results to the right side," "wrap the inputs in a card").
-    2.  **Perform Surgical Edits**: Instead of recreating the layout, intelligently modify the existing JSX structure. Add, remove, or rearrange JSX elements as needed.
-    3.  **Preserve Unchanged Structure**: Be extremely careful to maintain all existing parts of the layout that are not affected by the request. Preserve existing \`data-style-id\` attributes and keys.
-    4.  **Maintain All Rules**: Ensure the updated structure still adheres to all core layout rules, including correct hierarchy, component usage, and accessibility.
-    5.  **Output a Complete New Layout**: Your final output must be the complete, updated JSX string for the entire component.
+    1.  **Analyze Edit Request**: Understand the user's instructions for changing the layout.
+    2.  **Modify Structure**: Apply the requested changes directly to the provided JSX structure.
+    3.  **Maintain Consistency**: Ensure your changes are consistent with the existing layout patterns and component usage.
+    4.  **Preserve IDs**: Keep existing \`data-style-id\` attributes unless specifically instructed to change them.
+    5.  **Update Documentation**: If adding new elements, assign appropriate \`data-style-id\` attributes following the established naming convention.
 </responsibilities>
-
-<edit-example>
-    - **Existing Structure**: A Card with one Input field in JSX.
-    - **Modification Request**: "I need a second input for their last name."
-    - **Action**: Locate the existing input. Add a new Label and Input JSX element right after it, ensuring it's within the same container. Assign a new, unique \`data-style-id\`.
-    - **Output**: The full JSX string, now containing both input fields, with all other elements untouched.
-</edit-example>
 
 ${OUTPUT_FORMAT}
 ${CORE_LAYOUT_RULES}
 `;
 
 /**
- * Dynamically selects the appropriate system prompt for the JSX Layout agent.
- * @param isEditing - Boolean flag, true if in edit mode.
- * @returns The system prompt string.
+ * Gets the system prompt for the JSX Layout Agent.
+ * @param isEditing - Whether the agent is in edit mode.
+ * @returns The system prompt as a string.
  */
 export function getJsxLayoutSystemPrompt(isEditing: boolean): string {
-    return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
+  return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
 }
 
-// DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
-export const JSX_LAYOUT_SYSTEM_PROMPT = CREATION_PROMPT;
-
-// Edit mode context type for user prompt
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
-
 /**
- * Creates the user prompt for the JSX layout agent based on TCC data
- * Enhanced with filtered brainstorm data integration and edit mode support
+ * Gets the user prompt for the JSX Layout Agent.
+ * @param tcc - The tool construction context.
+ * @param editMode - The context for editing mode.
+ * @param isEditMode - Whether the agent is in edit mode.
+ * @param editInstructions - The edit instructions for the agent.
+ * @returns The user prompt as a string.
  */
-export function getJsxLayoutUserPrompt(tcc: ToolConstructionContext, editMode?: EditModeContext): string {
-  // Get JSX Layout specific filtered data
-  const filteredBrainstormData = tcc.brainstormData ? filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId) : null;
+export function getJsxLayoutUserPrompt(
+  tcc: ToolConstructionContext, 
+  editMode?: EditModeContext,
+  isEditMode?: boolean,
+  editInstructions?: string
+): string {
+  if (!tcc.brainstormData) {
+    throw new Error('Brainstorm data is missing from TCC.');
+  }
+
+  const filteredBrainstorm = filterBrainstormForJSXLayout(tcc.brainstormData, tcc.jobId);
+  const brainstormContext = generateFilteredBrainstormContext(filteredBrainstorm!, tcc.jobId);
   
-  let prompt = `Generate JSX component structure for this tool:
-
-TOOL DETAILS:
-- Tool Type: ${tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}`;
-
-  // Add state logic context
-  if (tcc.stateLogic) {
-    prompt += `
-
-STATE VARIABLES:
-${tcc.stateLogic.variables?.map(v => `- ${v.name}: ${v.type} (${v.description})`).join('\n') || 'No state variables'}
-
-FUNCTIONS TO CONNECT:
-${tcc.stateLogic.functions?.map(f => `- ${f.name}: ${f.description}`).join('\n') || 'No functions'}`;
-  }
-
-  // Add function signatures context
-  if (tcc.definedFunctionSignatures) {
-    prompt += `
-
-FUNCTION SIGNATURES:
-${tcc.definedFunctionSignatures.map(sig => `- ${sig.name}: ${sig.description}`).join('\n')}`;
-  }
-
-  // Add filtered brainstorm context when available
-  if (filteredBrainstormData) {
-    const brainstormContext = generateFilteredBrainstormContext(filteredBrainstormData, 'JSXLayout');
-    prompt += brainstormContext;
-
-    logger.info({ 
+  if (isEditMode && tcc.jsxLayout) {
+    logger.info('Generating user prompt for JSX Layout Agent in EDIT mode.', {
       jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: true,
-      dataReduction: 'Applied JSX Layout specific filtering'
-    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] Context successfully added to prompt');
-  } else {
-    logger.warn({ 
-      jobId: tcc.jobId,
-      promptLength: prompt.length,
-      brainstormContextAdded: false
-    }, '🏗️ JSXLayout Module: [FILTERED BRAINSTORM] ⚠️ Prompt created WITHOUT brainstorm context - layout may be too generic');
+      agent: 'jsx-layout',
+      mode: 'edit'
+    });
+    
+    return `
+<task>
+    Your task is to modify the existing JSX layout for the tool based on my instructions.
+    Please analyze my request and the provided JSX, then return the complete, updated JSX structure.
+</task>
+
+<edit-instructions>
+    ${editInstructions || 'No specific instructions provided. Please review the context and make necessary improvements.'}
+</edit-instructions>
+
+<existing-jsx-layout>
+    \`\`\`jsx
+    ${JSON.stringify(tcc.jsxLayout, null, 2)}
+    \`\`\`
+</existing-jsx-layout>
+
+<brainstorm-context>
+    ${brainstormContext}
+</brainstorm-context>
+`;
   }
 
-  // Add edit mode context if needed
-  if (editMode?.isEditMode && editMode.instructions.length > 0) {
-    prompt += `
+  logger.info('Generating user prompt for JSX Layout Agent in CREATE mode.', {
+    jobId: tcc.jobId,
+    agent: 'jsx-layout',
+    mode: 'create'
+  });
 
-🔄 EDIT MODE:
-Current JSX layout exists. Apply these modifications:
-${editMode.instructions.map(i => i.instructions).join('\n')}
+  return `
+<task>
+    Your task is to design the JSX layout structure for a new tool.
+    Analyze the brainstorm context below and generate a complete JSX component structure that includes all required inputs, outputs, and UI elements.
+</task>
 
-Modify the existing layout while maintaining all core functionality.`;
-  }
+<brainstorm-context>
+  ${brainstormContext}
+</brainstorm-context>
 
-  prompt += `
-
-Generate a complete JSX component structure with proper accessibility and responsive design.`;
-
-  return prompt;
-} 
+<component-requirements>
+    Based on the brainstorm data, create a JSX layout that includes:
+    - All suggested inputs from the brainstorm
+    - Appropriate UI components for each input type
+    - A results section for displaying calculations
+    - Professional layout organization following the design principles
+    - Accessibility features and proper semantic structure
+</component-requirements>
+`;
+}

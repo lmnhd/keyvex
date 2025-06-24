@@ -214,11 +214,11 @@ export async function POST(request: NextRequest) {
             resultKeys: finalResult ? Object.keys(finalResult) : [],
             hasResult: !!finalResult
           }, '🧠 API [logic-architect/brainstorm]: Placeholder result created');
-
+          
           // STRICT MODE: No fallbacks - if Logic Architect fails, we need to know immediately
           if (!finalResult) {
             const errorMsg = 'Logic Architect returned null/undefined result - this indicates a critical failure in brainstorm generation';
-            logger.error({ 
+            logger.error({
               toolType,
               targetAudience,
               industry,
@@ -233,22 +233,22 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
             return;
           }
-
+          
           // Send completion with actual result only
           const completionData = JSON.stringify({
             type: 'complete',
             data: finalResult,
             timestamp: Date.now()
           });
-
+          
           logger.info({ 
             eventType: 'complete',
             resultSize: completionData.length,
             streamCompletion: true
           }, '🧠 API [logic-architect/brainstorm]: Sending completion event');
-
+          
           controller.enqueue(encoder.encode(`data: ${completionData}\n\n`));
-
+          
         } catch (error) {
           logger.error({ 
             error: error instanceof Error ? {
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
             } : String(error),
             phase: 'stream-processing'
           }, '🧠 API [logic-architect/brainstorm]: Logic Architect brainstorming failed within stream');
-
+          
           const data = JSON.stringify({
             type: 'error',
             message: error instanceof Error ? error.message : 'Brainstorming failed within stream',

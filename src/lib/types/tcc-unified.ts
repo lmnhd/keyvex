@@ -89,6 +89,8 @@ export interface ComponentAssemblerResult {
     codeLength: number;
     estimatedRenderTime: string;
     bundleSize: string;
+    assemblyMethod: 'programmatic';
+    componentsAssembled: string[];
   };
 }
 
@@ -232,6 +234,12 @@ export interface CoreBrainstormData {
     incentive: string;
   };
   creativeEnhancements: string[];
+  
+  // NEW: Add research and mock data fields to the core data type
+  dataRequirements?: BrainstormData['dataRequirements'];
+  mockData?: BrainstormData['mockData'];
+  researchData?: BrainstormData['researchData'];
+  userDataInstructions?: BrainstormData['userDataInstructions'];
 }
 
 // Agent-specific filtered brainstorm data interfaces (Phase 1.3)

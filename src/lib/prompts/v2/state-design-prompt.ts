@@ -1,10 +1,10 @@
 // ============================================================================
-// STATE DESIGN AGENT PROMPT  
+// STATE DESIGN AGENT PROMPT
 // ✅ ENHANCED: Now handles brainstorm data and demands SPECIFIC business logic
 // ============================================================================
 
-import { ToolConstructionContext, DefinedFunctionSignature } from '@/lib/types/product-tool-creation-v2/tcc';
-import { filterBrainstormForStateDesign } from '@/lib/utils/brainstorm-filter';
+import { ToolConstructionContext, EditModeContext, DefinedFunctionSignature } from '@/lib/types/product-tool-creation-v2/tcc';
+import { filterBrainstormForStateDesign, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
 
 const commonGuidelines = `
@@ -54,13 +54,51 @@ const commonGuidelines = `
     - "const liquidityRatio = currentAssets / currentLiabilities;"
     - "const monthlyPayment = principal * (monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1);"
     - "const solarSavings = monthlyBill * (1 - (systemCost / (monthlyBill * 12 * 25)));"
-    - "const paybackPeriod = systemCost / (monthlyBill * 12);"
+    - "const paybackPeriod = systemCost / (systemSizeKW * 3000);"
     
     🔥 IMPLEMENT EXACT BUSINESS FORMULAS based on the tool's specific domain!
 </critical-requirements>
 
+<data-driven-state-design>
+    🚀 **USE RESEARCH DATA TO CREATE REALISTIC STATE**
+    Your goal is to use the provided \`mockData\` and \`researchData\` to inform the initial state of the application. This makes the tool feel real and immediately useful.
+
+    **1. Populate Select Options:**
+    - If \`researchData\` contains an array of items (e.g., marketing channels, property types, car models), you MUST create a state variable to hold this array.
+    - This data is for populating \`<Select>\` dropdowns in the UI.
+
+    *Příklad:*
+    If \`researchData\` has \`{"marketing_channels": ["Google Ads", "Facebook Ads", "SEO"]}\`, create this state:
+    \`\`\`json
+    {
+      "name": "marketingChannels",
+      "type": "string[]",
+      "initialValue": "['Google Ads', 'Facebook Ads', 'SEO']",
+      "description": "Available marketing channels for selection"
+    }
+    \`\`\`
+
+    **2. Set Realistic Initial Values:**
+    - Use \`mockData\` or \`researchData\` to set smart defaults for inputs.
+    - If \`researchData\` provides an \`average_home_price\` of \`450000\`, use that for a loan calculator's initial loan amount.
+    - If \`mockData\` suggests a typical trip duration is 10 days, use \`[10]\` as the initial value for a trip duration slider.
+
+    *Příklad:*
+    If \`researchData\` = \`{"average_interest_rate": 4.5}\`, set the slider state like this:
+    \`\`\`json
+    {
+        "name": "stateInterestRate",
+        "type": "number[]",
+        "initialValue": "[4.5]",
+        "description": "Annual interest rate based on market data"
+    }
+    \`\`\`
+    
+    🔥 By using this data, you ensure the tool starts with meaningful, context-aware values instead of empty or generic ones.
+</data-driven-state-design>
+
 <select-field-handling>
-    🚨 CRITICAL: When dealing with SELECT fields that have text values, you MUST map them to numeric values:
+    🚨 CRITICAL: When dealing with SELECT fields that have text values, you MUST map them to numeric values for calculations:
     
     ❌ WRONG:
     - "const systemCost = parseFloat(statePreferredSystemSize) * 1000;" // 'small' * 1000 = NaN!
@@ -253,288 +291,168 @@ const commonGuidelines = `
         {
           "name": "stateSystemSize",
           "type": "string",
-          "defaultValue": "",
-          "description": "Solar system size selection"
-        },
-        {
-          "name": "systemCost",
-          "type": "number",
-          "defaultValue": 0,
-          "description": "Calculated system cost"
+          "defaultValue": "'medium'",
+          "description": "Size of the solar panel system"
         }
       ],
       "functions": [
         {
           "name": "calculateSystemCost",
-          \"body\": [
-            "const systemSizeKW = stateSystemSize === 'small' ? 4 : stateSystemSize === 'medium' ? 7 : stateSystemSize === 'large' ? 10 : 0;",
-            "const costPerKW = 3000;",
-            "const totalCost = systemSizeKW * costPerKW;",
-            "setSystemCost(totalCost);"
-          ]
+          "body": "const sizeMap = { small: 4, medium: 7, large: 10 }; const systemKW = sizeMap[stateSystemSize] || 0; const cost = systemKW * 3000; setSystemCost(cost);",
+          "dependencies": ["stateSystemSize"],
+          "description": "Calculate system cost based on selected size"
         }
       ]
     }
     \`\`\`
-    
+
     ❌ **WRONG (CAUSES NaN ERRORS):**
     \`\`\`json
     {
       "variables": [
         {
           "name": "stateSystemSize",
-          "type": "string", 
-          "defaultValue": "",
-          "description": "Solar system size selection"
+          "type": "string",
+          "defaultValue": "'medium'",
+          "description": "Size of the solar panel system"
         }
       ],
       "functions": [
         {
           "name": "calculateSystemCost",
-          \"body\": [
-            "const systemCost = parseFloat(stateSystemSize) * 1000;",
-            "setSystemCost(systemCost);"
-          ]
+          "body": "const cost = parseFloat(stateSystemSize) * 3000; setSystemCost(cost);",
+          "dependencies": ["stateSystemSize"],
+          "description": "WRONG: This will result in NaN"
         }
       ]
     }
     \`\`\`
 
-    **EXAMPLE 4: HANDLE INPUT CHANGE FUNCTION (CORRECT vs WRONG)**
-    
-    ✅ **CORRECT EVENT HANDLER (WORKS WITH RADIX UI):**
-    \`\`\`json
-    {
-      "functions": [
-        {
-          "name": "handleInputChange",
-          \"body\": [
-            "const { name, value } = event.target;",
-            "switch (name) {",
-            "  case 'family-composition':",
-            "    setStateFamilyComposition(value);",
-            "    break;",
-            "  case 'trip-duration':",
-            "    setStateTripDuration([parseInt(value) || 7]);",
-            "    break;",
-            "  case 'vacation-pace':",
-            "    setStateVacationPace(value);",
-            "    break;",
-            "  default:",
-            "    break;",
-            "}"
-          ]
-        }
-      ]
-    }
-    \`\`\`
-    
-    ❌ **WRONG (DOESN'T HANDLE RADIX UI PATTERNS):**
-    \`\`\`json
-    {
-      "functions": [
-        {
-          "name": "handleInputChange",
-          \"body\": [
-            "const { name, value } = event.target;",
-            "setState(prevState => ({ ...prevState, [name]: value }));"
-          ]
-        }
-      ]
-    }
-    \`\`\`
+    **EXAMPLE 4: COMPLETE IMPLEMENTATION OF MULTIPLE CALCULATIONS**
 
-    **EXAMPLE 5: MULTI-CALCULATION TOOL (COMPLETE IMPLEMENTATION)**
-    
-    ✅ **CORRECT FULL IMPLEMENTATION:**
+    ✅ **CORRECT - IMPLEMENTS ALL CALCULATIONS:**
     \`\`\`json
     {
       "variables": [
-        {
-          "name": "stateHomePrice",
-          "type": "number[]",
-          "defaultValue": [300000],
-          "description": "Home price slider"
-        },
-        {
-          "name": "stateDownPayment", 
-          "type": "number[]",
-          "defaultValue": [20],
-          "description": "Down payment percentage slider"
-        },
-        {
-          "name": "monthlyPayment",
-          "type": "number",
-          "defaultValue": 0,
-          "description": "Calculated monthly payment"
-        },
-        {
-          "name": "affordabilityIndex",
-          "type": "number", 
-          "defaultValue": 0,
-          "description": "Calculated affordability score"
-        }
+        { "name": "stateMonthlyBill", "type": "string", "defaultValue": "'200'", "description": "Average monthly electricity bill" },
+        { "name": "stateSystemSize", "type": "string", "defaultValue": "'medium'", "description": "Solar system size" },
+        { "name": "systemCost", "type": "number", "defaultValue": 0, "description": "Calculated cost of the system" },
+        { "name": "annualSavings", "type": "number", "defaultValue": 0, "description": "Calculated annual savings" },
+        { "name": "paybackPeriod", "type": "number", "defaultValue": 0, "description": "Calculated payback period in years" },
+        { "name": "federalIncentive", "type": "number", "defaultValue": 0, "description": "Calculated federal tax incentive" }
       ],
       "functions": [
         {
-          "name": "calculateMonthlyPayment",
-          \"body\": [
-            "const homePrice = stateHomePrice[0];",
-            "const downPercent = stateDownPayment[0] / 100;", 
-            "const loanAmount = homePrice * (1 - downPercent);",
-            "const monthlyRate = 0.065 / 12;",
-            "const months = 360;",
-            "const payment = loanAmount * (monthlyRate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1);",
-            "setMonthlyPayment(payment);"
-          ]
-        },
-        {
-          "name": "calculateAffordabilityIndex",
-          \"body\": [
-            "const homePrice = stateHomePrice[0];",
-            "const income = 75000;",
-            "const affordability = (income * 0.28) / (homePrice / 100);",
-            "setAffordabilityIndex(affordability);"
-          ]
+          "name": "handleCalculate",
+          "body": "const sizeMap = { small: 4, medium: 7, large: 10 }; const systemKW = sizeMap[stateSystemSize] || 0; const cost = systemKW * 3000; const bill = parseFloat(stateMonthlyBill) || 0; const savings = bill * 12 * 0.9; const payback = cost > 0 && savings > 0 ? cost / savings : 0; const incentive = cost * 0.3; setSystemCost(cost); setAnnualSavings(savings); setPaybackPeriod(payback); setFederalIncentive(incentive);",
+          "dependencies": ["stateMonthlyBill", "stateSystemSize"],
+          "description": "Calculates all key metrics for the solar tool"
         }
-      ]
+      ],
+      "imports": ["useState"]
     }
     \`\`\`
 
-    🚨 **KEY PATTERNS TO REMEMBER:**
-    1. **Sliders ALWAYS use number[] type with [defaultValue]**
-    2. **Extract slider values with variable[0] in calculations**
-    3. **Map select text values to numbers for calculations**
-    4. **Create separate functions for each keyCalculation**
-    5. **Use switch statements in handleInputChange for different field types**
-    6. **Always validate inputs before calculations (check for NaN)**
+    ❌ **WRONG - PARTIAL IMPLEMENTATION (MISSING CALCULATIONS):**
+    \`\`\`json
+    {
+      "variables": [
+        { "name": "stateMonthlyBill", "type": "string", "defaultValue": "'200'" },
+        { "name": "systemCost", "type": "number", "defaultValue": 0 }
+      ],
+      "functions": [
+        {
+          "name": "handleCalculate",
+          "body": "const cost = 21000; setSystemCost(cost);", // Does not calculate anything, misses other metrics
+          "dependencies": [],
+          "description": "WRONG: Incomplete logic"
+        }
+      ],
+      "imports": ["useState"]
+    }
+    \`\`\`
+
+    **EXAMPLE 5: EVENT HANDLER FUNCTION**
+
+    ✅ **CORRECT - DEDICATED EVENT HANDLER:**
+    \`\`\`json
+    {
+      "variables": [
+        { "name": "stateLoanAmount", "type": "number[]", "defaultValue": [100000] },
+        { "name": "stateTerm", "type": "number[]", "defaultValue": [30] },
+        { "name": "monthlyPayment", "type": "number", "defaultValue": 0 }
+      ],
+      "functions": [
+        {
+          "name": "handleCalculateClick",
+          "body": "const principal = stateLoanAmount[0]; const termYears = stateTerm[0]; const monthlyRate = (3.5 / 100) / 12; const numberOfPayments = termYears * 12; const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, numberOfPayments)) / (Math.pow(1 + monthlyRate, numberOfPayments) - 1); setMonthlyPayment(payment.toFixed(2));",
+          "dependencies": ["stateLoanAmount", "stateTerm"],
+          "description": "Handles the button click to perform the mortgage calculation"
+        }
+      ],
+      "imports": ["useState"]
+    }
+    \`\`\`
 </comprehensive-examples>
 `;
 
-const CREATION_PROMPT = `
-You are a "State Logic Designer" agent. Your expertise is in translating function signatures and user requirements into clean, efficient state management logic for a React component using hooks.
-
-🚨 CRITICAL MISSION: You MUST implement the EXACT calculations and business logic specified in the brainstorm data and function signatures. DO NOT create generic placeholders!
+// System prompt for creating state logic from scratch
+const creationSystemPrompt = `
+You are an expert "React State & Logic Architect" for an advanced tool generation system. Your primary role is to design the complete state management and business logic for a new web-based tool based on a detailed "brainstorm" document.
 
 <role>
-    Your task is to design the complete state logic from scratch based on a provided function plan and brainstorm data.
+    Your mission is to meticulously translate the tool's conceptual requirements—including all specified inputs, calculations, and logic—into a production-ready JSON object that defines the tool's React state and associated functions. You must implement the *exact* business logic described, avoiding generic placeholders at all costs.
 </role>
 
 <responsibilities>
-    1.  **Analyze Brainstorm Data**: Use the provided brainstorm data to understand the SPECIFIC business domain and required calculations
-    2.  **Define State Variables**: Create state variables for each input field specified in the brainstorm data
-    3.  **Implement EXACT Calculations**: Write the precise mathematical formulas for the business domain (solar, financial, etc.)
-    4.  **Assign Types & Defaults**: Define TypeScript types and sensible default values
-    5.  **Handle Edge Cases**: Validate inputs and handle division by zero, negative values, etc.
-    6.  **Ensure Completeness**: Your output must include all necessary state variables and implemented functions for a fully working component
+    1.  **Analyze Brainstorm Data**: Carefully review the provided brainstorm context, focusing on \`suggestedInputs\`, \`keyCalculations\`, and \`calculationLogic\` to understand the tool's complete functionality.
+    2.  **Design State Variables**: For each user input and calculated result, define a corresponding state variable with the correct type (\`string\`, \`number\`, \`boolean\`, \`number[]\`) and a sensible initial value.
+    3.  **Implement Calculation Functions**: Create JavaScript functions that implement the *exact* business formulas specified in \`keyCalculations\`. Ensure all calculations are present.
+    4.  **Enforce Best Practices**: Follow all state management best practices, including proper data type conversions, input validation, and handling of edge cases like division by zero.
+    5.  **Adhere to Strict Output Format**: Produce a single, clean JSON object that strictly conforms to the specified output schema, with no additional commentary.
+    6.  **Handle UI Component Patterns**: Correctly implement state for specific UI components, especially using \`number[]\` for all Slider inputs to prevent rendering issues.
+    7.  **🚨 IMPLEMENT ALL CALCULATIONS**: You are responsible for implementing EVERY calculation described in the \`keyCalculations\` section of the brainstorm. DO NOT OMIT ANY. The UI will be built based on your state design, so if a calculation is missing, the tool will be incomplete.
 </responsibilities>
-
-🚨 **CRITICAL REQUIREMENT - IMPLEMENT ALL KEY CALCULATIONS**:
-
-**MANDATORY CALCULATION IMPLEMENTATION:**
-- You MUST implement EVERY calculation listed in "KEY CALCULATIONS TO IMPLEMENT"
-- Each keyCalculation requires its own state variable for the result
-- Each keyCalculation requires its own calculation function
-- Use the EXACT formulas provided in the keyCalculations data
-
-**FORBIDDEN - Partial Implementation:**
-❌ Implementing only 1 calculation when 2+ are specified
-❌ Creating state variables without corresponding calculation functions
-❌ Using generic placeholder formulas instead of exact business formulas
-❌ Ignoring any keyCalculation from the brainstorm data
-
-**REQUIRED - Complete Implementation:**
-✅ State variable for EVERY keyCalculation result (e.g., neighborhoodScore, affordabilityIndex)
-✅ Calculation function for EVERY keyCalculation (e.g., calculateNeighborhoodScore, calculateAffordabilityIndex)
-✅ Use exact formulas from keyCalculations.formula field
-✅ Include all variables mentioned in keyCalculations.variables field
-
-**Example for Multiple Calculations:**
-'''json'''
-{
-  "variables": [
-    {"name": "neighborhoodScore", "type": "number", "defaultValue": 0},
-    {"name": "affordabilityIndex", "type": "number", "defaultValue": 0}
-  ],
-  "functions": [
-    {
-      "name": "calculateNeighborhoodScore", 
-      \"body\": ["const rankingScore = (weightSchools * 0.3) + (weightPrice * 0.5) + (weightCommute * 0.2);", "setNeighborhoodScore(rankingScore * 100);"]
-    },
-    {
-      "name": "calculateAffordabilityIndex",
-      \"body\": ["const budget = parseFloat(stateYourBudget);", "const affordability = 750000 / budget;", "setAffordabilityIndex(affordability);"]
-    }
-  ]
-}
-'''end json'''
-
-**CRITICAL:** The debug system and UI require ALL calculations to be fully implemented with state variables!
-
-<domain-specific-implementation>
-    📊 **SOLAR PANEL TOOLS**: Implement solar savings calculations, payback periods, tax incentives
-    💰 **FINANCIAL TOOLS**: Implement ROI, profit margins, debt ratios, liquidity ratios  
-    🏢 **BUSINESS TOOLS**: Implement break-even analysis, customer metrics, conversion rates
-    📈 **INVESTMENT TOOLS**: Implement compound interest, portfolio analysis, risk assessments
-</domain-specific-implementation>
 
 ${commonGuidelines}
 `;
 
-const EDIT_PROMPT = `
-You are a "State Logic Designer" agent, and you are in EDIT MODE.
-
-🚨 CRITICAL MISSION: You MUST implement the EXACT calculations and business logic. NO GENERIC PLACEHOLDERS!
+// System prompt for editing existing state logic
+const editSystemPrompt = `
+You are an expert "React State & Logic Architect" tasked with modifying the state management and business logic of an existing tool.
 
 <role>
-    Your task is to incrementally modify existing state logic based on a user's request and an updated function plan.
+    Your mission is to carefully update the provided JSON object that defines the tool's React state and functions based on specific edit instructions. You must integrate the changes seamlessly while preserving the existing structure and adhering to all best practices.
 </role>
 
 <responsibilities>
-    1.  **Analyze the Modification Request**: Understand what the user wants to change in the tool's behavior or data handling
-    2.  **Use the New Function Plan**: Your primary guide for changes is the 'updatedFunctionSignatures'
-    3.  **Implement SPECIFIC Logic**: Write actual business calculations, not generic placeholders
-    4.  **Incrementally Update**: Modify the 'existingStateLogic' by adding, removing, or changing state variables and function implementations
-    5.  **Preserve Unchanged Logic**: Do not alter existing state or functions that are unaffected by the request
-    6.  **Output Complete New Plan**: Your final output must be the complete, updated state logic object
+    1.  **Analyze Edit Request**: Understand the user's instructions for changing the state or logic.
+    2.  **Modify JSON**: Apply the requested changes directly to the provided JSON structure. This could involve adding, removing, or updating variables or functions.
+    3.  **Maintain Consistency**: Ensure your changes are consistent with the existing state management patterns and business logic.
+    4.  **Preserve Structure**: Return the complete, updated JSON object in the exact same format you received it.
+    5.  **Adhere to Strict Output Format**: Produce a single, clean JSON object with no additional commentary.
 </responsibilities>
-
-<edit-example>
-    - **Existing Logic**: Contains state for 'investment' and 'revenue'
-    - **Modification Request**: "Add a field for 'operating costs'"
-    - **Updated Function Plan**: Includes a new 'calculateNetProfit' function
-    - **Action**: Add 'stateOperatingCosts' state variable and implement: netProfit = revenue - operatingCosts
-    - **Output**: Complete state logic with the new variable and actual calculation formula
-</edit-example>
 
 ${commonGuidelines}
 `;
-
-// Edit mode context type for user prompt
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
 
 /**
- * Dynamically selects the appropriate system prompt for the State Design agent.
- * @param isEditing - Boolean flag, true if in edit mode.
- * @returns The system prompt string.
+ * Gets the system prompt for the State Design Agent.
+ * @param isEditing - Whether the agent is in edit mode.
+ * @returns The system prompt as a string.
  */
 export function getStateDesignSystemPrompt(isEditing: boolean): string {
-    return isEditing ? EDIT_PROMPT : CREATION_PROMPT;
+  return isEditing ? editSystemPrompt : creationSystemPrompt;
 }
 
 /**
- * Creates the user prompt for the state design agent based on TCC data
- * Enhanced with filtered brainstorm data integration and edit mode support
+ * Gets the user prompt for the State Design Agent.
+ * @param tcc - The tool construction context.
+ * @param functionSignatures - The defined function signatures from the function planner.
+ * @param editMode - The context for editing mode.
+ * @param isEditMode - Whether the agent is in edit mode.
+ * @param editInstructions - The edit instructions for the agent.
+ * @returns The user prompt as a string.
  */
 export function getStateDesignUserPrompt(
   tcc: ToolConstructionContext, 
@@ -543,59 +461,61 @@ export function getStateDesignUserPrompt(
   isEditMode?: boolean,
   editInstructions?: string
 ): string {
-  // Get State Design specific filtered data
-  const brainstormData = tcc.brainstormData ? filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId) : null;
+  if (!tcc.brainstormData) {
+    throw new Error('Brainstorm data is missing from TCC.');
+  }
+
+  const filteredBrainstorm = filterBrainstormForStateDesign(tcc.brainstormData, tcc.jobId);
+  const brainstormContext = generateFilteredBrainstormContext(filteredBrainstorm!, tcc.jobId);
   
-  // FAIL HARD - No fallbacks that mask real issues!
-  if (!brainstormData) {
-    const errorMessage = `CRITICAL ERROR: StateDesign brainstorm filter returned null for jobId ${tcc.jobId}. This indicates a fundamental issue with the brainstorm data filtering system that must be fixed, not worked around with fallbacks.`;
-    logger.error({ 
+  if (isEditMode && tcc.stateLogic) {
+    logger.info('Generating user prompt for State Design Agent in EDIT mode.', {
       jobId: tcc.jobId,
-      originalBrainstormKeys: Object.keys(tcc.brainstormData || {}),
-      filterFunction: 'filterBrainstormForStateDesign',
-      tccBrainstormData: !!tcc.brainstormData
-    }, errorMessage);
-    throw new Error(errorMessage);
+      agent: 'state-designer',
+      mode: 'edit'
+    });
+    
+    return `
+<task>
+    Your task is to modify the existing state logic for the tool based on my instructions.
+    Please analyze my request and the provided JSON, then return the complete, updated JSON object.
+</task>
+
+<edit-instructions>
+    ${editInstructions || 'No specific instructions provided. Please review the context and make necessary improvements.'}
+</edit-instructions>
+
+<existing-state-logic-json>
+    \`\`\`json
+    ${JSON.stringify(tcc.stateLogic, null, 2)}
+    \`\`\`
+</existing-state-logic-json>
+
+<brainstorm-context>
+    ${brainstormContext}
+</brainstorm-context>
+`;
   }
 
-  let prompt = `Generate React state logic for this tool:
+  logger.info('Generating user prompt for State Design Agent in CREATE mode.', {
+    jobId: tcc.jobId,
+    agent: 'state-designer',
+    mode: 'create'
+  });
 
-TOOL DETAILS:
-- Tool Type: ${brainstormData.toolType || tcc.userInput?.description || 'Business Tool'}
-- Target Audience: ${tcc.userInput?.targetAudience || 'Professionals'}
-- Description: ${tcc.userInput?.description || 'A business calculation tool'}
+  return `
+<task>
+    Your task is to design the state and logic for a new tool.
+    Analyze the brainstorm context below and generate a JSON object that defines the React state variables and business logic functions for the tool.
+</task>
 
-KEY CALCULATIONS TO IMPLEMENT:
-${brainstormData.keyCalculations?.map(calc => `- ${calc.name}: ${calc.formula} (${calc.description})`).join('\n') || 'No calculations defined'}
+<brainstorm-context>
+  ${brainstormContext}
+</brainstorm-context>
 
-SUGGESTED INPUTS:
-${brainstormData.suggestedInputs?.map(input => `- ${input.label} (${input.type}): ${input.description}`).join('\n') || 'No inputs defined'}
-
-FUNCTION SIGNATURES TO IMPLEMENT:
-${functionSignatures.map(sig => `- ${sig.name}: ${sig.description || 'No description provided'}`).join('\n') || 'No specific functions defined'}
-
-🚨 CRITICAL REQUIREMENTS:
-- Generate state variables for ALL suggested inputs
-- Implement ALL keyCalculations as functions
-- Use proper TypeScript types
-- Include validation functions
-- 🚨 FAILURE TO IMPLEMENT ANY keyCalculation = INCOMPLETE TOOL!
-
-Generate the complete state logic matching the StateLogic schema exactly.`;
-
-  // Add edit mode context if needed
-  if (isEditMode && editInstructions) {
-    prompt += `
-
-🔄 EDIT MODE:
-Current state logic exists. Apply these modifications:
-${editInstructions}
-
-Modify the existing state logic while maintaining all core functionality.`;
-  }
-
-  return prompt;
+<function-plan>
+    Based on the brainstorm, the following functions have been planned. You should implement the logic for these within your generated functions.
+    ${functionSignatures.map(sig => `- ${sig.name}: ${sig.description}`).join('\n    ')}
+</function-plan>
+`;
 }
-
-// DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
-export const STATE_DESIGN_SYSTEM_PROMPT = CREATION_PROMPT; 

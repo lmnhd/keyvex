@@ -45,16 +45,39 @@ export interface QualityAttemptInfo {
   adaptedModel?: string;
 }
 
-// Initialize agent modules - ALL COMPLETE!
-const agentModules: Record<string, BaseAgentModule> = {
-  'function-planner': new FunctionPlannerModule(),
-  'state-design': new StateDesignModule(),
-  'jsx-layout': new JSXLayoutModule(),
-  'tailwind-styling': new TailwindStylingModule(),
-  'component-assembler': new ComponentAssemblerModule(),
-  'code-validator': new CodeValidatorModule(),
-  'tool-finalizer': new ToolFinalizerModule(),
-};
+/**
+ * Simple agent registry implementation
+ * Provides centralized access to all agent modules
+ */
+class AgentRegistry {
+  private agents: Map<AgentType, BaseAgentModule> = new Map();
+
+  constructor() {
+    // Initialize all agent modules
+    this.agents.set('function-planner', new FunctionPlannerModule());
+    this.agents.set('state-design', new StateDesignModule());
+    this.agents.set('jsx-layout', new JSXLayoutModule());
+    this.agents.set('tailwind-styling', new TailwindStylingModule());
+    this.agents.set('component-assembler', new ComponentAssemblerModule());
+    this.agents.set('code-validator', new CodeValidatorModule());
+    this.agents.set('tool-finalizer', new ToolFinalizerModule());
+  }
+
+  getAgent(agentType: AgentType): BaseAgentModule | null {
+    return this.agents.get(agentType) || null;
+  }
+
+  hasAgent(agentType: AgentType): boolean {
+    return this.agents.has(agentType);
+  }
+
+  getAvailableAgents(): AgentType[] {
+    return Array.from(this.agents.keys());
+  }
+}
+
+// Create singleton instance
+const agentRegistry = new AgentRegistry();
 
 // Initialize managers
 const retryManager = new RetryManager();
@@ -84,103 +107,153 @@ interface EnhancedExecutionResult {
 }
 
 /**
- * Execute agent with full ResponseParser integration and quality-based retries
- * This is the SINGLE SOURCE OF TRUTH for agent execution
- * ✅ FIXED: No 'any' types - using RawModelResult interface
+ * Main entry point for agent execution
+ * Determines whether to use AI or programmatic execution
  */
 export async function executeAgent(
   agentType: AgentType,
   context: AgentExecutionContext,
   tcc: ToolConstructionContext
 ): Promise<{ result: AgentResult; updatedTcc: ToolConstructionContext }> {
-  const startTime = Date.now();
-  
+  const agentModule = agentRegistry.getAgent(agentType);
+  if (!agentModule) {
+    throw new Error(`Agent module for ${agentType} not found in registry`);
+  }
+
+  // Check if this is a programmatic module
+  if (isProgrammaticModule(agentType)) {
+    return executeProgrammaticModule(agentType, agentModule, context, tcc);
+  }
+
+  // Execute AI agent with retry logic
+  const maxRetries = getMaxRetries(agentType);
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const attemptInfo: RetryAttemptInfo = {
+        attemptNumber: attempt,
+        isFirstAttempt: attempt === 1,
+        isSecondAttempt: attempt === 2,
+        isThirdAttempt: attempt === 3,
+        isFinalAttempt: attempt === maxRetries,
+        lastError: lastError?.message || null,
+        strategy: attempt === 1 ? 'standard' : 'validation-focused',
+        adaptedModel: '',
+        adaptedPromptHints: []
+      };
+
+      const result = await executeAgentWithValidation(agentType, agentModule, context, tcc, attemptInfo);
+      
+      // Success - return simplified result
+      return {
+        result: result.result,
+        updatedTcc: result.updatedTcc
+      };
+
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (attempt === maxRetries) {
+        logger.error({
+          jobId: context.jobId,
+          agentType,
+          totalAttempts: maxRetries,
+          finalError: lastError.message
+        }, `❌ AGENT EXECUTOR: ${agentType} failed after ${maxRetries} attempts`);
+        throw lastError;
+      }
+
+      logger.warn({
+        jobId: context.jobId,
+        agentType,
+        attemptNumber: attempt,
+        error: lastError.message,
+        willRetry: true
+      }, `⚠️ AGENT EXECUTOR: ${agentType} attempt ${attempt} failed, retrying...`);
+    }
+  }
+
+  throw lastError || new Error(`Agent execution failed after ${maxRetries} attempts`);
+}
+
+/**
+ * Check if an agent type is a programmatic module
+ */
+function isProgrammaticModule(agentType: AgentType): boolean {
+  return agentType === 'component-assembler' || agentType === 'tool-finalizer';
+}
+
+/**
+ * Execute programmatic modules (no AI required)
+ */
+async function executeProgrammaticModule(
+  agentType: AgentType,
+  agentModule: BaseAgentModule,
+  context: AgentExecutionContext,
+  tcc: ToolConstructionContext
+): Promise<{ result: AgentResult; updatedTcc: ToolConstructionContext }> {
+  const executionStartTime = Date.now();
+
   logger.info({
     jobId: context.jobId,
     agentType,
-    modelId: context.modelConfig.modelId,
-    isIsolatedTest: context.isIsolatedTest
-  }, `🚀 AGENT EXECUTOR: Starting unified agent execution with ResponseParser integration: ${agentType}`);
+    executionType: 'programmatic'
+  }, `🔧 AGENT EXECUTOR: Executing programmatic module ${agentType}`);
 
   try {
-    // Get the appropriate agent module
-    const agentModule = agentModules[agentType];
-    
-    if (!agentModule) {
-      throw new Error(`Agent module not implemented yet: ${agentType}`);
+    let result: AgentResult;
+
+    if (agentType === 'component-assembler') {
+      const assemblerModule = agentModule as ComponentAssemblerModule;
+      result = assemblerModule.assembleComponent(tcc);
+    } else if (agentType === 'tool-finalizer') {
+      const finalizerModule = agentModule as ToolFinalizerModule;
+      // TODO: Implement finalizeComponent method in ToolFinalizerModule
+      throw new Error('Tool finalizer programmatic execution not yet implemented');
+    } else {
+      throw new Error(`Unknown programmatic module: ${agentType}`);
     }
 
-    // Validate TCC has required data for this agent
-    const requiredFields = agentModule.getRequiredInputFields();
-    const validation = agentModule.validateRequired(tcc, requiredFields);
-    
+    // Validate the result
+    const validation = agentModule.validate(result);
     if (!validation.isValid) {
-      throw new Error(`Missing required TCC fields for ${agentType}: ${validation.missingFields.join(', ')}`);
+      throw new Error(`Programmatic module validation failed: ${validation.errors.join(', ')}`);
     }
 
-    // Execute agent with enhanced retry capability that considers validation quality
-    const retryResult = await retryManager.executeWithRetry(
-      context,
-      async (attemptInfo) => {
-        return await executeAgentWithValidation(
-          agentType,
-          agentModule,
-          context,
-          tcc,
-          attemptInfo
-        );
-      }
-    );
+    const executionTime = Date.now() - executionStartTime;
 
-    // Extract the actual enhanced result from the retry wrapper
-    const enhancedResult = retryResult.result;
-
-    // Update TCC with agent result using TCC Manager
-    const updatedTcc = updateTccWithAgentResult(
-      tcc, 
-      agentType, 
-      enhancedResult.result,
-      retryResult.finalModelUsed,
-      Date.now() - startTime
-    );
-
-    const duration = Date.now() - startTime;
-    
     logger.info({
       jobId: context.jobId,
       agentType,
-      duration,
-      validationScore: enhancedResult.validationDetails.validationScore,
-      modelUsed: retryResult.finalModelUsed,
-      attemptNumber: retryResult.finalAttemptNumber,
-      success: true
-    }, `✅ AGENT EXECUTOR: ${agentType} completed successfully in ${duration}ms with validation score ${enhancedResult.validationDetails.validationScore}`);
+      executionTime,
+      validationScore: validation.score,
+      executionType: 'programmatic'
+    }, `✅ AGENT EXECUTOR: Programmatic module ${agentType} completed successfully`);
 
     return {
-      result: enhancedResult.result,
-      updatedTcc
+      result,
+      updatedTcc: tcc // Programmatic modules don't modify TCC structure
     };
 
   } catch (error) {
-    const duration = Date.now() - startTime;
+    const executionTime = Date.now() - executionStartTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     logger.error({
       jobId: context.jobId,
       agentType,
-      duration,
-      error: errorMessage
-    }, `❌ AGENT EXECUTOR: ${agentType} failed after ${duration}ms`);
-
+      executionTime,
+      error: errorMessage,
+      executionType: 'programmatic'
+    }, `❌ AGENT EXECUTOR: Programmatic module ${agentType} execution failed`);
+    
     throw error;
   }
 }
 
 /**
- * Execute agent with comprehensive validation and quality checking
- * This is where the ResponseParser integration happens
- * CRITICAL FIX: Now properly passes retry context to agent modules
- * ✅ FIXED: No 'any' types - using proper interfaces
+ * Execute AI agents with validation and quality gates
  */
 async function executeAgentWithValidation(
   agentType: AgentType,
@@ -196,8 +269,9 @@ async function executeAgentWithValidation(
     agentType,
     attemptNumber: attemptInfo.attemptNumber,
     isRetry: attemptInfo.attemptNumber > 1,
-    retryStrategy: attemptInfo.strategy
-  }, `🔄 AGENT EXECUTOR: Executing ${agentType} with validation (attempt ${attemptInfo.attemptNumber})`);
+    retryStrategy: attemptInfo.strategy,
+    executionType: 'ai'
+  }, `🔄 AGENT EXECUTOR: Executing AI agent ${agentType} (attempt ${attemptInfo.attemptNumber})`);
 
   try {
     // Step 1: Execute AI interaction via the centralized manager
@@ -284,8 +358,9 @@ async function executeAgentWithValidation(
       attemptNumber: attemptInfo.attemptNumber,
       executionTime,
       error: error instanceof Error ? error.message : String(error),
-      isQualityError: error instanceof QualityValidationError
-    }, `❌ AGENT EXECUTOR: ${agentType} execution failed in attempt ${attemptInfo.attemptNumber}`);
+      isQualityError: error instanceof QualityValidationError,
+      executionType: 'ai'
+    }, `❌ AGENT EXECUTOR: AI agent ${agentType} execution failed in attempt ${attemptInfo.attemptNumber}`);
     throw error;
   }
 }
@@ -314,15 +389,14 @@ function evaluateResponseQuality(
     };
   }
 
-  // Validation score thresholds (can be made configurable)
-  const minScoreThresholds = {
+  // ✅ FIXED: Proper type-safe threshold mapping
+  const minScoreThresholds: Record<string, number> = {
     'function-planner': 70,
     'state-design': 75,
     'jsx-layout': 70,
     'tailwind-styling': 65,
-    'component-assembler': 80,
-    'code-validator': 85,
-    'tool-finalizer': 75
+    'code-validator': 85
+    // Note: component-assembler and tool-finalizer are programmatic, no thresholds needed
   };
 
   const minScore = minScoreThresholds[agentType] || 70;
@@ -351,22 +425,41 @@ function evaluateResponseQuality(
 
   // Agent-specific quality checks
   if (agentType === 'function-planner') {
-    const data = parseResult.data as any;
-    if (!data.functionSignatures || data.functionSignatures.length === 0) {
-      return {
-        passesQualityGate: false,
-        reason: 'No function signatures generated'
-      };
+    // ✅ FIXED: Safe type checking without forced assertion
+    const data = parseResult.data as unknown;
+    if (data && typeof data === 'object' && data !== null) {
+      const objData = data as Record<string, unknown>;
+      const functionSignatures = objData.functionSignatures as unknown[];
+      if (!functionSignatures || functionSignatures.length === 0) {
+        return {
+          passesQualityGate: false,
+          reason: 'No function signatures generated'
+        };
+      }
     }
   }
 
   if (agentType === 'state-design') {
-    const data = parseResult.data as any;
-    if (!data.stateLogic || (!data.stateLogic.variables?.length && !data.stateLogic.functions?.length)) {
-      return {
-        passesQualityGate: false,
-        reason: 'No state variables or functions generated'
-      };
+    // ✅ FIXED: Safe type checking without forced assertion
+    const data = parseResult.data as unknown;
+    if (data && typeof data === 'object' && data !== null) {
+      const objData = data as Record<string, unknown>;
+      const stateLogic = objData.stateLogic as Record<string, unknown>;
+      if (!stateLogic) {
+        return {
+          passesQualityGate: false,
+          reason: 'No state logic generated'
+        };
+      }
+      
+      const variables = stateLogic.variables as unknown[];
+      const functions = stateLogic.functions as unknown[];
+      if ((!variables || variables.length === 0) && (!functions || functions.length === 0)) {
+        return {
+          passesQualityGate: false,
+          reason: 'No state variables or functions generated'
+        };
+      }
     }
   }
 
@@ -397,44 +490,56 @@ class QualityValidationError extends Error {
  * Get list of all available agent types
  */
 export function getAvailableAgentTypes(): AgentType[] {
-  return Object.keys(agentModules) as AgentType[];
+  return agentRegistry.getAvailableAgents();
 }
 
 /**
- * Check if an agent type is available
+ * Check if an agent is available in the registry
  */
 export function isAgentAvailable(agentType: AgentType): boolean {
-  return agentType in agentModules;
+  return agentRegistry.hasAgent(agentType);
 }
 
 /**
- * Get agent module for testing/inspection
+ * Get agent module from registry
  */
 export function getAgentModule(agentType: AgentType): BaseAgentModule | null {
-  return agentModules[agentType] || null;
+  return agentRegistry.getAgent(agentType);
 }
 
 /**
- * Get agent timeout for a specific agent type
+ * Get timeout for an agent type
  */
 export function getAgentTimeout(agentType: AgentType): number {
-  const agentModule = agentModules[agentType];
-  if (!agentModule) {
-    throw new Error(`Agent module not found: ${agentType}`);
-  }
-  return agentModule.getTimeout();
+  const module = agentRegistry.getAgent(agentType);
+  return module ? module.getTimeout() : 30000;
+}
+
+/**
+ * Get max retries based on agent type
+ */
+function getMaxRetries(agentType: AgentType): number {
+  const retryConfig: Record<string, number> = {
+    'function-planner': 3,
+    'state-design': 3,
+    'jsx-layout': 2,
+    'tailwind-styling': 2,
+    'code-validator': 3,
+    'component-assembler': 1, // Programmatic, shouldn't need retries
+    'tool-finalizer': 1       // Programmatic, shouldn't need retries
+  };
+  
+  return retryConfig[agentType] || 2;
 }
 
 /**
  * Validate agent module result
- * ✅ UPDATED: Now uses unified ValidationResult interface
  */
 export function validateAgentModule(agentType: AgentType, result: AgentResult): ValidationResult {
-  const agentModule = agentModules[agentType];
-  if (!agentModule) {
-    throw new Error(`Agent module not found: ${agentType}`);
+  const module = agentRegistry.getAgent(agentType);
+  if (!module) {
+    throw new Error(`Agent module for ${agentType} not found`);
   }
   
-  // Use the module's validate method - returns unified ValidationResult
-  return agentModule.validate(result);
+  return module.validate(result);
 }

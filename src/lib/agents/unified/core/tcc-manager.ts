@@ -12,7 +12,9 @@ import {
   TailwindStylingResult,
   ComponentAssemblerResult,
   CodeValidatorResult,
-  ToolFinalizerResult
+  ToolFinalizerResult,
+  ToolConstructionContext,
+  OrchestrationStep
 } from '../../../types/tcc-unified';
 import { ToolConstructionContext as BaseTCC } from '../../../types/product-tool-creation-v2/tcc';
 import logger from '../../../logger';
@@ -29,6 +31,28 @@ type AgentResult =
   | CodeValidatorResult
   | ToolFinalizerResult;
 
+// Enhanced TCC update tracking with detailed variable monitoring
+interface TccUpdateDetails {
+  agentType: AgentType;
+  beforeState: Partial<ToolConstructionContext>;
+  afterState: Partial<ToolConstructionContext>;
+  fieldsAdded: string[];
+  fieldsModified: string[];
+  fieldsDeleted: string[];
+  dataMetrics: {
+    totalFields: number;
+    newFieldCount: number;
+    modifiedFieldCount: number;
+    totalDataSize: number;
+  };
+  executionContext: {
+    modelUsed: string;
+    executionTime: number;
+    jobId: string;
+    userId?: string;
+  };
+}
+
 /**
  * Update TCC with agent result - SINGLE SOURCE OF TRUTH for TCC mutations
  * Each agent type has its own specific update logic
@@ -43,12 +67,18 @@ export function updateTccWithAgentResult(
 ): BaseTCC {
   const startTime = Date.now();
   
+  // Capture BEFORE state for detailed comparison
+  const beforeState = JSON.parse(JSON.stringify(tcc));
+  
   logger.info({
     jobId: tcc.jobId,
     agentType,
     modelUsed,
-    executionTime
-  }, `🔄 TCC MANAGER: Updating TCC with ${agentType} result`);
+    executionTime,
+    tccFieldsBefore: Object.keys(tcc).length,
+    currentStep: tcc.currentOrchestrationStep,
+    userId: tcc.userId
+  }, `🔍 TCC-MANAGER: Starting TCC update for ${agentType} with comprehensive variable tracking`);
 
   // Create updated TCC - shallow copy to avoid mutation
   const updatedTcc: BaseTCC = {
@@ -62,144 +92,170 @@ export function updateTccWithAgentResult(
     case 'function-planner': {
       const functionPlannerResult = result as FunctionPlannerResult;
       updatedTcc.definedFunctionSignatures = functionPlannerResult.functionSignatures;
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.designingStateLogic) {
-        updatedTcc.steps.designingStateLogic = {};
-      }
-      updatedTcc.steps.designingStateLogic.result = functionPlannerResult;
+      updatedTcc.currentOrchestrationStep = 'designing_state_logic' as OrchestrationStep;
       
+      // LOG DETAILED FUNCTION SIGNATURE VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        functionsPlanned: functionPlannerResult.functionSignatures.length,
-        complexityLevel: functionPlannerResult.metadata.complexityLevel
-      }, '✅ TCC MANAGER: Function Planner result integrated');
+        agentType,
+        functionSignatureData: {
+          functionCount: functionPlannerResult.functionSignatures.length,
+          functionNames: functionPlannerResult.functionSignatures.map(f => f.name),
+          totalParameters: functionPlannerResult.functionSignatures.reduce((sum, f) => sum + (f.parameters?.length || 0), 0),
+          parameterDetails: functionPlannerResult.functionSignatures.map(f => ({
+            name: f.name,
+            paramCount: f.parameters?.length || 0,
+            returnType: f.returnType,
+            hasImplementation: !!f.implementation
+          }))
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: Function signatures defined - ${functionPlannerResult.functionSignatures.length} functions with detailed parameter tracking`);
       break;
     }
 
     case 'state-design': {
       const stateDesignResult = result as StateDesignResult;
       updatedTcc.stateLogic = stateDesignResult.stateLogic;
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.designingStateLogic) {
-        updatedTcc.steps.designingStateLogic = {};
-      }
-      updatedTcc.steps.designingStateLogic.result = stateDesignResult;
+      updatedTcc.currentOrchestrationStep = 'designing_jsx_layout' as OrchestrationStep;
       
+      // LOG DETAILED STATE VARIABLE CHANGES
       logger.info({
         jobId: tcc.jobId,
-        stateVariables: stateDesignResult.metadata.stateVariableCount,
-        functions: stateDesignResult.metadata.functionCount,
-        complexityScore: stateDesignResult.metadata.complexityScore
-      }, '✅ TCC MANAGER: State Design result integrated');
+        agentType,
+        stateVariableData: {
+          variableCount: stateDesignResult.metadata.stateVariableCount,
+          functionCount: stateDesignResult.metadata.functionCount,
+          importCount: stateDesignResult.metadata.importCount,
+          variableDetails: stateDesignResult.metadata.stateVariables.map(v => ({
+            name: v.name,
+            type: v.type,
+            initialValue: v.initialValue,
+            hasDescription: !!v.description
+          })),
+          functionDetails: stateDesignResult.metadata.functions.map(f => ({
+            name: f.name,
+            parameterCount: f.parameters?.length || 0,
+            returnType: f.returnType,
+            bodyLength: f.body?.length || 0,
+            dependencyCount: f.dependencies?.length || 0
+          })),
+          importsUsed: stateDesignResult.metadata.imports
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: State logic defined - ${stateDesignResult.metadata.stateVariables.length} variables, ${stateDesignResult.metadata.functions.length} functions`);
       break;
     }
 
     case 'jsx-layout': {
       const jsxLayoutResult = result as JsxLayoutResult;
       updatedTcc.jsxLayout = jsxLayoutResult.jsxLayout;
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.designingJsxLayout) {
-        updatedTcc.steps.designingJsxLayout = {};
-      }
-      updatedTcc.steps.designingJsxLayout.result = jsxLayoutResult;
+      updatedTcc.currentOrchestrationStep = 'applying_tailwind_styling' as OrchestrationStep;
       
+      // LOG DETAILED JSX LAYOUT VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        componentCount: jsxLayoutResult.metadata.componentCount,
-        nestingDepth: jsxLayoutResult.metadata.nestingDepth,
-        accessibilityScore: jsxLayoutResult.metadata.accessibilityScore
-      }, '✅ TCC MANAGER: JSX Layout result integrated');
+        agentType,
+        jsxLayoutData: {
+          componentStructureLength: jsxLayoutResult.metadata.componentStructure?.length || 0,
+          elementCount: jsxLayoutResult.metadata.elementMap?.length || 0,
+          accessibilityFeatureCount: jsxLayoutResult.metadata.accessibilityFeatures?.length || 0,
+          elementTypes: jsxLayoutResult.metadata.elementMap?.map(e => e.type) || [],
+          elementPurposes: jsxLayoutResult.metadata.elementMap?.map(e => e.purpose) || [],
+          accessibilityFeatures: jsxLayoutResult.metadata.accessibilityFeatures || []
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: JSX layout defined - ${jsxLayoutResult.metadata.elementMap?.length || 0} elements with accessibility features`);
       break;
     }
 
     case 'tailwind-styling': {
       const tailwindStylingResult = result as TailwindStylingResult;
       updatedTcc.styling = tailwindStylingResult.styling;
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.applyingTailwindStyling) {
-        updatedTcc.steps.applyingTailwindStyling = {};
-      }
-      updatedTcc.steps.applyingTailwindStyling.result = tailwindStylingResult;
+      updatedTcc.currentOrchestrationStep = 'assembling_component' as OrchestrationStep;
       
+      // LOG DETAILED STYLING VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        classCount: tailwindStylingResult.metadata.classCount,
-        responsiveBreakpoints: tailwindStylingResult.metadata.responsiveBreakpoints.length,
-        colorScheme: tailwindStylingResult.metadata.colorSchemeType
-      }, '✅ TCC MANAGER: Tailwind Styling result integrated');
+        agentType,
+        stylingData: {
+          styledComponentCodeLength: tailwindStylingResult.metadata.styledComponentCode?.length || 0,
+          styleMapKeys: Object.keys(tailwindStylingResult.metadata.styleMap || {}).length,
+          colorSchemeKeys: Object.keys(tailwindStylingResult.metadata.colorScheme || {}).length,
+          primaryColor: tailwindStylingResult.metadata.colorScheme?.primary,
+          secondaryColor: tailwindStylingResult.metadata.colorScheme?.secondary,
+          accentColor: tailwindStylingResult.metadata.colorScheme?.accent,
+          textColors: tailwindStylingResult.metadata.colorScheme?.text,
+          hasResponsiveFeatures: tailwindStylingResult.metadata.styledComponentCode?.includes('responsive') || false,
+          hasAnimations: tailwindStylingResult.metadata.styledComponentCode?.includes('animate') || false
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: Styling defined - ${Object.keys(tailwindStylingResult.metadata.styleMap || {}).length} style mappings with color scheme`);
       break;
     }
 
     case 'component-assembler': {
       const componentAssemblerResult = result as ComponentAssemblerResult;
-      // Update finalProduct with assembled code
-      if (!updatedTcc.finalProduct) {
-        updatedTcc.finalProduct = {};
-      }
-      (updatedTcc.finalProduct as any).componentCode = componentAssemblerResult.assembledCode;
+      updatedTcc.assembledComponentCode = componentAssemblerResult.assembledCode;
+      updatedTcc.currentOrchestrationStep = 'validating_code' as OrchestrationStep;
       
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.assemblingComponent) {
-        updatedTcc.steps.assemblingComponent = {};
-      }
-      updatedTcc.steps.assemblingComponent.result = componentAssemblerResult;
-      
+      // LOG DETAILED ASSEMBLY VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        codeLength: componentAssemblerResult.metadata.codeLength,
-        estimatedRenderTime: componentAssemblerResult.metadata.estimatedRenderTime,
-        bundleSize: componentAssemblerResult.metadata.bundleSize
-      }, '✅ TCC MANAGER: Component Assembler result integrated');
+        agentType,
+        assemblyData: {
+          assembledCodeLength: componentAssemblerResult.metadata.codeLength,
+          hasImports: componentAssemblerResult.metadata.imports?.length > 0 || false,
+          hasExports: componentAssemblerResult.metadata.exports?.length > 0 || false,
+          hasUseState: componentAssemblerResult.metadata.useStateCount > 0 || false,
+          hasUseEffect: componentAssemblerResult.metadata.useEffectCount > 0 || false,
+          hasEventHandlers: componentAssemblerResult.metadata.eventHandlers?.length > 0 || false,
+          componentName: extractComponentName(componentAssemblerResult.metadata.code),
+          estimatedLineCount: componentAssemblerResult.metadata.code?.split('\n').length || 0
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: Component assembled - ${componentAssemblerResult.metadata.codeLength} characters with React hooks integration`);
       break;
     }
 
     case 'code-validator': {
       const codeValidatorResult = result as CodeValidatorResult;
       updatedTcc.validationResult = codeValidatorResult.validationResult;
-      // Store result in steps for tracking
-      if (!updatedTcc.steps) {
-        updatedTcc.steps = {};
-      }
-      if (!updatedTcc.steps.validatingCode) {
-        updatedTcc.steps.validatingCode = {};
-      }
-      updatedTcc.steps.validatingCode.result = codeValidatorResult;
+      updatedTcc.currentOrchestrationStep = 'finalizing_tool' as OrchestrationStep;
       
+      // LOG DETAILED VALIDATION VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        issuesFound: codeValidatorResult.metadata.issuesFound,
-        securityScore: codeValidatorResult.metadata.securityScore,
-        performanceScore: codeValidatorResult.metadata.performanceScore
-      }, '✅ TCC MANAGER: Code Validator result integrated');
+        agentType,
+        validationData: {
+          isValid: codeValidatorResult.validationResult?.isValid || false,
+          errorCount: codeValidatorResult.validationResult?.issues?.length || 0,
+          warningCount: codeValidatorResult.validationResult?.warnings?.length || 0,
+          suggestionCount: codeValidatorResult.validationResult?.suggestions?.length || 0,
+          specificIssues: codeValidatorResult.validationResult?.issues || [],
+          specificWarnings: codeValidatorResult.validationResult?.warnings || [],
+          validationScore: calculateValidationScore(codeValidatorResult.validationResult)
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: Code validation completed - ${codeValidatorResult.validationResult?.issues?.length || 0} issues, ${codeValidatorResult.validationResult?.warnings?.length || 0} warnings`);
       break;
     }
 
     case 'tool-finalizer': {
       const toolFinalizerResult = result as ToolFinalizerResult;
       updatedTcc.finalProduct = toolFinalizerResult.finalProduct;
-      // Store result in steps for tracking (no specific step for tool finalizer)
+      updatedTcc.status = 'completed';
+      updatedTcc.currentOrchestrationStep = 'completed' as OrchestrationStep;
       
+      // LOG DETAILED FINAL PRODUCT VARIABLES
       logger.info({
         jobId: tcc.jobId,
-        completionTime: toolFinalizerResult.metadata.completionTime,
-        qualityScore: toolFinalizerResult.metadata.qualityScore,
-        readinessLevel: toolFinalizerResult.metadata.readinessLevel
-      }, '✅ TCC MANAGER: Tool Finalizer result integrated');
+        agentType,
+        finalProductData: {
+          productId: toolFinalizerResult.finalProduct?.id,
+          componentCodeLength: toolFinalizerResult.finalProduct?.componentCode?.length || 0,
+          metadataKeys: Object.keys(toolFinalizerResult.finalProduct?.metadata || {}).length,
+          colorSchemeKeys: Object.keys(toolFinalizerResult.finalProduct?.colorScheme || {}).length,
+          hasMetadata: !!toolFinalizerResult.finalProduct?.metadata,
+          hasColorScheme: !!toolFinalizerResult.finalProduct?.colorScheme,
+          toolName: toolFinalizerResult.finalProduct?.metadata?.toolName,
+          toolDescription: toolFinalizerResult.finalProduct?.metadata?.description
+        }
+      }, `📝 TCC-VARIABLE-CHANGE: Final product created - Tool ${toolFinalizerResult.finalProduct?.id} with complete metadata`);
       break;
     }
 
@@ -210,14 +266,131 @@ export function updateTccWithAgentResult(
     }
   }
 
-  const updateTime = Date.now() - startTime;
+  // Capture AFTER state for detailed comparison
+  const afterState = JSON.parse(JSON.stringify(updatedTcc));
+  
+  // Generate comprehensive change analysis
+  const changeAnalysis = generateTccChangeAnalysis(beforeState, afterState, agentType);
+  
+  // LOG COMPREHENSIVE TCC CHANGE SUMMARY
   logger.info({
     jobId: tcc.jobId,
     agentType,
-    updateTime
-  }, '🎯 TCC MANAGER: TCC update completed successfully');
+    modelUsed,
+    executionTime,
+    tccUpdateDetails: {
+      fieldsAdded: changeAnalysis.fieldsAdded,
+      fieldsModified: changeAnalysis.fieldsModified,
+      fieldsDeleted: changeAnalysis.fieldsDeleted,
+      totalFieldsBefore: changeAnalysis.totalFieldsBefore,
+      totalFieldsAfter: changeAnalysis.totalFieldsAfter,
+      dataGrowth: changeAnalysis.dataGrowth,
+      significantChanges: changeAnalysis.significantChanges
+    },
+    processingTime: Date.now() - startTime
+  }, `🎯 TCC-MANAGER: Comprehensive TCC update completed for ${agentType} - ${changeAnalysis.fieldsAdded.length} added, ${changeAnalysis.fieldsModified.length} modified`);
 
   return updatedTcc;
+}
+
+/**
+ * Generate detailed TCC change analysis for comprehensive logging
+ */
+function generateTccChangeAnalysis(
+  beforeState: ToolConstructionContext, 
+  afterState: ToolConstructionContext,
+  agentType: AgentType
+): {
+  fieldsAdded: string[];
+  fieldsModified: string[];
+  fieldsDeleted: string[];
+  totalFieldsBefore: number;
+  totalFieldsAfter: number;
+  dataGrowth: number;
+  significantChanges: string[];
+} {
+  const beforeKeys = new Set(Object.keys(beforeState));
+  const afterKeys = new Set(Object.keys(afterState));
+  
+  const fieldsAdded = Array.from(afterKeys).filter(key => !beforeKeys.has(key));
+  const fieldsDeleted = Array.from(beforeKeys).filter(key => !afterKeys.has(key));
+  const fieldsModified: string[] = [];
+  const significantChanges: string[] = [];
+  
+  // Check for modifications in existing fields
+  for (const key of beforeKeys) {
+    if (afterKeys.has(key)) {
+      const beforeValue = JSON.stringify((beforeState as any)[key]);
+      const afterValue = JSON.stringify((afterState as any)[key]);
+      
+      if (beforeValue !== afterValue) {
+        fieldsModified.push(key);
+        
+        // Track significant changes
+        if (key === 'definedFunctionSignatures' && afterValue !== 'undefined') {
+          significantChanges.push('Function signatures defined');
+        }
+        if (key === 'stateLogic' && afterValue !== 'undefined') {
+          significantChanges.push('State logic implemented');
+        }
+        if (key === 'jsxLayout' && afterValue !== 'undefined') {
+          significantChanges.push('JSX layout designed');
+        }
+        if (key === 'styling' && afterValue !== 'undefined') {
+          significantChanges.push('Styling applied');
+        }
+        if (key === 'assembledComponentCode' && afterValue !== 'undefined') {
+          significantChanges.push('Component assembled');
+        }
+        if (key === 'validationResult' && afterValue !== 'undefined') {
+          significantChanges.push('Code validation completed');
+        }
+        if (key === 'finalProduct' && afterValue !== 'undefined') {
+          significantChanges.push('Final product created');
+        }
+      }
+    }
+  }
+  
+  const beforeSize = JSON.stringify(beforeState).length;
+  const afterSize = JSON.stringify(afterState).length;
+  const dataGrowth = afterSize - beforeSize;
+  
+  return {
+    fieldsAdded,
+    fieldsModified,
+    fieldsDeleted,
+    totalFieldsBefore: beforeKeys.size,
+    totalFieldsAfter: afterKeys.size,
+    dataGrowth,
+    significantChanges
+  };
+}
+
+/**
+ * Extract component name from assembled code
+ */
+function extractComponentName(code?: string): string | null {
+  if (!code) return null;
+  
+  const match = code.match(/(?:export\s+default\s+function\s+|function\s+|const\s+)(\w+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Calculate validation score from validation result
+ */
+function calculateValidationScore(validationResult?: any): number {
+  if (!validationResult) return 0;
+  
+  let score = 100;
+  const errors = validationResult.issues?.length || 0;
+  const warnings = validationResult.warnings?.length || 0;
+  
+  score -= errors * 15; // Deduct 15 points per error
+  score -= warnings * 5; // Deduct 5 points per warning
+  
+  return Math.max(0, score);
 }
 
 /**

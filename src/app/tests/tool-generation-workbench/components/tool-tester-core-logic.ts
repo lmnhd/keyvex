@@ -52,98 +52,47 @@ async function startV2ToolCreation(
   agentModelMapping?: Record<string, string>,
   jobId?: string
 ): Promise<{ jobId: string }> {
-  console.log(`🔍 [UNIFIED-WORKFLOW] Starting unified workflow with sequential agent execution`);
-  console.log(`🔍 [UNIFIED-WORKFLOW] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
+  console.log(`🔍 [V2-ORCHESTRATION] Starting backend orchestration workflow`);
+  console.log(`🔍 [V2-ORCHESTRATION] Brainstorm ID: ${brainstormResult.id}, Model: ${modelId}`);
   
   const actualJobId = jobId || `workflow-${Date.now()}`;
   
-  // Create initial TCC from brainstorm data for unified workflow
-  const initialTcc = {
-    userId: 'workbench-user', // BrainstormResult doesn't have userId property
-    jobId: actualJobId,
-    userInput: brainstormResult.userInput || {},
-    brainstormData: brainstormResult.brainstormData || {},
-    stepStatus: {},
-    agentModelMapping: agentModelMapping || { 'default': modelId },
-    status: 'in_progress',
-    currentOrchestrationStep: 'planning_function_signatures',
-    targetAudience: brainstormResult.userInput?.targetAudience || 'General users',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    steps: {}
-  };
-
   try {
-    // Execute all 7 agents in sequence using the unified architecture
-    const agentSequence = [
-      'function-planner',
-      'state-design', 
-      'jsx-layout',
-      'tailwind-styling',
-      'component-assembler',
-      'code-validator',
-      'tool-finalizer'
-    ];
+    // 🚀 CALL BACKEND ORCHESTRATION - Let the backend handle the entire workflow
+    const response = await fetch('/api/ai/v2-orchestration/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brainstormData: {
+          id: brainstormResult.id,
+          userInput: brainstormResult.userInput || {},
+          brainstormData: brainstormResult.brainstormData || {},
+        },
+        agentModelMapping: agentModelMapping || { 'default': modelId },
+        primaryModel: modelId,
+        jobId: actualJobId
+      }),
+    });
 
-    // Map agent types to valid step names for emitStepProgress
-    const stepNameMapping: Record<string, string> = {
-      'function-planner': 'planning_function_signatures',
-      'state-design': 'designing_state_logic',
-      'jsx-layout': 'designing_jsx_layout',
-      'tailwind-styling': 'applying_tailwind_styling',
-      'component-assembler': 'assembling_component',
-      'code-validator': 'validating_code',
-      'tool-finalizer': 'finalizing_tool'
-    };
-
-    let currentTcc = initialTcc;
-    
-    console.log(`🚀 [UNIFIED-WORKFLOW] Starting sequential execution of ${agentSequence.length} agents`);
-
-    for (let i = 0; i < agentSequence.length; i++) {
-      const agentType = agentSequence[i];
-      const agentModel = agentModelMapping?.[agentType] || modelId;
-      
-      console.log(`🔄 [UNIFIED-WORKFLOW] Step ${i + 1}/${agentSequence.length}: Executing ${agentType} with model ${agentModel}`);
-      
-      const requestBody = {
-        jobId: actualJobId,
-        agentType: agentType,
-        selectedModel: agentModel,
-        tcc: currentTcc,
-        isIsolatedTest: false, // This is full workflow, not isolated testing
-        retryAttempt: 0
-      };
-
-      const response = await fetch('/api/ai/agents/universal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Agent ${agentType} failed: ${errorData.error || 'Unknown error'}`);
-      }
-
-      const agentResult = await response.json();
-      
-      if (!agentResult.success) {
-        throw new Error(`Agent ${agentType} execution failed: ${agentResult.error}`);
-      }
-
-      // Update TCC with the agent's result for next step
-      currentTcc = agentResult.updatedTcc;
-      
-      console.log(`✅ [UNIFIED-WORKFLOW] ${agentType} completed successfully - TCC updated for next step`);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`V2 Orchestration failed: ${errorData.error || 'Unknown error'}`);
     }
 
-    console.log(`🎉 [UNIFIED-WORKFLOW] All agents completed successfully! Job ID: ${actualJobId}`);
+    const orchestrationResult = await response.json();
     
-    return { jobId: actualJobId };
+    if (!orchestrationResult.success) {
+      throw new Error(`V2 Orchestration failed: ${orchestrationResult.error || 'Unknown error'}`);
+    }
+
+    console.log(`🎉 [V2-ORCHESTRATION] Backend orchestration started successfully!`);
+    console.log(`📡 [V2-ORCHESTRATION] Real-time progress will be available via WebSocket`);
+    console.log(`🔗 [V2-ORCHESTRATION] Job ID: ${orchestrationResult.jobId}`);
+    
+    return { jobId: orchestrationResult.jobId };
     
   } catch (error) {
-    console.error(`❌ [UNIFIED-WORKFLOW] Workflow failed:`, error);
+    console.error(`❌ [V2-ORCHESTRATION] Backend orchestration failed:`, error);
     throw error;
   }
 }
@@ -260,14 +209,14 @@ export async function runTccFinalizationSteps(
       console.log(`🔧 [FINALIZATION] Step ${i + 1}/3: ${agentType}...`);
       
       const response = await fetch('/api/ai/agents/universal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
           jobId: currentTcc.jobId,
           agentType: agentType,
           selectedModel: agentModel,
           tcc: currentTcc,
-          isIsolatedTest: true // Prevent triggering next step automatically
+        isIsolatedTest: true // Prevent triggering next step automatically
         }),
       });
       
@@ -319,7 +268,7 @@ export async function runTccFinalizationSteps(
       finalProduct,
       intermediateResults
     };
-
+    
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('❌ [TCC-FINALIZATION] Finalization failed:', errorMessage);

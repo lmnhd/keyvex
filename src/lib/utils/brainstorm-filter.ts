@@ -82,7 +82,13 @@ export function convertToCoreData(brainstormData: BrainstormData): CoreBrainstor
       method: brainstormData.leadCaptureStrategy?.method || 'email_form',
       incentive: brainstormData.leadCaptureStrategy?.incentive || 'detailed_report'
     },
-    creativeEnhancements: brainstormData.creativeEnhancements || []
+    creativeEnhancements: brainstormData.creativeEnhancements || [],
+    
+    // Pass through research and data fields
+    dataRequirements: brainstormData.dataRequirements,
+    mockData: brainstormData.mockData,
+    researchData: brainstormData.researchData,
+    userDataInstructions: brainstormData.userDataInstructions,
   };
 }
 
@@ -167,13 +173,24 @@ export function filterBrainstormForStateDesign(
     suggestedInputs: coreData.suggestedInputs,
     keyCalculations: coreData.keyCalculations,
     calculationLogic: coreData.calculationLogic,
+
+    // NEW: Include data requirements and mock data for state design
+    dataRequirements: coreData.dataRequirements,
+    mockData: coreData.mockData,
+    researchData: coreData.researchData,
+    userDataInstructions: coreData.userDataInstructions,
+
     // Excluded for State Design: interactionFlow, leadCaptureStrategy, creativeEnhancements
     interactionFlow: [], // Required by interface but empty for State Design
     leadCaptureStrategy: { timing: '', method: '', incentive: '' }, // Required by interface but empty
     creativeEnhancements: [] // Required by interface but empty
   };
 
-  const fieldsIncluded = ['coreConcept', 'valueProposition', 'toolType', 'targetAudience', 'suggestedInputs', 'keyCalculations', 'calculationLogic'];
+  const fieldsIncluded = [
+    'coreConcept', 'valueProposition', 'toolType', 'targetAudience', 
+    'suggestedInputs', 'keyCalculations', 'calculationLogic',
+    'dataRequirements', 'mockData', 'researchData', 'userDataInstructions'
+  ];
   const fieldsExcluded = ['interactionFlow', 'leadCaptureStrategy', 'creativeEnhancements'];
 
   const filterContext = createFilterContext(
@@ -213,12 +230,21 @@ export function filterBrainstormForJSXLayout(
     interactionFlow: coreData.interactionFlow,
     keyCalculations: coreData.keyCalculations,
     leadCaptureStrategy: coreData.leadCaptureStrategy,
+
+    // NEW: Include mock data for realistic UI rendering
+    mockData: coreData.mockData,
+    researchData: coreData.researchData,
+
     // Excluded for JSX Layout: calculationLogic, creativeEnhancements
     calculationLogic: [], // Required by interface but empty for JSX Layout
     creativeEnhancements: [] // Required by interface but empty
   };
 
-  const fieldsIncluded = ['coreConcept', 'valueProposition', 'toolType', 'targetAudience', 'suggestedInputs', 'interactionFlow', 'keyCalculations', 'leadCaptureStrategy'];
+  const fieldsIncluded = [
+    'coreConcept', 'valueProposition', 'toolType', 'targetAudience', 
+    'suggestedInputs', 'interactionFlow', 'keyCalculations', 'leadCaptureStrategy',
+    'mockData', 'researchData'
+  ];
   const fieldsExcluded = ['calculationLogic', 'creativeEnhancements'];
 
   const filterContext = createFilterContext(
@@ -285,8 +311,8 @@ export function filterBrainstormForTailwindStyling(
 
 /**
  * Filter brainstorm data for Component Assembler Agent
- * Needs: Complete core data for metadata and context
- * ✅ SIMPLIFIED: Returns CoreBrainstormData directly (no filtering needed)
+ * Needs: ALL core data to assemble the final component
+ * ✅ SIMPLIFIED: Returns CoreBrainstormData directly
  */
 export function filterBrainstormForComponentAssembler(
   brainstormData: BrainstormData,
@@ -295,14 +321,15 @@ export function filterBrainstormForComponentAssembler(
   if (!brainstormData) return null;
 
   const coreData = convertToCoreData(brainstormData);
+  // The assembler needs everything, including mock/research data, to create a functional preview
   const filtered: CoreBrainstormData = {
-    ...coreData // Component Assembler needs all core data for context
+    ...coreData
   };
 
   const fieldsIncluded = Object.keys(filtered).filter(key => 
     filtered[key as keyof CoreBrainstormData] !== undefined
   );
-  const fieldsExcluded: string[] = []; // Component Assembler includes all fields
+  const fieldsExcluded: string[] = []; // Assembler gets everything
 
   const filterContext = createFilterContext(
     'component-assembler',
@@ -316,7 +343,7 @@ export function filterBrainstormForComponentAssembler(
     jobId,
     ...filterContext,
     fieldsKept: fieldsIncluded.length
-  }, '🎯 BRAINSTORM FILTER: Component Assembler data filtered');
+  }, '🎯 BRAINSTORM FILTER: Component Assembler data filtered (all data included)');
 
   return filtered;
 }

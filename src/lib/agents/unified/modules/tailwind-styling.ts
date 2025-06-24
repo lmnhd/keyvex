@@ -8,9 +8,9 @@ import {
   TailwindStylingResult,
 } from '../../../types/tcc-unified';
 import { 
-  BaseAgentModule, 
-  BaseValidationResult 
+  BaseAgentModule 
 } from '../core/base-agent-module';
+import { ValidationResult } from '../../../types/tcc-unified';
 
 /**
  * Zod schema for the Tailwind Styling's output.
@@ -44,20 +44,32 @@ export class TailwindStylingModule extends BaseAgentModule {
 
   /**
    * Exposes the Zod schema for this agent's output.
+   * ✅ ENHANCED: Handle AI returning JSON strings instead of objects
    */
   getOutputSchema(): z.ZodSchema<any> {
-    return TailwindStylingResultSchema;
+    return TailwindStylingResultSchema.transform((data) => {
+      // 🔧 FIX: Parse JSON string if styling field is returned as string
+      if (typeof data.styling === 'string') {
+        try {
+          data.styling = JSON.parse(data.styling);
+        } catch (parseError) {
+          // Let validation handle the error
+          console.warn('Failed to parse styling JSON string:', parseError);
+        }
+      }
+      return data;
+    });
   }
 
   /**
    * Validate the styling's structured output.
    */
-  validate(output: TailwindStylingResult): BaseValidationResult {
+  validate(output: TailwindStylingResult): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let score = 100;
 
-    // Check required styling fields
+    // Check required styling fields (parsing handled by schema transform)
     if (!output.styling) {
       errors.push('Missing styling object');
       score -= 50;

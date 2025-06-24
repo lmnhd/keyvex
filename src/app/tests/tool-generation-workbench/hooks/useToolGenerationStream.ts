@@ -30,6 +30,7 @@ export interface UseToolGenerationStreamOptions {
   onMessage?: (message: WebSocketMessage) => void;
   onProgress?: (progress: StepProgress) => void;
   onError?: (error: string) => void;
+  onTccUpdate?: (updatedTcc: any, agentType?: string) => void;
 }
 
 const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_API_ENDPOINT || '';
@@ -167,6 +168,21 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
           const data = JSON.parse(event.data);
           addMessage('received', data, event.data);
 
+          // 📊 HANDLE TCC UPDATES - Real-time TCC state updates
+          if (data.type === 'tcc_update') {
+            console.log('📊 [WebSocket] TCC Update received:', {
+              jobId: data.jobId,
+              agentType: data.agentType,
+              tccKeys: Object.keys(data.updatedTcc || {})
+            });
+            
+            // Call onTccUpdate callback if provided
+            if (options.onTccUpdate) {
+              options.onTccUpdate(data.updatedTcc, data.agentType);
+            }
+          }
+
+          // 📡 HANDLE STEP PROGRESS - Real-time progress updates
           if (data.type === 'step_progress' || data.stepName) {
             const progress: StepProgress = {
               jobId: data.jobId,
@@ -187,9 +203,23 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
             });
             if (onProgress) onProgress(progress);
             
-            // Stop polling and clear active job when tool is completed
+            // 🏁 WORKFLOW COMPLETION DETECTION
+            if (progress.stepName === 'workflow_completed' && progress.status === 'completed') {
+              console.log('🏁 [WebSocket] V2 Workflow completed - stopping and clearing active job');
+              stopPolling();
+              activeJobIdRef.current = null;
+              activeUserIdRef.current = null;
+              
+              // Automatically disconnect WebSocket after workflow completion
+              setTimeout(() => {
+                console.log('🔌 [WebSocket] Auto-disconnecting after workflow completion');
+                disconnect();
+              }, 2000); // Give time to ensure all final messages are received
+            }
+            
+            // Legacy completion detection for backward compatibility
             if (progress.stepName === 'finalizing_tool' && progress.status === 'completed') {
-              console.log('🛑 [WebSocket] Tool completed - stopping polling and clearing active job');
+              console.log('🛑 [WebSocket] Tool completed (legacy) - stopping polling and clearing active job');
               stopPolling();
               activeJobIdRef.current = null;
               activeUserIdRef.current = null;

@@ -92,11 +92,16 @@ export class AIInteractionManager {
       provider,
       attemptNumber: retryInfo.attemptNumber
     }, '🤖 AI MANAGER: Starting agent interaction');
+
+   
     
     try {
       // 2. Construct prompts using the centralized PromptManager
       const systemPrompt = getSystemPrompt(agentType);
       const userPrompt = constructUserPrompt(agentType, tcc, retryInfo);
+
+       console.log( '🤖 AI SYSTEM PROMPT FOR ${agentType}: ', systemPrompt )
+       console.log( '🤖 AI USER PROMPT FOR ${agentType}: ', userPrompt )
 
       // 3. Execute the AI call. The `object` is now correctly typed as AgentResult.
       const { object } = await generateObject({

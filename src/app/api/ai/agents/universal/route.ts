@@ -7,10 +7,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { AgentType } from '../../../../../lib/types/tcc-unified';
-import { ToolConstructionContext } from '../../../../../lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, OrchestrationStep } from '../../../../../lib/types/product-tool-creation-v2/tcc';
 import { executeAgent } from '../../../../../lib/agents/unified/core/agent-executor';
 import { createAgentExecutionContext } from '../../../../../lib/agents/unified/core/model-manager';
 import logger from '../../../../../lib/logger';
+
+// Import WebSocket progress emitter
+import { emitStepProgress } from '../../../../../lib/streaming/progress-emitter.server';
 
 // Request schema for universal agent execution
 const UniversalAgentRequestSchema = z.object({
@@ -103,11 +106,26 @@ interface UniversalAgentResponse {
   validationScore?: number;
 }
 
+// Map agent types to WebSocket step names for progress updates
+function getStepNameForAgent(agentType: AgentType): OrchestrationStep {
+  const stepMapping: Record<AgentType, OrchestrationStep> = {
+    'function-planner': 'planning_function_signatures',
+    'state-design': 'designing_state_logic',
+    'jsx-layout': 'designing_jsx_layout',
+    'tailwind-styling': 'applying_tailwind_styling',
+    'component-assembler': 'assembling_component',
+    'code-validator': 'validating_code',
+    'tool-finalizer': 'finalizing_tool'
+  };
+  return stepMapping[agentType] || 'initialization';
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse<UniversalAgentResponse>> {
   const startTime = Date.now();
+  let body: any;
   
   try {
-    const body = await request.json();
+    body = await request.json();
     const validatedRequest = UniversalAgentRequestSchema.parse(body);
     const { agentType, jobId, tcc, selectedModel, isIsolatedTest, retryAttempt, editMode } = validatedRequest;
 
@@ -120,6 +138,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       isRetry: (retryAttempt || 0) > 0,
       userId: tcc.userId
     }, '🔄 Universal Agent Route: Processing request');
+
+    // 🚀 EMIT START PROGRESS - Agent is beginning work
+    const stepName = getStepNameForAgent(agentType);
+    if (!isIsolatedTest) {
+      try {
+        await emitStepProgress(
+          jobId,
+          stepName,
+          'started',
+          `${agentType} is processing...`,
+          { 
+            userId: tcc.userId,
+            agentType,
+            modelUsed: selectedModel,
+            isRetry: (retryAttempt || 0) > 0,
+            startTime: new Date().toISOString()
+          }
+        );
+        logger.info({ jobId, agentType, stepName }, '📡 Emitted start progress via WebSocket');
+      } catch (wsError) {
+        logger.warn({ jobId, agentType, error: wsError }, '⚠️ Failed to emit start progress via WebSocket');
+      }
+    }
 
     // Create execution context with retry information
     const executionContext = createAgentExecutionContext(
@@ -169,6 +210,42 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       validationScore: (result as any).metadata?.validationScore || 100
     };
 
+    // 🎉 EMIT COMPLETION PROGRESS - Agent has finished successfully
+    if (!isIsolatedTest) {
+      try {
+        await emitStepProgress(
+          jobId,
+          stepName,
+          'completed',
+          `${agentType} completed successfully`,
+          { 
+            userId: tcc.userId,
+            agentType,
+            executionTime,
+            modelUsed: executionContext.modelConfig.modelId,
+            validationScore: response.validationScore,
+            isRetry: (retryAttempt || 0) > 0,
+            completedAt: new Date().toISOString(),
+            tccUpdated: !!updatedTcc
+          }
+        );
+        logger.info({ jobId, agentType, stepName, executionTime }, '✅ Emitted completion progress via WebSocket');
+      } catch (wsError) {
+        logger.warn({ jobId, agentType, error: wsError }, '⚠️ Failed to emit completion progress via WebSocket');
+      }
+
+      // 📊 EMIT TCC UPDATE - Send updated TCC to workbench
+      if (updatedTcc) {
+        try {
+          const { emitTccUpdate } = await import('../../../../../lib/streaming/progress-emitter.server');
+          await emitTccUpdate(jobId, updatedTcc, agentType);
+          logger.info({ jobId, agentType, tccKeys: Object.keys(updatedTcc) }, '📊 Emitted TCC update via WebSocket');
+        } catch (wsError) {
+          logger.warn({ jobId, agentType, error: wsError }, '⚠️ Failed to emit TCC update via WebSocket');
+        }
+      }
+    }
+
     logger.info({
       jobId,
       agentType,
@@ -187,6 +264,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
     
     // Extract context from error for better logging
     const context = extractContextFromError(error);
+    
+    // 💥 EMIT FAILURE PROGRESS - Agent has failed
+    const stepName = getStepNameForAgent(context.agentType || 'unknown' as AgentType);
+    // Check if this is not an isolated test (validatedRequest may not be available in catch block)
+    const isIsolatedTest = body?.isIsolatedTest || false;
+    if (!isIsolatedTest) {
+      try {
+        await emitStepProgress(
+          context.jobId || 'unknown',
+          stepName,
+          'failed',
+          `${context.agentType || 'unknown'} failed: ${errorMessage}`,
+          { 
+            userId: body?.tcc?.userId || 'unknown-user',
+            agentType: context.agentType,
+            error: errorMessage,
+            executionTime,
+            isRetry: (context.retryAttempt || 0) > 0,
+            failedAt: new Date().toISOString()
+          }
+        );
+        logger.info({ jobId: context.jobId, agentType: context.agentType, stepName }, '❌ Emitted failure progress via WebSocket');
+      } catch (wsError) {
+        logger.warn({ jobId: context.jobId, agentType: context.agentType, error: wsError }, '⚠️ Failed to emit failure progress via WebSocket');
+      }
+    }
     
     logger.error({
       ...context,

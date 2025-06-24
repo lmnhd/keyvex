@@ -2,156 +2,173 @@
  * Unified Prompt Manager (Phase 1.2 - Centralized Logic)
  * Single source of truth for constructing agent prompts.
  * 
- * CRITICAL FIX: Centralizes prompt generation logic, removing it from individual agent modules.
- * - Dynamically loads system and user prompts for each agent.
- * - Injects TCC data using the appropriate filter.
- * - Incorporates retry hints for adaptive AI behavior.
+ * CRITICAL FIX: Centralizes prompt generation logic by delegating to existing V2 prompts.
+ * - Uses the optimized V2 prompts from /lib/prompts/v2/ directory
+ * - Properly separates prompts from core logic
+ * - Incorporates retry hints for adaptive AI behavior
+ * - NO MOCK DATA - delegates to real prompt implementations
  */
 
 import { 
   AgentType, 
   RetryAttemptInfo,
-  CoreBrainstormData,
   ToolConstructionContext
 } from '../../../types/tcc-unified';
 import {
-  BrainstormData,
   EditModeContext
 } from '../../../types/product-tool-creation-v2/tcc';
-import { 
-  filterBrainstormForFunctionPlanner,
-  filterBrainstormForStateDesign,
-  filterBrainstormForJSXLayout,
-  filterBrainstormForTailwindStyling,
-  filterBrainstormForComponentAssembler,
-  generateFilteredBrainstormContext,
-  convertToCoreData
-} from '../../../utils/brainstorm-filter';
 import logger from '../../../logger';
 
-// TODO: Move these to a dedicated /prompts directory
-const MOCK_SYSTEM_PROMPTS: Record<AgentType, string> = {
-  'function-planner': 'You are a senior software architect specializing in breaking down requirements into precise function signatures. Analyze the provided brainstorm and define all necessary calculation and utility functions.',
-  'state-design': 'You are a React state management expert. Your task is to design the complete state logic, including variables, state-setting functions, and calculation logic based on the provided brainstorm data and function signatures. Ensure a robust and efficient state structure.',
-  'jsx-layout': 'You are a UI/UX designer and React developer. Create a logical and accessible JSX structure for the tool. Focus on component hierarchy and user interaction flow. Do not add styling.',
-  'tailwind-styling': 'You are a TailwindCSS expert. Apply a clean, modern, and responsive design to the provided JSX layout. Use the provided style map and generate a complete, styled component.',
-  'component-assembler': 'You are a senior React developer. Your job is to assemble the final, production-ready React component by combining the state logic, JSX layout, and styling. Ensure all parts are correctly integrated.',
-  'code-validator': 'You are a code quality and security auditor. Analyze the provided component code for errors, vulnerabilities, and performance issues. Provide a detailed validation report.',
-  'tool-finalizer': 'You are a product manager. Your role is to package the final tool by creating its metadata, description, and user instructions. Prepare it for deployment.'
-};
+// Import V2 prompt functions
+import { 
+  getFunctionPlannerSystemPrompt,
+  getFunctionPlannerUserPrompt
+} from '../../../prompts/v2/function-planner-prompt';
+import { 
+  getStateDesignSystemPrompt,
+  getStateDesignUserPrompt
+} from '../../../prompts/v2/state-design-prompt';
+import { 
+  getJsxLayoutSystemPrompt,
+  getJsxLayoutUserPrompt
+} from '../../../prompts/v2/jsx-layout-prompt';
+import { 
+  getTailwindStylingUserPrompt,
+  TAILWIND_STYLING_SYSTEM_PROMPT
+} from '../../../prompts/v2/tailwind-styling-prompt';
+import { 
+  getValidatorSystemPrompt,
+  getValidatorUserPrompt
+} from '../../../prompts/v2/validator-prompt';
+import { 
+  getDataRequirementsResearchSystemPrompt,
+  getDataRequirementsResearchUserPrompt
+} from '../../../prompts/v2/data-requirements-research-prompt';
 
 /**
- * Get the system prompt for a given agent.
+ * Convert unified TCC EditModeContext to V2 prompt EditModeContext format
  */
-export function getSystemPrompt(agentType: AgentType): string {
-  const prompt = MOCK_SYSTEM_PROMPTS[agentType];
-  if (!prompt) {
-    throw new Error(`System prompt for agent type ${agentType} not found.`);
+function convertToV2EditModeContext(editMode?: EditModeContext): any {
+  if (!editMode?.isEditMode || !editMode.activeEditInstructions?.length) {
+    return undefined;
   }
-  return prompt;
+
+  return {
+    isEditMode: editMode.isEditMode,
+    instructions: editMode.activeEditInstructions,
+    context: editMode.activeEditInstructions.map(i => i.instructions).join('\n')
+  };
 }
 
 /**
- * Get the user prompt context for a given agent.
- * This function centralizes the logic for filtering brainstorm data.
+ * Get the system prompt for a given agent by delegating to V2 prompts.
+ * NO MOCK DATA - uses existing optimized prompts
  */
-function getAgentContext(agentType: AgentType, brainstormData: BrainstormData, jobId: string): CoreBrainstormData | null {
+export function getSystemPrompt(agentType: AgentType, isEditing: boolean = false): string {
   switch (agentType) {
     case 'function-planner':
-      return filterBrainstormForFunctionPlanner(brainstormData, jobId);
+      return getFunctionPlannerSystemPrompt(isEditing);
+    
     case 'state-design':
-      return filterBrainstormForStateDesign(brainstormData, jobId);
+      return getStateDesignSystemPrompt(isEditing);
+    
     case 'jsx-layout':
-      return filterBrainstormForJSXLayout(brainstormData, jobId);
+      return getJsxLayoutSystemPrompt(isEditing);
+    
     case 'tailwind-styling':
-      return filterBrainstormForTailwindStyling(brainstormData, jobId);
+      // Use the proper system prompt from the dedicated prompt file that includes JSON format instructions
+      return TAILWIND_STYLING_SYSTEM_PROMPT;
+    
+    case 'code-validator':
+      return getValidatorSystemPrompt();
+    
     case 'component-assembler':
-      return filterBrainstormForComponentAssembler(brainstormData, jobId);
+      // Component Assembler is PROGRAMMATIC - combines State + Layout + Styling mechanically
+      throw new Error(`Component Assembler is a programmatic assembly module - it doesn't use AI prompts, just combines the pieces`);
+    
+    case 'tool-finalizer':
+      // Tool Finalizer is NOT an AI agent - it's a packaging/validation module
+      throw new Error(`Tool Finalizer doesn't use AI prompts - it's a packaging module, not an AI agent`);
+    
     default:
-      // For agents that need full data, we still convert to the unified CoreBrainstormData
-      return convertToCoreData(brainstormData);
+      throw new Error(`System prompt for agent type ${agentType} not found in V2 prompts.`);
   }
 }
 
 /**
- * Construct the final user prompt string for the AI.
- * This centralizes TCC data injection and retry hint incorporation.
+ * Get the user prompt for a given agent by delegating to V2 prompts.
+ * Handles dynamic inputs and TCC context properly
  */
-export function constructUserPrompt(
-  agentType: AgentType,
-  tcc: ToolConstructionContext,
-  retryInfo: RetryAttemptInfo,
-  editMode?: EditModeContext
+export function getUserPrompt(
+  agentType: AgentType, 
+  tcc: ToolConstructionContext, 
+  editMode?: EditModeContext,
+  retryInfo?: RetryAttemptInfo
 ): string {
-  let promptSections: string[] = [];
+  let basePrompt: string;
+  const v2EditMode = convertToV2EditModeContext(editMode);
 
-  // 1. Add Retry Context (if applicable)
+  switch (agentType) {
+    case 'function-planner':
+      basePrompt = getFunctionPlannerUserPrompt(tcc, v2EditMode);
+      break;
+    
+    case 'state-design':
+      // State design requires function signatures from TCC
+      const functionSignatures = tcc.definedFunctionSignatures || [];
+      basePrompt = getStateDesignUserPrompt(
+        tcc, 
+        functionSignatures, 
+        v2EditMode,
+        editMode?.isEditMode,
+        editMode?.activeEditInstructions?.[0]?.instructions
+      );
+      break;
+    
+    case 'jsx-layout':
+      basePrompt = getJsxLayoutUserPrompt(tcc, v2EditMode);
+      break;
+    
+    case 'tailwind-styling':
+      basePrompt = getTailwindStylingUserPrompt(
+        tcc, 
+        v2EditMode,
+        editMode?.isEditMode,
+        editMode?.activeEditInstructions?.[0]?.instructions
+      );
+      break;
+    
+    case 'code-validator':
+      basePrompt = getValidatorUserPrompt(tcc, v2EditMode);
+      break;
+    
+    case 'component-assembler':
+      // Component Assembler is PROGRAMMATIC - combines State + Layout + Styling mechanically
+      throw new Error(`Component Assembler is a programmatic assembly module - it doesn't use AI prompts, just combines the pieces`);
+    
+    case 'tool-finalizer':
+      // Tool Finalizer is NOT an AI agent - it's a packaging/validation module
+      throw new Error(`Tool Finalizer doesn't use AI prompts - it's a packaging module, not an AI agent`);
+    
+    default:
+      throw new Error(`User prompt for agent type ${agentType} not found in V2 prompts.`);
+  }
+
+  // Add retry context if applicable
   if (retryInfo && retryInfo.attemptNumber > 1) {
-    promptSections.push('--- RETRY CONTEXT ---');
-    promptSections.push(`This is attempt #${retryInfo.attemptNumber}.`);
-    if (retryInfo.lastError) {
-      promptSections.push(`Previous Attempt Error: ${retryInfo.lastError}`);
-    }
-    if (retryInfo.adaptedPromptHints && retryInfo.adaptedPromptHints.length > 0) {
-      promptSections.push('Please follow these hints to improve the response:');
-      promptSections.push(...retryInfo.adaptedPromptHints.map(hint => `- ${hint}`));
-    }
-    promptSections.push('---------------------\n');
+    const retryPrefix = `--- RETRY CONTEXT ---
+This is attempt #${retryInfo.attemptNumber}.
+${retryInfo.lastError ? `Previous Attempt Error: ${retryInfo.lastError}` : ''}
+${retryInfo.adaptedPromptHints && retryInfo.adaptedPromptHints.length > 0 
+  ? `Please follow these hints to improve the response:\n${retryInfo.adaptedPromptHints.map(hint => `- ${hint}`).join('\n')}` 
+  : ''}
+---------------------
+
+`;
+    basePrompt = retryPrefix + basePrompt;
   }
 
-  // 2. Add Core TCC Data (as a structured context)
-  promptSections.push('--- TOOL CONSTRUCTION CONTEXT ---');
-  
-  if (tcc.brainstormData) {
-    const filteredBrainstorm = getAgentContext(agentType, tcc.brainstormData, tcc.jobId);
-    if (filteredBrainstorm) {
-      const brainstormContextString = generateFilteredBrainstormContext(filteredBrainstorm, agentType);
-      promptSections.push(brainstormContextString);
-    }
-  }
-
-  if (tcc.functionSignatures) {
-    promptSections.push('\n## Defined Function Signatures\n' + JSON.stringify(tcc.functionSignatures, null, 2));
-  }
-  if (tcc.stateLogic) {
-    promptSections.push('\n## State Logic\n' + JSON.stringify(tcc.stateLogic, null, 2));
-  }
-  if (tcc.jsxLayout) {
-    promptSections.push('\n## JSX Layout\n' + tcc.jsxLayout.componentStructure);
-  }
-  if (tcc.styling) {
-    promptSections.push('\n## Styling Information\n' + JSON.stringify(tcc.styling, null, 2));
-  }
-  if (tcc.finalProduct?.componentCode) {
-    promptSections.push('\n## Current Component Code\n```javascript\n' + tcc.finalProduct.componentCode + '\n```');
-  }
-
-  promptSections.push('---------------------------------\n');
-  
-  // 3. Add Agent-Specific Instructions
-  promptSections.push('--- YOUR TASK ---');
-  promptSections.push(`Based on the provided context, perform your role as the ${agentType} and provide the required output in the specified JSON format.`);
-  
-  if (agentType === 'state-design' && tcc.editModeContext?.isEditMode) {
-    const activeInstructions = tcc.editModeContext.activeEditInstructions?.find(
-      inst => inst.targetAgent === 'state-design'
-    );
-    if (activeInstructions) {
-      promptSections.push(`\n**Edit Instructions:** ${activeInstructions.instructions}`);
-    }
-  }
-  // Add other agent-specific instructions as needed...
-
-  const finalPrompt = promptSections.join('\n');
-  
-  logger.info({
-    jobId: tcc.jobId,
-    agentType,
-    finalPromptLength: finalPrompt.length,
-    hasRetryContext: !!retryInfo && retryInfo.attemptNumber > 1
-  }, 'CONSTRUCTED USER PROMPT');
-
-  return finalPrompt;
+  return basePrompt;
 }
 
 /**
@@ -163,42 +180,64 @@ export async function getPromptForAgent(
   tcc: ToolConstructionContext, 
   editMode?: EditModeContext
 ): Promise<{ systemPrompt: string; userPrompt: string }> {
-  const systemPrompt = getSystemPrompt(agentType);
+  const isEditing = editMode?.isEditMode || false;
   
-  // Convert editMode to RetryAttemptInfo if needed
-  let retryInfo: RetryAttemptInfo;
-  if (editMode?.isEditMode) {
-    const firstInstruction = editMode.activeEditInstructions?.[0];
-    retryInfo = {
+  try {
+    const systemPrompt = getSystemPrompt(agentType, isEditing);
+    
+    // Convert editMode to RetryAttemptInfo for consistency
+    const retryInfo: RetryAttemptInfo = {
       attemptNumber: 1,
       isFirstAttempt: true,
       isSecondAttempt: false,
       isThirdAttempt: false,
-      isFinalAttempt: false,
-      lastError: null,
-      strategy: 'standard',
-      adaptedModel: '',
-      adaptedPromptHints: firstInstruction ? [`Edit Instructions: ${firstInstruction.instructions}`] : []
-    };
-  } else {
-    // Provide a default for non-retry, non-edit scenarios
-    retryInfo = {
-      attemptNumber: 1,
-      isFirstAttempt: true,
-      isSecondAttempt: false,
-      isThirdAttempt: false,
-      isFinalAttempt: true, // Assume single attempt
+      isFinalAttempt: true,
       lastError: null,
       strategy: 'standard',
       adaptedModel: '',
       adaptedPromptHints: []
     };
+    
+    const userPrompt = getUserPrompt(agentType, tcc, editMode, retryInfo);
+    
+    logger.info({
+      jobId: tcc.jobId,
+      agentType,
+      systemPromptLength: systemPrompt.length,
+      userPromptLength: userPrompt.length,
+      isEditing,
+      delegatedToV2: true,
+      hasEditInstructions: editMode?.activeEditInstructions?.length || 0
+    }, `✅ PROMPT MANAGER: Successfully delegated to V2 prompts for ${agentType}`);
+    
+    return {
+      systemPrompt,
+      userPrompt
+    };
+    
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    logger.error({
+      jobId: tcc.jobId,
+      agentType,
+      error: errorMessage,
+      isEditing
+    }, `❌ PROMPT MANAGER: Failed to get prompts for ${agentType}`);
+    
+    throw error;
   }
-  
-  const userPrompt = constructUserPrompt(agentType, tcc, retryInfo);
-  
-  return {
-    systemPrompt,
-    userPrompt
-  };
+}
+
+/**
+ * Construct the final user prompt string for the AI with retry context.
+ * This centralizes retry hint incorporation for backward compatibility.
+ */
+export function constructUserPrompt(
+  agentType: AgentType,
+  tcc: ToolConstructionContext,
+  retryInfo: RetryAttemptInfo,
+  editMode?: EditModeContext
+): string {
+  return getUserPrompt(agentType, tcc, editMode, retryInfo);
 }

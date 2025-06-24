@@ -206,6 +206,40 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     },
     onError: (error) => {
       addDetailedWSLog('error', `WebSocket error: ${error}`);
+    },
+    onTccUpdate: (updatedTcc, agentType) => {
+      // 📊 REAL-TIME TCC UPDATES - Update workbench state immediately
+      console.log('📊 [WORKBENCH] TCC Update received via WebSocket:', {
+        agentType,
+        tccKeys: Object.keys(updatedTcc || {}),
+        hasAssembledCode: !!updatedTcc?.assembledComponentCode,
+        hasFinalProduct: !!updatedTcc?.finalProduct
+      });
+      
+      // Update TCC data in real-time
+      setTccData(updatedTcc);
+      
+      // Update assembled code if available
+      if (updatedTcc?.assembledComponentCode) {
+        setAssembledCode(updatedTcc.assembledComponentCode);
+        addDetailedWSLog('debug', `✅ Assembled code updated from ${agentType}`, {
+          codeLength: updatedTcc.assembledComponentCode.length
+        });
+      }
+      
+      // Update final product if available
+      if (updatedTcc?.finalProduct) {
+        setFinalProduct(updatedTcc.finalProduct);
+        addDetailedWSLog('debug', `✅ Final product updated from ${agentType}`, {
+          productId: updatedTcc.finalProduct.id,
+          hasComponentCode: !!updatedTcc.finalProduct.componentCode
+        });
+      }
+      
+      addDetailedWSLog('debug', `📊 TCC updated by ${agentType}`, {
+        tccKeys: Object.keys(updatedTcc || {}),
+        timestamp: new Date().toISOString()
+      });
     }
   }) as any; // Add type assertion since connect is now async
 

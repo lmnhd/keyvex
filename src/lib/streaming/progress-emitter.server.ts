@@ -1,3 +1,8 @@
+﻿/**
+ * Server-side WebSocket Progress Emitter
+ * Simplified version for real-time progress updates
+ */
+
 import {
     ProgressEvent,
     OrchestrationStep,
@@ -50,8 +55,9 @@ async function getUserConnections(userId: string): Promise<string[]> {
       return [];
     }
     
-    logger.info({ userId, queryKey: `USER#${userId}`, tableName }, 'Querying DynamoDB for user connections');
- 
+    logger.info({ userId, queryKey: `USER#${userId}`, tableName }, 'Querying DynamoDB for user connections')
+;
+    
     const response = await docClient.send(new QueryCommand({
       TableName: tableName,
       IndexName: 'GSI1',
@@ -68,9 +74,9 @@ async function getUserConnections(userId: string): Promise<string[]> {
     
     return response.Items.map(item => item.connectionId).filter(Boolean);
   } catch (error) {
-    logger.error({ 
-      userId, 
-      error: error instanceof Error ? error.message : String(error) 
+    logger.error({
+      userId,
+      error: error instanceof Error ? error.message : String(error)
     }, 'Failed to get user connections from DynamoDB');
     return [];
   }
@@ -88,7 +94,7 @@ async function getUserConnections(userId: string): Promise<string[]> {
       logger.warn({ jobId }, '📡 [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send message.');
       return false;
     }
-  
+    
     try {
       // Get user's WebSocket connection IDs
       const connectionIds = await getUserConnections(userId);
@@ -115,7 +121,7 @@ async function getUserConnections(userId: string): Promise<string[]> {
             secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
           },
         });
-  
+        
       const progressMessage = {
         type: 'step_progress',
           jobId,
@@ -125,13 +131,13 @@ async function getUserConnections(userId: string): Promise<string[]> {
           data: event.details,
         timestamp: event.timestamp,
       };
-
-      logger.info({ 
-        callbackUrl, 
-        connectionCount: connectionIds.length, 
-        jobId 
+      
+      logger.info({
+        callbackUrl,
+        connectionCount: connectionIds.length,
+        jobId
       }, '📡 [AWS-WEBSOCKET] Preparing to send to WebSocket connections');
-
+      
       // Send to all connections for this user
       const sendPromises = connectionIds.map(async (connectionId) => {
         try {
@@ -142,29 +148,29 @@ async function getUserConnections(userId: string): Promise<string[]> {
           logger.info({ connectionId, jobId }, '📡 [AWS-WEBSOCKET] Message sent successfully');
           return true;
         } catch (error) {
-          logger.error({ 
-            connectionId, 
+          logger.error({
+            connectionId,
             jobId,
             error: error instanceof Error ? error.message : String(error)
           }, '📡 [WEBSOCKET-ERROR] Failed to send to connection (connection may be stale)');
           return false;
         }
       });
-
+      
       const results = await Promise.allSettled(sendPromises);
       const successCount = results.filter(r => r.status === 'fulfilled' && r.value).length;
       
-      logger.info({ 
-        jobId, 
-        successCount, 
-        totalConnections: connectionIds.length 
+      logger.info({
+        jobId,
+        successCount,
+        totalConnections: connectionIds.length
       }, `📡 [AWS-WEBSOCKET] Message sending completed`);
       
       return successCount > 0;
-        
+      
     } catch (error) {
-      logger.error({ 
-          jobId, 
+      logger.error({
+          jobId,
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : 'No stack'
     }, `📡 [WEBSOCKET-ERROR] WebSocket message sending failed`);
@@ -175,12 +181,13 @@ async function getUserConnections(userId: string): Promise<string[]> {
   /**
    * Emit a progress event for a specific job.
  * This is the main entry point for sending progress updates.
- * 
+ *
  * @param jobId - The job ID
  * @param stepName - The orchestration step
- * @param status - The step status 
+ * @param status - The step status
  * @param message - Optional message
  * @param details - Optional details object which should contain either userId directly or TCC object
+ 
    */
   export async function emitStepProgress(
     jobId: string,
@@ -189,7 +196,7 @@ async function getUserConnections(userId: string): Promise<string[]> {
     message?: string,
     details?: any
   ): Promise<void> {
-  
+    
     const event: ProgressEvent = {
       stepName,
       status,
@@ -197,12 +204,12 @@ async function getUserConnections(userId: string): Promise<string[]> {
       details,
       timestamp: new Date().toISOString()
     };
-  
-    logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event');
-
+    
+    logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event'); 
+    
     // Extract userId from details - handle multiple patterns:
     // 1. Direct userId property: details.userId
-    // 2. Nested TCC object: details.tcc.userId  
+    // 2. Nested TCC object: details.tcc.userId
     // 3. TCC object passed as details directly: details.userId (when details is a TCC)
     let userId = details?.userId;
     let userIdSource = 'details.userId';
@@ -211,9 +218,9 @@ async function getUserConnections(userId: string): Promise<string[]> {
     if (!userId && details?.tcc?.userId) {
       userId = details.tcc.userId;
       userIdSource = 'details.tcc.userId';
-      logger.info({ jobId, source: userIdSource }, '📡 [USER-ID-LOOKUP] Extracted userId from nested TCC');
+      logger.info({ jobId, source: userIdSource }, '📡 [USER-ID-LOOKUP] Extracted userId from nested TCC'); 
     }
-
+    
     if (!userId) {
       logger.warn({
         jobId,
@@ -224,11 +231,13 @@ async function getUserConnections(userId: string): Promise<string[]> {
         tccUserId: details?.tcc?.userId,
         detailsUserId: details?.userId
       }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
+      
       return;
     }
-
+    
     logger.info({ jobId, userId, source: userIdSource }, '📡 [USER-ID-LOOKUP] Extracted userId from TCC');
-  
+    
+    
     try {
       // Attempt to send via WebSocket
       const success = await sendViaWebSocket(userId, jobId, event);
@@ -238,9 +247,9 @@ async function getUserConnections(userId: string): Promise<string[]> {
       } else {
         logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-FAIL] Failed to send via AWS WebSocket');
       }
-  
+      
     } catch (error) {
-      logger.error({ 
+      logger.error({
           jobId,
         error: error instanceof Error ? error.message : String(error),
           stepName,
@@ -254,11 +263,12 @@ async function getUserConnections(userId: string): Promise<string[]> {
  */
 const progressSubscriptions = new Map<string, ((event: ProgressEvent & { jobId: string }) => void)[]>();
 
+
 /**
  * Subscribe to progress updates for a specific job (for testing/fallback)
  */
 export function subscribeToProgress(
-  jobId: string, 
+  jobId: string,
   callback: (event: ProgressEvent & { jobId: string }) => void
 ): () => void {
   if (!progressSubscriptions.has(jobId)) {
@@ -296,5 +306,93 @@ function emitToSubscribers(jobId: string, event: ProgressEvent): void {
         logger.error({ jobId, error }, 'Error in progress subscription callback');
       }
     });
+  }
+}
+
+export async function emitTccUpdate(
+  jobId: string,
+  updatedTcc: ToolConstructionContext,
+  agentType?: string
+): Promise<void> {
+  const userId = updatedTcc?.userId;
+
+  if (!userId) {
+    logger.warn({
+      jobId,
+      agentType,
+    }, '📡 [TCC-EMIT-ABORT] No userId found in updatedTcc, cannot send WebSocket message');
+    return;
+  }
+  
+  // The message payload for a TCC update
+  const tccUpdateMessage = {
+    type: 'tcc_update',
+    jobId,
+    agentType,
+    updatedTcc,
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    // Check if WebSockets are configured before proceeding
+    if (!isWebSocketAvailable()) {
+      logger.warn({ jobId }, '📡 [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send TCC update.');
+      return;
+    }
+    
+    // Get all active connections for the user
+    const connectionIds = await getUserConnections(userId);
+    if (connectionIds.length === 0) {
+      logger.info({ userId, jobId }, '📡 [WEBSOCKET-INFO] No active connections for TCC update');
+      return;
+    }
+    
+    // Dynamically import AWS SDK components
+    const { ApiGatewayManagementApiClient, PostToConnectionCommand } = await import('@aws-sdk/client-apigatewaymanagementapi');
+    
+    // Construct the API Gateway callback URL
+    const wsUrl = WEBSOCKET_API_URL?.replace('wss://', '').replace('ws://', '') || '';
+    const urlParts = wsUrl.split('/');
+    const domainName = urlParts[0];
+    const stage = urlParts[1] || process.env.AWS_STAGE || 'dev';
+    const callbackUrl = `https://${domainName}/${stage}`;
+    
+    const apiGwClient = new ApiGatewayManagementApiClient({
+      endpoint: callbackUrl,
+      region: AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+
+    logger.info({ jobId, userId, agentType, connections: connectionIds.length }, 'Emitting TCC update.');
+
+    // Create and execute all send promises concurrently
+    const sendPromises = connectionIds.map(async (connectionId) => {
+      try {
+        await apiGwClient.send(new PostToConnectionCommand({
+          ConnectionId: connectionId,
+          Data: JSON.stringify(tccUpdateMessage),
+        }));
+        return true;
+      } catch (error) {
+        logger.error({
+          connectionId,
+          jobId,
+          error: error instanceof Error ? error.message : String(error)
+        }, '📡 [WEBSOCKET-ERROR] Failed to send TCC update to connection');
+        return false;
+      }
+    });
+
+    await Promise.allSettled(sendPromises);
+
+  } catch (error) {
+    logger.error({
+      jobId,
+      agentType,
+      error: error instanceof Error ? error.message : String(error),
+    }, '📡 [TCC-EMIT-ERROR] Error occurred while emitting TCC update');
   }
 }

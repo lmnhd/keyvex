@@ -1022,7 +1022,7 @@ export default function ToolTesterView({
           <Tabs defaultValue="progress" className="w-full">
             <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="progress">Progress</TabsTrigger>
-              <TabsTrigger value="tcc" disabled={!testJob?.jobId && !tccData}>TCC Monitor</TabsTrigger>
+              <TabsTrigger value="tcc" disabled={(!testJob?.jobId || testJob.jobId.startsWith('debug-')) && !tccData}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
               <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
               <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
@@ -1068,7 +1068,7 @@ export default function ToolTesterView({
             </TabsContent>
 
             <TabsContent value="tcc" className="mt-4">
-              {(workflowMode === 'v2' && testJob?.jobId) || (workflowMode === 'debug' && tccData) ? (
+              {(workflowMode === 'v2' && testJob?.jobId && !testJob.jobId.startsWith('debug-')) || (workflowMode === 'debug' && tccData) ? (
                 <TCCVisualizer 
                   tccData={tccData}
                   currentStep={progressUpdates.length > 0 ? progressUpdates[0].stepName : 'loaded'}

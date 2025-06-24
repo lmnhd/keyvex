@@ -577,52 +577,50 @@ const SPACING_MODERNIZATION = `
 // ============================================================================
 const COMMON_OUTPUT_FORMAT = `
 <output-format>
+    🚨🚨🚨 CRITICAL RESPONSE FORMAT - MUST FOLLOW EXACTLY 🚨🚨🚨
+    
+    ❌ DO NOT RETURN JSON STRINGS - The "styling" field must be an OBJECT, not a STRING
+    ❌ FORBIDDEN: "styling": "{\"colorScheme\": {...}}" (this is a JSON string - WRONG!)
+    ✅ REQUIRED: "styling": {"colorScheme": {...}} (this is a JSON object - CORRECT!)
+    
     You MUST return a clean JSON object in this exact format, with no extra commentary:
     {
-      "styledComponentCode": "string - the complete styled JSX code with all className props applied",
-      "styleMap": {
-        "data-style-id-one": "string of Tailwind classes with industry-appropriate colors",
-        "data-style-id-two": "string of Tailwind classes with proper contrast"
-      },
-      "colorScheme": {
-        "primary": "#hexcode - industry-appropriate primary color",
-        "secondary": "#hexcode - complementary secondary color", 
-        "accent": "#hexcode - accent color for highlights",
-        "background": "#hexcode - main page background (industry-contextual)",
-        "surface": "#hexcode - card/surface background",
-        "text": {
-          "primary": "#hexcode - main text color (dark for contrast)",
-          "secondary": "#hexcode - secondary text color",
-          "muted": "#hexcode - muted text color"
+      "styling": {
+        "styledComponentCode": "string - the complete styled JSX code with all className props applied",
+        "styleMap": {
+          "data-style-id-one": "string of Tailwind classes with industry-appropriate colors",
+          "data-style-id-two": "string of Tailwind classes with proper contrast"
         },
-        "border": "#hexcode - default border color",
-        "success": "#hexcode - success state color",
-        "warning": "#hexcode - warning state color", 
-        "error": "#hexcode - error state color"
-      },
-      "designTokens": {
-        "spacing": {
-          "sm": "p-2 m-2",
-          "md": "p-4 m-4", 
-          "lg": "p-6 m-6"
-        },
-        "typography": {
-          "heading": "text-2xl font-bold",
-          "subheading": "text-lg font-semibold",
-          "body": "text-base",
-          "small": "text-sm"
-        },
-        "shadows": {
-          "sm": "shadow-md",
-          "md": "shadow-lg", 
-          "lg": "shadow-xl"
-        },
-        "animations": {
-          "subtle": "transition-all duration-200",
-          "hover": "transform hover:scale-105 transition-all duration-200"
+        "colorScheme": {
+          "primary": "#hexcode - industry-appropriate primary color",
+          "secondary": "#hexcode - complementary secondary color", 
+          "accent": "#hexcode - accent color for highlights",
+          "background": "#hexcode - main page background (industry-contextual)",
+          "surface": "#hexcode - card/surface background",
+          "text": {
+            "primary": "#hexcode - main text color (dark for contrast)",
+            "secondary": "#hexcode - secondary text color",
+            "muted": "#hexcode - muted text color"
+          },
+          "border": "#hexcode - default border color",
+          "success": "#hexcode - success state color",
+          "warning": "#hexcode - warning state color", 
+          "error": "#hexcode - error state color"
         }
+      },
+      "metadata": {
+        "classCount": 0,
+        "responsiveBreakpoints": ["sm", "md", "lg", "xl"],
+        "colorSchemeType": "string - description of the color scheme type"
       }
     }
+    
+    🚨 CRITICAL SCHEMA COMPLIANCE:
+    - The "styling" field MUST be a JSON object with styledComponentCode, styleMap, and colorScheme properties
+    - DO NOT wrap the styling content in escaped JSON strings
+    - DO NOT use backslashes or escaped quotes in the styling field
+    - Return proper nested JSON structure, not stringified JSON
+    - The response must have the 'styling' wrapper object and 'metadata' object as shown above
 </output-format>
 
 <styling-validation-checklist>
@@ -635,6 +633,7 @@ const COMMON_OUTPUT_FORMAT = `
     ✅ ColorScheme reflects the chosen industry palette
     ✅ No repeated/identical color schemes across different tools
     ✅ Industry context is reflected in the entire design system
+    ✅ Response structure matches the required schema with 'styling' and 'metadata' objects
 </styling-validation-checklist>
 `;
 
@@ -709,114 +708,12 @@ ${CONTEXTUAL_COLOR_SCHEMES}
 ${COMMON_OUTPUT_FORMAT}
 `;
 
-/**
- * Enhanced dynamic prompt selector with industry context support
- * @param isEditing - Boolean flag, true if in edit mode
- * @param industryContext - Optional industry context for enhanced styling guidance
- * @returns The system prompt string with appropriate industry-specific guidance
- */
-export function getTailwindStylingSystemPrompt(isEditing: boolean, industryContext?: string): string {
-    let basePrompt = isEditing ? EDIT_PROMPT : CREATION_PROMPT;
-    
-    // Add industry-specific guidance if context is provided
-    if (industryContext) {
-        const industryGuidance = generateIndustrySpecificGuidance(industryContext);
-        basePrompt += `\n${industryGuidance}`;
-    }
-    
-    return basePrompt;
-}
-
-/**
- * Generates industry-specific styling guidance
- * @param industry - The industry context (healthcare, finance, food, etc.)
- * @returns Additional styling guidance for the specific industry
- */
-function generateIndustrySpecificGuidance(industry: string): string {
-    const industryLower = industry.toLowerCase();
-    
-    if (industryLower.includes('health') || industryLower.includes('medical')) {
-        return `
-<healthcare-specific-guidance>
-    🏥 HEALTHCARE TOOL STYLING REQUIREMENTS:
-    - Use clean, professional color palettes (cyan, teal, blue families)
-    - Header gradients: 'from-cyan-600 to-teal-700' or 'from-blue-600 to-cyan-700'
-    - Background: '#f8fafc' (medical white-blue)
-    - Emphasize trust, cleanliness, and professionalism
-    - Use crisp, readable typography with high contrast
-    - Avoid bright, flashy colors that may seem unprofessional in medical contexts
-</healthcare-specific-guidance>`;
-    }
-    
-    if (industryLower.includes('food') || industryLower.includes('restaurant') || industryLower.includes('culinary')) {
-        return `
-<food-restaurant-specific-guidance>
-    🍽️ FOOD/RESTAURANT TOOL STYLING REQUIREMENTS:
-    - Use warm, appetizing color palettes (orange, red, amber families)
-    - Header gradients: 'from-orange-600 to-red-600' or 'from-amber-600 to-orange-700'
-    - Background: '#fef7ed' (warm cream/beige)
-    - Emphasize warmth, appetite appeal, and hospitality
-    - Use inviting, friendly styling that makes users feel welcome
-    - Consider earth tones and food-inspired accent colors
-</food-restaurant-specific-guidance>`;
-    }
-    
-    if (industryLower.includes('finance') || industryLower.includes('business') || industryLower.includes('banking')) {
-        return `
-<financial-business-specific-guidance>
-    💰 FINANCIAL/BUSINESS TOOL STYLING REQUIREMENTS:
-    - Use professional, stable color palettes (blue, indigo, slate families)
-    - Header gradients: 'from-blue-600 to-indigo-700' or 'from-slate-600 to-blue-700'
-    - Background: '#f0f9ff' (professional light blue)
-    - Emphasize trust, stability, and professionalism
-    - Use conservative, authoritative styling that inspires confidence
-    - Avoid overly bright or playful colors that may seem unprofessional
-</financial-business-specific-guidance>`;
-    }
-    
-    if (industryLower.includes('fitness') || industryLower.includes('health') || industryLower.includes('sports')) {
-        return `
-<fitness-energy-specific-guidance>
-    ⚡ FITNESS/ENERGY TOOL STYLING REQUIREMENTS:
-    - Use energetic, active color palettes (lime, green, emerald families)
-    - Header gradients: 'from-lime-600 to-green-700' or 'from-emerald-600 to-teal-700'
-    - Background: '#fff7ed' (energetic light background)
-    - Emphasize energy, vitality, and active lifestyle
-    - Use dynamic, motivating styling that encourages action
-    - Consider bright, vibrant accent colors that convey movement and energy
-</fitness-energy-specific-guidance>`;
-    }
-    
-    // Default guidance for unrecognized industries
-    return `
-<general-industry-guidance>
-    🎯 GENERAL PROFESSIONAL TOOL STYLING:
-    - Analyze the tool's purpose and choose appropriate color psychology
-    - Use modern, clean design patterns that build user trust
-    - Ensure color choices reflect the tool's professional context
-    - Maintain consistency with industry standards and user expectations
-</general-industry-guidance>`;
-}
-
 // DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
 export const TAILWIND_STYLING_SYSTEM_PROMPT = CREATION_PROMPT;
 
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
 import { filterBrainstormForTailwindStyling, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
-
-// Edit mode context type for user prompt
-type EditModeContext = {
-  isEditMode: boolean;
-  instructions: Array<{
-    targetAgent: string;
-    editType: 'refine' | 'replace' | 'enhance';
-    instructions: string;
-    priority: 'low' | 'medium' | 'high';
-    createdAt: string;
-  }>;
-  context: string;
-};
 
 /**
  * Creates the user prompt for the Tailwind styling agent based on TCC data
@@ -884,6 +781,15 @@ ${tcc.stateLogic.variables?.map(v => `- ${v.name}: ${v.type}`).join('\n') || 'No
 🔄 EDIT MODE:
 Current styling exists. Apply these modifications:
 ${editInstructions}
+
+Modify the existing styling while maintaining all core functionality and design consistency.`;
+
+  } else if (editMode?.isEditMode && editMode.activeEditInstructions && editMode.activeEditInstructions.length > 0) {
+    prompt += `
+
+🔄 EDIT MODE:
+Current styling exists. Apply these modifications:
+${editMode.activeEditInstructions.map(i => i.instructions).join('\n')}
 
 Modify the existing styling while maintaining all core functionality and design consistency.`;
   }
