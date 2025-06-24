@@ -89,7 +89,7 @@ export function updateTccWithAgentResult(
     newTcc.steps = {
       ...newTcc.steps,
       [stepKey]: {
-        ...newTcc.steps[stepKey],
+        ...newTcc.steps[stepKey as keyof typeof newTcc.steps],
         status: 'completed',
         completedAt: new Date().toISOString(),
         result: result,
@@ -152,7 +152,7 @@ export function updateTccStepStatus(
     return { ...tcc, updatedAt: now };
   }
 
-  const existingStep = tcc.steps[stepKey] || { startedAt: now };
+  const existingStep = tcc.steps[stepKey as keyof typeof tcc.steps] || { startedAt: now };
 
   const newTcc = {
     ...tcc,

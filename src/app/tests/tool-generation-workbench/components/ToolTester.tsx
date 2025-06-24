@@ -1030,6 +1030,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       dynamoDBTools={dynamoDBTools}
       editMessage={editMessage}
       setEditMessage={setEditMessage}
+      // 🛡️ TCC PERSISTENCE: Recovery functionality props
+      hasTccBackup={hasTccBackup}
+      tccHistory={tccHistory}
+      recoverLastValidTcc={recoverLastValidTcc}
     />
   );
 };

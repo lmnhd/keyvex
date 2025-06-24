@@ -84,8 +84,9 @@ export interface StateDesignResult {
 // ✅ MISSING TYPE: Add JsxLayout interface referenced by JsxLayoutResult
 export interface JsxLayout {
   componentStructure: string;
-  elementMap: Array<{ elementId: string; type: string; purpose: string }>;
+  elementMap: Array<{ elementId: string; type: string; purpose: string; placeholderClasses: string[]; }>;
   accessibilityFeatures?: string[];
+  responsiveBreakpoints: string[];
 }
 
 // ✅ MISSING TYPE: Add Styling interface referenced by TailwindStylingResult
@@ -103,6 +104,12 @@ export interface Styling {
     success: string;
     warning: string;
     error: string;
+  };
+  designTokens: {
+    spacing: Record<string, string>;
+    typography: Record<string, string>;
+    shadows: Record<string, string>;
+    animations: Record<string, string>;
   };
 }
 
