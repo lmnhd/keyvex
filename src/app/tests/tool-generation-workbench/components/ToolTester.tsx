@@ -51,15 +51,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setLoadSource,
   } = useToolTesterData(newBrainstormFlag, userId);
 
-  // Debug logging to track availableModels changes
-  useEffect(() => {
-    console.log('📊 ToolTester availableModels state changed:', {
-      length: availableModels.length,
-      firstThree: availableModels.slice(0, 3).map(m => ({ id: m.id, name: m.name })),
-      hasInitialized,
-      timestamp: new Date().toISOString()
-    });
-  }, [availableModels, hasInitialized]);
+ 
 
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
@@ -73,6 +65,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
   const [savedV2JobIds, setSavedV2JobIds] = useState<Set<string>>(new Set());
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [hasTccAutoLoaded, setHasTccAutoLoaded] = useState(false);
   
   // Agent model mapping for individual agent testing
   const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
@@ -95,6 +88,16 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const addWSLog = useCallback((message: string) => {
     setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
   }, []);
+
+   // Debug logging to track availableModels changes
+   useEffect(() => {
+    console.log('📊 ToolTester availableModels state changed:', {
+      length: availableModels.length,
+      firstThree: availableModels.slice(0, 3).map(m => ({ id: m.id, name: m.name })),
+      hasInitialized,
+      timestamp: new Date().toISOString()
+    });
+  }, [availableModels, hasInitialized]);
 
   // Enhanced WebSocket logging with detailed console output like the test page
   const addDetailedWSLog = useCallback((type: 'connection' | 'message' | 'error' | 'debug', message: string, data?: any) => {
@@ -170,7 +173,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // Auto-load TCC snapshot on component mount if available and no current TCC data
   useEffect(() => {
-    if (!tccData && !hasInitialized) {
+    if (!tccData && !hasTccAutoLoaded) {
       try {
         const savedTcc = localStorage.getItem(TCC_SNAPSHOT_KEY);
         if (savedTcc) {
@@ -187,9 +190,9 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       } catch (error) {
         console.warn('Failed to auto-load TCC snapshot:', error);
       }
-      setHasInitialized(true);
+      setHasTccAutoLoaded(true);
     }
-  }, [tccData, hasInitialized, setTccData, addDetailedWSLog]);
+  }, [tccData, hasTccAutoLoaded, setTccData, addDetailedWSLog]);
   // --- End TCC Snapshot Logic ---
 
   // Add refs for auto-scrolling
