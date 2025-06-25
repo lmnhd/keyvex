@@ -8,32 +8,39 @@ import {
   DebugConfig, 
   DebugSession, 
   UseToolDebuggerReturn,
-  PerformanceMetrics
+  PerformanceMetrics,
+  TranspilationFormatInfo,
+  CalculationFunctionDetection,
+  TranspilationInfo
 } from '../types/debug-types';
 
 // Helper functions for transpilation format detection
-const detectTranspiledJSX = (componentCode: string) => {
+const detectTranspiledJSX = (componentCode: string): TranspilationFormatInfo => {
+  const hasImports = componentCode.includes('import ');
+  const hasReactCreateElement = componentCode.includes('React.createElement');
+  
+  let format: TranspilationFormatInfo['format'];
+  if (hasImports && hasReactCreateElement) {
+    format = 'jsx-transpiled';
+  } else if (hasReactCreateElement && !hasImports) {
+    format = 'createElement';
+  } else if (hasImports && !hasReactCreateElement) {
+    format = 'jsx-raw';
+  } else {
+    format = 'unknown';
+  }
+
   return {
     isTranspiled: componentCode.includes('// Transpiled from JSX') || 
                   componentCode.includes('/* Transpiled from JSX */') ||
-                  (componentCode.includes('React.createElement') && componentCode.includes('import ')),
-    hasImports: componentCode.includes('import '),
-    hasReactCreateElement: componentCode.includes('React.createElement'),
-    format: (() => {
-      if (componentCode.includes('import ') && componentCode.includes('React.createElement')) {
-        return 'jsx-transpiled';
-      } else if (componentCode.includes('React.createElement') && !componentCode.includes('import ')) {
-        return 'createElement';
-      } else if (componentCode.includes('import ') && !componentCode.includes('React.createElement')) {
-        return 'jsx-raw';
-      } else {
-        return 'unknown';
-      }
-    })(),
+                  (hasReactCreateElement && hasImports),
+    hasImports,
+    hasReactCreateElement,
+    format,
     estimatedOriginalFormat: (() => {
-      if (componentCode.includes('React.createElement') && componentCode.includes('import ')) {
+      if (hasReactCreateElement && hasImports) {
         return 'JSX → JavaScript (transpiled)';
-      } else if (componentCode.includes('React.createElement')) {
+      } else if (hasReactCreateElement) {
         return 'React.createElement (legacy)';
       } else {
         return 'Unknown format';
@@ -42,7 +49,7 @@ const detectTranspiledJSX = (componentCode: string) => {
   };
 };
 
-const detectCalculationFunctions = (componentCode: string) => {
+const detectCalculationFunctions = (componentCode: string): CalculationFunctionDetection => {
   const patterns = {
     // New JSX transpiled format: const functionName = () => { ... }
     arrowFunctions: /const\s+(\w*[Cc]alculate\w*|\w*[Cc]ompute\w*|\w*[Tt]otal\w*|\w*[Ss]core\w*|\w*[Pp]rocess\w*)\s*=\s*\(\s*\)\s*=>\s*\{/g,
@@ -54,17 +61,17 @@ const detectCalculationFunctions = (componentCode: string) => {
     calculationVars: /(?:const|let|var)\s+(\w*[Cc]alculation\w*|\w*[Rr]esult\w*|\w*[Tt]otal\w*|\w*[Ss]core\w*)\s*=/g
   };
 
-  const detected = {
-    arrowFunctions: [] as string[],
-    functionDeclarations: [] as string[],
-    calculationVars: [] as string[],
+  const detected: CalculationFunctionDetection = {
+    arrowFunctions: [],
+    functionDeclarations: [],
+    calculationVars: [],
     totalCount: 0
   };
 
-  Object.entries(patterns).forEach(([patternName, pattern]) => {
-    const matches = Array.from(componentCode.matchAll(pattern));
-    detected[patternName as keyof typeof detected] = matches.map(match => match[1]);
-  });
+  // Process each pattern and extract matched function names
+  detected.arrowFunctions = Array.from(componentCode.matchAll(patterns.arrowFunctions)).map(match => match[1]);
+  detected.functionDeclarations = Array.from(componentCode.matchAll(patterns.functionDeclarations)).map(match => match[1]);
+  detected.calculationVars = Array.from(componentCode.matchAll(patterns.calculationVars)).map(match => match[1]);
 
   detected.totalCount = detected.arrowFunctions.length + detected.functionDeclarations.length + detected.calculationVars.length;
 

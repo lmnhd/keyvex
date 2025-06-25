@@ -145,6 +145,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         const parsedTcc = JSON.parse(savedTcc);
         setTccData(parsedTcc);
         addDetailedWSLog('debug', '✅ TCC snapshot loaded from localStorage.');
+        
+        // If TCC has component code, also set it as assembled code for preview
+        if (parsedTcc?.finalProduct?.componentCode) {
+          setAssembledCode(parsedTcc.finalProduct.componentCode);
+          addDetailedWSLog('debug', '✅ Component code extracted from TCC and set for preview.');
+        }
       } else {
         addDetailedWSLog('error', 'No TCC snapshot found in localStorage.');
       }
@@ -152,6 +158,29 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addDetailedWSLog('error', 'Failed to load or parse TCC snapshot.', error);
     }
   }, [setTccData, addDetailedWSLog]);
+
+  // Auto-load TCC snapshot on component mount if available and no current TCC data
+  useEffect(() => {
+    if (!tccData && !hasInitialized) {
+      try {
+        const savedTcc = localStorage.getItem(TCC_SNAPSHOT_KEY);
+        if (savedTcc) {
+          const parsedTcc = JSON.parse(savedTcc);
+          setTccData(parsedTcc);
+          addDetailedWSLog('debug', '✅ Auto-loaded TCC snapshot from localStorage on component mount.');
+          
+          // If TCC has component code, also set it as assembled code for preview
+          if (parsedTcc?.finalProduct?.componentCode) {
+            setAssembledCode(parsedTcc.finalProduct.componentCode);
+            addDetailedWSLog('debug', '✅ Component code extracted from auto-loaded TCC and set for preview.');
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to auto-load TCC snapshot:', error);
+      }
+      setHasInitialized(true);
+    }
+  }, [tccData, hasInitialized, setTccData, addDetailedWSLog]);
   // --- End TCC Snapshot Logic ---
 
   // Add refs for auto-scrolling
@@ -405,13 +434,39 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       
       console.log('📦 Loaded from localStorage:', {
         storedSelectedModels,
-        storedAgentMapping
+        storedAgentMapping,
+        storageKeys: STORAGE_KEYS,
+        selectedModelsKey: STORAGE_KEYS.selectedModels,
+        agentMappingKey: STORAGE_KEYS.agentMapping
       });
+      
+      // Add debug logging for localStorage content
+      try {
+        const rawSelectedModels = localStorage.getItem(STORAGE_KEYS.selectedModels);
+        const rawAgentMapping = localStorage.getItem(STORAGE_KEYS.agentMapping);
+        console.log('🔍 Raw localStorage content:', {
+          selectedModelsRaw: rawSelectedModels,
+          agentMappingRaw: rawAgentMapping,
+          isSelectedModelsEmpty: !rawSelectedModels,
+          isAgentMappingEmpty: !rawAgentMapping
+        });
+      } catch (e) {
+        console.error('❌ Error accessing localStorage:', e);
+      }
       
       // Validate stored models exist in current available models
       const validStoredModels = storedSelectedModels.filter((modelId: string) => 
         availableModels.some(m => m.id === modelId)
       );
+      
+      console.log('🔎 Model validation results:', {
+        storedCount: storedSelectedModels.length,
+        validCount: validStoredModels.length,
+        invalidModels: storedSelectedModels.filter((modelId: string) => 
+          !availableModels.some(m => m.id === modelId)
+        ),
+        availableModelIds: availableModels.map(m => m.id).slice(0, 5)
+      });
       
       if (validStoredModels.length > 0) {
         // Use stored selections
@@ -457,7 +512,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
           console.log('✅ Initialized with defaults', {
             defaultModel: defaultModel.id,
             defaultModels,
-            initialMapping
+            initialMapping,
+            reason: validStoredModels.length === 0 ? 'no valid stored models' : 'fallback logic'
           });
         }
       }

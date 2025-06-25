@@ -47,7 +47,7 @@ const commonGuidelines = `
     You MUST use arrow function syntax for ALL function bodies. Regular function declarations will cause compilation errors.
     
     ✅ **CORRECT FUNCTION SYNTAX (ARROW FUNCTIONS):**
-    ```json
+    \`\`\`json
     {
       "functions": [
         {
@@ -64,10 +64,10 @@ const commonGuidelines = `
         }
       ]
     }
-    ```
+    \`\`\`
     
     ❌ **WRONG FUNCTION SYNTAX (CAUSES IMPORT ERRORS):**
-    ```json
+    \`\`\`json
     {
       "functions": [
         {
@@ -82,19 +82,19 @@ const commonGuidelines = `
         }
       ]
     }
-    ```
+    \`\`\`
     
     🔥 **FUNCTION BODY RULES:**
     - Write function bodies as **executable statements only** - NOT complete functions
-    - Use **semicolons** to separate statements: `"const x = 5; const y = x * 2; setResult(y);"`
+    - Use **semicolons** to separate statements: \`"const x = 5; const y = x * 2; setResult(y);"\`
     - **NO function declarations** - only the implementation code inside the function
     - **NO arrow function syntax** - just the statements that go inside the function
-    - The Component Assembler will wrap your statements in `() => { [your code] }`
+    - The Component Assembler will wrap your statements in \`() => { [your code] }\`
     
     **EXAMPLE PATTERNS:**
-    - Event handlers: `"const value = inputField[0]; const result = value * 2; setCalculatedValue(result);"`
-    - Calculations: `"const roi = ((revenue - investment) / investment) * 100; setRoiPercentage(roi.toFixed(2));"`
-    - Data processing: `"const filtered = dataArray.filter(item => item.active); setFilteredResults(filtered);"`
+    - Event handlers: \`"const value = inputField[0]; const result = value * 2; setCalculatedValue(result);"\`
+    - Calculations: \`"const roi = ((revenue - investment) / investment) * 100; setRoiPercentage(roi.toFixed(2));"\`
+    - Data processing: \`"const filtered = dataArray.filter(item => item.active); setFilteredResults(filtered);"\`
 </function-syntax-requirements>
 
 <critical-requirements>

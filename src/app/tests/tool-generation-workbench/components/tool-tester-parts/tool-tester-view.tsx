@@ -1034,8 +1034,8 @@ export default function ToolTesterView({
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="tcc" disabled={(!testJob?.jobId || testJob.jobId.startsWith('debug-')) && !tccData}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
-              <TabsTrigger value="preview" disabled={!assembledCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
-              <TabsTrigger value="component-code" disabled={!assembledCode && !testJob?.result}>Component Code</TabsTrigger>
+              <TabsTrigger value="preview" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
+              <TabsTrigger value="component-code" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && !testJob?.result}>Component Code</TabsTrigger>
               <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
               <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
             </TabsList>
