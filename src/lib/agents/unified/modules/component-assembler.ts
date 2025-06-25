@@ -84,16 +84,24 @@ export class ComponentAssemblerModule extends BaseAgentModule {
       // Step 2: Generate function definitions
       const functionDefinitions = this.generateFunctionDefinitions(stateLogic);
       
-      // Step 3: 🔄 PHASE 2: Process JSX with styling (keep as JSX)
+      // Step 3: Generate missing event handlers
+      const eventHandlerDefinitions = this.generateEventHandlers(
+        jsxLayout.componentStructure,
+        stateLogic.variables || [],
+        stateLogic.functions || []
+      );
+
+      // Step 4: 🔄 PHASE 2: Process JSX with styling (keep as JSX)
       const processedJsx = this.processJsxWithStyling(
         jsxLayout.componentStructure,
         styling.styleMap || {}
       );
       
-      // Step 4: 🔄 PHASE 2: Assemble final JSX component
+      // Step 5: 🔄 PHASE 2: Assemble final JSX component
       const assembledCode = this.assembleFinalComponent(
         stateDeclarations,
         functionDefinitions,
+        eventHandlerDefinitions,
         processedJsx,
         tcc.brainstormData?.coreConcept || 'GeneratedTool'
       );
@@ -186,19 +194,74 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   }
 
   /**
+   * Generate event handlers for JSX events that are not defined in state logic
+   */
+  private generateEventHandlers(jsxCode: string, stateVars: any[], definedFuncs: any[]): string {
+    const handlers = new Set<string>();
+    const definedFuncNames = new Set(definedFuncs.map(f => f.name));
+    
+    const eventRegex = /(on[A-Z]\w+)=["{]([\w\d]+)["}]/g;
+    let match;
+    while ((match = eventRegex.exec(jsxCode)) !== null) {
+      const handlerName = match[2];
+      if (!definedFuncNames.has(handlerName) && !handlerName.startsWith('set')) {
+        handlers.add(handlerName);
+      }
+    }
+
+    const stateSetters = new Map(stateVars.map(v => [`set${this.capitalize(v.name)}`, v.type]));
+
+    return Array.from(handlers).map(handlerName => {
+      // Find a corresponding state variable to handle
+      const matchingStateVar = stateVars.find(v => handlerName.toLowerCase().includes(v.name.toLowerCase()));
+      
+      if (matchingStateVar) {
+          const setterName = `set${this.capitalize(matchingStateVar.name)}`;
+          if(matchingStateVar.type.includes('[]') || matchingStateVar.type.toLowerCase().includes('array')) {
+               return `  const ${handlerName} = (value: any) => ${setterName}(value); // Assuming array value for sliders/multi-select`;
+          }
+          if (handlerName.toLowerCase().includes('change')) {
+            return `  const ${handlerName} = (value: any) => ${setterName}(value);`;
+          }
+          return `  const ${handlerName} = () => console.log('${handlerName} clicked');`;
+      }
+      
+      // Generic fallback
+      return `  const ${handlerName} = () => console.warn('Placeholder for ${handlerName}');`;
+    }).join('\n\n');
+  }
+
+  /**
    * 🔄 PHASE 2: Process JSX syntax with styling (keep as JSX for client-side transpilation)
    */
   private processJsxWithStyling(jsxCode: string, styleMap: Record<string, string>): string {
-    // Apply style mapping by replacing data-style-id with className
     let processed = jsxCode;
     
-    Object.entries(styleMap).forEach(([id, classes]) => {
-      const pattern = new RegExp(`data-style-id="${id}"`, 'g');
-      processed = processed.replace(pattern, `className="${classes}"`);
-    });
+    for (const [id, classes] of Object.entries(styleMap)) {
+      const tagRegex = new RegExp(`(<[^>]*data-style-id="${id}"[^>]*>)`);
+      const match = processed.match(tagRegex);
+      
+      if (match) {
+        let tag = match[0];
+        let updatedTag = tag;
 
-    // 🔄 PHASE 2: Keep JSX syntax - no conversion to React.createElement
-    // The DynamicComponentRenderer will handle JSX transpilation using Babel
+        // Remove the data-style-id attribute
+        updatedTag = updatedTag.replace(`data-style-id="${id}"`, '');
+
+        if (updatedTag.includes('className="')) {
+          // If className exists, append new classes
+          updatedTag = updatedTag.replace('className="', `className="${classes} `);
+        } else {
+          // If className does not exist, add it before the closing bracket
+          updatedTag = updatedTag.replace('>', ` className="${classes}">`);
+        }
+        
+        // Clean up extra whitespace
+        updatedTag = updatedTag.replace(/\s\s+/g, ' ').replace(' >', '>');
+        
+        processed = processed.replace(tag, updatedTag);
+      }
+    }
     
     return processed;
   }
@@ -209,6 +272,7 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   private assembleFinalComponent(
     stateDeclarations: string,
     functionDefinitions: string,
+    eventHandlerDefinitions: string,
     jsxContent: string,
     componentName: string
   ): string {
@@ -233,6 +297,8 @@ ${stateDeclarations}
 
 ${functionDefinitions}
 
+${eventHandlerDefinitions}
+
   return (
 ${jsxContent}
   );
@@ -245,12 +311,21 @@ export default ${cleanComponentName};`;
    * Utility functions for code generation
    */
   private formatInitialValue(value: string, type: string): string {
+    if (type.includes('[]') || type.toLowerCase().includes('array')) {
+      // For array types, ensure the value is treated as an array literal.
+      // If the value from the state agent is already in brackets, use it, otherwise wrap it.
+      if (value.startsWith('[') && value.endsWith(']')) {
+        return value;
+      }
+      return `[${value}]`;
+    }
     if (type === 'string') return `"${value}"`;
-    if (type === 'number') return value;
-    if (type === 'boolean') return value;
-    if (type === 'array') return Array.isArray(value) ? JSON.stringify(value) : '[]';
-    if (type === 'object') return typeof value === 'object' ? JSON.stringify(value) : '{}';
-    return `"${value}"`;
+    if (type === 'number') return value || '0'; // Default to 0 if number is empty
+    if (type === 'boolean') return value || 'false'; // Default to false
+    if (type === 'object') return value || '{}'; // Default to empty object
+    
+    // Fallback for any other types
+    return value;
   }
 
   private capitalize(str: string): string {
