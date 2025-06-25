@@ -6,23 +6,78 @@
 import { z } from 'zod';
 import { 
   ToolFinalizerResult,
-  AgentResult,
   ValidationResult,
   ToolConstructionContext
 } from '../../../types/tcc-unified';
 import { 
   BaseAgentModule
 } from '../core/base-agent-module';
-import { ProductToolDefinition } from '../../../types/product-tool';
+import { ProductToolDefinition, ToolColorScheme } from '../../../types/product-tool';
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../../../logger';
 
 /**
  * Zod schema for the ToolFinalizer's output.
- * Uses the main ProductToolDefinitionSchema.
+ * Uses a custom schema since ProductToolDefinitionSchema doesn't exist.
  */
 const ToolFinalizerResultSchema = z.object({
-  finalProduct: ProductToolDefinitionSchema,
+  finalProduct: z.object({
+    id: z.string(),
+    slug: z.string(),
+    componentCode: z.string(),
+    metadata: z.object({
+      id: z.string(),
+      slug: z.string(),
+      title: z.string(),
+      description: z.string(),
+      type: z.string(),
+      dependencies: z.array(z.string()),
+      userInstructions: z.string(),
+      developerNotes: z.string(),
+      source: z.string(),
+      version: z.string(),
+      shortDescription: z.string().optional(),
+      category: z.string().optional(),
+      targetAudience: z.string().optional(),
+      industry: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      estimatedCompletionTime: z.number().optional(),
+      difficultyLevel: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+      features: z.array(z.string()).optional(),
+      icon: z.object({
+        type: z.enum(['lucide', 'emoji']),
+        value: z.string(),
+      }).optional(),
+    }),
+    initialStyleMap: z.record(z.string()),
+    currentStyleMap: z.record(z.string()),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+    version: z.string().optional(),
+    status: z.enum(['draft', 'published', 'archived', 'public']).optional(),
+    createdBy: z.string().optional(),
+    componentSet: z.enum(['shadcn', 'legacy']).optional(),
+    colorScheme: z.object({
+      primary: z.string(),
+      secondary: z.string(),
+      background: z.string(),
+      surface: z.string(),
+      text: z.object({
+        primary: z.string(),
+        secondary: z.string(),
+        muted: z.string(),
+      }),
+      border: z.string(),
+      success: z.string(),
+      warning: z.string(),
+      error: z.string(),
+    }).optional(),
+    analytics: z.object({
+      enabled: z.boolean(),
+      completions: z.number(),
+      averageTime: z.number(),
+    }).optional(),
+  }),
   metadata: z.object({
     completionTime: z.string(),
     qualityScore: z.number(),
@@ -40,8 +95,9 @@ export class ToolFinalizerModule extends BaseAgentModule {
 
   /**
    * Exposes the Zod schema for this agent's output.
+   * Fixed to return the correct schema type for ToolFinalizerResult
    */
-  getOutputSchema(): z.ZodType<AgentResult> {
+  getOutputSchema(): z.ZodSchema<any> {
     return ToolFinalizerResultSchema;
   }
 
@@ -121,69 +177,62 @@ export class ToolFinalizerModule extends BaseAgentModule {
       const readinessLevel = this.determineReadinessLevel(qualityScore, tcc);
       
       // Create the final ProductToolDefinition
+      const toolId = tcc.jobId ? `tool-${tcc.jobId}` : `tool-${uuidv4()}`;
+      const toolSlug = this.generateSlug(tcc.brainstormData?.coreConcept || tcc.brainstormData?.coreWConcept || 'Generated Tool');
+      const timestamp = Date.now();
+
       const finalProduct: ProductToolDefinition = {
-        id: tcc.toolId || uuidv4(),
-        version: '1.0.0',
-        status: 'active',
-        createdBy: tcc.userId || 'system',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        
-        // Core component data
+        // Basic info
+        id: toolId,
+        slug: toolSlug,
         componentCode: tcc.assembledComponentCode,
         
-        // Metadata from brainstorming and planning
+        // Metadata (following ProductToolMetadata interface)
         metadata: {
-          title: tcc.brainstormData?.coreConcept || 'Generated Tool',
-          description: tcc.brainstormData?.description || 'AI-generated tool',
-          category: tcc.brainstormData?.category || 'utility',
-          tags: tcc.brainstormData?.features || [],
-          difficulty: 'intermediate',
-          estimatedTime: '5-10 minutes'
+          id: toolId,
+          slug: toolSlug,
+          title: tcc.brainstormData?.coreConcept || tcc.brainstormData?.coreWConcept || 'Generated Tool',
+          description: tcc.brainstormData?.valueProposition || 'AI-generated tool',
+          type: 'calculator', // Default type since toolType doesn't exist in BrainstormData
+          dependencies: this.extractDependencies(tcc.assembledComponentCode),
+          userInstructions: this.generateUserInstructions(tcc),
+          developerNotes: this.generateDeveloperNotes(tcc),
+          source: 'ai-generated',
+          version: '1.0.0',
+          shortDescription: tcc.brainstormData?.coreConcept || tcc.brainstormData?.coreWConcept || 'AI-generated tool',
+          category: 'utility', // Default category since it doesn't exist in BrainstormData
+          targetAudience: tcc.userInput?.targetAudience || 'General users',
+          industry: tcc.userInput?.industry || 'General',
+          tags: tcc.brainstormData?.creativeEnhancements?.slice(0, 5) || [], // Use creative enhancements as tags
+          estimatedCompletionTime: 5,
+          difficultyLevel: this.determineDifficultyLevel(tcc),
+          features: tcc.brainstormData?.creativeEnhancements || [], // Use creative enhancements as features
+          icon: {
+            type: 'lucide',
+            value: 'Calculator'
+          }
         },
         
-        // Function signatures for tool interface
-        functionSignatures: tcc.functionSignatures || [],
+        // Style information
+        initialStyleMap: tcc.styling?.styleMap || {},
+        currentStyleMap: tcc.styling?.styleMap || {},
         
-        // State management information
-        stateLogic: tcc.stateLogic || {
-          variables: [],
-          functions: [],
-          imports: []
-        },
+        // Timestamps
+        createdAt: timestamp,
+        updatedAt: timestamp,
         
-        // Layout and styling
-        jsxLayout: tcc.jsxLayout || {
-          componentStructure: '',
-          componentTree: {},
-          componentSections: {}
-        },
+        // Optional fields
+        version: '1.0.0',
+        status: 'draft',
+        createdBy: tcc.userId || 'system',
+        componentSet: 'shadcn',
+        colorScheme: this.extractColorScheme(tcc),
         
-        styling: tcc.styling || {
-          styleMap: {},
-          globalStyles: '',
-          componentStyles: {}
-        },
-        
-        // Quality and validation data
-        validationResult: tcc.validationResult || {
-          isValid: true,
-          syntaxErrors: [],
-          typeErrors: [],
-          warnings: [],
-          suggestions: [],
-          dependencies: [],
-          complexity: 1
-        },
-        
-        // Tool-specific metadata
-        toolMetadata: {
-          assemblyMethod: 'programmatic-jsx',
-          codeLength: tcc.assembledComponentCode.length,
-          hasState: (tcc.stateLogic?.variables?.length || 0) > 0,
-          hasFunctions: (tcc.stateLogic?.functions?.length || 0) > 0,
-          complexity: this.calculateComplexity(tcc),
-          dependencies: this.extractDependencies(tcc.assembledComponentCode)
+        // Analytics
+        analytics: {
+          enabled: false,
+          completions: 0,
+          averageTime: 0
         }
       };
 
@@ -232,8 +281,7 @@ export class ToolFinalizerModule extends BaseAgentModule {
     
     // Validation penalties
     if (tcc.validationResult) {
-      score -= (tcc.validationResult.syntaxErrors?.length || 0) * 15;
-      score -= (tcc.validationResult.typeErrors?.length || 0) * 10;
+      score -= (tcc.validationResult.errors?.length || 0) * 15;
       score -= (tcc.validationResult.warnings?.length || 0) * 5;
     }
     
@@ -241,7 +289,7 @@ export class ToolFinalizerModule extends BaseAgentModule {
     if (tcc.functionSignatures && tcc.functionSignatures.length > 0) score += 10;
     if (tcc.stateLogic && tcc.stateLogic.variables && tcc.stateLogic.variables.length > 0) score += 5;
     if (tcc.styling && tcc.styling.styleMap && Object.keys(tcc.styling.styleMap).length > 0) score += 10;
-    if (tcc.brainstormData && tcc.brainstormData.features && tcc.brainstormData.features.length > 2) score += 5;
+    if (tcc.brainstormData && tcc.brainstormData.creativeEnhancements && tcc.brainstormData.creativeEnhancements.length > 2) score += 5;
     
     // Code quality bonuses
     if (tcc.assembledComponentCode) {
@@ -309,7 +357,133 @@ export class ToolFinalizerModule extends BaseAgentModule {
       });
     }
     
-    return [...new Set(dependencies)]; // Remove duplicates
+    return Array.from(new Set(dependencies)); // Remove duplicates
+  }
+
+  /**
+   * Generate a URL-friendly slug from the tool title
+   */
+  private generateSlug(title: string): string {
+    return title
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-')     // Replace spaces with hyphens
+      .replace(/-+/g, '-')      // Replace multiple hyphens with single
+      .trim();
+  }
+
+  /**
+   * Generate user instructions for the tool
+   */
+  private generateUserInstructions(tcc: ToolConstructionContext): string {
+    const instructions: string[] = [];
+    
+    if (tcc.brainstormData?.suggestedInputs) {
+      instructions.push('1. Fill in the required input fields');
+      instructions.push('2. Click the calculate/submit button to get your results');
+      instructions.push('3. Review the detailed breakdown and recommendations');
+    }
+    
+    if (tcc.brainstormData?.interactionFlow) {
+      tcc.brainstormData.interactionFlow.forEach((step, index) => {
+        if (typeof step === 'string') {
+          instructions.push(`${index + 1}. ${step}`);
+        } else if (step && typeof step === 'object' && 'description' in step) {
+          instructions.push(`${index + 1}. ${step.description}`);
+        }
+      });
+    }
+
+    return instructions.length > 0 
+      ? instructions.join('\n') 
+      : 'Use this tool to perform calculations and get insights based on your input data.';
+  }
+
+  /**
+   * Generate developer notes for the tool
+   */
+  private generateDeveloperNotes(tcc: ToolConstructionContext): string {
+    const notes: string[] = [];
+    
+    notes.push(`Generated using AI-powered tool assembly system`);
+    notes.push(`Component uses React hooks and Tailwind CSS for styling`);
+    
+    if (tcc.stateLogic?.functions && tcc.stateLogic.functions.length > 0) {
+      notes.push(`Contains ${tcc.stateLogic.functions.length} calculation functions`);
+    }
+    
+    if (tcc.functionSignatures && tcc.functionSignatures.length > 0) {
+      notes.push(`Implements ${tcc.functionSignatures.length} defined functions`);
+    }
+    
+    if (tcc.validationResult && !tcc.validationResult.isValid) {
+      notes.push(`Note: Tool has ${tcc.validationResult.errors?.length || 0} validation issues`);
+    }
+
+    return notes.join('\n');
+  }
+
+  /**
+   * Determine difficulty level based on tool complexity
+   */
+  private determineDifficultyLevel(tcc: ToolConstructionContext): 'beginner' | 'intermediate' | 'advanced' {
+    let complexity = 0;
+    
+    // Count state variables
+    if (tcc.stateLogic?.variables) complexity += tcc.stateLogic.variables.length;
+    
+    // Count functions
+    if (tcc.stateLogic?.functions) complexity += tcc.stateLogic.functions.length * 2;
+    
+    // Count input fields
+    if (tcc.brainstormData?.suggestedInputs) complexity += tcc.brainstormData.suggestedInputs.length;
+    
+    // Count calculations
+    if (tcc.brainstormData?.keyCalculations) complexity += tcc.brainstormData.keyCalculations.length * 3;
+
+    if (complexity <= 5) return 'beginner';
+    if (complexity <= 15) return 'intermediate';
+    return 'advanced';
+  }
+
+  /**
+   * Extract color scheme from TCC styling data
+   */
+  private extractColorScheme(tcc: ToolConstructionContext): ToolColorScheme | undefined {
+    if (!tcc.styling?.colorScheme) {
+      return {
+        primary: '#007bff',
+        secondary: '#6c757d',
+        background: '#ffffff',
+        surface: '#f8f9fa',
+        text: {
+          primary: '#212529',
+          secondary: '#6c757d',
+          muted: '#adb5bd'
+        },
+        border: '#dee2e6',
+        success: '#28a745',
+        warning: '#ffc107',
+        error: '#dc3545'
+      };
+    }
+
+    // Use the existing color scheme from styling
+    return {
+      primary: tcc.styling.colorScheme.primary || '#007bff',
+      secondary: tcc.styling.colorScheme.secondary || '#6c757d',
+      background: tcc.styling.colorScheme.background || '#ffffff',
+      surface: tcc.styling.colorScheme.surface || '#f8f9fa',
+      text: {
+        primary: tcc.styling.colorScheme.text?.primary || '#212529',
+        secondary: tcc.styling.colorScheme.text?.secondary || '#6c757d',
+        muted: tcc.styling.colorScheme.text?.muted || '#adb5bd'
+      },
+      border: tcc.styling.colorScheme.border || '#dee2e6',
+      success: tcc.styling.colorScheme.success || '#28a745',
+      warning: tcc.styling.colorScheme.warning || '#ffc107',
+      error: tcc.styling.colorScheme.error || '#dc3545'
+    };
   }
 
   /**

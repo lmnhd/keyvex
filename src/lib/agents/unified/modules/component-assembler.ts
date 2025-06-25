@@ -288,8 +288,8 @@ export default ${cleanComponentName};`;
         if (output.metadata?.assemblyMethod === 'programmatic-jsx') {
           // JSX format expects imports - this is correct
         } else {
-          errors.push('Component code contains import statements (should be removed for runtime execution)');
-          score -= 25;
+        errors.push('Component code contains import statements (should be removed for runtime execution)');
+        score -= 25;
         }
       }
       
