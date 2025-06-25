@@ -51,8 +51,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setLoadSource,
   } = useToolTesterData(newBrainstormFlag, userId);
 
- 
-
+  const [tccData, setTccData] = useState<any>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [wsLogs, setWsLogs] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -81,58 +84,29 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   // Phase 3.2: Agent mode for create/edit toggle in debug section
   const [agentMode, setAgentMode] = useState<AgentMode>('create');
   const [editMessage, setEditMessage] = useState('');
-  
-  // WebSocket logging state - moved up to define addDetailedWSLog early
-  const [wsLogs, setWsLogs] = useState<string[]>([]);
-  
+
   const addWSLog = useCallback((message: string) => {
     setWsLogs(prev => [...prev.slice(-19), `[${new Date().toLocaleTimeString()}] ${message}`]);
   }, []);
 
-   // Debug logging to track availableModels changes
-   useEffect(() => {
-    console.log('📊 ToolTester availableModels state changed:', {
-      length: availableModels.length,
-      firstThree: availableModels.slice(0, 3).map(m => ({ id: m.id, name: m.name })),
-      hasInitialized,
-      timestamp: new Date().toISOString()
-    });
-  }, [availableModels, hasInitialized]);
-
-  // Enhanced WebSocket logging with detailed console output like the test page
-  const addDetailedWSLog = useCallback((type: 'connection' | 'message' | 'error' | 'debug', message: string, data?: any) => {
+   // Enhanced WebSocket logging with detailed console output
+   const addDetailedWSLog = useCallback((type: 'connection' | 'message' | 'error' | 'debug', message: string, data?: any) => {
     const timestamp = new Date().toLocaleTimeString();
     const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
-    
-    // Add to UI logs
     setWsLogs(prev => [...prev.slice(-19), logMessage]);
-    
-    // Enhanced console logging like the test page
-    if (type === 'connection') {
-      console.log(`🔗 [WebSocket Connection] ${message}`, data);
-    } else if (type === 'message') {
-      console.log(`📨 [WebSocket Message] ${message}`, data);
-    } else if (type === 'error') {
-      console.error(`❌ [WebSocket Error] ${message}`, data);
-    } else if (type === 'debug') {
-      console.log(`🐛 [WebSocket Debug] ${message}`, data);
-    }
   }, []);
-  
-  // 🛡️ TCC PERSISTENCE: Use the TCC persistence hook for robust state management
+
+  // TCC Persistence
   const {
-    tccData,
+    tccData: tccDataPersistence,
     lastValidTcc,
     tccHistory,
     updateTccWithBackup,
     recoverLastValidTcc,
     safeClearTcc,
     hasTccBackup,
-    setTccData
+    setTccData: setTccDataPersistence
   } = useTccPersistence(addDetailedWSLog);
-
-  const [currentStep, setCurrentStep] = useState<string>('');
-  const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
 
   // --- TCC Snapshot Logic for Debugging ---
   const TCC_SNAPSHOT_KEY = 'debug_tcc_snapshot';
@@ -155,7 +129,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       const savedTcc = localStorage.getItem(TCC_SNAPSHOT_KEY);
       if (savedTcc) {
         const parsedTcc = JSON.parse(savedTcc);
-        setTccData(parsedTcc);
+        setTccDataPersistence(parsedTcc);
         addDetailedWSLog('debug', '✅ TCC snapshot loaded from localStorage.');
         
         // If TCC has component code, also set it as assembled code for preview
@@ -169,7 +143,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     } catch (error) {
       addDetailedWSLog('error', 'Failed to load or parse TCC snapshot.', error);
     }
-  }, [setTccData, addDetailedWSLog]);
+  }, [setTccDataPersistence, addDetailedWSLog]);
 
   // Auto-load TCC snapshot on component mount if available and no current TCC data
   useEffect(() => {
@@ -178,7 +152,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         const savedTcc = localStorage.getItem(TCC_SNAPSHOT_KEY);
         if (savedTcc) {
           const parsedTcc = JSON.parse(savedTcc);
-          setTccData(parsedTcc);
+          setTccDataPersistence(parsedTcc);
           addDetailedWSLog('debug', '✅ Auto-loaded TCC snapshot from localStorage on component mount.');
           
           // If TCC has component code, also set it as assembled code for preview
@@ -192,7 +166,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }
       setHasTccAutoLoaded(true);
     }
-  }, [tccData, hasTccAutoLoaded, setTccData, addDetailedWSLog]);
+  }, [tccData, hasTccAutoLoaded, setTccDataPersistence, addDetailedWSLog]);
   // --- End TCC Snapshot Logic ---
 
   // Add refs for auto-scrolling
@@ -433,120 +407,34 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
-    // Debug logging to track why useEffect might not be running
-    console.log('🔍 ToolTester model initialization check:', {
-      availableModelsLength: availableModels.length,
-      hasInitialized,
-      defaultPrimaryModel,
-      shouldRun: availableModels.length > 0 && !hasInitialized
-    });
-
     if (availableModels.length > 0 && !hasInitialized) {
-      console.log('🔄 Initializing model selections...', {
-        availableModelsCount: availableModels.length,
-        defaultPrimaryModel,
-        hasInitialized
-      });
-    
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
       
-      console.log('📦 Loaded from localStorage:', {
-        storedSelectedModels,
-        storedAgentMapping,
-        storageKeys: STORAGE_KEYS,
-        selectedModelsKey: STORAGE_KEYS.selectedModels,
-        agentMappingKey: STORAGE_KEYS.agentMapping
-      });
-      
-      // Add debug logging for localStorage content
-      try {
-        const rawSelectedModels = localStorage.getItem(STORAGE_KEYS.selectedModels);
-        const rawAgentMapping = localStorage.getItem(STORAGE_KEYS.agentMapping);
-        console.log('🔍 Raw localStorage content:', {
-          selectedModelsRaw: rawSelectedModels,
-          agentMappingRaw: rawAgentMapping,
-          isSelectedModelsEmpty: !rawSelectedModels,
-          isAgentMappingEmpty: !rawAgentMapping
-        });
-      } catch (e) {
-        console.error('❌ Error accessing localStorage:', e);
-      }
-      
-      // Validate stored models exist in current available models
-      const validStoredModels = storedSelectedModels.filter((modelId: string) => 
-        availableModels.some(m => m.id === modelId)
-      );
-      
-      console.log('🔎 Model validation results:', {
-        storedCount: storedSelectedModels.length,
-        validCount: validStoredModels.length,
-        invalidModels: storedSelectedModels.filter((modelId: string) => 
-          !availableModels.some(m => m.id === modelId)
-        ),
-        availableModelIds: availableModels.map(m => m.id).slice(0, 5)
-      });
-      
-      if (validStoredModels.length > 0) {
-        // Use stored selections
-        setSelectedModelIds(validStoredModels);
-        
-        // Validate and set stored agent mapping
-        const validAgentMapping: AgentModelMapping = {};
-        availableAgents.forEach(agent => {
-          const storedModel = storedAgentMapping[agent.id];
-          if (storedModel && availableModels.some(m => m.id === storedModel)) {
-            validAgentMapping[agent.id] = storedModel;
-          } else {
-            validAgentMapping[agent.id] = getDefaultModelForAgent(agent.id);
-          }
-        });
-        setAgentModelMapping(validAgentMapping);
-        
-        console.log('✅ Loaded from localStorage', {
-          validStoredModels,
-          validAgentMapping
-        });
-      } else {
-        // Fall back to default model logic regardless of defaultPrimaryModel availability
-        const targetDefaultId = defaultPrimaryModel || 'gpt-4.1-mini';
-        const defaultModel = availableModels.find(m => m.id === targetDefaultId) || 
-                            availableModels.find(m => m.id === 'gpt-4.1-mini') || 
-                            availableModels.find(m => m.id === 'gpt-4o') ||
-                            availableModels[0];
-        
-        if (defaultModel) {
-          const defaultModels = [defaultModel.id];
-          setSelectedModelIds(defaultModels);
-          saveToLocalStorage(STORAGE_KEYS.selectedModels, defaultModels);
-          
-          // Initialize agent model mapping
-          const initialMapping: AgentModelMapping = {};
-          availableAgents.forEach(agent => {
-            initialMapping[agent.id] = getDefaultModelForAgent(agent.id);
-          });
-          setAgentModelMapping(initialMapping);
-          saveToLocalStorage(STORAGE_KEYS.agentMapping, initialMapping);
-          
-          console.log('✅ Initialized with defaults', {
-            defaultModel: defaultModel.id,
-            defaultModels,
-            initialMapping,
-            reason: validStoredModels.length === 0 ? 'no valid stored models' : 'fallback logic'
-          });
+      if (storedSelectedModels.length > 0 && Object.keys(storedAgentMapping).length > 0) {
+        // Validate stored models against available models
+        const validStoredModels = storedSelectedModels.filter(id => 
+          availableModels.some(model => model.id === id)
+        );
+
+        if (validStoredModels.length > 0) {
+          setSelectedModelIds(validStoredModels);
+          setAgentModelMapping(storedAgentMapping);
+          // Set primary model from stored mapping if available
+          const primary = storedAgentMapping['function-planner'] || storedAgentMapping['logic-architect'] || validStoredModels[0];
+          setSelectedAgent(primary);
+        } else {
+          // No valid models in storage, use defaults
+          initializeDefaultModels();
         }
+      } else {
+        // Nothing in storage, use defaults
+        initializeDefaultModels();
       }
-      
       setHasInitialized(true);
-    } else {
-      console.log('⏸️ Model initialization skipped:', {
-        reason: availableModels.length === 0 ? 'no available models' : 'already initialized',
-        availableModelsLength: availableModels.length,
-        hasInitialized
-      });
     }
-  }, [availableModels, hasInitialized, defaultPrimaryModel, availableAgents, getDefaultModelForAgent, loadFromLocalStorage, saveToLocalStorage]);
+  }, [availableModels, hasInitialized, defaultPrimaryModel, loadFromLocalStorage, setSelectedModelIds, setAgentModelMapping, setSelectedAgent]);
 
   // Set most recent brainstorm as default when available (not first one which might be old/bad)
   useEffect(() => {
