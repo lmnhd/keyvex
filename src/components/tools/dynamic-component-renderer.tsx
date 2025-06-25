@@ -84,6 +84,18 @@ import {
   ScatterChart
 } from 'recharts';
 
+// Import JSX transpilation modules
+import { 
+  transformComponentCode, 
+  detectComponentCodeFormat,
+  type TranspilationResult 
+} from '@/lib/transpilation/jsx-transpiler';
+import { 
+  isBabelLoaded, 
+  getBabelLoadStatus,
+  ensureBabelLoaded 
+} from '@/lib/transpilation/babel-loader';
+
 interface DynamicComponentRendererProps {
   componentCode: string;
   metadata: {
@@ -115,12 +127,13 @@ export default function DynamicComponentRenderer({
   isLoading = false
 }: DynamicComponentRendererProps) {
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [transpilationStatus, setTranspilationStatus] = useState<'pending' | 'loading' | 'ready' | 'error'>('pending');
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Helper to track issues with tool metadata
   const trackIssue = (
     issue: string,
-    category: 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure',
+    category: 'react-keys' | 'style-mapping' | 'execution' | 'undefined-values' | 'syntax' | 'component-structure' | 'transpilation',
     severity: 'warning' | 'error' | 'info' = 'warning',
     details?: string,
     codeSnippet?: string,
@@ -129,6 +142,28 @@ export default function DynamicComponentRenderer({
     const toolId = metadata.id || metadata.slug || 'unknown';
     return trackValidationIssue(toolId, metadata.title, issue, category, severity, details, codeSnippet, autoFixable);
   };
+
+  // Effect to ensure Babel is loaded for JSX transpilation
+  useEffect(() => {
+    const initializeBabel = async () => {
+      try {
+        setTranspilationStatus('loading');
+        
+        if (!isBabelLoaded()) {
+          console.log('🔄 Loading Babel for JSX transpilation...');
+          await ensureBabelLoaded();
+        }
+        
+        setTranspilationStatus('ready');
+        console.log('✅ Babel ready for JSX transpilation');
+      } catch (error) {
+        console.error('❌ Failed to load Babel:', error);
+        setTranspilationStatus('error');
+      }
+    };
+
+    initializeBabel();
+  }, []);
 
   // Safely compile and render the component code
   const compiledComponent = useMemo(() => {
@@ -165,9 +200,173 @@ export default function DynamicComponentRenderer({
     
     if (!componentCode) return null;
 
+    // ========================================================================
+    // JSX TRANSPILATION STEP - NEW: Transform JSX to JavaScript if needed
+    // ========================================================================
+    
+    let processedComponentCode = componentCode;
+    let transpilationInfo: string | null = null;
+    
+    try {
+      console.log('🔄 JSX TRANSPILATION: Starting code format detection...');
+      
+      // Detect the format of the component code
+      const formatDetection = detectComponentCodeFormat(componentCode);
+      console.log('🔄 JSX TRANSPILATION: Format detection result:', formatDetection);
+      
+      // Handle different code formats
+      if (formatDetection.codeFormat === 'jsx') {
+        console.log('🔄 JSX TRANSPILATION: JSX format detected, transpiling...');
+        
+        // Check if Babel is ready
+        const babelStatus = getBabelLoadStatus();
+        if (!babelStatus.isLoaded) {
+          console.warn('⚠️ JSX TRANSPILATION: Babel not ready, rendering will wait...');
+          
+          // Return a loading state while Babel loads
+          if (transpilationStatus === 'loading') {
+            return () => React.createElement('div', {
+              className: 'flex items-center justify-center p-8 border border-blue-300 rounded bg-blue-50'
+            }, [
+              React.createElement(Loader2, { 
+                key: 'spinner',
+                className: 'mr-2 h-4 w-4 animate-spin text-blue-600' 
+              }),
+              React.createElement('span', { 
+                key: 'text',
+                className: 'text-blue-700' 
+              }, 'Loading JSX transpiler...')
+            ]);
+          }
+          
+          if (transpilationStatus === 'error') {
+            const issueId = trackIssue(
+              'Babel failed to load for JSX transpilation',
+              'transpilation',
+              'error',
+              'JSX components require Babel for browser execution',
+              formatDetection.codeFormat,
+              false
+            );
+            
+            validationIssues.push({
+              id: issueId,
+              issue: 'Babel failed to load for JSX transpilation',
+              category: 'transpilation',
+              severity: 'error',
+              details: 'JSX components require Babel for browser execution',
+              codeSnippet: formatDetection.codeFormat,
+              autoFixable: false
+            });
+            
+            onValidationIssues?.(validationIssues);
+            
+            return () => React.createElement('div', {
+              className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
+            }, [
+              React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'JSX Transpilation Failed'),
+              React.createElement('div', { key: 'error', className: 'text-sm' }, 'Unable to load Babel for JSX transpilation'),
+              React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please refresh the page to retry')
+            ]);
+          }
+          
+          // Fallback to original code if Babel unavailable
+          console.warn('⚠️ JSX TRANSPILATION: Babel unavailable, using original code');
+        } else {
+          // Perform JSX transpilation
+          const transpilationResult: TranspilationResult = transformComponentCode(componentCode);
+          
+          if (transpilationResult.success) {
+            processedComponentCode = transpilationResult.transpiledCode;
+            transpilationInfo = 'JSX → JavaScript (transpiled)';
+            console.log('✅ JSX TRANSPILATION: Successfully transpiled JSX to JavaScript');
+            console.log('🔄 JSX TRANSPILATION: Transpiled code length:', processedComponentCode.length);
+            console.log('🔄 JSX TRANSPILATION: Transpiled preview:', processedComponentCode.substring(0, 300));
+          } else {
+            console.error('❌ JSX TRANSPILATION: Transpilation failed:', transpilationResult.error);
+            
+            const issueId = trackIssue(
+              'JSX transpilation failed',
+              'transpilation',
+              'error',
+              transpilationResult.error,
+              componentCode.substring(0, 200),
+              false
+            );
+            
+            validationIssues.push({
+              id: issueId,
+              issue: 'JSX transpilation failed',
+              category: 'transpilation',
+              severity: 'error',
+              details: transpilationResult.error,
+              codeSnippet: componentCode.substring(0, 200),
+              autoFixable: false
+            });
+            
+            onValidationIssues?.(validationIssues);
+            
+            return () => React.createElement('div', {
+              className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
+            }, [
+              React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'JSX Transpilation Error'),
+              React.createElement('div', { key: 'error', className: 'text-sm' }, transpilationResult.error || 'Unknown transpilation error'),
+              React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try regenerating the component')
+            ]);
+          }
+        }
+      } else if (formatDetection.codeFormat === 'createElement') {
+        transpilationInfo = 'React.createElement (legacy)';
+        console.log('✅ JSX TRANSPILATION: Legacy createElement format detected, no transpilation needed');
+      } else {
+        transpilationInfo = 'Unknown format (proceeding)';
+        console.log('⚠️ JSX TRANSPILATION: Unknown format detected, proceeding without transpilation');
+      }
+      
+      console.log('🔄 JSX TRANSPILATION: Final processed code length:', processedComponentCode.length);
+      console.log('🔄 JSX TRANSPILATION: Format info:', transpilationInfo);
+      
+    } catch (transpilationError) {
+      console.error('❌ JSX TRANSPILATION: Unexpected error during transpilation:', transpilationError);
+      
+      const issueId = trackIssue(
+        'Unexpected JSX transpilation error',
+        'transpilation',
+        'error',
+        String(transpilationError),
+        componentCode.substring(0, 200),
+        false
+      );
+      
+      validationIssues.push({
+        id: issueId,
+        issue: 'Unexpected JSX transpilation error',
+        category: 'transpilation',
+        severity: 'error',
+        details: String(transpilationError),
+        codeSnippet: componentCode.substring(0, 200),
+        autoFixable: false
+      });
+      
+      onValidationIssues?.(validationIssues);
+      
+      return () => React.createElement('div', {
+        className: 'p-4 border border-red-300 rounded bg-red-50 text-red-700'
+      }, [
+        React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Transpilation System Error'),
+        React.createElement('div', { key: 'error', className: 'text-sm' }, String(transpilationError)),
+        React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try refreshing the page')
+      ]);
+    }
+
+    // ========================================================================
+    // CONTINUE WITH EXISTING VALIDATION AND COMPILATION LOGIC
+    // (Using processedComponentCode instead of original componentCode)
+    // ========================================================================
+
     try {
       // Check for basic syntax issues first
-      if (!componentCode.trim()) {
+      if (!processedComponentCode.trim()) {
         console.warn('⚠️ Component code is empty');
         const issueId = trackIssue('Component code is empty', 'component-structure', 'error');
         validationIssues.push({
@@ -189,7 +388,7 @@ export default function DynamicComponentRenderer({
       }
 
       // Check for null/undefined character sequences that could cause issues
-      if (componentCode.includes('\\x00') || componentCode.includes('\\\\x00')) {
+      if (processedComponentCode.includes('\\x00') || processedComponentCode.includes('\\\\x00')) {
         console.warn('⚠️ Component code contains null characters');
         const issueId = trackIssue('Component code contains null characters', 'syntax', 'error', 'Component appears to be corrupted');
         validationIssues.push({
@@ -240,7 +439,7 @@ export default function DynamicComponentRenderer({
       ];
       
       for (const pattern of problematicUndefinedPatterns) {
-        const matches = componentCode.match(pattern);
+        const matches = processedComponentCode.match(pattern);
         if (matches) {
           // Filter out matches that are actually valid patterns
           const filteredMatches = matches.filter(match => {
@@ -259,7 +458,7 @@ export default function DynamicComponentRenderer({
         
         // DEBUG: Log the exact patterns found to help diagnose false positives
         console.log('🔍 DEBUG: Found undefined patterns:', foundPatterns);
-        console.log('🔍 DEBUG: Component code sample:', componentCode.substring(0, 500));
+        console.log('🔍 DEBUG: Component code sample:', processedComponentCode.substring(0, 500));
         
         // TEMPORARY: Convert this to a warning instead of blocking error
         const issueId = trackIssue(
@@ -298,7 +497,7 @@ export default function DynamicComponentRenderer({
       const foundMissingKeyPatterns: string[] = [];
       
       for (const pattern of missingKeysPatterns) {
-        const matches = componentCode.match(pattern);
+        const matches = processedComponentCode.match(pattern);
         if (matches) {
           // Check if the matches actually represent arrays without keys
           for (const match of matches) {
@@ -342,8 +541,8 @@ export default function DynamicComponentRenderer({
         console.log('🔍 TRACE: Testing JavaScript execution safety...');
         
         // Check if this component uses complex state patterns that might fail in test mode
-        const hasComplexStatePattern = /const\s+\[[^,]+,\s*[^\]]+\]\s*=\s*useState/.test(componentCode) && 
-                                      /React\.createElement/.test(componentCode);
+        const hasComplexStatePattern = /const\s+\[[^,]+,\s*[^\]]+\]\s*=\s*useState/.test(processedComponentCode) && 
+                                      /React\.createElement/.test(processedComponentCode);
         
         if (hasComplexStatePattern) {
           console.log('🔍 TRACE: Component uses complex state patterns, skipping detailed test execution');
@@ -362,7 +561,7 @@ export default function DynamicComponentRenderer({
             const Select = () => null;
             
             try {
-              ${componentCode}
+              ${processedComponentCode}
               return { success: true };
             } catch (error) {
               return { success: false, error: error.message };
@@ -378,7 +577,7 @@ export default function DynamicComponentRenderer({
               'execution',
               'error',
               testResult.error,
-              componentCode.substring(0, 200), // Code snippet
+              processedComponentCode.substring(0, 200), // Code snippet
               false
             );
             
@@ -388,7 +587,7 @@ export default function DynamicComponentRenderer({
               category: 'execution',
               severity: 'error',
               details: testResult.error,
-              codeSnippet: componentCode.substring(0, 200),
+              codeSnippet: processedComponentCode.substring(0, 200),
               autoFixable: false
             });
             
@@ -401,6 +600,7 @@ export default function DynamicComponentRenderer({
               React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Compilation Failed'),
               React.createElement('div', { key: 'error', className: 'text-sm' }, testResult.error),
               React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try regenerating the component'),
+              React.createElement('div', { key: 'transpilation-info', className: 'text-xs mt-2 text-gray-600' }, `Format: ${transpilationInfo || 'Unknown'}`),
               React.createElement('details', { key: 'details', className: 'mt-3' }, [
                 React.createElement('summary', { key: 'summary', className: 'text-xs cursor-pointer' }, 'Technical Details'),
                 React.createElement('pre', { key: 'pre', className: 'text-xs mt-1 p-2 bg-red-100 rounded overflow-auto' }, testResult.error)
@@ -417,7 +617,7 @@ export default function DynamicComponentRenderer({
           'execution',
           'error',
           String(executionError),
-          componentCode.substring(0, 200),
+          processedComponentCode.substring(0, 200),
           false
         );
         
@@ -427,7 +627,7 @@ export default function DynamicComponentRenderer({
           category: 'execution',
           severity: 'error',
           details: String(executionError),
-          codeSnippet: componentCode.substring(0, 200),
+          codeSnippet: processedComponentCode.substring(0, 200),
           autoFixable: false
         });
         
@@ -439,7 +639,8 @@ export default function DynamicComponentRenderer({
         }, [
           React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Execution Error'),
           React.createElement('div', { key: 'error', className: 'text-sm' }, String(executionError)),
-          React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'This tool appears to be corrupted and needs to be regenerated')
+          React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'This tool appears to be corrupted and needs to be regenerated'),
+          React.createElement('div', { key: 'transpilation-info', className: 'text-xs mt-2 text-gray-600' }, `Format: ${transpilationInfo || 'Unknown'}`)
         ]);
       }
 
@@ -448,24 +649,24 @@ export default function DynamicComponentRenderer({
       
       // Instead of trying to extract the component function with eval,
       // modify the component code to directly return the component
-      let modifiedComponentCode = componentCode;
+      let modifiedComponentCode = processedComponentCode;
       
       // Find the component function declaration and convert it to a return statement
-      const componentMatch = componentCode.match(/(?:const|function)\s+(\w+)\s*[=\(]/);
+      const componentMatch = processedComponentCode.match(/(?:const|function)\s+(\w+)\s*[=\(]/);
       if (componentMatch && componentMatch[1]) {
         const componentName = componentMatch[1];
         console.log('🔍 TRACE: Detected component name:', componentName);
         
         // Replace the component declaration with a return statement
-        if (componentCode.includes(`const ${componentName} = `)) {
+        if (processedComponentCode.includes(`const ${componentName} = `)) {
           // Handle const ComponentName = () => { ... }
-          modifiedComponentCode = componentCode.replace(
+          modifiedComponentCode = processedComponentCode.replace(
             `const ${componentName} = `,
             'return '
           );
-        } else if (componentCode.includes(`function ${componentName}`)) {
+        } else if (processedComponentCode.includes(`function ${componentName}`)) {
           // Handle function ComponentName() { ... }
-          modifiedComponentCode = componentCode.replace(
+          modifiedComponentCode = processedComponentCode.replace(
             `function ${componentName}`,
             'return function'
           );
@@ -534,6 +735,7 @@ export default function DynamicComponentRenderer({
       );
       
       console.log('🔍 TRACE: ✅ Component compilation successful');
+      console.log('🔍 TRACE: Transpilation info:', transpilationInfo);
       
       // Call validation callback with any collected issues
       if (validationIssues.length > 0 || hasMissingKeys) {
@@ -552,13 +754,14 @@ export default function DynamicComponentRenderer({
         React.createElement('div', { key: 'title', className: 'font-semibold mb-2' }, 'Component Compilation Failed'),
         React.createElement('div', { key: 'error', className: 'text-sm' }, String(error)),
         React.createElement('div', { key: 'action', className: 'text-sm mt-2 text-red-600' }, 'Please try regenerating the component'),
+        React.createElement('div', { key: 'transpilation-info', className: 'text-xs mt-2 text-gray-600' }, `Format: ${transpilationInfo || 'Unknown'}`),
         React.createElement('details', { key: 'details', className: 'mt-3' }, [
           React.createElement('summary', { key: 'summary', className: 'text-xs cursor-pointer' }, 'Technical Details'),
           React.createElement('pre', { key: 'pre', className: 'text-xs mt-1 p-2 bg-red-100 rounded overflow-auto' }, String(error))
         ])
       ]);
     }
-  }, [componentCode, onValidationIssues]);
+  }, [componentCode, onValidationIssues, transpilationStatus]);
 
   // Effect to apply styles from currentStyleMap
   useEffect(() => {
