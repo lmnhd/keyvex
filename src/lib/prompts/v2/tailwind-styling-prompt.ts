@@ -812,8 +812,31 @@ Apply professional Tailwind CSS styling with a cohesive color scheme and design 
 export function getTailwindStyling_Step1_StyleMap_Prompt(
   tcc: ToolConstructionContext
 ): string {
+  // 🔍 CRITICAL DEBUG: Log what tailwind-styling receives from jsx-layout
+  logger.info({
+    jobId: tcc.jobId,
+    hasTcc: !!tcc,
+    tccKeys: tcc ? Object.keys(tcc) : [],
+    hasJsxLayout: !!tcc.jsxLayout,
+    jsxLayoutKeys: tcc.jsxLayout ? Object.keys(tcc.jsxLayout) : [],
+    hasComponentStructure: !!tcc.jsxLayout?.componentStructure,
+    componentStructureType: typeof tcc.jsxLayout?.componentStructure,
+    componentStructureLength: tcc.jsxLayout?.componentStructure?.length || 0,
+    componentStructurePreview: tcc.jsxLayout?.componentStructure?.substring(0, 100) + '...' || 'NONE',
+    fullJsxLayoutData: tcc.jsxLayout ? JSON.stringify(tcc.jsxLayout, null, 2).substring(0, 500) + '...' : 'NULL'
+  }, '🔍 [TAILWIND-STYLING] Step1 - Received TCC data analysis');
+
   const componentStructure = tcc.jsxLayout?.componentStructure;
   if (!componentStructure) {
+    // 🔍 Enhanced error with full context
+    logger.error({
+      jobId: tcc.jobId,
+      tccExists: !!tcc,
+      jsxLayoutExists: !!tcc.jsxLayout,
+      jsxLayoutData: tcc.jsxLayout || 'NULL',
+      componentStructureValue: componentStructure || 'UNDEFINED'
+    }, '❌ [TAILWIND-STYLING] Missing component structure for Tailwind styling - DETAILED ERROR');
+    
     throw new Error('Missing component structure for Tailwind styling');
   }
 

@@ -153,9 +153,10 @@ export async function runToolCreationProcess(
 /**
  * Helper function to run the final 3 TCC stages: component-assembler, validator, tool-finalizer
  * Takes a modified TCC and runs it through the final assembly, validation, and finalization steps
+ * CRITICAL FIX: Now handles both TCC objects and jobId strings for backward compatibility
  */
 export async function runTccFinalizationSteps(
-  tcc: any,
+  tccOrJobId: any,
   agentModelMapping?: Record<string, string>
 ): Promise<{
   success: boolean;
@@ -168,7 +169,23 @@ export async function runTccFinalizationSteps(
 }> {
   try {
     const intermediateResults: any = {};
-    const jobId = tcc.jobId || 'unknown';
+    
+    // CRITICAL FIX: Handle both TCC objects and jobId strings
+    let tcc: any;
+    let jobId: string;
+    
+    if (typeof tccOrJobId === 'string') {
+      // If passed a jobId string, we need to get the TCC data from the frontend state
+      // For now, create a minimal TCC structure with the jobId
+      jobId = tccOrJobId;
+      console.warn('⚠️ [FINALIZATION] Received jobId string instead of TCC object. This may cause issues.');
+      // Return error suggesting to pass TCC data
+      throw new Error('CRITICAL: runTccFinalizationSteps requires TCC data object, not just jobId string. Please pass the full TCC data from the frontend state.');
+    } else {
+      // Normal case: received TCC object
+      tcc = tccOrJobId;
+      jobId = tcc.jobId || 'unknown';
+    }
     
     // 🔍 LOG INITIAL TCC STATE
     console.log(`🔍 [FINALIZATION-START] JobId: ${jobId}`);

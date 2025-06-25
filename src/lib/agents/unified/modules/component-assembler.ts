@@ -109,6 +109,15 @@ export class ComponentAssemblerModule extends BaseAgentModule {
         functions: stateLogic.functions?.length || 0
       }, '✅ COMPONENT ASSEMBLER: Programmatic assembly completed');
 
+      // 🔍 CRITICAL DEBUG: Log the actual assembled code for verification
+      logger.info({
+        jobId: tcc.jobId,
+        agentType: 'component-assembler',
+        assembledCodePreview: assembledCode.substring(0, 500) + '...',
+        assembledCodeLength: assembledCode.length,
+        assembledCodeHash: assembledCode ? require('crypto').createHash('md5').update(assembledCode).digest('hex').slice(0, 8) : 'none'
+      }, '🔍 COMPONENT ASSEMBLER: Assembled code preview');
+
       return {
         assembledCode,
         metadata: {

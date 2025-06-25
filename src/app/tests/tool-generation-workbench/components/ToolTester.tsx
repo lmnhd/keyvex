@@ -122,6 +122,38 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [currentStep, setCurrentStep] = useState<string>('');
   const [isRefreshingTCC, setIsRefreshingTCC] = useState(false);
 
+  // --- TCC Snapshot Logic for Debugging ---
+  const TCC_SNAPSHOT_KEY = 'debug_tcc_snapshot';
+
+  const handleSaveTccSnapshot = useCallback(() => {
+    if (tccData) {
+      try {
+        localStorage.setItem(TCC_SNAPSHOT_KEY, JSON.stringify(tccData));
+        addDetailedWSLog('debug', '✅ TCC snapshot saved to localStorage for debugging.');
+      } catch (error) {
+        addDetailedWSLog('error', 'Failed to save TCC snapshot.', error);
+      }
+    } else {
+      addDetailedWSLog('error', 'No TCC data available to save.');
+    }
+  }, [tccData, addDetailedWSLog]);
+
+  const handleLoadTccSnapshot = useCallback(() => {
+    try {
+      const savedTcc = localStorage.getItem(TCC_SNAPSHOT_KEY);
+      if (savedTcc) {
+        const parsedTcc = JSON.parse(savedTcc);
+        setTccData(parsedTcc);
+        addDetailedWSLog('debug', '✅ TCC snapshot loaded from localStorage.');
+      } else {
+        addDetailedWSLog('error', 'No TCC snapshot found in localStorage.');
+      }
+    } catch (error) {
+      addDetailedWSLog('error', 'Failed to load or parse TCC snapshot.', error);
+    }
+  }, [setTccData, addDetailedWSLog]);
+  // --- End TCC Snapshot Logic ---
+
   // Add refs for auto-scrolling
   const wsLogsEndRef = useRef<HTMLDivElement>(null);
   const progressSummaryEndRef = useRef<HTMLDivElement>(null);
@@ -146,12 +178,11 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     if (progress.data?.tcc) {
       // If data has a nested tcc property, use that
       actualTcc = progress.data.tcc;
-    } else if (progress.data?.userId || progress.data?.jobId) {
-      // If data looks like a TCC itself, use it directly
-      actualTcc = progress.data;
     }
 
-    if (actualTcc) {
+    // CRITICAL FIX: Ensure we only update TCC if it's a valid object with a jobId.
+    // This prevents the "Invalid TCC update attempted {}" error.
+    if (actualTcc && typeof actualTcc === 'object' && actualTcc.jobId) {
       // 🛡️ Use backup system instead of direct setTccData
       updateTccWithBackup(actualTcc, 'jobUpdate');
       if (actualTcc.assembledComponentCode) {
@@ -627,44 +658,58 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   };
 
   const handleTccFinalization = async () => {
-    if (!testJob?.jobId) {
-      setError('No active job to finalize.');
+    if (!tccData || !tccData.jobId) {
+      setError('Cannot finalize: No TCC data or Job ID available.');
+      addDetailedWSLog('error', 'Finalization failed: Missing TCC data or Job ID.');
       return;
     }
-    
+
+    // CRITICAL FIX: Pass the entire up-to-date TCC from the client state
+    // instead of just the jobId. This prevents the backend from fetching
+    // a stale TCC from the database, resolving the "state management schism".
+    // [memory:418492408972825814]
+    addDetailedWSLog('debug', 'Starting TCC finalization with full TCC object from client state.', { jobId: tccData.jobId });
     setIsLoading(true);
     setError(null);
 
-    addWSLog(`Connecting to WebSocket for TCC finalization...`);
-    await connect(testJob.jobId, userId);
-    
-    addWSLog(`Running finalization steps for job: ${testJob.jobId}...`);
     try {
-      const result = await runTccFinalizationSteps(testJob.jobId);
-
+      // The core logic now receives the full TCC and the agent model mapping
+      const result = await runTccFinalizationSteps(tccData, agentModelMapping);
+      
+      addDetailedWSLog('debug', 'TCC finalization successful.', { result });
+      
       if (result.success && result.finalProduct) {
-        // Update the test job with the final product
-        setTestJob(prev => ({
-          ...(prev as ToolCreationJob),
-          status: 'success',
-          result: result.finalProduct,
-          endTime: Date.now()
-        }));
-
         setFinalProduct(result.finalProduct);
         if (result.finalProduct.componentCode) {
           setAssembledCode(result.finalProduct.componentCode);
         }
         
-        addWSLog('✅ TCC Finalization completed successfully!');
-        addWSLog(`📦 Final tool: ${result.finalProduct.metadata?.title || 'Generated Tool'}`);
+        // Update the testJob state
+        setTestJob(prev => ({
+          ...(prev ? prev : { jobId: tccData.jobId, startTime: Date.now(), status: 'running' }),
+          status: 'success',
+          result: result.finalProduct,
+          endTime: Date.now(),
+          modelId: agentModelMapping[Object.keys(agentModelMapping)[0]] || defaultPrimaryModel || 'gpt-4o'
+        }));
+
+        // Automatically save the result
+        handleSaveV2Result(result.finalProduct, { ...tccData, finalProduct: result.finalProduct });
+
       } else {
-        throw new Error(result.error || 'Finalization failed');
+        throw new Error(result.error || 'Finalization failed to produce a result.');
       }
-    } catch (error) {
-      console.error('❌ TCC Finalization error:', error);
-      setError(error instanceof Error ? error.message : String(error));
-      addWSLog(`❌ Finalization failed: ${error}`);
+    } catch (err: any) {
+      console.error('Finalization process failed:', err);
+      setError(`Finalization failed: ${err.message}`);
+      addDetailedWSLog('error', 'TCC finalization failed.', { error: err.message });
+      setTestJob(prev => ({
+        ...(prev ? prev : { jobId: tccData.jobId, startTime: Date.now(), status: 'running' }),
+        status: 'error',
+        error: `Finalization failed: ${err.message}`,
+        endTime: Date.now(),
+        modelId: agentModelMapping[Object.keys(agentModelMapping)[0]] || defaultPrimaryModel || 'gpt-4o'
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -1034,6 +1079,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       hasTccBackup={hasTccBackup}
       tccHistory={tccHistory}
       recoverLastValidTcc={recoverLastValidTcc}
+      handleSaveTccSnapshot={handleSaveTccSnapshot}
+      handleLoadTccSnapshot={handleLoadTccSnapshot}
     />
   );
 };

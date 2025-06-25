@@ -96,6 +96,11 @@ export default function ToolTesterView({
     dynamoDBTools,
     editMessage,
     setEditMessage,
+    hasTccBackup,
+    tccHistory,
+    recoverLastValidTcc,
+    handleSaveTccSnapshot,
+    handleLoadTccSnapshot
 }: {
     testJob: ToolCreationJob | null;
     getConnectionStatusIcon: () => React.ReactNode;
@@ -169,6 +174,11 @@ export default function ToolTesterView({
     dynamoDBTools: ProductToolDefinition[];
     editMessage: string;
     setEditMessage: (message: string) => void;
+    hasTccBackup: boolean;
+    tccHistory: any[];
+    recoverLastValidTcc: () => boolean;
+    handleSaveTccSnapshot: () => void;
+    handleLoadTccSnapshot: () => void;
 }) {
   const [activeRightTab, setActiveRightTab] = useState('progress');
 
@@ -1075,16 +1085,79 @@ export default function ToolTesterView({
                   jobId={testJob?.jobId || 'debug-mode'}
                   onRefreshTCC={workflowMode === 'v2' ? () => { handleRefreshTCC(); } : () => {}}
                   isLoading={isRefreshingTCC}
+                  handleSaveTccSnapshot={handleSaveTccSnapshot}
+                  handleLoadTccSnapshot={handleLoadTccSnapshot}
                 />
               ) : (
                 <Card>
-                  <CardContent className="flex items-center justify-center h-48 pt-6">
-                    <div className="text-center">
-                      <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-500">
-                        TCC Monitor will be available once TCC data is loaded
-                      </p>
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
+                    <div className="space-y-1">
+                      <CardTitle className="flex items-center text-base">
+                        <Database className="mr-2 h-5 w-5 text-green-500" />
+                        TCC Monitor
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        View the live Tool Construction Context object.
+                      </CardDescription>
                     </div>
+                    <div className="flex items-center gap-2">
+                       <Button onClick={handleSaveTccSnapshot} size="sm" variant="outline" disabled={!tccData}>
+                        <Save className="mr-2 h-4 w-4" /> Save
+                      </Button>
+                      <Button onClick={handleLoadTccSnapshot} size="sm" variant="outline">
+                        <Download className="mr-2 h-4 w-4" /> Load
+                      </Button>
+                      <Button onClick={recoverLastValidTcc} size="sm" variant="outline" disabled={!hasTccBackup}>
+                        <RotateCcw className="mr-2 h-4 w-4" /> Recover
+                      </Button>
+                      <Button onClick={handleRefreshTCC} size="sm" variant="outline" disabled={isRefreshingTCC}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {tccData ? (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded border border-green-200">
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">Job ID:</span>
+                            <code className="text-xs bg-green-100 dark:bg-green-800 px-1 rounded">{tccData.jobId?.slice(0, 12)}...</code>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div className="flex items-center gap-1">
+                              {tccData.functionPlanning ? '✅' : '⚪'} Function Planning
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {tccData.stateLogic ? '✅' : '⚪'} State Logic
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {tccData.jsxLayout ? '✅' : '⚪'} JSX Layout
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {tccData.styling ? '✅' : '⚪'} Styling
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {tccData.finalProduct?.componentCode ? '✅' : '⚪'} Final Product Code
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {tccData.validationResults ? '✅' : '⚪'} Validation
+                            </div>
+                          </div>
+                          <div className="pt-2 border-t border-green-200">
+                            <span className="text-xs text-green-600 dark:text-green-400">
+                              ✅ Ready to use current in-memory TCC data for isolated agent testing
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded border border-yellow-200">
+                        <div className="flex items-center gap-2 text-sm text-yellow-700 dark:text-yellow-300">
+                          <span>⚠️</span>
+                          <span>No current TCC data available. Run a tool generation first to populate TCC data.</span>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -1562,6 +1635,11 @@ export default function ToolTesterView({
                     if (assembledCode) {
                       componentCode = assembledCode;
                       codeSource = 'Assembled Code (V2 Orchestration)';
+                    }
+                    // Try to get from TCC assembledComponentCode (component assembler result)
+                    else if (tccData?.assembledComponentCode) {
+                      componentCode = tccData.assembledComponentCode;
+                      codeSource = 'TCC assembledComponentCode (Component Assembler)';
                     }
                     // Try to get from test job result (completed tool)
                     else if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {

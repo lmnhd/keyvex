@@ -26,7 +26,7 @@ const UniversalAgentRequestSchema = z.object({
     'code-validator',
     'tool-finalizer'
   ]),
-  jobId: z.string().uuid(),
+  jobId: z.string(),
   tcc: z.custom<ToolConstructionContext>(),
   selectedModel: z.string().optional(),
   isIsolatedTest: z.boolean().default(false),

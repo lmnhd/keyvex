@@ -69,16 +69,76 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
   }, [onMessage]);
 
   const stopPolling = useCallback(() => {
-    // Polling is disabled - nothing to stop
-    console.log('🚫 [POLLING] Polling is disabled - nothing to stop');
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+      console.log('🛑 [POLLING] Polling stopped.');
+      // If we were polling, it means the connection was down.
+      // We don't change the status here, as it might be 'error' or 'fallback'.
+    }
   }, []);
 
   const startPolling = useCallback(() => {
-    console.error('🚨 [POLLING] POLLING FALLBACK DISABLED - NO FALLBACKS ALLOWED!');
-    console.error('🚨 [POLLING] WebSocket failed and polling is disabled to expose real issues');
-    setConnectionStatus('error');
-    onError?.('WebSocket failed and polling fallback is disabled. Fix the WebSocket connection.');
-  }, [onError]);
+    stopPolling(); // Ensure no multiple polls are running
+
+    const jobId = activeJobIdRef.current;
+    if (!jobId) {
+      console.error('🚨 [POLLING] Cannot start polling without an active job ID.');
+      return;
+    }
+
+    console.log(`🚀 [POLLING] Starting polling for job: ${jobId}`);
+    setConnectionStatus('polling');
+    addMessage('system', { action: 'polling_started', jobId }, undefined, true);
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/ai/product-tool-creation-v2/orchestrate/tcc/${jobId}`);
+        if (response.ok) {
+          const { tcc } = await response.json();
+          if (tcc) {
+            addMessage('received', { type: 'tcc_update', ...tcc }, JSON.stringify(tcc), true);
+            
+            // Manually trigger the onTccUpdate and onProgress callbacks
+            if (options.onTccUpdate) {
+              options.onTccUpdate(tcc, 'polling-update');
+            }
+            if (options.onProgress) {
+              const latestStep = Object.values(tcc.steps || {}).sort((a: any, b: any) => 
+                new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+              )[0] as any;
+
+              if (latestStep) {
+                options.onProgress({
+                  jobId: tcc.jobId,
+                  stepName: latestStep.stepName || 'polling',
+                  status: latestStep.status,
+                  message: `[POLL] ${latestStep.status}`,
+                  data: tcc,
+                  timestamp: new Date().toISOString(),
+                  isFallback: true,
+                });
+              }
+            }
+
+            if (tcc.status === 'completed' || tcc.status === 'failed') {
+              console.log(`🏁 [POLLING] Job ${tcc.status}, stopping polling.`);
+              stopPolling();
+            }
+          }
+        } else {
+          console.error(`🚨 [POLLING] Error fetching TCC: ${response.statusText}`);
+          // Stop polling on persistent error to avoid spamming
+          if (response.status === 404) {
+            stopPolling();
+          }
+        }
+      } catch (error) {
+        console.error('🚨 [POLLING] Polling fetch failed:', error);
+        stopPolling();
+      }
+    }, 5000); // Poll every 5 seconds
+  }, [stopPolling, addMessage, options]);
 
   const startHeartbeatMonitoring = useCallback(() => {
     console.error('🚨 [HEARTBEAT] HEARTBEAT MONITORING DISABLED - NO FALLBACKS!');
@@ -86,7 +146,6 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
   }, []);
 
   const stopHeartbeatMonitoring = useCallback(() => {
-    // Heartbeat monitoring disabled - nothing to stop
     console.log('🚫 [HEARTBEAT] Heartbeat monitoring is disabled - nothing to stop');
   }, []);
 
@@ -248,39 +307,43 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
 
       ws.onclose = (event) => {
         console.log('[WebSocket] Connection closed:', { code: event.code, reason: event.reason });
-        wsRef.current = null;
         
-        // Check if this is a normal closure (code 1000) or an error closure
-        if (event.code === 1000 || event.reason === 'User disconnected') {
-          // Normal closure - job completed or user disconnected
-          console.log('✅ [WebSocket] Connection closed normally (job completed or user disconnected)');
+        // Don't start polling if it was a clean, intentional close
+        if (event.code === 1000) {
           setConnectionStatus('disconnected');
-          addMessage('system', { action: 'connection_closed_normal', code: event.code, reason: event.reason });
-        } else {
-          // Abnormal closure - likely an error
-          console.error('❌ [WebSocket] Connection closed abnormally, starting fallback.', { code: event.code, reason: event.reason });
-          setConnectionStatus('error');
-          addMessage('system', { action: 'connection_closed_abnormal', code: event.code, reason: event.reason });
-          startPolling();
+          addMessage('system', { action: 'disconnected', reason: 'clean_close' });
+          return;
         }
+
+        // For abnormal closures, start the polling fallback
+        console.error('❌ [WebSocket] Connection closed abnormally, starting fallback.', { code: event.code, reason: event.reason });
+        setConnectionStatus('fallback');
+        addMessage('system', { action: 'fallback_activated', code: event.code, reason: event.reason }, undefined, true);
+        onError?.(`WebSocket connection lost. Activating polling fallback.`);
+        startPolling();
       };
 
       ws.onerror = (event) => {
-        console.error('[WebSocket] A connection error occurred. This is often due to the server being unavailable or an issue with the WebSocket URL. Check the browser\'s Network tab for more details on the failed WebSocket handshake.', event);
+        console.error('❌ [WebSocket] An error occurred', event);
         setConnectionStatus('error');
-        const errorMessage = 'A WebSocket connection error occurred. Check the browser\'s developer console (Network tab) for more details.';
-        addMessage('system', { action: 'error', error: errorMessage });
-        onError?.(errorMessage);
-        // Don't start polling immediately, let onclose handle it to avoid duplicate logic
+        addMessage('system', { action: 'error', error: 'WebSocket error occurred' });
+        onError?.('A WebSocket error occurred. Check the console.');
+        // The onclose event will fire after onerror, which will trigger polling
       };
-    } catch (error) {
-      console.error('[WebSocket] Failed to connect:', error);
+    } catch (e) {
+      console.error('❌ [WebSocket] Connection failed to initialize', e);
       setConnectionStatus('error');
-      addMessage('system', { action: 'connection_failed', error });
-      onError?.('Failed to establish WebSocket connection.');
-      startPolling(); // If connection fails to even start, begin polling
+      addMessage('system', { action: 'connection_failed', error: (e as Error).message });
+      onError?.(`Failed to establish WebSocket connection: ${(e as Error).message}`);
     }
-  }, [disconnect, addMessage, onError, onProgress, startPolling, options.onTccUpdate]);
+  }, [disconnect, addMessage, onError, startPolling, options.onTccUpdate, options.onProgress]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      disconnect();
+    };
+  }, [disconnect]);
 
   return { connect, disconnect, connectionStatus, messages, progressUpdates, setProgressUpdates };
 };

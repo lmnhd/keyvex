@@ -155,10 +155,13 @@ export async function executeAgent(
         resultData = executionResult.result;
       }
       
-      // Success - return simplified result
+      // CRITICAL FIX: Update the TCC with the result from the completed agent
+      const newTcc = updateTccWithAgentResult(tcc, agentType, resultData);
+      
+      // Success - return simplified result with the *updated* TCC
       return {
         result: resultData,
-        updatedTcc: tcc // Placeholder, TCC update is handled within agents now
+        updatedTcc: newTcc
       };
 
     } catch (error) {
@@ -241,9 +244,13 @@ async function executeProgrammaticModule(
       executionType: 'programmatic'
     }, `✅ AGENT EXECUTOR: Programmatic module ${agentType} completed successfully`);
 
+    // CRITICAL FIX: Update the TCC with the result from the programmatic module
+    // This was missing, causing the component-assembler result to not be stored
+    const updatedTcc = updateTccWithAgentResult(tcc, agentType, result);
+
     return {
       result,
-      updatedTcc: tcc // Programmatic modules don't modify TCC structure
+      updatedTcc
     };
 
   } catch (error) {

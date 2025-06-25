@@ -16,7 +16,9 @@ import {
   Clock,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
+  Save,
+  Download
 } from 'lucide-react';
 
 interface TCCVisualizerProps {
@@ -25,6 +27,8 @@ interface TCCVisualizerProps {
   jobId: string;
   onRefreshTCC: () => void;
   isLoading?: boolean;
+  handleSaveTccSnapshot: () => void;
+  handleLoadTccSnapshot: () => void;
 }
 
 const getStepIcon = (stepName: string) => {
@@ -82,7 +86,9 @@ const TCCVisualizer: React.FC<TCCVisualizerProps> = ({
   currentStep, 
   jobId, 
   onRefreshTCC, 
-  isLoading = false 
+  isLoading = false,
+  handleSaveTccSnapshot,
+  handleLoadTccSnapshot
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['overview']));
   const [showRawData, setShowRawData] = useState(false);
@@ -180,8 +186,14 @@ const TCCVisualizer: React.FC<TCCVisualizerProps> = ({
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">
-              Job: {jobId.slice(-8)}
+              Job: {jobId ? jobId.slice(-8) : 'N/A'}
             </Badge>
+            <Button onClick={handleSaveTccSnapshot} size="sm" variant="outline" disabled={!tccData}>
+              <Save className="mr-2 h-4 w-4" /> Save
+            </Button>
+            <Button onClick={handleLoadTccSnapshot} size="sm" variant="outline">
+              <Download className="mr-2 h-4 w-4" /> Load
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 

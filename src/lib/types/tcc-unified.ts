@@ -85,7 +85,7 @@ export interface StateDesignResult {
 export interface JsxLayout {
   componentStructure: string;
   elementMap: Array<{ elementId: string; type: string; purpose: string; placeholderClasses: string[]; }>;
-  accessibilityFeatures?: string[];
+  accessibilityFeatures: string[];
   responsiveBreakpoints: string[];
 }
 

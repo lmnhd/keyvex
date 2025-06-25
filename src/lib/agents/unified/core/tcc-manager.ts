@@ -58,6 +58,14 @@ export function updateTccWithAgentResult(
 ): ToolConstructionContext {
   const newTcc = { ...tcc };
 
+  // 🔍 DEBUG LOGGING: Track agent result structure
+  logger.info({
+    jobId: tcc.jobId,
+    agentType,
+    resultKeys: result ? Object.keys(result) : ['NULL'],
+    resultType: typeof result
+  }, `🔍 [TCC-MANAGER] Processing ${agentType} result`);
+
   // 1. Update the specific, strongly-typed field for the agent
   switch (agentType) {
     case 'function-planner':
@@ -67,13 +75,55 @@ export function updateTccWithAgentResult(
       newTcc.stateLogic = (result as StateDesignResult).stateLogic;
       break;
     case 'jsx-layout':
-      newTcc.jsxLayout = (result as JsxLayoutResult).jsxLayout;
+      const jsxResult = result as JsxLayoutResult;
+      
+      // 🔍 CRITICAL DEBUG: Log jsx-layout result structure in detail
+      logger.info({
+        jobId: tcc.jobId,
+        agentType: 'jsx-layout',
+        hasResult: !!jsxResult,
+        hasJsxLayout: !!jsxResult?.jsxLayout,
+        jsxLayoutKeys: jsxResult?.jsxLayout ? Object.keys(jsxResult.jsxLayout) : ['NULL'],
+        hasComponentStructure: !!jsxResult?.jsxLayout?.componentStructure,
+        componentStructureLength: jsxResult?.jsxLayout?.componentStructure?.length || 0,
+        fullResultPreview: JSON.stringify(jsxResult, null, 2).substring(0, 1000) + '...'
+      }, '🔍 [TCC-MANAGER] jsx-layout result detailed analysis');
+      
+      newTcc.jsxLayout = jsxResult.jsxLayout;
+      
+      // 🔍 VERIFICATION: Confirm what was actually stored
+      logger.info({
+        jobId: tcc.jobId,
+        storedJsxLayoutExists: !!newTcc.jsxLayout,
+        storedComponentStructureExists: !!newTcc.jsxLayout?.componentStructure,
+      }, '🔍 [TCC-MANAGER] jsx-layout data stored in TCC - verification');
       break;
     case 'tailwind-styling':
       newTcc.styling = (result as TailwindStylingResult).styling;
       break;
     case 'component-assembler':
-      // Component assembler result is not stored in a dedicated TCC field
+      // CRITICAL FIX: Store the assembled component code in TCC for UI display
+      // The component assembler generates the complete React component with imports,
+      // state logic, functions, and React.createElement syntax
+      const assemblerResult = result as ComponentAssemblerResult;
+      
+      // Store in the field the UI expects
+      newTcc.assembledComponentCode = assemblerResult.assembledCode;
+      
+      // Also store in structured format for metadata
+      if (!newTcc.assembledComponent) {
+        newTcc.assembledComponent = {};
+      }
+      newTcc.assembledComponent.finalComponentCode = assemblerResult.assembledCode;
+      newTcc.assembledComponent.metadata = assemblerResult.metadata;
+      
+      logger.info({
+        jobId: tcc.jobId,
+        agentType: 'component-assembler',
+        codeLength: assemblerResult.assembledCode?.length || 0,
+        hasMetadata: !!assemblerResult.metadata,
+        assemblyMethod: assemblerResult.metadata?.assemblyMethod
+      }, '✅ [TCC-MANAGER] Component assembler result stored in TCC.assembledComponentCode and TCC.assembledComponent');
       break;
     case 'code-validator':
       // Code validator result is not stored in a dedicated TCC field
@@ -100,14 +150,25 @@ export function updateTccWithAgentResult(
   // 3. Update timestamps
   newTcc.updatedAt = new Date().toISOString();
 
-  logger.info(
-    {
+  // 🔍 FINAL TCC STATE LOGGING: Show complete TCC state after update
+  if (agentType === 'jsx-layout') {
+  logger.info({
       jobId: newTcc.jobId,
+      agentType,
+      finalTccJsxLayoutExists: !!newTcc.jsxLayout,
+      finalTccComponentStructureExists: !!newTcc.jsxLayout?.componentStructure,
+      tccKeys: Object.keys(newTcc),
+    }, `🔍 [TCC-MANAGER] FINAL TCC STATE after ${agentType} update`);
+  } else {
+    logger.info(
+      {
+        jobId: newTcc.jobId,
     agentType,
-      updatedFields: [agentType, 'steps'],
-    },
-    `TCC updated with result from ${agentType}`
-  );
+        updatedFields: [agentType, 'steps'],
+      },
+      `TCC updated with result from ${agentType}`
+    );
+  }
 
   return newTcc;
 }
