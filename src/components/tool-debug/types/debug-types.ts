@@ -158,11 +158,33 @@ export interface DebugSession {
   };
 }
 
+// Transpilation format detection
+export interface TranspilationFormatInfo {
+  isTranspiled: boolean;
+  hasImports: boolean;
+  hasReactCreateElement: boolean;
+  format: 'jsx-transpiled' | 'createElement' | 'jsx-raw' | 'unknown';
+  estimatedOriginalFormat: string;
+}
+
+export interface CalculationFunctionDetection {
+  arrowFunctions: string[];
+  functionDeclarations: string[];
+  calculationVars: string[];
+  totalCount: number;
+}
+
+export interface TranspilationInfo {
+  format: TranspilationFormatInfo;
+  calculations: CalculationFunctionDetection;
+}
+
 // Hook return types
 export interface UseToolDebuggerReturn {
   events: DebugEvent[];
   currentState: ToolState;
   config: DebugConfig;
+  transpilationInfo: TranspilationInfo | null;
   logEvent: (event: Omit<DebugEvent, 'id' | 'timestamp'>) => void;
   clearEvents: () => void;
   exportSession: () => DebugSession;

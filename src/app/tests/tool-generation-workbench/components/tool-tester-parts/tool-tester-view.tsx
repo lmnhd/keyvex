@@ -1672,28 +1672,38 @@ export default function ToolTesterView({
                               </span>
                             </div>
                             {hasImports && (
-                              <Badge variant="destructive" className="text-xs">
-                                ⚠️ Contains {importLines.length} import statement{importLines.length !== 1 ? 's' : ''}
+                              <Badge variant="default" className="text-xs bg-green-100 text-green-700 border-green-300">
+                                ✅ JSX Format: {importLines.length} import statement{importLines.length !== 1 ? 's' : ''}
                               </Badge>
                             )}
                           </div>
 
-                          {/* Import statements analysis */}
-                          {hasImports && (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertTitle>Import Statements Detected</AlertTitle>
-                              <AlertDescription className="text-sm">
-                                <p className="mb-2">This component contains import statements which will cause execution errors:</p>
+                          {/* Import statements analysis - UPDATED FOR NEW JSX DESIGN */}
+                          {hasImports ? (
+                            <Alert variant="default" className="border-green-200 bg-green-50 dark:bg-green-900/20">
+                              <CheckCircle className="h-4 w-4 text-green-600" />
+                              <AlertTitle className="text-green-800 dark:text-green-200">✅ JSX Format Detected</AlertTitle>
+                              <AlertDescription className="text-sm text-green-700 dark:text-green-300">
+                                <p className="mb-2">This component uses the new JSX format with import statements:</p>
                                 <ul className="list-disc list-inside text-xs space-y-1">
                                   {importLines.map((line, index) => (
-                                    <li key={index} className="font-mono bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                                    <li key={index} className="font-mono bg-green-100 dark:bg-green-800/50 px-2 py-1 rounded">
                                       {line.trim()}
                                     </li>
                                   ))}
                                 </ul>
                                 <p className="mt-2 text-xs">
-                                  The DynamicComponentRenderer expects import-free code since dependencies are injected.
+                                  ✅ The DynamicComponentRenderer will use JSX transpilation to handle imports automatically.
+                                </p>
+                              </AlertDescription>
+                            </Alert>
+                          ) : (
+                            <Alert variant="default" className="border-blue-200 bg-blue-50 dark:bg-blue-900/20">
+                              <Info className="h-4 w-4 text-blue-600" />
+                              <AlertTitle className="text-blue-800 dark:text-blue-200">Legacy Component Format</AlertTitle>
+                              <AlertDescription className="text-sm text-blue-700 dark:text-blue-300">
+                                <p className="text-xs">
+                                  This component uses the legacy React.createElement format. Consider regenerating for modern JSX format.
                                 </p>
                               </AlertDescription>
                             </Alert>

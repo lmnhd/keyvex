@@ -178,7 +178,9 @@ export class ComponentAssemblerModule extends BaseAgentModule {
 
     return stateLogic.functions
       .map((func: any) => {
-        return `  const ${func.name} = ${func.body}`;
+        // ✅ CRITICAL FIX: Wrap function body in arrow function syntax
+        // State Design Agent provides executable statements, not complete functions
+        return `  const ${func.name} = () => { ${func.body} };`;
       })
       .join('\n\n');
   }
@@ -284,12 +286,12 @@ export default ${cleanComponentName};`;
       }
       
       if (output.assembledCode.includes('import ')) {
-        // 🔄 PHASE 2: Import statements are now expected in JSX format
+        // ✅ Import statements are now REQUIRED in JSX format for proper transpilation
         if (output.metadata?.assemblyMethod === 'programmatic-jsx') {
-          // JSX format expects imports - this is correct
+          // JSX format expects imports - this is correct behavior
         } else {
-        errors.push('Component code contains import statements (should be removed for runtime execution)');
-        score -= 25;
+          warnings.push('Component code contains import statements but assembly method is not JSX');
+          score -= 10; // Reduced penalty - imports might be valid
         }
       }
       

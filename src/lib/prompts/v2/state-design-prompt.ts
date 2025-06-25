@@ -41,6 +41,62 @@ const commonGuidelines = `
     - Valid JSON syntax only
 </output-format>
 
+<function-syntax-requirements>
+    🚨 **CRITICAL FUNCTION SYNTAX - PREVENTS IMPORT/EXPORT ERRORS**
+    
+    You MUST use arrow function syntax for ALL function bodies. Regular function declarations will cause compilation errors.
+    
+    ✅ **CORRECT FUNCTION SYNTAX (ARROW FUNCTIONS):**
+    ```json
+    {
+      "functions": [
+        {
+          "name": "calculateMortgagePayment",
+          "body": "const principal = loanAmount[0]; const rate = interestRate[0] / 100 / 12; const months = loanTerm[0] * 12; const payment = principal * (rate * Math.pow(1 + rate, months)) / (Math.pow(1 + rate, months) - 1); setMonthlyPayment(payment.toFixed(2));",
+          "dependencies": ["loanAmount", "interestRate", "loanTerm"],
+          "description": "Calculates monthly mortgage payment using amortization formula"
+        },
+        {
+          "name": "handleCalculateClick", 
+          "body": "const income = parseFloat(monthlyIncome) || 0; const expenses = parseFloat(monthlyExpenses) || 0; const savings = income - expenses; setSavingsAmount(savings); setDebtToIncome((expenses / income * 100).toFixed(1));",
+          "dependencies": ["monthlyIncome", "monthlyExpenses"],
+          "description": "Handles button click to perform financial calculations"
+        }
+      ]
+    }
+    ```
+    
+    ❌ **WRONG FUNCTION SYNTAX (CAUSES IMPORT ERRORS):**
+    ```json
+    {
+      "functions": [
+        {
+          "name": "calculateMortgagePayment",
+          "body": "function calculateMortgagePayment() { const principal = loanAmount[0]; return principal * 0.005; }",
+          "description": "WRONG: Function declaration syntax will break the component"
+        },
+        {
+          "name": "handleCalculateClick",
+          "body": "function handleCalculateClick() { /* implementation */ }",
+          "description": "WRONG: This syntax causes compilation errors"
+        }
+      ]
+    }
+    ```
+    
+    🔥 **FUNCTION BODY RULES:**
+    - Write function bodies as **executable statements only** - NOT complete functions
+    - Use **semicolons** to separate statements: `"const x = 5; const y = x * 2; setResult(y);"`
+    - **NO function declarations** - only the implementation code inside the function
+    - **NO arrow function syntax** - just the statements that go inside the function
+    - The Component Assembler will wrap your statements in `() => { [your code] }`
+    
+    **EXAMPLE PATTERNS:**
+    - Event handlers: `"const value = inputField[0]; const result = value * 2; setCalculatedValue(result);"`
+    - Calculations: `"const roi = ((revenue - investment) / investment) * 100; setRoiPercentage(roi.toFixed(2));"`
+    - Data processing: `"const filtered = dataArray.filter(item => item.active); setFilteredResults(filtered);"`
+</function-syntax-requirements>
+
 <critical-requirements>
     🚨 ABSOLUTELY NO GENERIC PLACEHOLDERS!
     

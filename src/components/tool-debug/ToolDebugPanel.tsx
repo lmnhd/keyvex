@@ -25,11 +25,12 @@ export default function ToolDebugPanel({
     events,
     currentState,
     config,
+    transpilationInfo,
     clearEvents,
     exportSession,
     updateConfig,
     isEnabled,
-  } = useToolDebugger(toolId as string);
+  } = useToolDebugger(toolId as string, componentCode);
 
   // Calculate statistics
   const calculateStats = (): DebugStats => {
@@ -99,7 +100,7 @@ export default function ToolDebugPanel({
             )}
           </div>
           
-          <TabsList className="grid grid-cols-4 w-auto">
+          <TabsList className="grid grid-cols-5 w-auto">
             <TabsTrigger value="events" className="text-xs px-2">
               <List className="h-3 w-3 mr-1" />
               Events
@@ -115,6 +116,18 @@ export default function ToolDebugPanel({
               {Object.keys(currentState.variables).length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs h-4 px-1">
                   {Object.keys(currentState.variables).length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="format" className="text-xs px-2">
+              <Activity className="h-3 w-3 mr-1" />
+              Format
+              {transpilationInfo && (
+                <Badge 
+                  variant={transpilationInfo.format.isTranspiled ? "default" : "secondary"} 
+                  className="ml-1 text-xs h-4 px-1"
+                >
+                  {transpilationInfo.format.format}
                 </Badge>
               )}
             </TabsTrigger>
@@ -145,6 +158,129 @@ export default function ToolDebugPanel({
               currentState={currentState}
               readOnly={true}
             />
+          </TabsContent>
+
+          <TabsContent value="format" className="h-full m-0 p-3">
+            <Card>
+              <CardContent className="p-4">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium mb-3">Transpilation Format Analysis</h4>
+                    
+                    {transpilationInfo ? (
+                      <div className="space-y-4">
+                        {/* Format Information */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-500">Format Type:</span>
+                            <Badge 
+                              variant={transpilationInfo.format.isTranspiled ? "default" : "secondary"} 
+                              className="ml-2"
+                            >
+                              {transpilationInfo.format.format}
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Original Format:</span>
+                            <span className="ml-2 font-mono text-xs">{transpilationInfo.format.estimatedOriginalFormat}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Has Imports:</span>
+                            <Badge variant={transpilationInfo.format.hasImports ? "default" : "secondary"} className="ml-2">
+                              {transpilationInfo.format.hasImports ? "Yes" : "No"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">React.createElement:</span>
+                            <Badge variant={transpilationInfo.format.hasReactCreateElement ? "default" : "secondary"} className="ml-2">
+                              {transpilationInfo.format.hasReactCreateElement ? "Yes" : "No"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {/* Calculation Functions */}
+                        <div className="pt-4 border-t">
+                          <h5 className="text-sm font-medium mb-2">Detected Calculation Functions</h5>
+                          <div className="space-y-3">
+                            {transpilationInfo.calculations.arrowFunctions.length > 0 && (
+                              <div>
+                                <span className="text-xs text-gray-500 block mb-1">Arrow Functions:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {transpilationInfo.calculations.arrowFunctions.map(func => (
+                                    <Badge key={func} variant="outline" className="text-xs">
+                                      {func}()
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {transpilationInfo.calculations.functionDeclarations.length > 0 && (
+                              <div>
+                                <span className="text-xs text-gray-500 block mb-1">Function Declarations:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {transpilationInfo.calculations.functionDeclarations.map(func => (
+                                    <Badge key={func} variant="outline" className="text-xs">
+                                      {func}()
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {transpilationInfo.calculations.calculationVars.length > 0 && (
+                              <div>
+                                <span className="text-xs text-gray-500 block mb-1">Calculation Variables:</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {transpilationInfo.calculations.calculationVars.map(variable => (
+                                    <Badge key={variable} variant="secondary" className="text-xs">
+                                      {variable}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {transpilationInfo.calculations.totalCount === 0 && (
+                              <div className="text-xs text-gray-500 italic">
+                                No calculation functions detected in component code
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Debug Enhancement Status */}
+                        <div className="pt-4 border-t">
+                          <h5 className="text-sm font-medium mb-2">Debug Enhancement Status</h5>
+                          <div className="space-y-2 text-xs">
+                            <div className="flex justify-between">
+                              <span>Transpilation-aware detection:</span>
+                              <Badge variant="default">✅ Enabled</Badge>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Arrow function monitoring:</span>
+                              <Badge variant={transpilationInfo.calculations.arrowFunctions.length > 0 ? "default" : "secondary"}>
+                                {transpilationInfo.calculations.arrowFunctions.length > 0 ? "✅ Active" : "⚪ Waiting"}
+                              </Badge>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>JSX transpiler compatibility:</span>
+                              <Badge variant={transpilationInfo.format.format === 'jsx-transpiled' ? "default" : "secondary"}>
+                                {transpilationInfo.format.format === 'jsx-transpiled' ? "✅ Compatible" : "⚪ Legacy"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 italic">
+                        No component code provided for analysis
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="controls" className="h-full m-0 p-3">

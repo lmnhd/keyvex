@@ -97,10 +97,12 @@ export const isValidProductToolDefinition = (tool: unknown): tool is ProductTool
   }
   // If componentSet is 'shadcn', using these components is allowed and expected.
 
-  // Check for forbidden import/export statements
-  if (componentCode.includes('import ') || componentCode.includes('export ')) {
-    console.warn('⚠️ Tool validation failed: Component contains forbidden import/export statements');
-    return false;
+  // ✅ UPDATED FOR NEW JSX DESIGN: Import statements are now REQUIRED for JSX transpilation
+  // The JSX transpiler will handle import removal during browser execution
+  // Only warn if NO imports are found in JSX components
+  if (!componentCode.includes('import ') && componentCode.includes('React.createElement')) {
+    console.warn('⚠️ Tool validation note: Legacy component detected (no imports). Consider regenerating for JSX format.');
+    // This is not a failure - just informational
   }
 
   // Check for JSX syntax (forbidden in our environment)

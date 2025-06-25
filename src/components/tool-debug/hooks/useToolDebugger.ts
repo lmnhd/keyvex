@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { 
   DebugEvent, 
   DebugEventType, 
@@ -10,6 +10,66 @@ import {
   UseToolDebuggerReturn,
   PerformanceMetrics
 } from '../types/debug-types';
+
+// Helper functions for transpilation format detection
+const detectTranspiledJSX = (componentCode: string) => {
+  return {
+    isTranspiled: componentCode.includes('// Transpiled from JSX') || 
+                  componentCode.includes('/* Transpiled from JSX */') ||
+                  (componentCode.includes('React.createElement') && componentCode.includes('import ')),
+    hasImports: componentCode.includes('import '),
+    hasReactCreateElement: componentCode.includes('React.createElement'),
+    format: (() => {
+      if (componentCode.includes('import ') && componentCode.includes('React.createElement')) {
+        return 'jsx-transpiled';
+      } else if (componentCode.includes('React.createElement') && !componentCode.includes('import ')) {
+        return 'createElement';
+      } else if (componentCode.includes('import ') && !componentCode.includes('React.createElement')) {
+        return 'jsx-raw';
+      } else {
+        return 'unknown';
+      }
+    })(),
+    estimatedOriginalFormat: (() => {
+      if (componentCode.includes('React.createElement') && componentCode.includes('import ')) {
+        return 'JSX → JavaScript (transpiled)';
+      } else if (componentCode.includes('React.createElement')) {
+        return 'React.createElement (legacy)';
+      } else {
+        return 'Unknown format';
+      }
+    })()
+  };
+};
+
+const detectCalculationFunctions = (componentCode: string) => {
+  const patterns = {
+    // New JSX transpiled format: const functionName = () => { ... }
+    arrowFunctions: /const\s+(\w*[Cc]alculate\w*|\w*[Cc]ompute\w*|\w*[Tt]otal\w*|\w*[Ss]core\w*|\w*[Pp]rocess\w*)\s*=\s*\(\s*\)\s*=>\s*\{/g,
+    
+    // Legacy function declarations: function functionName() { ... }
+    functionDeclarations: /function\s+(\w*[Cc]alculate\w*|\w*[Cc]ompute\w*|\w*[Tt]otal\w*|\w*[Ss]core\w*|\w*[Pp]rocess\w*)\s*\(/g,
+    
+    // Any calculation-related variable assignments
+    calculationVars: /(?:const|let|var)\s+(\w*[Cc]alculation\w*|\w*[Rr]esult\w*|\w*[Tt]otal\w*|\w*[Ss]core\w*)\s*=/g
+  };
+
+  const detected = {
+    arrowFunctions: [] as string[],
+    functionDeclarations: [] as string[],
+    calculationVars: [] as string[],
+    totalCount: 0
+  };
+
+  Object.entries(patterns).forEach(([patternName, pattern]) => {
+    const matches = Array.from(componentCode.matchAll(pattern));
+    detected[patternName as keyof typeof detected] = matches.map(match => match[1]);
+  });
+
+  detected.totalCount = detected.arrowFunctions.length + detected.functionDeclarations.length + detected.calculationVars.length;
+
+  return detected;
+};
 
 // Default configuration
 const DEFAULT_CONFIG: DebugConfig = {
@@ -23,7 +83,7 @@ const DEFAULT_CONFIG: DebugConfig = {
   exportEnabled: true,
 };
 
-export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
+export function useToolDebugger(toolId: string, componentCode?: string): UseToolDebuggerReturn {
   const [events, setEvents] = useState<DebugEvent[]>([]);
   const [currentState, setCurrentState] = useState<ToolState>({
     variables: {},
@@ -44,6 +104,22 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
   
   const eventsRef = useRef<DebugEvent[]>([]);
   const performanceRef = useRef<PerformanceMetrics>(currentState.performance);
+
+  // NEW: Detect transpilation format when component code is available
+  const transpilationInfo = useMemo(() => {
+    if (!componentCode) return null;
+    
+    const formatDetection = detectTranspiledJSX(componentCode);
+    const calculationDetection = detectCalculationFunctions(componentCode);
+    
+    console.log('🐛 DEBUG: Transpilation format detected:', formatDetection);
+    console.log('🐛 DEBUG: Calculation functions detected:', calculationDetection);
+    
+    return {
+      format: formatDetection,
+      calculations: calculationDetection
+    };
+  }, [componentCode]);
 
   // Create a debug event
   // Sanitize data to avoid circular references
@@ -351,7 +427,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
       }
     };
 
-    // DYNAMIC FUNCTION DETECTION - Find calculation-related functions (with filtering)
+    // ENHANCED DYNAMIC FUNCTION DETECTION - Uses transpilation format information
     const findCalculationFunctions = (obj: any, contextName: string) => {
       if (!obj || typeof obj !== 'object') return;
       
@@ -364,6 +440,27 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
         'remove', 'setattribute', 'getattribute', 'classlist', 'style',
         'offsetwidth', 'offsetheight', 'clientwidth', 'clientheight'
       ]);
+      
+      // Enhanced function patterns based on transpilation format
+      const getCalculationPatterns = () => {
+        const basePatterns = [
+          'calculate', 'compute', 'process', 'estimate', 'analyze', 'evaluate',
+          'assess', 'determine', 'generate', 'total', 'sum', 'score', 'rating',
+          'ranking', 'budget', 'payment', 'loan', 'mortgage', 'interest', 'roi',
+          'profit', 'savings', 'tax', 'afford'
+        ];
+
+        // Add specific patterns detected from transpiled JSX
+        if (transpilationInfo?.calculations.arrowFunctions.length) {
+          const detectedNames = transpilationInfo.calculations.arrowFunctions.map(name => name.toLowerCase());
+          console.log('🐛 DEBUG: Adding transpiled arrow function patterns:', detectedNames);
+          basePatterns.push(...detectedNames);
+        }
+
+        return basePatterns;
+      };
+
+      const calculationPatterns = getCalculationPatterns();
       
       Object.getOwnPropertyNames(obj).forEach(propName => {
         if (typeof obj[propName] === 'function') {
@@ -379,32 +476,9 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
             return;
           }
           
-          // Check if function name suggests it's calculation-related
+          // Enhanced calculation detection using patterns
           const isCalculationFunction = 
-            funcName.includes('calculate') ||
-            funcName.includes('compute') ||
-            funcName.includes('process') ||
-            funcName.includes('estimate') ||
-            funcName.includes('analyze') ||
-            funcName.includes('evaluate') ||
-            funcName.includes('assess') ||
-            funcName.includes('determine') ||
-            funcName.includes('generate') ||
-            funcName.includes('total') ||
-            funcName.includes('sum') ||
-            funcName.includes('score') ||
-            funcName.includes('rating') ||
-            funcName.includes('ranking') ||
-            funcName.includes('budget') ||
-            funcName.includes('payment') ||
-            funcName.includes('loan') ||
-            funcName.includes('mortgage') ||
-            funcName.includes('interest') ||
-            funcName.includes('roi') ||
-            funcName.includes('profit') ||
-            funcName.includes('savings') ||
-            funcName.includes('tax') ||
-            funcName.includes('afford') ||
+            calculationPatterns.some(pattern => funcName.includes(pattern)) ||
             (funcName.startsWith('handle') && (
               funcName.includes('submit') ||
               funcName.includes('calc') ||
@@ -413,7 +487,8 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
             ));
 
           if (isCalculationFunction && !originalFunctions.has(`${contextName}.${propName}`)) {
-            console.log('🎯 DEBUG: Auto-detected calculation function:', `${contextName}.${propName}`);
+            console.log('🎯 DEBUG: Auto-detected calculation function:', `${contextName}.${propName}`, 
+                       transpilationInfo?.format.format ? `(${transpilationInfo.format.format} format)` : '');
             wrapFunction(obj, propName, contextName);
               }
             }
@@ -917,6 +992,7 @@ export function useToolDebugger(toolId: string): UseToolDebuggerReturn {
     events,
     currentState,
     config,
+    transpilationInfo,
     isEnabled,
     logEvent,
     clearEvents,
