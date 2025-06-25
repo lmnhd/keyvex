@@ -137,8 +137,13 @@ export interface ComponentAssemblerResult {
     codeLength: number;
     estimatedRenderTime: string;
     bundleSize: string;
-    assemblyMethod: 'programmatic';
+    assemblyMethod: 'programmatic' | 'programmatic-jsx';
     componentsAssembled: string[];
+    // 🔄 PHASE 2: JSX-specific metadata fields (optional for backward compatibility)
+    jsxFormat?: 'jsx';
+    requiresTranspilation?: boolean;
+    hasStateVariables?: boolean;
+    hasFunctions?: boolean;
   };
 }
 
@@ -208,6 +213,13 @@ export interface ToolConstructionContext extends BaseTCC {
   // - tcc.jsxLayout (not tcc.jsxLayoutResult)
   // - tcc.styling (not tcc.tailwindStylingResult)
   // - tcc.finalProduct (not tcc.toolFinalizerResult)
+
+  // 🔄 PHASE 2: Component assembler output fields (for UI display)
+  assembledComponentCode?: string; // Raw assembled component code (JSX or React.createElement)
+  assembledComponent?: {           // Structured component data
+    finalComponentCode?: string;
+    metadata?: ComponentAssemblerResult['metadata'];
+  };
 
   // Agent execution metadata (optional for backward compatibility)
   agentExecutionHistory?: Array<{

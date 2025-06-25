@@ -102,9 +102,8 @@ export function updateTccWithAgentResult(
       newTcc.styling = (result as TailwindStylingResult).styling;
       break;
     case 'component-assembler':
-      // CRITICAL FIX: Store the assembled component code in TCC for UI display
-      // The component assembler generates the complete React component with imports,
-      // state logic, functions, and React.createElement syntax
+      // 🔄 PHASE 2: Handle JSX Component Assembler results with clean JSX syntax
+      // The JSX assembler generates clean JSX that requires client-side transpilation
       const assemblerResult = result as ComponentAssemblerResult;
       
       // Store in the field the UI expects
@@ -117,13 +116,16 @@ export function updateTccWithAgentResult(
       newTcc.assembledComponent.finalComponentCode = assemblerResult.assembledCode;
       newTcc.assembledComponent.metadata = assemblerResult.metadata;
       
+      // 🔄 PHASE 2: Enhanced logging for JSX assembly method
       logger.info({
         jobId: tcc.jobId,
         agentType: 'component-assembler',
         codeLength: assemblerResult.assembledCode?.length || 0,
         hasMetadata: !!assemblerResult.metadata,
-        assemblyMethod: assemblerResult.metadata?.assemblyMethod
-      }, '✅ [TCC-MANAGER] Component assembler result stored in TCC.assembledComponentCode and TCC.assembledComponent');
+        assemblyMethod: assemblerResult.metadata?.assemblyMethod,
+        isJsxFormat: assemblerResult.metadata?.assemblyMethod === 'programmatic-jsx',
+        requiresTranspilation: assemblerResult.metadata?.assemblyMethod === 'programmatic-jsx'
+      }, '✅ [TCC-MANAGER] JSX Component assembler result stored in TCC.assembledComponentCode and TCC.assembledComponent');
       break;
     case 'code-validator':
       // Code validator result is not stored in a dedicated TCC field
