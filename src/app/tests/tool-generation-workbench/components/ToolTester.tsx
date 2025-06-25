@@ -49,8 +49,17 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     dynamoDBTools,
     loadSource,
     setLoadSource,
-
   } = useToolTesterData(newBrainstormFlag, userId);
+
+  // Debug logging to track availableModels changes
+  useEffect(() => {
+    console.log('📊 ToolTester availableModels state changed:', {
+      length: availableModels.length,
+      firstThree: availableModels.slice(0, 3).map(m => ({ id: m.id, name: m.name })),
+      hasInitialized,
+      timestamp: new Date().toISOString()
+    });
+  }, [availableModels, hasInitialized]);
 
   const [selectedBrainstormId, setSelectedBrainstormId] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<string[]>([]);
@@ -421,6 +430,14 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
+    // Debug logging to track why useEffect might not be running
+    console.log('🔍 ToolTester model initialization check:', {
+      availableModelsLength: availableModels.length,
+      hasInitialized,
+      defaultPrimaryModel,
+      shouldRun: availableModels.length > 0 && !hasInitialized
+    });
+
     if (availableModels.length > 0 && !hasInitialized) {
       console.log('🔄 Initializing model selections...', {
         availableModelsCount: availableModels.length,
@@ -519,6 +536,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }
       
       setHasInitialized(true);
+    } else {
+      console.log('⏸️ Model initialization skipped:', {
+        reason: availableModels.length === 0 ? 'no available models' : 'already initialized',
+        availableModelsLength: availableModels.length,
+        hasInitialized
+      });
     }
   }, [availableModels, hasInitialized, defaultPrimaryModel, availableAgents, getDefaultModelForAgent, loadFromLocalStorage, saveToLocalStorage]);
 
