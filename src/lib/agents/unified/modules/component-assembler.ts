@@ -84,17 +84,17 @@ export class ComponentAssemblerModule extends BaseAgentModule {
       // Step 2: Generate function definitions
       const functionDefinitions = this.generateFunctionDefinitions(stateLogic);
       
-      // Step 3: Convert JSX to React.createElement
-      const reactElementCode = this.convertJsxToReactCreateElement(
+      // Step 3: 🔄 PHASE 2: Process JSX with styling (keep as JSX)
+      const processedJsx = this.processJsxWithStyling(
         jsxLayout.componentStructure,
         styling.styleMap || {}
       );
       
-      // Step 4: Assemble final component
+      // Step 4: 🔄 PHASE 2: Assemble final JSX component
       const assembledCode = this.assembleFinalComponent(
         stateDeclarations,
         functionDefinitions,
-        reactElementCode,
+        processedJsx,
         tcc.brainstormData?.coreConcept || 'GeneratedTool'
       );
 
@@ -124,12 +124,17 @@ export class ComponentAssemblerModule extends BaseAgentModule {
           codeLength: assembledCode.length,
           estimatedRenderTime: `${Math.ceil(assembledCode.length / 1000)}ms`,
           bundleSize: `${Math.ceil(assembledCode.length / 1024)}KB`,
-          assemblyMethod: 'programmatic' as const,
+          assemblyMethod: 'programmatic-jsx' as const, // 🔄 PHASE 2: JSX assembly method
           componentsAssembled: [
             'state-logic',
             'jsx-layout', 
             'tailwind-styling'
-          ]
+          ],
+          // 🔄 PHASE 2: JSX-specific metadata
+          jsxFormat: 'jsx' as const,
+          requiresTranspilation: true,
+          hasStateVariables: (stateLogic.variables?.length || 0) > 0,
+          hasFunctions: (stateLogic.functions?.length || 0) > 0
         }
       };
 
@@ -157,7 +162,8 @@ export class ComponentAssemblerModule extends BaseAgentModule {
     return stateLogic.variables
       .map((variable: any) => {
         const initialValue = this.formatInitialValue(variable.initialValue, variable.type);
-        return `  const [${variable.name}, set${this.capitalize(variable.name)}] = React.useState(${initialValue});`;
+        // 🔄 PHASE 2: Use useState instead of React.useState (will be transpiled)
+        return `  const [${variable.name}, set${this.capitalize(variable.name)}] = useState(${initialValue});`;
       })
       .join('\n');
   }
@@ -178,45 +184,59 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   }
 
   /**
-   * Convert JSX syntax to React.createElement calls
+   * 🔄 PHASE 2: Process JSX syntax with styling (keep as JSX for client-side transpilation)
    */
-  private convertJsxToReactCreateElement(jsxCode: string, styleMap: Record<string, string>): string {
-    // This is a simplified conversion - in production, you'd use a proper JSX transformer
-    let converted = jsxCode;
+  private processJsxWithStyling(jsxCode: string, styleMap: Record<string, string>): string {
+    // Apply style mapping by replacing data-style-id with className
+    let processed = jsxCode;
     
-    // Apply style mapping
     Object.entries(styleMap).forEach(([id, classes]) => {
       const pattern = new RegExp(`data-style-id="${id}"`, 'g');
-      converted = converted.replace(pattern, `className="${classes}"`);
+      processed = processed.replace(pattern, `className="${classes}"`);
     });
 
-    // Basic JSX to React.createElement conversion
-    // This is a simplified implementation - production would use Babel transformer
-    converted = this.performBasicJsxConversion(converted);
+    // 🔄 PHASE 2: Keep JSX syntax - no conversion to React.createElement
+    // The DynamicComponentRenderer will handle JSX transpilation using Babel
     
-    return converted;
+    return processed;
   }
 
   /**
-   * Assemble the final React component
+   * 🔄 PHASE 2: Assemble the final JSX component with imports
    */
   private assembleFinalComponent(
     stateDeclarations: string,
     functionDefinitions: string,
-    reactElementCode: string,
+    jsxContent: string,
     componentName: string
   ): string {
     const cleanComponentName = this.sanitizeComponentName(componentName);
     
-    return `function ${cleanComponentName}() {
+    // 🔄 PHASE 2: Add React imports for JSX transpilation
+    const imports = `import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
+`;
+    
+    return `${imports}function ${cleanComponentName}() {
 ${stateDeclarations}
 
 ${functionDefinitions}
 
   return (
-${reactElementCode}
+${jsxContent}
   );
-}`;
+}
+
+export default ${cleanComponentName};`;
   }
 
   /**
@@ -240,12 +260,8 @@ ${reactElementCode}
   }
 
   private performBasicJsxConversion(jsxCode: string): string {
-    // Basic JSX to React.createElement conversion
-    // This is simplified - production would use proper AST transformation
-    return jsxCode
-      .replace(/<(\w+)/g, 'React.createElement("$1"')
-      .replace(/\/>/g, ')')
-      .replace(/<\/\w+>/g, ')');
+    // 🔄 PHASE 2: No longer needed - we keep JSX syntax for client-side transpilation
+    return jsxCode;
   }
 
   /**
@@ -268,8 +284,13 @@ ${reactElementCode}
       }
       
       if (output.assembledCode.includes('import ')) {
-        errors.push('Component code contains import statements (should be removed for runtime execution)');
-        score -= 25;
+        // 🔄 PHASE 2: Import statements are now expected in JSX format
+        if (output.metadata?.assemblyMethod === 'programmatic-jsx') {
+          // JSX format expects imports - this is correct
+        } else {
+          errors.push('Component code contains import statements (should be removed for runtime execution)');
+          score -= 25;
+        }
       }
       
       if (output.assembledCode.length < 50) {
@@ -283,8 +304,8 @@ ${reactElementCode}
       warnings.push('Missing component assembler metadata');
       score -= 5;
     } else {
-      if (output.metadata.assemblyMethod !== 'programmatic') {
-        errors.push('Assembly method should be programmatic');
+      if (output.metadata.assemblyMethod !== 'programmatic-jsx' && output.metadata.assemblyMethod !== 'programmatic') {
+        errors.push('Assembly method should be programmatic or programmatic-jsx');
         score -= 20;
       }
       
@@ -326,6 +347,6 @@ ${reactElementCode}
    * Provide a description for logging.
    */
   protected getAgentDescription(): string {
-    return 'Programmatically combines JSX layout, state logic, and styling into final executable React component with React.createElement syntax.';
+    return 'Programmatically combines JSX layout, state logic, and styling into final executable React component with clean JSX syntax for client-side transpilation.';
   }
 } 

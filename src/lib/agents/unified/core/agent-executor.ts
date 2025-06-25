@@ -28,7 +28,6 @@ import { FunctionPlannerModule } from '../modules/function-planner';
 import { StateDesignModule } from '../modules/state-design';
 import { JSXLayoutModule } from '../modules/jsx-layout';
 import { ComponentAssemblerModule } from '../modules/component-assembler';
-import { JsxComponentAssemblerModule } from '../modules/jsx-component-assembler';
 import { TailwindStylingModule } from '../modules/tailwind-styling';
 import { CodeValidatorModule } from '../modules/code-validator';
 import { ToolFinalizerModule } from '../modules/tool-finalizer';
@@ -62,8 +61,7 @@ class AgentRegistry {
     this.agents.set('state-design', new StateDesignModule());
     this.agents.set('jsx-layout', new JSXLayoutModule());
     this.agents.set('tailwind-styling', new TailwindStylingModule());
-    // 🔄 PHASE 2: Use JSX Component Assembler for clean JSX generation
-    this.agents.set('component-assembler', new JsxComponentAssemblerModule());
+    this.agents.set('component-assembler', new ComponentAssemblerModule());
     this.agents.set('code-validator', new CodeValidatorModule());
     this.agents.set('tool-finalizer', new ToolFinalizerModule());
   }
@@ -220,8 +218,7 @@ async function executeProgrammaticModule(
     let result: AgentResult;
 
     if (agentType === 'component-assembler') {
-      // 🔄 PHASE 2: Using JSX Component Assembler for clean JSX generation
-      const assemblerModule = agentModule as JsxComponentAssemblerModule;
+      const assemblerModule = agentModule as ComponentAssemblerModule;
       result = assemblerModule.assembleComponent(tcc);
     } else if (agentType === 'tool-finalizer') {
       const finalizerModule = agentModule as ToolFinalizerModule;
