@@ -8,9 +8,9 @@ import {
   CodeValidatorResult,
 } from '../../../types/tcc-unified';
 import { 
-  BaseAgentModule, 
-  BaseValidationResult 
+  BaseAgentModule
 } from '../core/base-agent-module';
+import { ValidationResult } from '../../../types/tcc-unified';
 
 /**
  * Zod schema for the Code Validator's output.
@@ -50,7 +50,7 @@ export class CodeValidatorModule extends BaseAgentModule {
   /**
    * Validate the code validator's structured output.
    */
-  validate(output: CodeValidatorResult): BaseValidationResult {
+  validate(output: CodeValidatorResult): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
     let score = 100;
@@ -98,10 +98,11 @@ export class CodeValidatorModule extends BaseAgentModule {
 
   /**
    * Define the required TCC fields for this agent.
+   * 🔄 UPDATED: Now looks at assembledComponentCode from Phase 2 JSX assembly
    */
   getRequiredInputFields(): string[] {
     return [
-      'finalProduct.componentCode'
+      'assembledComponentCode'
     ];
   }
 
@@ -114,8 +115,9 @@ export class CodeValidatorModule extends BaseAgentModule {
 
   /**
    * Provide a description for logging.
+   * 🔄 UPDATED: Now optimized for JSX validation from Phase 2
    */
   protected getAgentDescription(): string {
-    return 'Validates component code for syntax errors, security issues, and performance problems with auto-correction.';
+    return 'Validates JSX component code for syntax errors, React hooks usage, security issues, and performance problems with intelligent suggestions.';
   }
 }

@@ -222,8 +222,8 @@ async function executeProgrammaticModule(
       result = assemblerModule.assembleComponent(tcc);
     } else if (agentType === 'tool-finalizer') {
       const finalizerModule = agentModule as ToolFinalizerModule;
-      // TODO: Implement finalizeComponent method in ToolFinalizerModule
-      throw new Error('Tool finalizer programmatic execution not yet implemented');
+      // 🔄 IMPLEMENTED: Tool finalizer programmatic execution
+      result = finalizerModule.finalizeComponent(tcc);
     } else {
       throw new Error(`Unknown programmatic module: ${agentType}`);
     }
