@@ -124,7 +124,7 @@ export async function assembleComponent(request: {
     // Update TCC with results
     const updatedTCC: ToolConstructionContext = {
       ...tcc,
-      assembledComponentCode: assembledComponent.finalComponentCode,
+     // assembledComponentCode: assembledComponent.finalComponentCode,
       currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code, // Set next step
       steps: {
         ...tcc.steps,
