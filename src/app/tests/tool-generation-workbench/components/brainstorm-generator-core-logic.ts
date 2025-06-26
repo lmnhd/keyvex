@@ -66,9 +66,9 @@ export async function generateBrainstorm(
             if (data.type === 'partial' && data.data?.thought) {
               onProgress({ type: 'partial', data: { thought: data.data.thought }, timestamp: Date.now() });
             } else if (data.type === 'complete') {
-              console.log('[BrainstormGeneratorCoreLogic] Stream complete, final data:', JSON.stringify(data.data, null, 2));
+              console.log('[BrainstormGeneratorCoreLogic] Stream complete, raw data captured. Deferring validation and emission until unified BrainstormResult is ready.');
               finalResultData = data.data;
-              onProgress({ type: 'complete', data: data.data, timestamp: Date.now() });
+              // Do not emit raw complete event; will emit after validation
               break;
             } else if (data.type === 'error') {
               onProgress({ type: 'error', data: null, message: data.message, timestamp: Date.now() });
@@ -100,13 +100,14 @@ export async function generateBrainstorm(
       // Validate the brainstorm data to ensure it matches BrainstormDataSchema
       // NO FALLBACKS - Let it fail if Logic Architect generates bad data
       console.log('[BrainstormGeneratorCoreLogic] Validating Logic Architect output (NO FALLBACKS)');
-      const validatedBrainstormData = validateBrainstormData(finalResultData);
+      const validatedBrainstormData = validateBrainstormData(finalResultData.brainstormData);
 
       const newBrainstormResult: BrainstormResult = {
         id: uuidv4(),
         timestamp: Date.now(),
         date: new Date().toISOString(),
         userInput,
+        // Store only the validated brainstorm data
         brainstormData: validatedBrainstormData,
       };
 

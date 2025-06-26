@@ -193,18 +193,90 @@ export async function POST(request: NextRequest) {
             provider,
             modelName: actualModelName,
             timestamp: Date.now(),
-            // Placeholder brainstorming data
+            // Placeholder brainstorming data (now includes all required fields)
             brainstormData: {
               coreConcept: `${toolType} for ${targetAudience}`,
+              valueProposition: 'Deliver instant, visually rich makeover insights and cost estimates',
               keyCalculations: [
-                { name: 'Primary Calculation', formula: 'input * multiplier', description: 'Main calculation logic' }
+                {
+                  name: 'Primary Calculation',
+                  formula: 'roomArea * styleMultiplier * budgetFactor',
+                  description: 'Estimates makeover cost based on room size, chosen style, and budget',
+                  variables: ['roomArea', 'styleMultiplier', 'budgetFactor']
+                }
+              ],
+              interactionFlow: [
+                {
+                  step: 1,
+                  title: 'Enter Room Details',
+                  description: 'User provides room dimensions and preferred style',
+                  userAction: 'Fill form',
+                  engagementHook: 'Show sample styled rooms as the user types'
+                },
+                {
+                  step: 2,
+                  title: 'Review Visual Mock-up',
+                  description: 'AI renders before-and-after preview',
+                  userAction: 'View preview',
+                  engagementHook: 'Interactive slider comparison'
+                },
+                {
+                  step: 3,
+                  title: 'Download Cost Breakdown',
+                  description: 'User receives detailed pricing and material list',
+                  userAction: 'Click “Download”',
+                  engagementHook: 'Highlight savings tips'
+                }
+              ],
+              leadCaptureStrategy: {
+                timing: 'After visual preview',
+                method: 'Email gate',
+                incentive: 'Free design tips PDF'
+              },
+              creativeEnhancements: [
+                'Augmented-reality preview mode',
+                'One-click share to social media',
+                'AI-recommended color palettes'
               ],
               suggestedInputs: [
-                { type: 'number', label: 'Input Value', placeholder: 'Enter value' }
+                {
+                  id: 'roomArea',
+                  label: 'Room Area (sq ft)',
+                  type: 'number',
+                  required: true,
+                  description: 'Total floor area of the room'
+                },
+                {
+                  id: 'style',
+                  label: 'Preferred Style',
+                  type: 'select',
+                  required: true,
+                  description: 'E.g., Modern, Scandinavian, Rustic'
+                },
+                {
+                  id: 'budget',
+                  label: 'Budget ($)',
+                  type: 'number',
+                  required: false,
+                  description: 'Maximum budget for the makeover'
+                }
               ],
-              leadGeneration: {
-                capturePoint: 'After calculation results',
-                valueProposition: 'Get personalized recommendations'
+              calculationLogic: [
+                {
+                  id: 'costEstimation',
+                  name: 'Cost Estimation',
+                  formula: '(roomArea * styleMultiplier) + contractorMarkup',
+                  dependencies: ['roomArea', 'styleMultiplier'],
+                  outputFormat: 'currency',
+                  engagementMoment: 'After user enters all inputs'
+                }
+              ],
+              promptOptions: {
+                includeComprehensiveColors: true,
+                includeGorgeousStyling: true,
+                includeAdvancedLayouts: false,
+                styleComplexity: 'medium',
+                toolComplexity: 'intermediate'
               }
             }
           };
