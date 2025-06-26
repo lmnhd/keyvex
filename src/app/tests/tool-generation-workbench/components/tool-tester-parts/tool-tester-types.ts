@@ -35,6 +35,13 @@ export type WorkflowMode = 'v2' | 'debug';
 
 export type AgentMode = 'create' | 'edit';
 
+export interface TccUpdate {
+  agentType: string;
+  tccKeys: string[];
+  hasAssembledCode: boolean;
+  hasFinalProduct: boolean;
+}
+
 // Mock TCC scenarios for testing individual agents
 export const mockTccScenarios = [
   {

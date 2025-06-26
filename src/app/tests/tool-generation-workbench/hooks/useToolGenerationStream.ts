@@ -271,33 +271,20 @@ export const useToolGenerationStream = (options: UseToolGenerationStreamOptions 
             });
             if (onProgress) onProgress(progress);
             
-            // 🏁 WORKFLOW COMPLETION DETECTION
-            if (progress.stepName === 'workflow_completed' && progress.status === 'completed') {
-              console.log('🏁 [WebSocket] V2 Workflow completed - stopping and clearing active job');
-              stopPolling();
-              activeJobIdRef.current = null;
-              activeUserIdRef.current = null;
-              
-              // Automatically disconnect WebSocket after workflow completion
-              setTimeout(() => {
-                console.log('🔌 [WebSocket] Auto-disconnecting after workflow completion');
-                disconnect();
-              }, 2000); // Give time to ensure all final messages are received
-            }
-            
-            // Legacy completion detection for backward compatibility
-            if (progress.stepName === 'finalizing_tool' && progress.status === 'completed') {
+            // Legacy completion handling. If we see the final step, stop everything.
+            // This is a potential source of issues if the backend has a different idea of "done".
+            /*
+            if (
+              data.type === 'progress' &&
+              (data.stepName === 'finalizing_tool' || data.stepName === 'tool_completed') &&
+              data.status === 'completed'
+            ) {
               console.log('🛑 [WebSocket] Tool completed (legacy) - stopping polling and clearing active job');
               stopPolling();
               activeJobIdRef.current = null;
-              activeUserIdRef.current = null;
-              
-              // Automatically disconnect WebSocket after tool completion to ensure clean state
-              setTimeout(() => {
-                console.log('🔌 [WebSocket] Auto-disconnecting after tool completion');
-                disconnect();
-              }, 1000); // Give a small delay to ensure all final messages are received
+              // Don't auto-disconnect here, let the user see the final state
             }
+            */
           }
         } catch (error) {
           console.error('[WebSocket] Failed to parse message:', error);

@@ -1027,7 +1027,7 @@ export default function ToolTesterView({
         </div>
       </CardContent>
       
-      { (testJob || progressUpdates.length > 0) && (
+      { (testJob || progressUpdates.length > 0 || tccData) && (
         <CardFooter className="flex-col items-start space-y-6 pt-6 border-t">
           <Tabs defaultValue="progress" className="w-full">
             <TabsList className="grid w-full grid-cols-7">
@@ -1451,7 +1451,49 @@ export default function ToolTesterView({
                         console.log('🔍     Code hash:', safeHash(tccData.finalProduct.componentCode));
                         console.log('🔍     Contains sliders?:', tccData.finalProduct.componentCode.includes('Slider'));
                       }
-                      // PRIORITY 3: Use debug mode finalProduct code from isolated agent tests
+                      // PRIORITY 3 – use assembledComponentCode if finalProduct hasn't arrived yet
+                      else if (assembledCode) {
+                        previewTool = {
+                          id: tccData?.jobId || `preview-${Date.now()}`,
+                          slug:
+                            (tccData?.userInput?.description || 'preview-tool')
+                              .toLowerCase()
+                              .replace(/[^a-z0-9]+/g, '-')
+                              .replace(/^-+|-+$/g, ''),
+                          componentCode: assembledCode,
+                          metadata: {
+                            id: tccData?.jobId || `preview-${Date.now()}`,
+                            slug:
+                              (tccData?.userInput?.description || 'preview-tool')
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, '-')
+                                .replace(/^-+|-+$/g, ''),
+                            title:
+                              tccData?.brainstormData?.coreConcept ||
+                              'Generated Tool Preview',
+                            type: tccData?.userInput?.toolType || 'Tool',
+                            description:
+                              tccData?.brainstormData?.valueProposition ||
+                              'Preview generated from assembledComponentCode.',
+                            userInstructions:
+                              'Interact with this preview to test the generated tool.',
+                            developerNotes:
+                              'Preview built from assembledComponentCode before finalProduct was emitted.',
+                            dependencies: ['react'],
+                            source: 'assembled-component-preview',
+                            version: '1.0.0-preview'
+                          },
+                          initialStyleMap: tccData?.styling?.styleMap || {},
+                          currentStyleMap: tccData?.styling?.styleMap || {},
+                          createdAt: Date.now(),
+                          updatedAt: Date.now()
+                        };
+                        previewSource = 'Assembled Component Code';
+                        console.log('🔍 ✅ USING PRIORITY 3: Assembled Component Code');
+                        console.log('🔍     Code length:', assembledCode.length);
+                        console.log('🔍     Code hash:', safeHash(assembledCode));
+                      }
+                      // PRIORITY 4 – debug-mode finalProduct
                       else if (workflowMode === 'debug' && testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {
                         const debugTccData = (testJob.result as any).updatedTcc;
                         const originalTool = (testJob.result as any).originalTool;

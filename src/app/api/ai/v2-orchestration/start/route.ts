@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
     const { brainstormData, agentModelMapping, primaryModel, jobId: providedJobId } = validatedRequest;
 
     // Generate job ID if not provided
-    const jobId = providedJobId || uuidv4();
+    const jobId = providedJobId || `workflow-${uuidv4()}`;
     
     logger.info({
       jobId,
@@ -78,6 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
       'started',
       'V2 Orchestration workflow has begun',
       {
+        userId: userId, // Pass userId here
         brainstormId: brainstormData.id,
         targetAudience: brainstormData.userInput.targetAudience,
         totalAgents: 7,
@@ -118,10 +119,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
       'tool-finalizer'
     ];
 
-    let currentTcc = initialTcc;
-
     // Start background processing (don't await - return immediately)
-    processAgentsInBackground(jobId, agentSequence, currentTcc, agentModelMapping, primaryModel);
+    processAgentsInBackground(userId, jobId, agentSequence, initialTcc, agentModelMapping, primaryModel);
 
     // Return success immediately - client will receive updates via WebSocket
     return NextResponse.json({
@@ -151,6 +150,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
  * Process agents in background with real-time updates
  */
 async function processAgentsInBackground(
+  userId: string, // <-- Pass userId explicitly
   jobId: string,
   agentSequence: string[],
   initialTcc: any,
@@ -174,7 +174,6 @@ async function processAgentsInBackground(
       }, `🤖 Processing agent: ${agentType}`);
 
       try {
-        // 🚀 EMIT AGENT START PROGRESS
         const stepMapping: Record<string, string> = {
           'function-planner': 'planning_function_signatures',
           'state-design': 'designing_state_logic',
@@ -192,14 +191,13 @@ async function processAgentsInBackground(
           'started',
           `${agentType} is processing...`,
           {
-            userId: currentTcc.userId,
+            userId: userId, // Use explicitly passed userId
             agentType,
             modelUsed: agentModel,
             startTime: new Date().toISOString()
           }
         );
         
-        // Execute agent directly instead of HTTP call to avoid "fetch failed" issues
         logger.info({
           jobId,
           agentType,
@@ -207,16 +205,14 @@ async function processAgentsInBackground(
           tccKeys: Object.keys(currentTcc)
         }, `🔗 Executing ${agentType} agent directly`);
         
-        // Create execution context
         const executionContext = createAgentExecutionContext(
           agentType as AgentType,
           jobId,
           currentTcc,
           agentModel,
-          false // not isolated test
+          false
         );
 
-        // Execute the agent directly
         const { result, updatedTcc } = await executeAgent(agentType as AgentType, executionContext, currentTcc);
         
         logger.info({
@@ -226,24 +222,21 @@ async function processAgentsInBackground(
           hasUpdatedTcc: !!updatedTcc
         }, `✅ Direct agent execution completed for ${agentType}`);
 
-        // Update TCC with the agent's result
         currentTcc = updatedTcc || currentTcc;
         
-        // 🎉 EMIT AGENT COMPLETION PROGRESS
         await emitStepProgress(
           jobId,
           stepName as any,
           'completed',
           `${agentType} completed successfully`,
           {
-            userId: currentTcc.userId,
+            userId: userId, // Use explicitly passed userId
             agentType,
             completedAt: new Date().toISOString(),
             tccUpdated: !!updatedTcc
           }
         );
         
-        // 📊 EMIT TCC UPDATE - Send updated TCC to workbench
         await emitTccUpdate(jobId, currentTcc, agentType);
         
         logger.info({
@@ -264,14 +257,13 @@ async function processAgentsInBackground(
           error: errorMessage
         }, `❌ Agent ${agentType} failed`);
 
-        // 💥 EMIT WORKFLOW FAILURE
         await emitStepProgress(
           jobId,
           'failed',
           'failed',
           `Workflow failed at ${agentType}: ${errorMessage}`,
           {
-            userId: currentTcc.userId,
+            userId: userId, // Use explicitly passed userId
             failedAgent: agentType,
             step: `${i + 1}/${agentSequence.length}`,
             error: errorMessage,
@@ -279,10 +271,9 @@ async function processAgentsInBackground(
           }
         );
         
-        // 📊 Also emit the final TCC so the workbench can inspect the failure state
         await emitTccUpdate(jobId, { ...currentTcc, status: 'failed', error: errorMessage }, 'orchestrator');
 
-        return; // Stop processing
+        return;
       }
     }
 
@@ -293,6 +284,7 @@ async function processAgentsInBackground(
       'completed',
       'V2 Orchestration workflow completed successfully',
       {
+        userId: userId, // <-- CRITICAL FIX: Add userId here
         totalAgents: agentSequence.length,
         finalTccKeys: Object.keys(currentTcc),
         completedAt: new Date().toISOString(),
@@ -320,6 +312,7 @@ async function processAgentsInBackground(
       'failed',
       `Workflow processing failed: ${errorMessage}`,
       {
+        userId: userId, // <-- CRITICAL FIX: Add userId here
         error: errorMessage,
         failedAt: new Date().toISOString()
       }
@@ -335,4 +328,4 @@ export async function GET() {
     },
     status: 'ready'
   });
-} 
+}

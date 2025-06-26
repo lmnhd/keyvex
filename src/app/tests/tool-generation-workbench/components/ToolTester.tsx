@@ -15,7 +15,8 @@ import {
   STORAGE_KEYS, 
   TccSource, 
   WorkflowMode, 
-  AgentMode
+  AgentMode,
+  TccUpdate
 } from './tool-tester-parts/tool-tester-types';
 import { useToolTesterData } from '../hooks/useToolTesterData';
 import { useTccPersistence } from '../hooks/useTccPersistence';
@@ -51,6 +52,12 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setLoadSource,
   } = useToolTesterData(newBrainstormFlag, userId);
 
+  const [primaryModel, setPrimaryModel] = useState<string | null>(null); // <-- ADD THIS LINE
+  const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
+  const [savedV2JobIds, setSavedV2JobIds] = useState<Set<string>>(new Set());
+  const [hasInitialized, setHasInitialized] = useState(false);
+  const [hasTccAutoLoaded, setHasTccAutoLoaded] = useState(false);
+  
   const [tccData, setTccData] = useState<any>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [wsLogs, setWsLogs] = useState<string[]>([]);
@@ -65,10 +72,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [error, setError] = useState<string | null>(null);
   const [assembledCode, setAssembledCode] = useState<string | null>(null);
   const [finalProduct, setFinalProduct] = useState<ProductToolDefinition | null>(null);
-  const [savedToolIds, setSavedToolIds] = useState<Set<string>>(new Set());
-  const [savedV2JobIds, setSavedV2JobIds] = useState<Set<string>>(new Set());
-  const [hasInitialized, setHasInitialized] = useState(false);
-  const [hasTccAutoLoaded, setHasTccAutoLoaded] = useState(false);
+
   
   // Agent model mapping for individual agent testing
   const [agentModelMapping, setAgentModelMapping] = useState<AgentModelMapping>({});
@@ -188,46 +192,58 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     addWSLog(progress.message || `Progress for ${progress.stepName}: ${progress.status}`);
     setCurrentStep(progress.stepName);
 
-    // Handle TCC data - could be nested or direct
     let actualTcc = progress.data;
-    if (progress.data?.tcc) {
-      // If data has a nested tcc property, use that
+    if (progress.data && progress.data.tcc) {
       actualTcc = progress.data.tcc;
     }
-
-    // CRITICAL FIX: Ensure we only update TCC if it's a valid object with a jobId.
-    // This prevents the "Invalid TCC update attempted {}" error.
-    if (actualTcc && typeof actualTcc === 'object' && actualTcc.jobId) {
-      // 🛡️ Use backup system instead of direct setTccData
-      updateTccWithBackup(actualTcc, 'jobUpdate');
-      if (actualTcc.assembledComponentCode) {
-        setAssembledCode(actualTcc.assembledComponentCode);
-        addWSLog('✅ Assembled code received from TCC update!');
-      }
+    
+    if (actualTcc && actualTcc.jobId) {
+      const tccUpdate: TccUpdate = {
+        agentType: progress.stepName,
+        tccKeys: Object.keys(actualTcc),
+        hasAssembledCode: !!actualTcc.assembledComponentCode,
+        hasFinalProduct: !!actualTcc.finalProduct,
+      };
+      console.log(`📊 [WORKBENCH] TCC Update received via WebSocket:`, tccUpdate);
+      setTccData(actualTcc);
+      updateTccWithBackup(actualTcc, progress.stepName);
     }
 
-    // Handle final tool completion
-    if (progress.stepName === 'finalizing_tool' && progress.status === 'completed' && progress.data) {
-      // Check if finalProduct is nested in the data or if data is the product itself
-      const finalProductData = progress.data.finalProduct || progress.data;
+    // CRITICAL FIX: Listen for "completed" stepName from the orchestrator
+    if (progress.stepName === 'completed' && progress.status === 'completed' && progress.data) {
+      addWSLog(`✅ Workflow completion message received. Processing final product...`);
+      
+      const finalTcc = progress.data;
+      const finalProductData = finalTcc.finalProduct;
       
       if (finalProductData && (finalProductData.id || finalProductData.componentCode)) {
-        setFinalProduct(finalProductData);
-        if (finalProductData.componentCode) {
-          setAssembledCode(finalProductData.componentCode);
-        }
-        addWSLog('✅ Final product received!');
-
+        console.log("📦 Final product data found. Updating UI state.", finalProductData);
+        setFinalProduct(finalProductData as ProductToolDefinition);
+        
         setTestJob(prev => ({
           ...(prev as ToolCreationJob),
-          status: 'success',
+          status: 'completed',
           result: finalProductData,
           endTime: Date.now()
         }));
+
+        // Ensure the final, complete TCC is set
+        setTccData(finalTcc);
+        console.log("✅ Final TCC data set in state.", finalTcc);
+
       } else {
-        addWSLog('⚠️ Final tool step completed but no valid product data found');
-        console.warn('Final tool data structure:', progress.data);
+        addWSLog('⚠️ Final workflow step completed but no valid product data found in TCC.');
+        console.warn('Final TCC data structure:', finalTcc);
       }
+    } else if (progress.status === 'failed' && actualTcc) {
+      addWSLog(`❌ Workflow failed at step: ${progress.stepName}. TCC state has been preserved.`);
+      updateTccWithBackup(actualTcc, 'workflow-failure');
+      setTestJob(prev => ({
+        ...(prev as ToolCreationJob),
+        status: 'error',
+        endTime: Date.now()
+      }));
+      setTccData(actualTcc);
     }
   }, [addWSLog, updateTccWithBackup]);
 
@@ -273,27 +289,36 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         hasAssembledCode: !!updatedTcc?.assembledComponentCode,
         hasFinalProduct: !!updatedTcc?.finalProduct
       });
-      
-      // 🛡️ Use backup system for WebSocket TCC updates
+
+      // NEW → make this TCC the one the UI works with
+      setTccData(updatedTcc);
+
+      // 🛡️ backup
       updateTccWithBackup(updatedTcc, `websocket-${agentType}`);
-      
-      // Update assembled code if available
+
+      // assembled code
       if (updatedTcc?.assembledComponentCode) {
         setAssembledCode(updatedTcc.assembledComponentCode);
         addDetailedWSLog('debug', `✅ Assembled code updated from ${agentType}`, {
           codeLength: updatedTcc.assembledComponentCode.length
         });
       }
-      
-      // Update final product if available
+
+      // final product
       if (updatedTcc?.finalProduct) {
         setFinalProduct(updatedTcc.finalProduct);
+
+        // NEW → ensure testJob.result is set so Preview-priority #1 also works
+        setTestJob(prev =>
+          prev ? { ...prev, result: updatedTcc.finalProduct } : prev
+        );
+
         addDetailedWSLog('debug', `✅ Final product updated from ${agentType}`, {
           productId: updatedTcc.finalProduct.id,
           hasComponentCode: !!updatedTcc.finalProduct.componentCode
         });
       }
-      
+
       addDetailedWSLog('debug', `📊 TCC updated by ${agentType}`, {
         tccKeys: Object.keys(updatedTcc || {}),
         timestamp: new Date().toISOString()
@@ -405,25 +430,48 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     }
   }, [workflowMode, selectedAgent, agentModelMapping]);
 
+  // --- Utility: Initialize default models and agent mapping ---
+  const initializeDefaultModels = useCallback(() => {
+    if (!defaultPrimaryModel || availableModels.length === 0) {
+      console.warn("⚠️ Cannot initialize default models yet. Missing defaultPrimaryModel or availableModels.");
+      return;
+    }
+    // Set the primary model for the V2 orchestration workflow
+    setPrimaryModel(defaultPrimaryModel);
+    // Set up the default selected models list for the UI checkboxes
+    const defaultSelectedIds = [defaultPrimaryModel];
+    if (availableModels.some(m => m.id === 'gpt-4o') && !defaultSelectedIds.includes('gpt-4o')) {
+      defaultSelectedIds.push('gpt-4o');
+    }
+    setSelectedModelIds(defaultSelectedIds);
+    saveToLocalStorage(STORAGE_KEYS.selectedModels, defaultSelectedIds);
+    // Set up the default agent-to-model mapping for the debug dropdowns
+    const newAgentMapping: AgentModelMapping = {};
+    availableAgents.forEach(agent => {
+      newAgentMapping[agent.id] = getDefaultModelForAgent(agent.id) || defaultPrimaryModel;
+    });
+    setAgentModelMapping(newAgentMapping);
+    saveToLocalStorage(STORAGE_KEYS.agentMapping, newAgentMapping);
+    setPrimaryModel(defaultPrimaryModel);
+  }, [defaultPrimaryModel, availableModels, saveToLocalStorage, getDefaultModelForAgent, availableAgents]);
+
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
     if (availableModels.length > 0 && !hasInitialized) {
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
-      
       if (storedSelectedModels.length > 0 && Object.keys(storedAgentMapping).length > 0) {
         // Validate stored models against available models
-        const validStoredModels = storedSelectedModels.filter(id => 
+        const validStoredModels = storedSelectedModels.filter((id: string) => 
           availableModels.some(model => model.id === id)
         );
-
         if (validStoredModels.length > 0) {
           setSelectedModelIds(validStoredModels);
           setAgentModelMapping(storedAgentMapping);
-          // Set primary model from stored mapping if available
-          const primary = storedAgentMapping['function-planner'] || storedAgentMapping['logic-architect'] || validStoredModels[0];
-          setSelectedAgent(primary);
+          // Also set the primary model for orchestration from the mapping
+          const storedPrimary = storedAgentMapping['function-planner'] || storedAgentMapping['logic-architect'] || validStoredModels[0];
+          setPrimaryModel(storedPrimary);
         } else {
           // No valid models in storage, use defaults
           initializeDefaultModels();
@@ -434,7 +482,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }
       setHasInitialized(true);
     }
-  }, [availableModels, hasInitialized, defaultPrimaryModel, loadFromLocalStorage, setSelectedModelIds, setAgentModelMapping, setSelectedAgent]);
+  }, [availableModels, hasInitialized, initializeDefaultModels]);
 
   // Set most recent brainstorm as default when available (not first one which might be old/bad)
   useEffect(() => {

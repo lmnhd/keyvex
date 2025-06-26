@@ -310,22 +310,24 @@ export default ${cleanComponentName};`;
   /**
    * Utility functions for code generation
    */
-  private formatInitialValue(value: string, type: string): string {
+  private formatInitialValue(value: any, type: string): string {
     if (type.includes('[]') || type.toLowerCase().includes('array')) {
       // For array types, ensure the value is treated as an array literal.
-      // If the value from the state agent is already in brackets, use it, otherwise wrap it.
-      if (value.startsWith('[') && value.endsWith(']')) {
+      // If the value from the state agent is already in brackets (as a string), use it.
+      if (typeof value === 'string' && value.startsWith('[') && value.endsWith(']')) {
         return value;
       }
-      return `[${value}]`;
+      // If the value is already an array, stringify it.
+      if (Array.isArray(value)) {
+        return JSON.stringify(value);
+      }
+      // Otherwise, wrap the single value in an array. Stringify to handle all types.
+      // e.g. 7 -> "[7]", "hello" -> "[\"hello\"]"
+      return `[${JSON.stringify(value)}]`;
     }
-    if (type === 'string') return `"${value}"`;
-    if (type === 'number') return value || '0'; // Default to 0 if number is empty
-    if (type === 'boolean') return value || 'false'; // Default to false
-    if (type === 'object') return value || '{}'; // Default to empty object
-    
-    // Fallback for any other types
-    return value;
+
+    // For non-array types, stringify is the safest way to get a literal
+    return JSON.stringify(value);
   }
 
   private capitalize(str: string): string {
