@@ -23,6 +23,7 @@ import {
   BrainstormFilterContext
 } from '../types/tcc-unified';
 import { BrainstormData } from '../types/product-tool-creation-v2/tcc';
+import { extractToolTitle } from './utils';
 
 /**
  * Convert raw brainstorm data to typed core data structure
@@ -68,8 +69,12 @@ export function convertToCoreData(brainstormData: BrainstormData): CoreBrainstor
     engagementHook: flow.engagementHook || undefined
   }));
 
+  // Determine clean core concept title
+  const titleSource = brainstormData.coreConcept || brainstormData.coreWConcept || 'Untitled Tool';
+  const cleanTitle = extractToolTitle(titleSource);
+
   return {
-    coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Not specified',
+    coreConcept: cleanTitle,
     valueProposition: brainstormData.valueProposition || 'Not specified',
     toolType: 'calculator', // Default type, can be enhanced
     targetAudience: 'general', // Default audience, can be enhanced

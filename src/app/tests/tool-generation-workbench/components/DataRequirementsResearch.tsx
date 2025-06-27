@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,9 +76,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadSavedBrainstorms();
-  }, [newBrainstormFlag]);
+  
 
   const fetchDefaultModel = async () => {
     try {
@@ -141,7 +139,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     } catch (err) {
       console.error('❌ DataRequirementsResearch: Failed to load models:', err);
     }
-  }, []);
+  }, []); // Add empty dependency array here
 
   // Update selected model when API default is fetched
   useEffect(() => {
@@ -161,7 +159,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: selectedBrainstorm.brainstormData.dataRequirements.hasExternalDataNeeds || false,
         requiredDataTypes: selectedBrainstorm.brainstormData.dataRequirements.requiredDataTypes || [],
         researchQueries: selectedBrainstorm.brainstormData.dataRequirements.researchQueries || [],
-        dummyData: selectedBrainstorm.brainstormData.researchData || selectedBrainstorm.brainstormData.mockData || {},
+        dummyData: selectedBrainstorm.brainstormData.mockData || {},
         userInstructions: selectedBrainstorm.brainstormData.userDataInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -175,7 +173,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     }
   }, [selectedBrainstorm]);
 
-  const loadSavedBrainstorms = async () => {
+  const loadSavedBrainstorms = useCallback(async () => {
     try {
       const brainstorms = await loadLogicResultsFromDB();
       setSavedBrainstorms(brainstorms);
@@ -183,7 +181,11 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       console.error('Error loading brainstorms:', error);
       toast.error('Failed to load saved brainstorms');
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadSavedBrainstorms();
+  }, [newBrainstormFlag, loadSavedBrainstorms]);
 
   const getResearchStatus = () => {
     if (!selectedBrainstorm) return 'no-selection';
@@ -253,7 +255,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
         requiredDataTypes: researchData.requiredDataTypes || [],
         researchQueries: researchData.researchQueries || [],
-        dummyData: researchData.researchData || researchData.mockData || {},
+        dummyData: researchData.mockData || {},
         userInstructions: researchData.userInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -276,7 +278,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 requiredDataTypes: researchData.requiredDataTypes,
                 researchQueries: researchData.researchQueries
               },
-              researchData: researchData.researchData,
+              mockData: researchData.mockData,
               userDataInstructions: researchData.userInstructions
             }
           };
@@ -310,110 +312,157 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     }
   };
 
-  const handleRerunResearch = async () => {
+  const handleRerunResearch = useCallback(() => {
     if (!selectedBrainstorm) return;
 
-    const confirmed = window.confirm(
-      '⚠️ This will run a new Perplexity search and cost money. Are you sure you want to re-run the research for this brainstorm?'
-    );
-    
-    if (!confirmed) return;
+    console.log('🔵 handleRerunResearch: Initiating re-run for brainstorm:', selectedBrainstorm.id);
 
-    try {
-      setIsLoading(true);
-      
-      // Clear existing results first
-      setResearchResults(null);
-      setShowResults(false);
-      
-      // Create a temporary brainstorm without research data to force fresh research
-      const brainstormForRerun = {
-        ...selectedBrainstorm,
-        brainstormData: {
-          ...selectedBrainstorm.brainstormData,
-          // Remove existing research data to force fresh analysis
-          dataRequirements: undefined,
-          researchData: undefined,
-          userDataInstructions: undefined
-        }
-      };
-      
-      toast.info('🔄 Re-running research analysis...');
-      
-      const response = await fetch('/api/ai/data-requirements-research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brainstormData: brainstormForRerun.brainstormData,
-          brainstormId: selectedBrainstorm.id,
-          selectedModel,
-          userLocation,
-          persistToBrainstorm: true,
-        }),
-      });
+    toast('Re-run Research?', {
+      description: 'This will run a new Perplexity search and may cost money. Are you sure?',
+      action: {
+        label: 'Confirm',
+        onClick: async () => {
+          if (!selectedBrainstorm) return; // Re-check in case state changed
 
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Research analysis failed');
-      }
+          console.log('🔵 handleRerunResearch: Confirmed re-run for brainstorm:', selectedBrainstorm.id);
 
-      // Update local state with new results
-      const researchData = data.dataRequirementsResearch || {};
-      setResearchResults({
-        hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
-        requiredDataTypes: researchData.requiredDataTypes || [],
-        researchQueries: researchData.researchQueries || [],
-        dummyData: researchData.researchData || researchData.mockData || {},
-        userInstructions: researchData.userInstructions || {
-          summary: 'No user instructions available',
-          dataNeeded: [],
-          format: 'Not specified'
-        }
-      });
-      setShowResults(true);
+          try {
+            setIsLoading(true);
+            
+            // Clear existing results first
+            setResearchResults(null);
+            setShowResults(false);
+            
+            // Create a temporary brainstorm without research data to force fresh research
+            const brainstormForRerun = {
+              ...selectedBrainstorm,
+              brainstormData: {
+                ...selectedBrainstorm.brainstormData,
+                // Remove existing research data to force fresh analysis
+                dataRequirements: undefined,
+                mockData: undefined,
+                researchData: undefined, // Keep for legacy safety
+                userDataInstructions: undefined
+              }
+            };
 
-      // 🔧 CRITICAL FIX: Always save to IndexedDB since server cannot access browser IndexedDB
-      // The server-side persistResearchToBrainstorm function cannot actually persist to IndexedDB
-      // (IndexedDB is a browser-only API), so we must handle persistence client-side
-      
-      if (selectedBrainstorm) {
-        const updatedBrainstorm = {
-          ...selectedBrainstorm,
-          brainstormData: {
-            ...selectedBrainstorm.brainstormData,
-            dataRequirements: {
-              hasExternalDataNeeds: researchData.hasExternalDataNeeds,
-              requiredDataTypes: researchData.requiredDataTypes,
-              researchQueries: researchData.researchQueries
-            },
-            researchData: researchData.researchData,
-            mockData: researchData.mockData,
-            userDataInstructions: researchData.userInstructions
+            console.log('🔵 handleRerunResearch: Sending brainstorm data for re-run (cleared):', brainstormForRerun.brainstormData);
+            
+            toast.info('🔄 Re-running research analysis...');
+            
+            const response = await fetch('/api/ai/data-requirements-research', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                brainstormData: brainstormForRerun.brainstormData,
+                brainstormId: selectedBrainstorm.id,
+                selectedModel,
+                userLocation,
+                persistToBrainstorm: true,
+              }),
+            });
+
+            console.log('🔵 handleRerunResearch: Received API response status:', response.status);
+            const data = await response.json();
+            console.log('🔵 handleRerunResearch: Received API response data:', data);
+            
+            if (!data.success) {
+              throw new Error(data.error || 'Research analysis failed');
+            }
+
+            // Update local state with new results
+            const researchData = data.dataRequirementsResearch || {};
+            setResearchResults({
+              hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
+              requiredDataTypes: researchData.requiredDataTypes || [],
+              researchQueries: researchData.researchQueries || [],
+              dummyData: researchData.mockData || {},
+              userInstructions: researchData.userInstructions || {
+                summary: 'No user instructions available',
+                dataNeeded: [],
+                format: 'Not specified'
+              }
+            });
+            setShowResults(true);
+
+            // 🔧 CRITICAL FIX: Always save to IndexedDB since server cannot access browser IndexedDB
+            // The server-side persistResearchToBrainstorm function cannot actually persist to IndexedDB
+            // (IndexedDB is a browser-only API), so we must handle persistence client-side
+            
+            if (selectedBrainstorm) {
+              const updatedBrainstorm = {
+                ...selectedBrainstorm,
+                brainstormData: {
+                  ...selectedBrainstorm.brainstormData,
+                  dataRequirements: {
+                    hasExternalDataNeeds: researchData.hasExternalDataNeeds,
+                    requiredDataTypes: researchData.requiredDataTypes,
+                    researchQueries: researchData.researchQueries
+                  },
+                  mockData: researchData.mockData,
+                  userDataInstructions: researchData.userInstructions
+                }
+              };
+
+              console.log('🔵 handleRerunResearch: Preparing to save updated brainstorm to IndexedDB:', updatedBrainstorm);
+              
+              try {
+                const { saveLogicResultToDB } = await import('../../ui/db-utils');
+                await saveLogicResultToDB(updatedBrainstorm);
+                setSelectedBrainstorm(updatedBrainstorm);
+                await loadSavedBrainstorms();
+                console.log('✅ handleRerunResearch: Successfully saved updated brainstorm to IndexedDB.');
+                toast.success('✅ Re-run complete and saved to database!');
+              } catch (dbError) {
+                console.error('❌ handleRerunResearch: Failed to save updated brainstorm to IndexedDB:', dbError);
+                toast.error('Re-run completed but failed to save to local database');
+              }
+            } else {
+              toast.success('✅ Re-run analysis complete!');
+            }
+
+          } catch (error) {
+            console.error('❌ handleRerunResearch: Error during re-run process:', error);
+            toast.error(error instanceof Error ? error.message : 'Re-run analysis failed');
+          } finally {
+            setIsLoading(false);
           }
-        };
-        
-        try {
-          const { saveLogicResultToDB } = await import('../../ui/db-utils');
-          await saveLogicResultToDB(updatedBrainstorm);
-          setSelectedBrainstorm(updatedBrainstorm);
-          await loadSavedBrainstorms();
-          
-          toast.success('✅ Research re-run complete and saved!');
-        } catch (dbError) {
-          console.error('❌ Failed to save re-run research data to IndexedDB:', dbError);
-          toast.error('Research completed but failed to save to local database');
+        },
+      },
+      cancel: {
+        label: 'Cancel',
+        onClick: () => {
+          console.log('🔵 handleRerunResearch: Re-run cancelled by user.');
+          toast.info('Re-run cancelled.');
         }
-      } else {
-        toast.success('✅ Research re-run complete!');
       }
+    });
+  }, [selectedBrainstorm, selectedModel, userLocation, loadSavedBrainstorms]);
 
-    } catch (error) {
-      console.error('Research re-run error:', error);
-      toast.error(error instanceof Error ? error.message : 'Research re-run failed');
-    } finally {
-      setIsLoading(false);
+  const renderDummyData = (data: Record<string, any>, parentKey: string = '') => {
+    if (Object.keys(data).length === 0) {
+      return null;
     }
+
+    return (
+      <div className="space-y-3">
+        {Object.entries(data).map(([key, value]) => (
+          <div key={key} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
+            <div className="flex items-center justify-between mb-2">
+              <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
+                {parentKey ? `${parentKey}.${key}` : key}
+              </Badge>
+              <span className="text-xs text-slate-300">
+                {typeof value === 'object' && value ? Object.keys(value).length : 1} items
+              </span>
+            </div>
+            <pre className="text-xs bg-slate-900 text-slate-200 p-2 rounded border border-slate-600 overflow-x-auto">
+              {JSON.stringify(value, null, 2)}
+            </pre>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -441,29 +490,43 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <SelectValue placeholder="Choose a saved brainstorm to analyze..." />
               </SelectTrigger>
               <SelectContent>
-                {savedBrainstorms.map((brainstorm) => (
-                  <SelectItem key={brainstorm.id} value={brainstorm.id}>
-                    <div className="flex items-center justify-between w-full">
-                      <span>{extractToolTitle(brainstorm.brainstormData.coreConcept || brainstorm.brainstormData.coreWConcept || 'Unnamed Tool')}</span>
-                      <div className="flex items-center gap-2 ml-2">
-                        {brainstorm.brainstormData.dataRequirements ? (
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Researched
+                {savedBrainstorms.map((brainstorm) => {
+                  const title = extractToolTitle(brainstorm.brainstormData.coreConcept);
+                  
+                  let formattedDate = 'No date';
+                  if (brainstorm.timestamp) {
+                    try {
+                      formattedDate = new Date(brainstorm.timestamp).toLocaleDateString();
+                    } catch (e) {
+                      console.error(`Invalid timestamp for brainstorm ${brainstorm.id}:`, brainstorm.timestamp);
+                      formattedDate = 'Invalid Date';
+                    }
+                  }
+
+                  return (
+                    <SelectItem key={brainstorm.id} value={brainstorm.id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{title}</span>
+                        <div className="flex items-center gap-2 ml-2">
+                          {brainstorm.brainstormData.dataRequirements ? (
+                            <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Researched
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Needs Research
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs">
+                            {formattedDate}
                           </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Needs Research
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">
-                          {new Date(brainstorm.timestamp).toLocaleDateString()}
-                        </Badge>
+                        </div>
                       </div>
-                    </div>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -475,7 +538,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium">
-                      {extractToolTitle(selectedBrainstorm.brainstormData.coreConcept || selectedBrainstorm.brainstormData.coreWConcept as string)}
+                      {extractToolTitle(selectedBrainstorm.brainstormData.coreConcept as string)}
                     </h4>
                     {getStatusBadge()}
                   </div>
@@ -616,14 +679,18 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                     <Eye className="h-4 w-4" />
                     {showResults ? 'Hide Results' : 'View Results'}
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleRerunResearch}
                     disabled={isLoading}
                     variant="outline"
                     className="flex items-center gap-2"
                   >
-                    <RefreshCw className="h-4 w-4" />
-                    Re-run Research
+                    {isLoading ? (
+                      <Clock className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    {isLoading ? 'Re-running...' : 'Re-run Research'}
                   </Button>
                 </>
               ) : (

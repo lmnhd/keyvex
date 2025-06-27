@@ -41,7 +41,7 @@ export function truncateToolTitle(title: string, maxLength: number = 50): string
 /**
  * Extract title from long coreConcept strings that contain descriptions
  */
-export function extractToolTitle(coreConcept: string): string {
+export function extractToolTitle(coreConcept?: string): string {
   if (!coreConcept) return 'Untitled Tool';
   
   // Look for patterns like "Title: Description"
