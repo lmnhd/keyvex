@@ -170,8 +170,7 @@ export class ComponentAssemblerModule extends BaseAgentModule {
     return stateLogic.variables
       .map((variable: any) => {
         const initialValue = this.formatInitialValue(variable.initialValue, variable.type);
-        // 🔄 PHASE 2: Use useState instead of React.useState (will be transpiled)
-        return `  const [${variable.name}, set${this.capitalize(variable.name)}] = useState(${initialValue});`;
+        return `  const [${variable.name}, set${this.capitalize(variable.name)}] = React.useState(${initialValue});`;
       })
       .join('\n');
   }
@@ -249,13 +248,15 @@ export class ComponentAssemblerModule extends BaseAgentModule {
         updatedTag = updatedTag.replace(`data-style-id="${id}"`, '');
 
         if (updatedTag.includes('className="')) {
-          // If className exists, append new classes
-          updatedTag = updatedTag.replace('className="', `className="${classes} `);
-        } else {
-          // If className does not exist, add it before the closing bracket
-          updatedTag = updatedTag.replace('>', ` className="${classes}">`);
-        }
-        
+      // If className exists, append new classes
+      updatedTag = updatedTag.replace('className="', `className="${classes} `);
+    } else if (updatedTag.trim().endsWith('/>')) {
+      // Self-closing tag – insert before '/>'
+      updatedTag = updatedTag.replace('/>', ` className="${classes}" />`);
+    } else {
+      // Normal opening/closing tag – insert before '>'
+      updatedTag = updatedTag.replace('>', ` className="${classes}">`);
+    }        
         // Clean up extra whitespace
         updatedTag = updatedTag.replace(/\s\s+/g, ' ').replace(' >', '>');
         
@@ -279,19 +280,8 @@ export class ComponentAssemblerModule extends BaseAgentModule {
     const cleanComponentName = this.sanitizeComponentName(componentName);
     
     // 🔄 PHASE 2: Add React imports for JSX transpilation
-    const imports = `import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { Select, SelectValue, SelectTrigger, SelectContent, SelectItem } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
-import { Checkbox } from '@/components/ui/checkbox';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+    const imports = ''; // runtime uses provided React & UI components; no static imports needed
 
-`;
-    
     return `${imports}function ${cleanComponentName}() {
 ${stateDeclarations}
 
@@ -300,11 +290,12 @@ ${functionDefinitions}
 ${eventHandlerDefinitions}
 
   return (
+    <>
 ${jsxContent}
+    </>
   );
 }
-
-export default ${cleanComponentName};`;
+`;
   }
 
   /**

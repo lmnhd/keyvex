@@ -75,6 +75,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
   const [selectedModel, setSelectedModel] = useState('claude-3-7-sonnet-20250219');
   const [availableModels, setAvailableModels] = useState<ModelOption[]>([]);
   const [defaultPrimaryModel, setDefaultPrimaryModel] = useState<string | null>(null);
+  const MODEL_STORAGE_KEY = 'preferredModelId';
 
   
 
@@ -141,16 +142,36 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     }
   }, []); // Add empty dependency array here
 
-  // Update selected model when API default is fetched
+  // Initialize selected model from localStorage, then fall back to API default
   useEffect(() => {
-    if (defaultPrimaryModel && availableModels.length > 0) {
-      const targetModel = availableModels.find(m => m.id === defaultPrimaryModel);
-      if (targetModel) {
-        console.log('🔄 Updating to API default model:', targetModel.name);
-        setSelectedModel(targetModel.id);
+    if (availableModels.length === 0) return;
+
+    let stored: string | null = null;
+    if (typeof window !== 'undefined') {
+      stored = localStorage.getItem(MODEL_STORAGE_KEY);
+    }
+
+    if (stored && availableModels.some(m => m.id === stored)) {
+      console.log('💾 Restoring preferred model from localStorage:', stored);
+      setSelectedModel(stored);
+      return;
+    }
+
+    if (defaultPrimaryModel) {
+      const target = availableModels.find(m => m.id === defaultPrimaryModel);
+      if (target) {
+        console.log('🌐 No stored model, falling back to API default:', target.name);
+        setSelectedModel(target.id);
       }
     }
-  }, [defaultPrimaryModel, availableModels]);
+  }, [availableModels, defaultPrimaryModel]);
+
+  // Persist selected model to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && selectedModel) {
+      localStorage.setItem(MODEL_STORAGE_KEY, selectedModel);
+    }
+  }, [selectedModel]);
 
   useEffect(() => {
     // When brainstorm changes, check if it already has research results

@@ -98,7 +98,7 @@
           },
           "gpt-4.1-mini": {
             "id": "gpt-4.1-mini",
-            "name": "GPT-4o Mini",
+            "name": "GPT-4.1 Mini",
             "maxTokens": 128000,
             "costPer1kTokens": {
               "input": 0.00015,

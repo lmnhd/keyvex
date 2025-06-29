@@ -222,7 +222,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         
         setTestJob(prev => ({
           ...(prev as ToolCreationJob),
-          status: 'completed',
+          status: 'success',
           result: finalProductData,
           endTime: Date.now()
         }));
@@ -457,7 +457,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
 
   // Initialize selections from localStorage or defaults when data is available
   useEffect(() => {
-    if (availableModels.length > 0 && !hasInitialized) {
+    if (availableModels.length > 0 && defaultPrimaryModel && !hasInitialized) {
       // First try to load from localStorage
       const storedSelectedModels = loadFromLocalStorage(STORAGE_KEYS.selectedModels, []);
       const storedAgentMapping = loadFromLocalStorage(STORAGE_KEYS.agentMapping, {});
@@ -482,7 +482,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }
       setHasInitialized(true);
     }
-  }, [availableModels, hasInitialized, initializeDefaultModels]);
+  }, [availableModels, defaultPrimaryModel, hasInitialized, initializeDefaultModels]);
 
   // Set most recent brainstorm as default when available (not first one which might be old/bad)
   useEffect(() => {
