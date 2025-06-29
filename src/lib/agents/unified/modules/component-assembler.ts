@@ -12,7 +12,10 @@ import { z } from 'zod';
 import { 
   ComponentAssemblerResult,
   ToolConstructionContext,
-  ValidationResult
+  ValidationResult,
+  StateLogic,
+  StateVariable,
+  StateFunction
 } from '../../../types/tcc-unified';
 import { 
   BaseAgentModule
@@ -162,13 +165,13 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   /**
    * Generate React state declarations from state logic
    */
-  private generateStateDeclarations(stateLogic: any): string {
+  private generateStateDeclarations(stateLogic: StateLogic): string {
     if (!stateLogic.variables || stateLogic.variables.length === 0) {
       return '';
     }
 
     return stateLogic.variables
-      .map((variable: any) => {
+      .map((variable: StateVariable) => {
         const initialValue = this.formatInitialValue(variable.initialValue, variable.type);
         return `  const [${variable.name}, set${this.capitalize(variable.name)}] = React.useState(${initialValue});`;
       })
@@ -178,13 +181,13 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   /**
    * Generate function definitions from state logic
    */
-  private generateFunctionDefinitions(stateLogic: any): string {
+  private generateFunctionDefinitions(stateLogic: StateLogic): string {
     if (!stateLogic.functions || stateLogic.functions.length === 0) {
       return '';
     }
 
     return stateLogic.functions
-      .map((func: any) => {
+      .map((func: StateFunction) => {
         // ✅ CRITICAL FIX: Wrap function body in arrow function syntax
         // State Design Agent provides executable statements, not complete functions
         return `  const ${func.name} = () => { ${func.body} };`;
@@ -195,7 +198,7 @@ export class ComponentAssemblerModule extends BaseAgentModule {
   /**
    * Generate event handlers for JSX events that are not defined in state logic
    */
-  private generateEventHandlers(jsxCode: string, stateVars: any[], definedFuncs: any[]): string {
+  private generateEventHandlers(jsxCode: string, stateVars: StateVariable[], definedFuncs: StateFunction[]): string {
     const handlers = new Set<string>();
     const definedFuncNames = new Set(definedFuncs.map(f => f.name));
     
@@ -216,11 +219,11 @@ export class ComponentAssemblerModule extends BaseAgentModule {
       
       if (matchingStateVar) {
           const setterName = `set${this.capitalize(matchingStateVar.name)}`;
-          if(matchingStateVar.type.includes('[]') || matchingStateVar.type.toLowerCase().includes('array')) {
-               return `  const ${handlerName} = (value: any) => ${setterName}(value); // Assuming array value for sliders/multi-select`;
-          }
-          if (handlerName.toLowerCase().includes('change')) {
-            return `  const ${handlerName} = (value: any) => ${setterName}(value);`;
+          if (matchingStateVar.type.includes('[]') || matchingStateVar.type.toLowerCase().includes('array')) {
+               return `  const ${handlerName} = (value: ${matchingStateVar.type}) => ${setterName}(value); // Array value handler`;
+           }
+           if (handlerName.toLowerCase().includes('change')) {
+             return `  const ${handlerName} = (value: ${matchingStateVar.type}) => ${setterName}(value);`;
           }
           return `  const ${handlerName} = () => console.log('${handlerName} clicked');`;
       }
@@ -301,7 +304,7 @@ ${jsxContent}
   /**
    * Utility functions for code generation
    */
-  private formatInitialValue(value: any, type: string): string {
+  private formatInitialValue(value: unknown, type: string): string {
     if (type.includes('[]') || type.toLowerCase().includes('array')) {
       // For array types, ensure the value is treated as an array literal.
       // If the value from the state agent is already in brackets (as a string), use it.

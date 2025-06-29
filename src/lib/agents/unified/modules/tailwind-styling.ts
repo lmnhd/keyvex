@@ -22,9 +22,24 @@ const TailwindStylingResultSchema = z.object({
     colorScheme: z.object({
       primary: z.string(),
       secondary: z.string(),
+      accent: z.string().optional(),
       background: z.string(),
-      text: z.string(),
-      accent: z.string()
+      surface: z.string().optional(),
+      text: z.object({
+        primary: z.string(),
+        secondary: z.string(),
+        muted: z.string().optional()
+      }),
+      border: z.string().optional(),
+      success: z.string().optional(),
+      warning: z.string().optional(),
+      error: z.string().optional()
+    }).passthrough().optional(),
+    designTokens: z.object({
+      spacing: z.record(z.string()),
+      typography: z.record(z.string()),
+      shadows: z.record(z.string()),
+      animations: z.record(z.string())
     }).optional()
   }),
   metadata: z.object({
