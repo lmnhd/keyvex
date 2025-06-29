@@ -2,6 +2,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { LogicArchitectAgent } from '@/lib/ai/agents/logic-architect';
 import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import logger from '@/lib/logger';
 
@@ -140,6 +141,8 @@ export async function POST(request: NextRequest) {
             streamController: 'initialized'
           }, '🧠 Logic Architect Model Selection:');
           
+          const logicArchitect = new LogicArchitectAgent(provider);
+          
           // Send progressive thinking thoughts instead of character-by-character
           const thoughts = [
             "Analyzing your business context and target audience...",
@@ -177,136 +180,27 @@ export async function POST(request: NextRequest) {
           }
           
           logger.info({ 
-            phase: 'placeholder-implementation',
+            phase: 'ai-processing',
             provider,
             modelName: actualModelName
-          }, '🧠 API [logic-architect/brainstorm]: Creating placeholder brainstorming result');
+          }, '🧠 API [logic-architect/brainstorm]: Invoking LogicArchitectAgent.brainstormToolLogic for final result');
           
-          // TODO: Implement actual brainstorming logic or use existing core-logic.ts
-          const finalResult = {
-            success: true,
-            message: 'Logic Architect brainstorming completed (placeholder implementation)',
+          // Get the actual brainstorming result
+          const finalResult = await logicArchitect.brainstormToolLogic(
             toolType,
             targetAudience,
-            industry: industry || 'General',
-            businessContext: businessContext || '',
-            provider,
-            modelName: actualModelName,
-            timestamp: Date.now(),
-            // Placeholder brainstorming data (now includes all required fields)
-            brainstormData: {
-              coreConcept: `${toolType} for ${targetAudience}`,
-              valueProposition: 'Deliver instant, visually rich makeover insights and cost estimates',
-              keyCalculations: [
-                {
-                  name: 'Primary Calculation',
-                  formula: 'roomArea * styleMultiplier * budgetFactor',
-                  description: 'Estimates makeover cost based on room size, chosen style, and budget',
-                  variables: ['roomArea', 'styleMultiplier', 'budgetFactor']
-                }
-              ],
-              interactionFlow: [
-                {
-                  step: 1,
-                  title: 'Enter Room Details',
-                  description: 'User provides room dimensions and preferred style',
-                  userAction: 'Fill form',
-                  engagementHook: 'Show sample styled rooms as the user types'
-                },
-                {
-                  step: 2,
-                  title: 'Review Visual Mock-up',
-                  description: 'AI renders before-and-after preview',
-                  userAction: 'View preview',
-                  engagementHook: 'Interactive slider comparison'
-                },
-                {
-                  step: 3,
-                  title: 'Download Cost Breakdown',
-                  description: 'User receives detailed pricing and material list',
-                  userAction: 'Click “Download”',
-                  engagementHook: 'Highlight savings tips'
-                }
-              ],
-              leadCaptureStrategy: {
-                timing: 'After visual preview',
-                method: 'Email gate',
-                incentive: 'Free design tips PDF'
-              },
-              creativeEnhancements: [
-                'Augmented-reality preview mode',
-                'One-click share to social media',
-                'AI-recommended color palettes'
-              ],
-              suggestedInputs: [
-                {
-                  id: 'roomArea',
-                  label: 'Room Area (sq ft)',
-                  type: 'number',
-                  required: true,
-                  description: 'Total floor area of the room'
-                },
-                {
-                  id: 'style',
-                  label: 'Preferred Style',
-                  type: 'select',
-                  required: true,
-                  description: 'E.g., Modern, Scandinavian, Rustic'
-                },
-                {
-                  id: 'budget',
-                  label: 'Budget ($)',
-                  type: 'number',
-                  required: false,
-                  description: 'Maximum budget for the makeover'
-                }
-              ],
-              calculationLogic: [
-                {
-                  id: 'costEstimation',
-                  name: 'Cost Estimation',
-                  formula: '(roomArea * styleMultiplier) + contractorMarkup',
-                  dependencies: ['roomArea', 'styleMultiplier'],
-                  outputFormat: 'currency',
-                  engagementMoment: 'After user enters all inputs'
-                }
-              ],
-              promptOptions: {
-                includeComprehensiveColors: true,
-                includeGorgeousStyling: true,
-                includeAdvancedLayouts: false,
-                styleComplexity: 'medium',
-                toolComplexity: 'intermediate'
-              }
-            }
-          };
+            industry || '',
+            businessContext || '',
+            availableData || {}
+          );
           
           logger.info({ 
             success: true,
             resultKeys: finalResult ? Object.keys(finalResult) : [],
             hasResult: !!finalResult
-          }, '🧠 API [logic-architect/brainstorm]: Placeholder result created');
+          }, '🧠 API [logic-architect/brainstorm]: Result from logicArchitect.brainstormToolLogic received');
           
-          // STRICT MODE: No fallbacks - if Logic Architect fails, we need to know immediately
-          if (!finalResult) {
-            const errorMsg = 'Logic Architect returned null/undefined result - this indicates a critical failure in brainstorm generation';
-            logger.error({
-              toolType,
-              targetAudience,
-              industry,
-              businessContext: businessContext?.substring(0, 100)
-            }, `🧠 API [logic-architect/brainstorm]: ${errorMsg}`);
-            
-            const errorData = JSON.stringify({
-              type: 'error',
-              message: errorMsg,
-              timestamp: Date.now()
-            });
-            controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
-            return;
-          }
-          
-          // Send completion with actual result only
+          // Send completion
           const completionData = JSON.stringify({
             type: 'complete',
             data: finalResult,
