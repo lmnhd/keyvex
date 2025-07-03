@@ -197,6 +197,12 @@ export interface AgentExecutionContext {
   isIsolatedTest: boolean;
   editMode?: EditModeContext;
   timeout: number;
+  /**
+   * Optional container for ad-hoc parameters passed by orchestration wrappers
+   * (e.g., state-design loop). Kept generic and strongly typed as Record<string, unknown>.
+   */
+  additionalInput?: Record<string, unknown>;
+
   retryConfig: {
     maxAttempts: number;
     backoffMultiplier: number;
@@ -206,7 +212,7 @@ export interface AgentExecutionContext {
 
 // Unified Tool Construction Context (Phase 1.1)
 export interface ToolConstructionContext extends BaseTCC {
-  // ✅ REMOVED UNUSED FIELDS: Individual agent result fields were never used in the codebase
+  // REMOVED UNUSED FIELDS: Individual agent result fields were never used in the codebase
   // The system actually uses the base TCC fields directly:
   // - tcc.functionSignatures (not tcc.functionPlannerResult)
   // - tcc.stateLogic (not tcc.stateDesignResult)

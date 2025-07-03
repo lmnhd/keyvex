@@ -15,6 +15,7 @@ import { requireAuth } from '@/lib/auth/debug';
 import { executeAgent } from '../../../../../lib/agents/unified/core/agent-executor';
 import { createAgentExecutionContext } from '../../../../../lib/agents/unified/core/model-manager';
 import { AgentType } from '../../../../../lib/types/tcc-unified';
+import { runStateDesignLoop } from '../../../../../lib/agents/unified/loops/state-design-loop';
 
 // Request schema for V2 orchestration
 const V2OrchestrationRequestSchema = z.object({
@@ -111,7 +112,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<V2Orchest
     // Execute agents sequentially with WebSocket updates
     const agentSequence = [
       'function-planner',
-      'state-design', 
       'jsx-layout',
       'tailwind-styling',
       'component-assembler',
@@ -242,6 +242,39 @@ async function processAgentsInBackground(
         }
 
         currentTcc = updatedTcc || currentTcc;
+
+        // 🚀 Invoke iterative State-Design loop immediately after Function-Planner
+        if (agentType === 'function-planner') {
+          const stateDesignModel = agentModelMapping?.['state-design'] || primaryModel || 'claude-3-7-sonnet-20250219';
+
+          await emitStepProgress(
+            jobId,
+            'designing_state_logic' as any,
+            'started',
+            'State-Design loop initiated',
+            { userId, modelUsed: stateDesignModel }
+          );
+
+          const loopExecutionContext = createAgentExecutionContext(
+            'state-design' as AgentType,
+            jobId,
+            currentTcc,
+            stateDesignModel,
+            false
+          );
+
+          const { updatedTcc: loopTcc, passes } = await runStateDesignLoop(loopExecutionContext, currentTcc);
+          currentTcc = loopTcc;
+
+          await emitStepProgress(
+            jobId,
+            'designing_state_logic' as any,
+            'completed',
+            `State-Design loop completed in ${passes} pass(es)`,
+            { userId, passes }
+          );
+          await emitTccUpdate(jobId, currentTcc, 'state-design');
+        }
         
         await emitStepProgress(
           jobId,
