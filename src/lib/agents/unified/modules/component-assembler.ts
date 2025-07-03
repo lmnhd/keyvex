@@ -172,11 +172,12 @@ export class ComponentAssemblerModule extends BaseAgentModule {
 
     return stateLogic.variables
       .map((variable: StateVariable) => {
-        const initialValue = this.formatInitialValue(variable.initialValue, variable.type);
+        const initialValue = this.formatInitialValue(variable.initialValue, variable.type as string);
         return `  const [${variable.name}, set${this.capitalize(variable.name)}] = React.useState(${initialValue});`;
       })
       .join('\n');
   }
+  
 
   /**
    * Generate function definitions from state logic
@@ -219,7 +220,7 @@ export class ComponentAssemblerModule extends BaseAgentModule {
       
       if (matchingStateVar) {
           const setterName = `set${this.capitalize(matchingStateVar.name)}`;
-          if (matchingStateVar.type.includes('[]') || matchingStateVar.type.toLowerCase().includes('array')) {
+          if (matchingStateVar.type?.includes('[]') || matchingStateVar.type?.toLowerCase().includes('array')) {
                return `  const ${handlerName} = (value: ${matchingStateVar.type}) => ${setterName}(value); // Array value handler`;
            }
            if (handlerName.toLowerCase().includes('change')) {
@@ -283,7 +284,10 @@ export class ComponentAssemblerModule extends BaseAgentModule {
     const cleanComponentName = this.sanitizeComponentName(componentName);
     
     // 🔄 PHASE 2: Add React imports for JSX transpilation
-    const imports = ''; // runtime uses provided React & UI components; no static imports needed
+    // Ensure the output retains modern JSX format. The DynamicRenderer already provides React at runtime,
+// but we still include an explicit import so heuristics (and TypeScript) recognise the file as JSX/TSX.
+// Add a commented import so tooling & heuristics detect JSX, but runtime evaluation (new Function) is safe
+const imports = `"use client";\n// import React from 'react';\n`;
 
     return `${imports}function ${cleanComponentName}() {
 ${stateDeclarations}

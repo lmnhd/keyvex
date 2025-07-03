@@ -63,11 +63,7 @@ async function startV2ToolCreation(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        brainstormData: {
-          id: brainstormResult.id,
-          userInput: brainstormResult.userInput || {},
-          brainstormData: brainstormResult.brainstormData || {},
-        },
+        brainstormData: brainstormResult, // CRITICAL FIX: Pass the entire brainstormResult object directly
         agentModelMapping: agentModelMapping || { 'default': modelId },
         primaryModel: modelId,
         jobId: actualJobId

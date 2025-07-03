@@ -45,7 +45,7 @@ interface V2OrchestrationResponse {
 
 export async function POST(request: NextRequest): Promise<NextResponse<V2OrchestrationResponse>> {
   const startTime = Date.now();
-  
+
   try {
     const userId = await requireAuth();
     const body = await request.json();
@@ -221,6 +221,25 @@ async function processAgentsInBackground(
           success: true,
           hasUpdatedTcc: !!updatedTcc
         }, `✅ Direct agent execution completed for ${agentType}`);
+
+        // 🔍 Additional debug summaries for key agents
+        if (agentType === 'function-planner' && result && Array.isArray((result as any).functionSignatures)) {
+          const sigs = (result as any).functionSignatures;
+          logger.info({
+            jobId,
+            fnCount: sigs.length,
+            names: sigs.map((f: any) => f.name).slice(0, 20)
+          }, '🧩 Function-Planner output summary');
+        }
+
+        if (agentType === 'state-design' && result && (result as any).stateLogic?.functions) {
+          const funcs = (result as any).stateLogic.functions;
+          logger.info({
+            jobId,
+            fnCount: funcs.length,
+            names: funcs.map((f: any) => f.name).slice(0, 20)
+          }, '🧩 State-Design output summary');
+        }
 
         currentTcc = updatedTcc || currentTcc;
         

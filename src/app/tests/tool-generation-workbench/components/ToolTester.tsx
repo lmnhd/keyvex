@@ -866,49 +866,54 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   };
 
   const handleSaveV2Result = async (tool: ProductToolDefinition, tcc: any) => {
-    if (!tool || !tcc || !tcc.jobId) {
-      setError('Cannot save V2 result: Missing tool definition or TCC with jobId.');
+    if (!tcc || !tcc.jobId) {
+      const errorMsg = 'Cannot save session: Critical tool context (TCC) or Job ID is missing.';
+      console.error(errorMsg, { tcc });
+      setError(errorMsg);
+      addWSLog(`❌ ${errorMsg}`);
+      alert('Save Failed: Critical context data is missing.');
       return;
     }
-    setIsLoading(true);
-    setError(null);
-    console.log(`Saving V2 result for job ID: ${tcc.jobId}`);
+
+    // Ensure the final tool definition from the TCC is used if available, as it's the source of truth
+    const finalTool: ProductToolDefinition = tcc.finalProduct || tool;
+
+    const jobPackage = {
+      id: tcc.jobId, // Correct property name is 'id'
+      timestamp: Date.now(), // Correct property name is 'timestamp'
+      productToolDefinition: finalTool,
+      toolConstructionContext: tcc,
+    };
+
     try {
-      // Step 1: Save the full job package to the correct IndexedDB table.
-      const jobPackage = {
-        id: tcc.jobId,
-        timestamp: Date.now(),
-        productToolDefinition: tool,
-        toolConstructionContext: tcc,
-      };
+      console.log('📦 Saving session package to IndexedDB:', jobPackage);
       await saveV2JobToDB(jobPackage);
-      console.log('✅ V2 job saved to IndexedDB table: v2ToolCreationJobs');
+      addWSLog(`✅ Session saved: ${jobPackage.id}`);
 
-      // Step 2: Save the tool definition to DynamoDB.
-      await saveToolToDynamoDBOnly(tool, userId);
-      console.log('✅ Tool saved to DynamoDB.');
+      // Refresh the list of saved sessions (formerly V2 jobs)
+      await fetchSavedV2Jobs();
+      setSavedV2JobIds(prev => new Set([...prev, jobPackage.id]));
 
-      // Step 3: Update UI state.
-      setSavedV2JobIds(prev => new Set(prev).add(tcc.jobId));
-      await fetchSavedV2Jobs(); // Refresh the list of saved V2 jobs
-      
-      alert('V2 result saved successfully to IndexedDB and DynamoDB!');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(`Failed to save V2 result: ${errorMessage}`);
-      console.error(err);
-    } finally {
-      setIsLoading(false);
+      alert('Session saved successfully!');
+      console.log('✅ Session save process completed.');
+
+    } catch (error) {
+      const errorMessage = `Failed to save session: ${error instanceof Error ? error.message : String(error)}`;
+      console.error('❌ Error saving session:', error);
+      setError(errorMessage);
+      addWSLog(`❌ ${errorMessage}`);
+      alert(errorMessage);
     }
   };
 
+  // handleSaveTool is the main entry point from the UI's "Save" button.
   const handleSaveTool = async (tool: ProductToolDefinition) => {
     if (!tccData) {
-        setError("Cannot save tool: No active V2 test job context available.");
-        alert("Save failed: No active V2 test job context. Please run a V2 job first.");
-        return;
+      setError("Cannot save session: No active tool context available.");
+      alert("Save Failed: No active tool context. Please run a job first.");
+      return;
     }
-    // Delegate to the correct V2 save handler to ensure consistent behavior
+    // The `tool` passed here might be stale; the TCC has the latest `finalProduct`.
     await handleSaveV2Result(tool, tccData);
   };
 

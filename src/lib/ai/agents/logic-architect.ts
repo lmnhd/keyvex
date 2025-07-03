@@ -226,16 +226,24 @@ export class LogicArchitectAgent {
       availableData
     );
 
-    // CRITICAL FIX: Use generateObject with schema validation instead of manual JSON parsing
-    const { object, reasoning } = await generateObject({
-      model: this.model,
-      schema: logicBrainstormingSchema,
-      prompt: prompt,
-      providerOptions: {
+    let providerOptions: Record<string, unknown> | undefined = undefined;
+
+    // Anthropic currently errors if both tool_choice (used internally by ai-sdk for JSON mode)
+    // and thinking mode are enabled at the same time. Therefore only enable thinking for
+    // providers other than Anthropic.
+    if (this.provider !== 'anthropic') {
+      providerOptions = {
         anthropic: {
           thinking: { type: 'enabled', budgetTokens: 12000 },
         } satisfies AnthropicProviderOptions,
-      },
+      };
+    }
+
+    const { object, reasoning } = await generateObject({
+      model: this.model,
+      schema: logicBrainstormingSchema,
+      prompt,
+      providerOptions,
     });
 
     console.log('🤔 Thinking process length:', reasoning?.length || 0);
@@ -296,9 +304,10 @@ Return a JSON object with:
         console.log(`🔬 Researching: ${searchTerm}`);
         
         const findings = await perplexity_web_search({
-          search_term: searchTerm,
-          explanation: `Research for ${toolType} tool in ${industry} industry regarding ${topic}`,
-          domain: this.mapIndustryToDomain(industry)
+          query: searchTerm,
+          model: 'sonar-pro',
+          temperature: 0.2,
+          // Additional options from WebSearchOptions can be extended later
         });
         
         researchResults.push({

@@ -200,10 +200,24 @@ export async function POST(request: NextRequest) {
             hasResult: !!finalResult
           }, '🧠 API [logic-architect/brainstorm]: Result from logicArchitect.brainstormToolLogic received');
           
+          // Wrap result in expected payload shape
+          const payload = {
+            success: true,
+            message: 'Logic Architect brainstorming completed',
+            toolType,
+            targetAudience,
+            industry: industry || 'General',
+            businessContext: businessContext || '',
+            provider,
+            modelName: actualModelName,
+            timestamp: Date.now(),
+            brainstormData: finalResult
+          } as const;
+
           // Send completion
           const completionData = JSON.stringify({
             type: 'complete',
-            data: finalResult,
+            data: payload,
             timestamp: Date.now()
           });
           

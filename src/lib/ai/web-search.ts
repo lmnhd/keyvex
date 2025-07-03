@@ -94,3 +94,6 @@ export async function webSearch(options: WebSearchOptions): Promise<WebSearchRes
     raw: json,
   };
 }
+
+// Backward compatibility alias
+export const perplexity_web_search = webSearch;

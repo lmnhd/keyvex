@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import React, { useState } from 'react';
+import { detectComponentCodeFormat } from '@/lib/transpilation/jsx-transpiler';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -429,7 +430,7 @@ export default function ToolTesterView({
                   Load Saved Items
                 </CardTitle>
                 <CardDescription>
-                  Load previously saved brainstorms, tools, or V2 generation results to continue working or testing.
+                  Load previously saved brainstorms, Local Tools, or Saved Sessions to continue working or testing.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -439,10 +440,10 @@ export default function ToolTesterView({
                       Brainstorms ({savedBrainstormsContent.length})
                     </TabsTrigger>
                     <TabsTrigger value="tools">
-                      Saved Tools ({savedTools.length})
+                      Local Tools ({savedTools.filter(Boolean).length})
                     </TabsTrigger>
                     <TabsTrigger value="v2jobs">
-                      V2 Results ({savedV2Jobs.length})
+                      Saved Sessions ({savedV2Jobs.filter(Boolean).length})
                     </TabsTrigger>
                   </TabsList>
 
@@ -563,13 +564,13 @@ export default function ToolTesterView({
 
                   <TabsContent value="tools" className="mt-4">
                     <div className="space-y-2">
-                      <Label>Select a Saved Tool</Label>
+                      <Label>Select a Local Tool</Label>
                       <ScrollArea className="h-48 border rounded-md p-3">
                         <div className="space-y-2">
-                          {savedTools.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-8">No saved tools found</p>
+                          {savedTools.filter(Boolean).length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No Local Tools found</p>
                           ) : (
-                            savedTools.map(tool => (
+                            savedTools.filter(Boolean).map(tool => (
                               <div 
                                 key={tool.id}
                                 className={`p-3 rounded-md border cursor-pointer transition-colors ${
@@ -581,16 +582,16 @@ export default function ToolTesterView({
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{tool.metadata.title}</h4>
+                                    <h4 className="font-medium text-sm">{tool.metadata?.title ?? 'Untitled Tool'}</h4>
                                     <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                      {tool.metadata.description || tool.metadata.shortDescription || 'No description'}
+                                      {tool.metadata?.description ?? tool.metadata?.shortDescription ?? 'No description'}
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1">
                                       {new Date(tool.updatedAt || tool.createdAt || Date.now()).toLocaleDateString()}
                                     </p>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs">Tool</Badge>
+                                    <Badge variant="outline" className="text-xs">Local Tool</Badge>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -614,13 +615,13 @@ export default function ToolTesterView({
 
                   <TabsContent value="v2jobs" className="mt-4">
                     <div className="space-y-2">
-                      <Label>Select a V2 Generation Result</Label>
+                      <Label>Select a Saved Session</Label>
                       <ScrollArea className="h-48 border rounded-md p-3">
                         <div className="space-y-2">
-                          {savedV2Jobs.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-8">No V2 generation results found</p>
+                          {savedV2Jobs.filter(Boolean).length === 0 ? (
+                            <p className="text-sm text-gray-500 text-center py-8">No Saved Sessions found</p>
                           ) : (
-                            savedV2Jobs.map(job => (
+                            savedV2Jobs.filter(Boolean).map(job => (
                               <div 
                                 key={job.id}
                                 className={`p-3 rounded-md border cursor-pointer transition-colors ${
@@ -632,16 +633,16 @@ export default function ToolTesterView({
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
-                                    <h4 className="font-medium text-sm">{job.productToolDefinition.metadata.title}</h4>
+                                    <h4 className="font-medium text-sm">{job.productToolDefinition?.metadata?.title ?? 'Untitled Tool'}</h4>
                                     <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                      {job.productToolDefinition.metadata.description || 'No description'}
+                                      {job.productToolDefinition?.metadata?.description ?? 'No description'}
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1">
                                       Job ID: {job.id.slice(0, 8)}... • {new Date(job.timestamp).toLocaleDateString()}
                                     </p>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">V2 Result</Badge>
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">Saved Session</Badge>
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -668,8 +669,8 @@ export default function ToolTesterView({
                   <div className="flex justify-between items-center pt-3 border-t">
                     <div className="text-sm text-gray-600">
                       Selected: {selectedLoadItem.type === 'brainstorm' ? 'Brainstorm' : 
-                                selectedLoadItem.type === 'tool' ? 'Saved Tool' : 
-                                'V2 Generation Result'}
+                                selectedLoadItem.type === 'tool' ? 'Local Tool' : 
+                                'Saved Session'}
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" onClick={() => setSelectedLoadItem(null)}>
@@ -774,11 +775,11 @@ export default function ToolTesterView({
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="savedV2Job" id="source-v2job" />
-                        <Label htmlFor="source-v2job">From Saved V2 Result</Label>
+                        <Label htmlFor="source-v2job">From Saved Session</Label>
                       </div>
                       <div className="flex items-center space-x-2">
                         <RadioGroupItem value="inMemory" id="source-inmemory" />
-                        <Label htmlFor="source-inmemory">From Current TCC Data</Label>
+                        <Label>Load from: {loadSource === 'indexeddb' ? 'Browser (Local Tools & Saved Sessions)' : 'Cloud (Published Tools)'}</Label>
                       </div>
                     </RadioGroup>
                   </div>
@@ -807,19 +808,19 @@ export default function ToolTesterView({
 
                   {tccSource === 'savedV2Job' && (
                     <div className="space-y-2 pl-6 border-l-2 border-red-200">
-                      <Label htmlFor="tcc-source-select">Select V2 Result</Label>
+                      <Label htmlFor="tcc-source-select">Select Session</Label>
                       <Select 
                         value={selectedDebugTccJobId || ''} 
                         onValueChange={setSelectedDebugTccJobId}
-                        disabled={savedV2Jobs.length === 0}
+                        disabled={savedV2Jobs.filter(Boolean).length === 0}
                       >
                         <SelectTrigger id="tcc-source-select">
-                          <SelectValue placeholder={savedV2Jobs.length === 0 ? "No V2 results saved" : "Choose a saved V2 Job..."} />
+                          <SelectValue placeholder={savedV2Jobs.filter(Boolean).length === 0 ? "No sessions saved" : "Choose a saved session..."} />
                         </SelectTrigger>
                         <SelectContent>
-                          {savedV2Jobs.map(job => (
+                          {savedV2Jobs.filter(Boolean).map(job => (
                             <SelectItem key={job.id} value={job.id}>
-                              {job.productToolDefinition.metadata.title} ({job.id.slice(0, 8)}...)
+                              {job.productToolDefinition?.metadata?.title ?? 'Untitled Tool'} ({job.id.slice(0, 8)}...)
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -916,7 +917,7 @@ export default function ToolTesterView({
                           </div>
                         </RadioGroup>
                         {agentMode === 'create' && (
-                          <p className="text-xs text-muted-foreground pl-6">
+                          <p className="text-sm text-muted-foreground">
                             Test agent creating new output from scratch using brainstorm/TCC data.
                           </p>
                         )}
@@ -1037,7 +1038,7 @@ export default function ToolTesterView({
               <TabsTrigger value="preview" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
               <TabsTrigger value="component-code" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && !testJob?.result}>Component Code</TabsTrigger>
               <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
-              <TabsTrigger value="result" disabled={testJob?.status !== 'success' && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
+              <TabsTrigger value="result" disabled={!testJob?.result && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
             </TabsList>
             
             <TabsContent value="progress" className="mt-4">
@@ -1699,7 +1700,8 @@ export default function ToolTesterView({
                     }
 
                     if (componentCode) {
-                      const hasImports = componentCode.includes('import ');
+                      const formatDetection = detectComponentCodeFormat(componentCode);
+                      const isJsx = formatDetection.codeFormat === 'jsx';
                       const lines = componentCode.split('\n');
                       const importLines = lines.filter(line => line.trim().startsWith('import '));
                       
@@ -1713,7 +1715,7 @@ export default function ToolTesterView({
                                 {lines.length} lines, {componentCode.length} characters
                               </span>
                             </div>
-                            {hasImports && (
+                            {isJsx && (
                               <Badge variant="default" className="text-xs bg-green-100 text-green-700 border-green-300">
                                 ✅ JSX Format: {importLines.length} import statement{importLines.length !== 1 ? 's' : ''}
                               </Badge>
@@ -1721,7 +1723,7 @@ export default function ToolTesterView({
                           </div>
 
                           {/* Import statements analysis - UPDATED FOR NEW JSX DESIGN */}
-                          {hasImports ? (
+                          {isJsx ? (
                             <Alert variant="default" className="border-green-200 bg-green-50 dark:bg-green-900/20">
                               <CheckCircle className="h-4 w-4 text-green-600" />
                               <AlertTitle className="text-green-800 dark:text-green-200">✅ JSX Format Detected</AlertTitle>
@@ -2096,7 +2098,7 @@ export default function ToolTesterView({
                 </div>
               </div>
               
-               {testJob?.status === 'success' && testJob.result ? (
+               {testJob?.result ? (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center">
@@ -2224,7 +2226,7 @@ export default function ToolTesterView({
                         </div>
                         
                         {/* DEBUG: Save/Update Button Logic Debug */}
-                        <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
+                        {/* <div className="mb-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
                           <div className="text-xs space-y-1 text-red-700 dark:text-red-300">
                             <div className="font-semibold">🔍 Save/Update Button Debug:</div>
                             {(() => {
@@ -2248,7 +2250,7 @@ export default function ToolTesterView({
                               );
                             })()}
                           </div>
-                        </div>
+                        </div> */}
 
                         <div className="flex gap-2 flex-wrap">
                           {(() => {

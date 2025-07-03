@@ -2,7 +2,7 @@
  * Unified Agent Executor (Phase 1.2 - Enhanced with ResponseParser Integration)
  * Single source of truth for all unified agent execution
  * Returns both result AND updated TCC to resolve ambiguity
- * ✅ FIXED: NO GENERIC TYPES - All 'any' types replaced with proper interfaces
+ * FIXED: NO GENERIC TYPES - All 'any' types replaced with proper interfaces
  * 
  * CRITICAL FIX: Now properly integrates with ResponseParser validation system
  * to enable quality-based retries and multi-layer validation
@@ -35,12 +35,12 @@ import { ToolFinalizerModule } from '../modules/tool-finalizer';
 // Import custom executor
 import { executeTailwindStylingTwoStep } from '../modules/tailwind-styling-executor';
 
-// ✅ FIXED: Proper interface instead of 'any' type for raw model results
+// FIXED: Proper interface instead of 'any' type for raw model results
 export interface RawModelResult {
   [key: string]: unknown;
 }
 
-// ✅ FIXED: Proper interface for attempt info - aligned with RetryAttemptInfo
+// FIXED: Proper interface for attempt info - aligned with RetryAttemptInfo
 export interface QualityAttemptInfo {
   attemptNumber: number;
   strategy: string;
@@ -53,33 +53,36 @@ export interface QualityAttemptInfo {
  * Provides centralized access to all agent modules
  */
 class AgentRegistry {
-  private agents: Map<AgentType, BaseAgentModule> = new Map();
+  // CRITICAL FIX: Store module constructors, not instances, to prevent state leakage.
+  private agentConstructors: Map<AgentType, new () => BaseAgentModule> = new Map();
 
   constructor() {
-    // Initialize all agent modules
-    this.agents.set('function-planner', new FunctionPlannerModule());
-    this.agents.set('state-design', new StateDesignModule());
-    this.agents.set('jsx-layout', new JSXLayoutModule());
-    this.agents.set('tailwind-styling', new TailwindStylingModule());
-    this.agents.set('component-assembler', new ComponentAssemblerModule());
-    this.agents.set('code-validator', new CodeValidatorModule());
-    this.agents.set('tool-finalizer', new ToolFinalizerModule());
+    // Initialize map with agent module constructors
+    this.agentConstructors.set('function-planner', FunctionPlannerModule);
+    this.agentConstructors.set('state-design', StateDesignModule);
+    this.agentConstructors.set('jsx-layout', JSXLayoutModule);
+    this.agentConstructors.set('tailwind-styling', TailwindStylingModule);
+    this.agentConstructors.set('component-assembler', ComponentAssemblerModule);
+    this.agentConstructors.set('code-validator', CodeValidatorModule);
+    this.agentConstructors.set('tool-finalizer', ToolFinalizerModule);
   }
 
   getAgent(agentType: AgentType): BaseAgentModule | null {
-    return this.agents.get(agentType) || null;
+    const AgentConstructor = this.agentConstructors.get(agentType);
+    // Create a new instance for every call to ensure statelessness
+    return AgentConstructor ? new AgentConstructor() : null;
   }
 
   hasAgent(agentType: AgentType): boolean {
-    return this.agents.has(agentType);
+    return this.agentConstructors.has(agentType);
   }
 
   getAvailableAgents(): AgentType[] {
-    return Array.from(this.agents.keys());
+    return Array.from(this.agentConstructors.keys());
   }
 }
 
-// Create singleton instance
+// Create singleton instance of the registry itself (which is safe)
 const agentRegistry = new AgentRegistry();
 
 // Initialize managers
@@ -173,7 +176,7 @@ export async function executeAgent(
           agentType,
           totalAttempts: maxRetries,
           finalError: lastError.message
-        }, `❌ AGENT EXECUTOR: ${agentType} failed after ${maxRetries} attempts`);
+        }, ` AGENT EXECUTOR: ${agentType} failed after ${maxRetries} attempts`);
         throw lastError;
       }
 
@@ -183,7 +186,7 @@ export async function executeAgent(
         attemptNumber: attempt,
         error: lastError.message,
         willRetry: true
-      }, `⚠️ AGENT EXECUTOR: ${agentType} attempt ${attempt} failed, retrying...`);
+      }, ` AGENT EXECUTOR: ${agentType} attempt ${attempt} failed, retrying...`);
     }
   }
 
@@ -212,7 +215,7 @@ async function executeProgrammaticModule(
     jobId: context.jobId,
     agentType,
     executionType: 'programmatic'
-  }, `🔧 AGENT EXECUTOR: Executing programmatic module ${agentType}`);
+  }, ` AGENT EXECUTOR: Executing programmatic module ${agentType}`);
 
   try {
     let result: AgentResult;
@@ -222,7 +225,7 @@ async function executeProgrammaticModule(
       result = assemblerModule.assembleComponent(tcc);
     } else if (agentType === 'tool-finalizer') {
       const finalizerModule = agentModule as ToolFinalizerModule;
-      // 🔄 IMPLEMENTED: Tool finalizer programmatic execution
+      // IMPLEMENTED: Tool finalizer programmatic execution
       result = finalizerModule.finalizeComponent(tcc);
     } else {
       throw new Error(`Unknown programmatic module: ${agentType}`);
@@ -242,7 +245,7 @@ async function executeProgrammaticModule(
       executionTime,
       validationScore: validation.score,
       executionType: 'programmatic'
-    }, `✅ AGENT EXECUTOR: Programmatic module ${agentType} completed successfully`);
+    }, ` AGENT EXECUTOR: Programmatic module ${agentType} completed successfully`);
 
     // CRITICAL FIX: Update the TCC with the result from the programmatic module
     // This was missing, causing the component-assembler result to not be stored
@@ -263,7 +266,7 @@ async function executeProgrammaticModule(
       executionTime,
       error: errorMessage,
       executionType: 'programmatic'
-    }, `❌ AGENT EXECUTOR: Programmatic module ${agentType} execution failed`);
+    }, ` AGENT EXECUTOR: Programmatic module ${agentType} execution failed`);
     
     throw error;
   }
@@ -288,7 +291,7 @@ async function executeAgentWithValidation(
     isRetry: !attemptInfo.isFirstAttempt,
     retryStrategy: attemptInfo.strategy,
     executionType: 'ai'
-  }, `🔄 AGENT EXECUTOR: Executing AI agent ${agentType} (attempt ${attemptInfo.attemptNumber})`);
+  }, ` AGENT EXECUTOR: Executing AI agent ${agentType} (attempt ${attemptInfo.attemptNumber})`);
 
   try {
     let aiResult: { success: boolean; rawResponse: any; errors: string[]; metadata: any; };
@@ -333,7 +336,7 @@ async function executeAgentWithValidation(
       validationScore: parseResult.metadata.validationScore,
       errorsCount: parseResult.errors.length,
       warningsCount: parseResult.warnings.length
-    }, `🔍 AGENT EXECUTOR: ResponseParser validation completed for ${agentType}`);
+    }, ` AGENT EXECUTOR: ResponseParser validation completed for ${agentType}`);
 
     // Step 3: Quality Gate
     const qualityGate = evaluateResponseQuality(parseResult, agentType, attemptInfo);
@@ -390,14 +393,14 @@ async function executeAgentWithValidation(
       error: error instanceof Error ? error.message : String(error),
       isQualityError: error instanceof QualityValidationError,
       executionType: 'ai'
-    }, `❌ AGENT EXECUTOR: AI agent ${agentType} execution failed in attempt ${attemptInfo.attemptNumber}`);
+    }, ` AGENT EXECUTOR: AI agent ${agentType} execution failed in attempt ${attemptInfo.attemptNumber}`);
     throw error;
   }
 }
 
 /**
  * Evaluate response quality to determine if retry is needed
- * ✅ FIXED: No 'any' types - using QualityAttemptInfo interface
+ * FIXED: No 'any' types - using QualityAttemptInfo interface
  */
 function evaluateResponseQuality(
   parseResult: ParsedResponse<AgentResult>,
@@ -419,7 +422,7 @@ function evaluateResponseQuality(
     };
   }
 
-  // ✅ FIXED: Proper type-safe threshold mapping
+  // FIXED: Proper type-safe threshold mapping
   const minScoreThresholds: Record<string, number> = {
     'function-planner': 70,
     'state-design': 75,
@@ -455,7 +458,7 @@ function evaluateResponseQuality(
 
   // Agent-specific quality checks
   if (agentType === 'function-planner') {
-    // ✅ FIXED: Safe type checking without forced assertion
+    // FIXED: Safe type checking without forced assertion
     const data = parseResult.data as unknown;
     if (data && typeof data === 'object' && data !== null) {
       const objData = data as Record<string, unknown>;
@@ -470,7 +473,7 @@ function evaluateResponseQuality(
   }
 
   if (agentType === 'state-design') {
-    // ✅ FIXED: Safe type checking without forced assertion
+    // FIXED: Safe type checking without forced assertion
     const data = parseResult.data as unknown;
     if (data && typeof data === 'object' && data !== null) {
       const objData = data as Record<string, unknown>;
