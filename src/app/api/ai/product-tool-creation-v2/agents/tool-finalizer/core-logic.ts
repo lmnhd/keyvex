@@ -147,22 +147,12 @@ export async function finalizeTool(request: {
         modelId
       }, '📦 ToolFinalizer: ⚠️ AI generated export statements despite instructions! Auto-removing...');
       
-      // Strip export statements
-      let cleanedCode = finalCleanedCode;
-      
-      // Remove export default statements
-      cleanedCode = cleanedCode.replace(/export\s+default\s+\w+\s*;?\s*$/gm, '');
-      
-      // Remove export const/let/var statements
-      cleanedCode = cleanedCode.replace(/export\s+(const|let|var)\s+/g, '$1 ');
-      
-      // Remove standalone export statements
-      cleanedCode = cleanedCode.replace(/export\s*\{[^}]*\}\s*;?\s*$/gm, '');
-      
-      // Clean up any trailing empty lines
-      cleanedCode = cleanedCode.replace(/\n\s*\n\s*$/g, '\n').trim();
-      
-      finalCleanedCode = cleanedCode;
+      // Strip any lines that begin with export statements entirely
+      let cleanedLines = finalCleanedCode
+        .split('\n')
+        .filter(line => !line.trim().startsWith('export '));
+
+      finalCleanedCode = cleanedLines.join('\n').trim();
       
       console.log('\n' + '🚫'.repeat(40));
       console.log('📦 ToolFinalizer: FIXED - Removed export statements:');

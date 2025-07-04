@@ -309,9 +309,21 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         setFinalProduct(updatedTcc.finalProduct);
 
         // NEW → ensure testJob.result is set so Preview-priority #1 also works
-        setTestJob(prev =>
-          prev ? { ...prev, result: updatedTcc.finalProduct } : prev
-        );
+        setTestJob(prev => {
+          if (prev) {
+            // Update existing job with the new final product
+            return { ...prev, result: { finalProduct: updatedTcc.finalProduct } };
+          }
+          // Create a minimal job shell so Live Preview logic has a source
+          return {
+            jobId: updatedTcc.jobId,
+            startTime: Date.now(),
+            status: 'success',
+            modelId: agentModelMapping[Object.keys(agentModelMapping)[0]] || defaultPrimaryModel || 'gpt-4o',
+            result: { finalProduct: updatedTcc.finalProduct },
+            endTime: Date.now(),
+          } as ToolCreationJob;
+        });
 
         addDetailedWSLog('debug', `✅ Final product updated from ${agentType}`, {
           productId: updatedTcc.finalProduct.id,
