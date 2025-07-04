@@ -37,6 +37,12 @@ export async function runStateDesignLoop(
     const missingSignatures = plannerSigs.filter((s) => remaining.includes(s.name));
 
     // Provide minimal, focused context to the agent
+    // Clone TCC with only the missing signatures for sharper prompts
+    const tccForPass: ToolConstructionContext = {
+      ...tcc,
+      functionSignatures: missingSignatures,
+    } as ToolConstructionContext;
+
     const loopContext: AgentExecutionContext = {
       ...context,
       additionalInput: {
@@ -45,7 +51,7 @@ export async function runStateDesignLoop(
       },
     };
 
-    const { result, updatedTcc } = await executeAgent('state-design' as AgentType, loopContext, tcc);
+    const { result, updatedTcc } = await executeAgent('state-design' as AgentType, loopContext, tccForPass);
 
     const newStateLogic = (result as any).stateLogic;
 

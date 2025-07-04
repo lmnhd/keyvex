@@ -243,6 +243,17 @@ async function processAgentsInBackground(
 
         currentTcc = updatedTcc || currentTcc;
 
+        // Mark planning_function_signatures as completed immediately
+        if (agentType === 'function-planner') {
+          await emitStepProgress(
+            jobId,
+            'planning_function_signatures' as any,
+            'completed',
+            'function-planner completed successfully',
+            { userId, agentType }
+          );
+        }
+
         // 🚀 Invoke iterative State-Design loop immediately after Function-Planner
         if (agentType === 'function-planner') {
           const stateDesignModel = agentModelMapping?.['state-design'] || primaryModel || 'claude-3-7-sonnet-20250219';
@@ -276,16 +287,21 @@ async function processAgentsInBackground(
           await emitTccUpdate(jobId, currentTcc, 'state-design');
         }
         
-        await emitStepProgress(
-          jobId,
-          stepName as any,
-          'completed',
-          `${agentType} completed successfully`,
-          {
-            userId: userId, // Use explicitly passed userId
-            agentType,
-            completedAt: new Date().toISOString(),
-            tccUpdated: !!updatedTcc
+        // Skip duplicate completion for planner (already emitted)
+        if (agentType !== 'function-planner') {
+          await emitStepProgress(
+            jobId,
+            stepName as any,
+            'completed',
+            `${agentType} completed successfully`,
+            {
+              userId: userId, // Use explicitly passed userId
+              agentType,
+              completedAt: new Date().toISOString(),
+              tccUpdated: !!updatedTcc
+            }
+          );
+        }
           }
         );
         
