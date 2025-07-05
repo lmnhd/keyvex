@@ -19,6 +19,7 @@ import {
   ToolFinalizerResult
 } from '../../../types/tcc-unified';
 import logger from '../../../logger';
+import * as babel from '@babel/core';
 
 /**
  * Creates the initial TCC from the brainstorm data.
@@ -101,32 +102,99 @@ export function updateTccWithAgentResult(
     case 'tailwind-styling':
       newTcc.styling = (result as TailwindStylingResult).styling;
       break;
-    case 'component-assembler':
-      // 🔄 PHASE 2: Handle JSX Component Assembler results with clean JSX syntax
-      // The JSX assembler generates clean JSX that requires client-side transpilation
-      const assemblerResult = result as ComponentAssemblerResult;
-      
-      // Store in the field the UI expects
-      newTcc.assembledComponentCode = assemblerResult.assembledCode;
-      
-      // Also store in structured format for metadata
-      if (!newTcc.assembledComponent) {
-        newTcc.assembledComponent = {};
+    case 'component-assembler': {
+      // The assembler may return two possible shapes:
+      // 1. { assembledCode, metadata }
+      // 2. { assembledComponent: { finalComponentCode, metadata } }
+      type LegacyShape = {
+        assembledComponent?: {
+          finalComponentCode?: string;
+          metadata?: any;
+        };
+        assembledCode?: string;
+        metadata?: any;
+      };
+
+      const ar = result as ComponentAssemblerResult & LegacyShape;
+
+      // Normalise properties --------------------------------------------------
+      const assembledCode = ar.assembledCode ?? ar.assembledComponent?.finalComponentCode;
+      const assemblyMeta  = ar.metadata      ?? ar.assembledComponent?.metadata;
+
+      // Persist to TCC --------------------------------------------------------
+      let finalCode = assembledCode;
+      if (assembledCode && assemblyMeta?.assemblyMethod === 'programmatic-jsx') {
+        try {
+          const result = babel.transformSync(
+            assembledCode,
+            {
+              presets: [
+                [
+                  '@babel/preset-react',
+                  {
+                    runtime: 'classic', // Force React.createElement
+                    pragma: 'React.createElement'
+                  }
+                ]
+              ],
+              plugins: [],
+              filename: 'component.jsx'
+            }
+          );
+          if (result && result.code) {
+            logger.info({
+              jobId: tcc.jobId,
+              originalLength: assembledCode.length,
+              transpiledLength: result.code.length
+            }, '🛠 [TCC-MANAGER] JSX transpiled to runnable JS for assembled component');
+            finalCode = result.code;
+
+            // Mark metadata to reflect transpilation
+            if (assemblyMeta) {
+              assemblyMeta.assemblyMethod = 'programmatic';
+              (assemblyMeta as any).requiresTranspilation = false;
+              (assemblyMeta as any).transpiledBy = 'tcc-manager';
+            }
+          } else {
+            logger.error({ jobId: tcc.jobId }, '❌ [TCC-MANAGER] Babel returned no code during transpilation');
+          }
+        } catch (err) {
+          logger.error({ jobId: tcc.jobId, err: err instanceof Error ? err.message : String(err) }, '❌ [TCC-MANAGER] Failed to transpile JSX component');
+        }
       }
-      newTcc.assembledComponent.finalComponentCode = assemblerResult.assembledCode;
-      newTcc.assembledComponent.metadata = assemblerResult.metadata;
-      
-      // 🔄 PHASE 2: Enhanced logging for JSX assembly method
-      logger.info({
-        jobId: tcc.jobId,
-        agentType: 'component-assembler',
-        codeLength: assemblerResult.assembledCode?.length || 0,
-        hasMetadata: !!assemblerResult.metadata,
-        assemblyMethod: assemblerResult.metadata?.assemblyMethod,
-        isJsxFormat: assemblerResult.metadata?.assemblyMethod === 'programmatic-jsx',
-        requiresTranspilation: assemblerResult.metadata?.assemblyMethod === 'programmatic-jsx'
-      }, '✅ [TCC-MANAGER] JSX Component assembler result stored in TCC.assembledComponentCode and TCC.assembledComponent');
+
+      if (finalCode) {
+        newTcc.assembledComponentCode = finalCode;
+      }
+
+      if (!newTcc.assembledComponent) {
+        newTcc.assembledComponent = {} as any;
+      }
+      // After initialization we can safely mutate via a local ref to satisfy TS
+      const assembledComponentRef = newTcc.assembledComponent as any;
+
+      if (finalCode) {
+        assembledComponentRef.finalComponentCode = finalCode;
+      }
+      if (assemblyMeta) {
+        assembledComponentRef.metadata = assemblyMeta;
+      }
+
+      // Logging ---------------------------------------------------------------
+      logger.info(
+        {
+          jobId: tcc.jobId,
+          agentType: 'component-assembler',
+          codeLength: assembledCode?.length ?? 0,
+          hasMetadata: !!assemblyMeta,
+          assemblyMethod: assemblyMeta?.assemblyMethod,
+          isJsxFormat: assemblyMeta?.assemblyMethod === 'programmatic-jsx',
+          requiresTranspilation: assemblyMeta?.assemblyMethod === 'programmatic-jsx',
+        },
+        '✅ [TCC-MANAGER] stored assembled component',
+      );
       break;
+    }
     case 'code-validator':
       // Code validator result is not stored in a dedicated TCC field
       break;

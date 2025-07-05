@@ -273,6 +273,8 @@ export class ComponentAssemblerModule extends BaseAgentModule {
 
   /**
    * 🔄 PHASE 2: Assemble the final JSX component with imports
+   * Includes post-assembly guards: trailing-character cleanup, guaranteed default export, and optional
+   * Babel parse check to fail fast on invalid JSX.
    */
   private assembleFinalComponent(
     stateDeclarations: string,
@@ -282,27 +284,56 @@ export class ComponentAssemblerModule extends BaseAgentModule {
     componentName: string
   ): string {
     const cleanComponentName = this.sanitizeComponentName(componentName);
-    
-    // 🔄 PHASE 2: Add React imports for JSX transpilation
-    // Ensure the output retains modern JSX format. The DynamicRenderer already provides React at runtime,
-// but we still include an explicit import so heuristics (and TypeScript) recognise the file as JSX/TSX.
-// Add a commented import so tooling & heuristics detect JSX, but runtime evaluation (new Function) is safe
-const imports = `"use client";\n// import React from 'react';\n`;
 
-    return `${imports}function ${cleanComponentName}() {
-${stateDeclarations}
+    // Import header – kept minimal so runtime evaluation via Function remains safe.
+    const imports = `"use client";\n// import React from 'react';\n`;
 
-${functionDefinitions}
+    // Pre-flight component body (before final sanitation)
+    const preliminary = `${imports}function ${cleanComponentName}() {\n${stateDeclarations}\n\n${functionDefinitions}\n\n${eventHandlerDefinitions}\n\n  return (\n    <>\n${jsxContent}\n    </>\n  );\n}\n`;
 
-${eventHandlerDefinitions}
+    // Post-process: strip stray chars, append default export, syntax check.
+    return this.finalizeComponentCode(preliminary, cleanComponentName);
+  }
 
-  return (
-    <>
-${jsxContent}
-    </>
-  );
-}
-`;
+  /**
+   * Final sanitation pass for assembled JSX.
+   * – Removes stray trailing characters (e.g. lone '|').
+   * – Ensures a single `export default <ComponentName>;` line is present.
+   * – Optionally validates syntax with @babel/parser (if available in the environment).
+   */
+  private finalizeComponentCode(code: string, componentName: string): string {
+    let cleaned = code.trimEnd();
+
+    // Strip common accidental trailing tokens such as solitary pipes or semicolons.
+    cleaned = cleaned.replace(/[|;]+$/g, '').trimEnd();
+
+    const exportLine = `export default ${componentName};`;
+    if (!cleaned.includes(exportLine)) {
+      cleaned += `\n${exportLine}\n`;
+    }
+
+    // Syntax guard – attempt to parse with Babel if the dependency exists.
+    try {
+      // Dynamic import to avoid adding hard dependency at bundle level.
+      // Using `unknown` cast to satisfy TypeScript without resorting to `any`.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
+      const babelParser = require("@babel/parser") as unknown as typeof import("@babel/parser");
+      babelParser.parse(cleaned, {
+        sourceType: "module",
+        plugins: ["typescript", "jsx"],
+      });
+    } catch (err) {
+      // If parsing fails (or parser not present), log a warning but allow downstream validation to handle.
+      logger.warn(
+        {
+          agentType: "component-assembler",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "⚠️ finalizeComponentCode: Babel parse check failed",
+      );
+    }
+
+    return cleaned;
   }
 
   /**

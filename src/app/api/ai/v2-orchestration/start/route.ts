@@ -302,8 +302,7 @@ async function processAgentsInBackground(
             }
           );
         }
-          }
-        );
+         
         
         await emitTccUpdate(jobId, currentTcc, agentType);
         

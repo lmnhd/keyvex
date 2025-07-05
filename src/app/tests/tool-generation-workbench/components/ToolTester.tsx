@@ -25,6 +25,7 @@ import { Loader2, Wifi, WifiOff } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useUser } from '@clerk/nextjs';
 import { v4 as uuidv4 } from 'uuid';
+import { ToolConstructionContext } from '@/lib/types/tcc-unified';
 
 
 const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> = ({ isDarkMode, newBrainstormFlag }) => {
@@ -58,7 +59,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
   const [hasInitialized, setHasInitialized] = useState(false);
   const [hasTccAutoLoaded, setHasTccAutoLoaded] = useState(false);
   
-  const [tccData, setTccData] = useState<any>(null);
+  const [tccData, setTccData] = useState<ToolConstructionContext | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [wsLogs, setWsLogs] = useState<string[]>([]);
   const [currentStep, setCurrentStep] = useState<string>('');
@@ -201,24 +202,31 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       const tccUpdate: TccUpdate = {
         agentType: progress.stepName,
         tccKeys: Object.keys(actualTcc),
-        hasAssembledCode: !!actualTcc.assembledComponentCode,
-        hasFinalProduct: !!actualTcc.finalProduct,
+        hasAssembledCode: !!(actualTcc?.assembledComponentCode || actualTcc?.jsxLayout?.componentStructure),
+        hasFinalProduct: !!actualTcc?.finalProduct,
       };
       console.log(`📊 [WORKBENCH] TCC Update received via WebSocket:`, tccUpdate);
-      setTccData(actualTcc);
-      updateTccWithBackup(actualTcc, progress.stepName);
+      setTccData(prevTccData => ({
+        ...prevTccData,
+        ...actualTcc,
+      }));
+      updateTccWithBackup({ ...(tccData || {}), ...actualTcc }, progress.stepName);
     }
 
     // CRITICAL FIX: Listen for "completed" stepName from the orchestrator
     if (progress.stepName === 'completed' && progress.status === 'completed' && progress.data) {
       addWSLog(`✅ Workflow completion message received. Processing final product...`);
       
-      const finalTcc = progress.data;
-      const finalProductData = finalTcc.finalProduct;
+      // Some backends nest the latest TCC inside `updatedTcc` while others send the TCC object directly
+      const finalTcc = (progress.data?.updatedTcc ?? progress.data) as ToolConstructionContext | undefined;
+      const finalProductData = finalTcc?.finalProduct;
       
       if (finalProductData && (finalProductData.id || finalProductData.componentCode)) {
         console.log("📦 Final product data found. Updating UI state.", finalProductData);
-        setFinalProduct(finalProductData as ProductToolDefinition);
+        setFinalProduct(prevFinalProduct => ({
+          ...(prevFinalProduct || {}),
+          ...finalProductData,
+        }));
         
         setTestJob(prev => ({
           ...(prev as ToolCreationJob),
@@ -237,7 +245,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }
     } else if (progress.status === 'failed' && actualTcc) {
       addWSLog(`❌ Workflow failed at step: ${progress.stepName}. TCC state has been preserved.`);
-      updateTccWithBackup(actualTcc, 'workflow-failure');
+      updateTccWithBackup({ ...(tccData || {}), ...actualTcc }, 'workflow-failure');
       setTestJob(prev => ({
         ...(prev as ToolCreationJob),
         status: 'error',
@@ -286,27 +294,37 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       console.log('📊 [WORKBENCH] TCC Update received via WebSocket:', {
         agentType,
         tccKeys: Object.keys(updatedTcc || {}),
-        hasAssembledCode: !!updatedTcc?.assembledComponentCode,
+        hasAssembledCode: !!(updatedTcc?.assembledComponentCode || updatedTcc?.jsxLayout?.componentStructure),
         hasFinalProduct: !!updatedTcc?.finalProduct
       });
 
       // NEW → make this TCC the one the UI works with
-      setTccData(updatedTcc);
+      setTccData(prevTccData => ({
+        ...prevTccData,
+        ...updatedTcc,
+      }));
 
       // 🛡️ backup
-      updateTccWithBackup(updatedTcc, `websocket-${agentType}`);
+      // Also pass the merged TCC to the backup function
+      updateTccWithBackup({ ...(tccData || {}), ...updatedTcc }, `websocket-${agentType}`);
 
       // assembled code
-      if (updatedTcc?.assembledComponentCode) {
-        setAssembledCode(updatedTcc.assembledComponentCode);
+      const potentialAssembled = updatedTcc?.assembledComponentCode || updatedTcc?.jsxLayout?.componentStructure;
+      if (potentialAssembled) {
+        setAssembledCode(potentialAssembled);
         addDetailedWSLog('debug', `✅ Assembled code updated from ${agentType}`, {
-          codeLength: updatedTcc.assembledComponentCode.length
+          codeLength: potentialAssembled.length,
+          source: updatedTcc?.assembledComponentCode ? 'assembledComponentCode' : 'jsxLayout.componentStructure'
         });
       }
 
       // final product
       if (updatedTcc?.finalProduct) {
-        setFinalProduct(updatedTcc.finalProduct);
+        // Also merge final product deeply to avoid losing other properties
+        setFinalProduct(prevFinalProduct => ({
+          ...(prevFinalProduct || {}),
+          ...updatedTcc.finalProduct,
+        }));
 
         // NEW → ensure testJob.result is set so Preview-priority #1 also works
         setTestJob(prev => {
@@ -583,7 +601,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         
         // CRITICAL FIX: Update TCC data from isolated agent test results
         if (result.data?.updatedTcc) {
-          setTccData(result.data.updatedTcc);
+          setTccData(prevTccData => ({
+            ...prevTccData,
+            ...result.data.updatedTcc,
+          }));
           addDetailedWSLog('debug', '✅ TCC data updated from isolated agent test', {
             agentId: selectedAgent,
             tccKeys: Object.keys(result.data.updatedTcc)
@@ -709,7 +730,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       addDetailedWSLog('debug', 'TCC finalization successful.', { result });
       
       if (result.success && result.finalProduct) {
-        setFinalProduct(result.finalProduct);
+        setFinalProduct(prevFinalProduct => ({
+          ...(prevFinalProduct || {}),
+          ...result.finalProduct,
+        }));
         if (result.finalProduct.componentCode) {
           setAssembledCode(result.finalProduct.componentCode);
         }
@@ -976,7 +1000,10 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.tcc) {
-            setTccData(data.tcc);
+            setTccData(prevTccData => ({
+              ...prevTccData,
+              ...data.tcc,
+            }));
             addWSLog(`TCC refreshed successfully`);
           }
         }

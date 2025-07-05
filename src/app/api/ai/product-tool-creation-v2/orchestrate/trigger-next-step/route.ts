@@ -191,7 +191,8 @@ export async function POST(request: NextRequest) {
           jobId,
           nextStep as any,
           'completed',
-          'Tool creation process completed successfully!'
+          'Tool creation process completed successfully!',
+          completedTCC // Pass the final TCC object to the client
         );
 
         logger.info({ jobId }, '🚀 TRIGGER-NEXT: Process marked as completed');

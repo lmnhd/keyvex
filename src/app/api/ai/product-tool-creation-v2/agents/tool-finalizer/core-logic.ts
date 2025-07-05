@@ -187,7 +187,8 @@ export async function finalizeTool(request: {
       { 
         ...tcc, 
         finalProduct,
-        assembledComponentCode: tcc.assembledComponentCode // Ensure code is available for preview
+        // Ensure the final, cleaned code is propagated for the live preview
+        assembledComponentCode: finalProduct.componentCode
       }
     );
 

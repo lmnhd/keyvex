@@ -367,6 +367,9 @@ export const ToolConstructionContextSchema = z.object({
   styling: StylingSchema.optional(),
   tailwindStyles: TailwindStylesSchema.optional(),
   
+  // Raw assembled component code produced by the ComponentAssemblerAgent (used for preview fallback)
+  assembledComponentCode: z.string().optional(),
+  
   // Backward compatibility aliases
   functionSignatures: z.array(DefinedFunctionSignatureSchema).optional(),
   targetAudience: z.string().optional(), // Top-level for backward compatibility

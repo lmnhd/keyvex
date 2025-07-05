@@ -16,6 +16,36 @@ import { ProductToolDefinition, ToolColorScheme } from '../../../types/product-t
 import { v4 as uuidv4 } from 'uuid';
 import logger from '../../../logger';
 
+// 📦 Server-side JSX → JS transpilation (Babel) --------------------------------
+// We do this here because the ComponentAssemblerModule (Phase-2) intentionally
+// outputs raw JSX.  Downstream consumers (tests, storage, share API) expect
+// runnable JS, so we convert just before finalization.
+import * as babel from '@babel/core';
+// `@babel/preset-react` is already in devDependencies; import directly to avoid
+// dynamic require() oopsies in TypeScript.
+// eslint-disable-next-line import/no-extraneous-dependencies
+import presetReact from '@babel/preset-react';
+
+function transpileJsxToJs(code: string): string {
+  try {
+    const result = babel.transformSync(code, {
+      presets: [presetReact],
+      // Keep it simple – we only need createElement output, not TypeScript.
+      filename: 'assembled-component.tsx',
+      sourceMaps: false,
+      babelrc: false,
+      configFile: false,
+    });
+    if (result && typeof result.code === 'string') {
+      return result.code;
+    }
+    return code; // Fallback to original if transform failed silently
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, '⚠️ TOOL FINALIZER: Babel transpile failed – keeping JSX');
+    return code;
+  }
+}
+
 /**
  * Zod schema for the ToolFinalizer's output.
  * Uses a custom schema since ProductToolDefinitionSchema doesn't exist.
@@ -176,6 +206,33 @@ export class ToolFinalizerModule extends BaseAgentModule {
       const qualityScore = this.calculateQualityScore(tcc);
       const readinessLevel = this.determineReadinessLevel(qualityScore, tcc);
       
+      // -- TRANSPILATION -----------------------------------------------------------
+      let assembledComponentCode = tcc.assembledComponentCode;
+      const needsTranspile = tcc.assembledComponent?.metadata?.assemblyMethod === 'programmatic-jsx' ||
+                             (tcc.assembledComponent?.metadata as any)?.requiresTranspilation === true;
+
+      if (needsTranspile && assembledComponentCode) {
+        const beforeLen = assembledComponentCode.length;
+        assembledComponentCode = transpileJsxToJs(assembledComponentCode);
+        const afterLen = assembledComponentCode.length;
+
+        // Persist transpiled code back to TCC so later consumers get runnable JS
+        tcc.assembledComponentCode = assembledComponentCode;
+        if (tcc.assembledComponent) {
+          (tcc.assembledComponent as any).finalComponentCode = assembledComponentCode;
+          (tcc.assembledComponent as any).metadata = {
+            ...(tcc.assembledComponent as any).metadata,
+            assemblyMethod: 'programmatic',
+            requiresTranspilation: false,
+            transpiledBy: 'tool-finalizer',
+            originalCodeLength: beforeLen,
+            transpiledCodeLength: afterLen,
+          };
+        }
+
+        logger.info({ beforeLen, afterLen }, '✅ TOOL FINALIZER: JSX transpiled to runnable JS');
+      }
+
       // Create the final ProductToolDefinition
       const toolId = tcc.jobId ? `tool-${tcc.jobId}` : `tool-${uuidv4()}`;
       const toolSlug = this.generateSlug(tcc.brainstormData?.coreConcept || tcc.brainstormData?.coreWConcept || 'Generated Tool');

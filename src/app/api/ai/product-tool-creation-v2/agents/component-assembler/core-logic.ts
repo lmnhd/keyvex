@@ -124,7 +124,7 @@ export async function assembleComponent(request: {
     // Update TCC with results
     const updatedTCC: ToolConstructionContext = {
       ...tcc,
-     // assembledComponentCode: assembledComponent.finalComponentCode,
+      assembledComponentCode: assembledComponent.finalComponentCode,
       currentOrchestrationStep: OrchestrationStepEnum.enum.validating_code, // Set next step
       steps: {
         ...tcc.steps,
@@ -267,9 +267,9 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   } else {
     logger.warn({ 
       jobId: tcc.jobId,
-      userInputDescription: tcc.userInput?.description?.substring(0, 100) + '...',
-      toolType: tcc.userInput?.toolType || 'Not specified',
-      targetAudience: tcc.userInput?.targetAudience || 'Not specified'
+      userInputDescription: tcc.userInput.description?.substring(0, 100) + '...',
+      toolType: tcc.userInput.toolType || 'Not specified',
+      targetAudience: tcc.userInput.targetAudience || 'Not specified'
     }, '🔧 ComponentAssembler: [BRAINSTORM DEBUG] ⚠️ NO BRAINSTORM DATA - Component assembly working with minimal context only');
   }
 
@@ -527,17 +527,9 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
         modelId
       }, '🔧 ComponentAssembler: ⚠️ AI generated export statements despite instructions! Auto-removing...');
       
-      // Strip export statements
-      let cleanedCode = finalCode;
-      
-      // Remove export default statements
-      cleanedCode = cleanedCode.replace(/export\s+default\s+\w+\s*;?\s*$/gm, '');
-      
-      // Remove export const/let/var statements
-      cleanedCode = cleanedCode.replace(/export\s+(const|let|var)\s+/g, '$1 ');
-      
-      // Remove standalone export statements
-      cleanedCode = cleanedCode.replace(/export\s*\{[^}]*\}\s*;?\s*$/gm, '');
+      // Strip any lines that start with an export statement (simpler & more robust)
+      const cleanedLines = finalCode.split('\n').filter(line => !line.trim().startsWith('export '));
+      let cleanedCode = cleanedLines.join('\n');
       
       // Clean up any trailing empty lines
       cleanedCode = cleanedCode.replace(/\n\s*\n\s*$/g, '\n').trim();
@@ -893,7 +885,7 @@ const ${componentName} = () => {
         ])
       ])
     ])
-  ]);
+  ];
 };`,
     componentName: `${componentName}_ERROR_FALLBACK`,
     hooks: [],

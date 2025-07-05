@@ -75,4 +75,37 @@ export function getModelProvider(modelId: string): string {
   if (modelId.includes('o1')) return 'openai';
   if (modelId.includes('text-')) return 'openai';
   return 'openai'; // Default fallback
-} 
+}
+
+// ---------------------------------------------------------------------------
+// Convenience helpers for existing admin UI code ----------------------------
+// ---------------------------------------------------------------------------
+
+export function getProcesses(): Record<string, boolean> {
+  return {
+    functionPlanner: true,
+    stateDesigner: true,
+    jsxLayoutDesigner: true,
+    tailwindStylist: true,
+    componentAssembler: true,
+    validator: true,
+    toolFinalizer: true,
+  };
+}
+
+export function getProviders(): Record<string, boolean> {
+  return {
+    anthropic: true,
+    openai: true,
+  };
+}
+
+// Default export (legacy compatibility) ------------------------------------
+const modelConfig = {
+  getPrimaryModel,
+  getFallbackModel,
+  getModelProvider,
+  getProcesses,
+  getProviders,
+};
+export default modelConfig;

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 // Import model configuration and admin utilities
-import modelConfig from '@/lib/ai/models/model-config';
+import { getPrimaryModel, getFallbackModel } from '@/lib/ai/models/model-config';
 import { AdminBehaviorDashboard } from '@/components/ai/behavior-dashboard';
 import { AdminValidationDashboard } from '@/components/admin/validation-dashboard';
 
@@ -143,8 +143,8 @@ export default function AdminDashboard() {
   };
 
   const generateMockCostMetrics = (): CostMetrics => {
-    const processes = Object.keys(modelConfig.getProcesses());
-    const providers = Object.keys(modelConfig.getProviders());
+    const processes = ['functionPlanner', 'stateDesigner', 'jsxLayoutDesigner', 'tailwindStylist', 'componentAssembler', 'validator', 'toolFinalizer'];
+    const providers = ['anthropic', 'openai'];
     
     const costByProcess: Record<string, number> = {};
     const costByProvider: Record<string, number> = {};
@@ -157,15 +157,15 @@ export default function AdminDashboard() {
       costByProcess[process] = cost;
       totalCost += cost;
       
-      const primaryModel = modelConfig.getPrimaryModel(process);
+      const primaryModel = getPrimaryModel(process);
       if (primaryModel) {
         costByProvider[primaryModel.provider] = (costByProvider[primaryModel.provider] || 0) + cost * 0.7;
-        costByModel[primaryModel.model] = (costByModel[primaryModel.model] || 0) + cost * 0.7;
+        costByModel[primaryModel.modelInfo.id] = (costByModel[primaryModel.modelInfo.id] || 0) + cost * 0.7;
         
-        const fallbackModel = modelConfig.getFallbackModel(process);
+        const fallbackModel = getFallbackModel(process);
         if (fallbackModel) {
           costByProvider[fallbackModel.provider] = (costByProvider[fallbackModel.provider] || 0) + cost * 0.3;
-          costByModel[fallbackModel.model] = (costByModel[fallbackModel.model] || 0) + cost * 0.3;
+          costByModel[fallbackModel.modelInfo.id] = (costByModel[fallbackModel.modelInfo.id] || 0) + cost * 0.3;
         }
       }
     });
@@ -194,8 +194,8 @@ export default function AdminDashboard() {
   };
 
   const generateMockUsageMetrics = (): UsageMetrics => {
-    const processes = Object.keys(modelConfig.getProcesses());
-    const providers = Object.keys(modelConfig.getProviders());
+    const processes = ['functionPlanner', 'stateDesigner', 'jsxLayoutDesigner', 'tailwindStylist', 'componentAssembler', 'validator', 'toolFinalizer'];
+    const providers = ['anthropic', 'openai'];
     
     const requestsByProcess: Record<string, number> = {};
     const requestsByProvider: Record<string, number> = {};
@@ -229,7 +229,7 @@ export default function AdminDashboard() {
   };
 
   const generateMockPerformanceMetrics = (): PerformanceMetrics => {
-    const processes = Object.keys(modelConfig.getProcesses());
+    const processes = ['functionPlanner', 'stateDesigner', 'jsxLayoutDesigner', 'tailwindStylist', 'componentAssembler', 'validator', 'toolFinalizer'];
     
     const latencyByProcess: Record<string, number> = {};
     processes.forEach(process => {

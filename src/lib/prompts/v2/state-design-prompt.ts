@@ -150,18 +150,22 @@ const commonGuidelines = `
     }
     \`\`\`
     
-    🔥 By using this data, you ensure the tool starts with meaningful, context-aware values instead of empty or generic ones.
+    By using this data, you ensure the tool starts with meaningful, context-aware values instead of empty or generic ones.
 </data-driven-state-design>
 
 <select-field-handling>
-    🚨 CRITICAL: When dealing with SELECT fields that have text values, you MUST map them to numeric values for calculations:
-    
-    ❌ WRONG:
+    CRITICAL: When dealing with SELECT, MULTISELECT, or RADIO inputs you MUST do **two** things:
+    1. Map user selections to numeric values for calculations.
+    2. ALWAYS create a companion "<fieldName>Options" variable of type 'string[]' containing **at least 4 realistic option values**. Derive these from brainstorm context or common industry defaults when explicit options are not provided. Never leave this array empty.
+
+    WRONG:
     - "const systemCost = parseFloat(statePreferredSystemSize) * 1000;" // 'small' * 1000 = NaN!
     
-    ✅ CORRECT:
+    CORRECT:
     - "const systemSizeKW = statePreferredSystemSize === 'small' ? 4 : statePreferredSystemSize === 'medium' ? 7 : statePreferredSystemSize === 'large' ? 10 : 0;"
     - "const systemCost = systemSizeKW * 3000;" // $3000 per kW
+
+    ALWAYS convert text selections to meaningful numeric values for calculations!
     
     🔥 ALWAYS convert text selections to meaningful numeric values for calculations!
 </select-field-handling>
@@ -559,7 +563,7 @@ export function getStateDesignUserPrompt(
     mode: 'create'
   });
 
-  return `
+  const userPrompt = `
 <task>
     Your task is to design the state and logic for a new tool.
     Analyze the brainstorm context below and generate a JSON object that defines the React state variables and business logic functions for the tool.
@@ -573,5 +577,23 @@ export function getStateDesignUserPrompt(
     Based on the brainstorm, the following functions have been planned. You should implement the logic for these within your generated functions.
     ${functionSignatures.map(sig => `- ${sig.name}: ${sig.description}`).join('\n    ')}
 </function-plan>
+
+<required-functions>
+<!-- DO NOT CHANGE FUNCTION NAMES. Implement *all* listed functions using EXACT spelling and case. -->
+    🚨 You MUST implement ALL of these functions in THIS pass (no omissions):
+    ${functionSignatures.map(sig => `- ${sig.name}`).join('\n    ')}
+
+
+After generating the 'stateLogic' JSON, add a short comment line immediately after your JSON output in the form:
+'<!--implemented-functions: ${functionSignatures.map(sig => sig.name).join(', ')} -->'
+This MUST list every function you implemented (comma-separated). This line is only for verification and will be ignored by the parser.
+
+If a function’s business logic is not fully specified in the brainstorm, you MUST still create it with an **empty body** containing a ''// TODO: implement'' comment so the UI can compile. Do NOT omit any required function.
+
+Additionally, for every SELECT, MULTISELECT, or RADIO field described in the brainstorm's 'suggestedInputs', you MUST include a corresponding "<fieldName>Options" variable (type 'string[]') containing at least 4 realistic values. Do not leave any options array empty; infer sensible defaults when explicit values are unavailable.
+</required-functions>
 `;
+  // eslint-disable-next-line no-console
+  console.log('STATE-DESIGN USER PROMPT:\n', userPrompt);
+  return userPrompt;
 }

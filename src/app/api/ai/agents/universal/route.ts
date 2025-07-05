@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { AgentType } from '../../../../../lib/types/tcc-unified';
 import { ToolConstructionContext, OrchestrationStep } from '../../../../../lib/types/product-tool-creation-v2/tcc';
 import { executeAgent } from '../../../../../lib/agents/unified/core/agent-executor';
+import { runStateDesignLoop } from '../../../../../lib/agents/unified/loops/state-design-loop';
 import { createAgentExecutionContext } from '../../../../../lib/agents/unified/core/model-manager';
 import logger from '../../../../../lib/logger';
 
@@ -187,8 +188,18 @@ export async function POST(request: NextRequest): Promise<NextResponse<Universal
       };
     }
 
-    // Execute the agent with unified system
-    const { result, updatedTcc } = await executeAgent(agentType, executionContext, tcc);
+    // Execute the agent. For state-design we run the iterative loop used in orchestration so isolation tests mirror production.
+    let result: any;
+    let updatedTcc: ToolConstructionContext;
+    if (agentType === 'state-design') {
+      const { updatedTcc: loopTcc } = await runStateDesignLoop(executionContext, tcc);
+      updatedTcc = loopTcc;
+      result = { stateLogic: loopTcc.stateLogic };
+    } else {
+      const execOut = await executeAgent(agentType, executionContext, tcc);
+      result = execOut.result;
+      updatedTcc = execOut.updatedTcc;
+    }
     
     const executionTime = Date.now() - startTime;
 

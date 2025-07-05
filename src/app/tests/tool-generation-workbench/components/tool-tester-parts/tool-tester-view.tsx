@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { detectComponentCodeFormat } from '@/lib/transpilation/jsx-transpiler';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -880,9 +880,9 @@ export default function ToolTesterView({
                   )}
 
                   <div className="space-y-2">
-                    <Label htmlFor="agent-select">2. Select Agent to Test</Label>
+                    <Label>2. Select Agent to Test</Label>
                     <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-                      <SelectTrigger id="agent-select">
+                      <SelectTrigger>
                         <SelectValue placeholder="Choose an agent to test..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -1035,8 +1035,20 @@ export default function ToolTesterView({
               <TabsTrigger value="progress">Progress</TabsTrigger>
               <TabsTrigger value="tcc" disabled={(!testJob?.jobId || testJob.jobId.startsWith('debug-')) && !tccData}>TCC Monitor</TabsTrigger>
               <TabsTrigger value="websocket">WebSocket Logs</TabsTrigger>
-              <TabsTrigger value="preview" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && workflowMode !== 'debug'}>Live Preview</TabsTrigger>
-              <TabsTrigger value="component-code" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && !testJob?.result}>Component Code</TabsTrigger>
+              <TabsTrigger
+                value="preview"
+                disabled={
+                  !assembledCode &&
+                  !tccData?.finalProduct?.componentCode &&
+                  !(testJob?.result && typeof testJob.result === 'object' && (
+                    'componentCode' in testJob.result || (testJob.result as any).finalProduct?.componentCode
+                  )) &&
+                  workflowMode !== 'debug'
+                }
+              >
+                Live Preview
+              </TabsTrigger>
+              <TabsTrigger value="component-code" disabled={!assembledCode && !tccData?.finalProduct?.componentCode && !(testJob?.result && ( (testJob.result as any).componentCode || (testJob.result as any).finalProduct?.componentCode))}>Component Code</TabsTrigger>
               <TabsTrigger value="agent-results" disabled={workflowMode !== 'debug' || !testJob?.result}>Agent Results</TabsTrigger>
               <TabsTrigger value="result" disabled={!testJob?.result && workflowMode !== 'debug'}>Tool Definition</TabsTrigger>
             </TabsList>
@@ -1413,7 +1425,25 @@ export default function ToolTesterView({
                       let previewSource = '';
                       
                       // PRIORITY 1: Use final tool result if available (V2 orchestration complete)
-                      if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
+                      if (testJob?.result && typeof testJob.result === 'object' && 'finalProduct' in testJob.result && 'componentCode' in testJob.result.finalProduct) {
+                        previewTool = {
+                          id: testJob.result.id,
+                          slug: testJob.result.slug,
+                          componentCode: testJob.result.finalProduct.componentCode,
+                          metadata: testJob.result.metadata,
+                          initialStyleMap: testJob.result.initialStyleMap,
+                          currentStyleMap: testJob.result.currentStyleMap,
+                          createdAt: testJob.result.createdAt,
+                          updatedAt: testJob.result.updatedAt
+                        };
+                        previewSource = 'Final Tool Result (finalProduct.componentCode)';
+                        console.log('🔍 ✅ USING PRIORITY 1: Final Tool Result (finalProduct.componentCode)');
+                        console.log('🔍     Tool ID:', previewTool.id);
+                        console.log('🔍     Code length:', previewTool.componentCode.length);
+                        console.log('🔍     Code hash:', safeHash(previewTool.componentCode));
+                      }
+                      // PRIORITY 1b: Use final tool result if available (V2 orchestration complete)
+                       else if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
                         previewTool = testJob.result;
                         previewSource = 'Final Tool Result';
                         console.log('🔍 ✅ USING PRIORITY 1: Final Tool Result');
@@ -1422,7 +1452,25 @@ export default function ToolTesterView({
                         console.log('🔍     Code hash:', (testJob.result as any).componentCode ? safeHash((testJob.result as any).componentCode) : 'NO-CODE');
                         console.log('🔍     Contains sliders?:', (testJob.result as any).componentCode?.includes('Slider'));
                       }
-                      // PRIORITY 2: Use TCC finalProduct component code (component assembler completed)
+                      // PRIORITY 1b: Use finalProduct.componentCode embedded inside the tool result (some agent pipelines)
+                       else if (testJob?.result && typeof testJob.result === 'object' && (testJob.result as any).finalProduct?.componentCode) {
+                         const finalProduct = (testJob.result as any).finalProduct;
+                         previewTool = {
+                           ...(testJob.result as any),
+                           componentCode: finalProduct.componentCode,
+                           metadata: finalProduct.metadata || (testJob.result as any).metadata || {
+                             title: finalProduct.title || 'Generated Tool',
+                             description: finalProduct.description || 'Tool generated via pipeline',
+                             slug: finalProduct.slug || 'generated-tool'
+                           }
+                         } as any;
+                         previewSource = 'Final Tool Result (finalProduct.componentCode)';
+                         console.log('🔍 ✅ USING PRIORITY 1b: finalProduct.componentCode');
+                         console.log('🔍     Tool ID:', (previewTool as any).id);
+                         console.log('🔍     Code length:', finalProduct.componentCode?.length);
+                         console.log('🔍     Code hash:', safeHash(finalProduct.componentCode));
+                       }
+                       // PRIORITY 2: Use TCC finalProduct component code (component assembler completed)
                       else if (tccData?.finalProduct?.componentCode) {
                         previewTool = {
                           id: tccData.jobId || `preview-${Date.now()}`,
@@ -1688,6 +1736,11 @@ export default function ToolTesterView({
                     else if (testJob?.result && typeof testJob.result === 'object' && 'componentCode' in testJob.result) {
                       componentCode = (testJob.result as any).componentCode;
                       codeSource = 'Tool Definition componentCode';
+                    }
+                    // Fallback to finalProduct.componentCode if present within result
+                    else if (testJob?.result && typeof testJob.result === 'object' && (testJob.result as any).finalProduct?.componentCode) {
+                      componentCode = (testJob.result as any).finalProduct.componentCode;
+                      codeSource = 'Tool Definition finalProduct.componentCode';
                     }
                     // Try to get from TCC data (debug/agent results) - SINGLE SOURCE OF TRUTH
                     else if (testJob?.result && typeof testJob.result === 'object' && 'updatedTcc' in testJob.result) {

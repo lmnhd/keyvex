@@ -115,7 +115,7 @@ export function getUserPrompt(
     
     case 'state-design':
       // State design requires function signatures from TCC
-      const functionSignatures = tcc.definedFunctionSignatures || [];
+      const functionSignatures = tcc.functionSignatures || tcc.definedFunctionSignatures || [];
       basePrompt = getStateDesignUserPrompt(
         tcc, 
         functionSignatures, 
