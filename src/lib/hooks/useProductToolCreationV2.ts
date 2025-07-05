@@ -268,6 +268,90 @@ export function useProductToolCreationV2(): UseProductToolCreationV2Return {
     });
   }, [addProgress]);
 
+// --- V2 simplified polling (single-step orchestration) ---
+const pollForCompletionV2 = useCallback(
+  async (jobId: string): Promise<ToolCreationV2Result> => {
+    const startTime = Date.now();
+
+    const cleanup = () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          if (Date.now() - startTime > MAX_POLLING_TIME) {
+            cleanup();
+            reject(new Error('Tool creation process timed out'));
+            return;
+          }
+
+          const response = await fetch(`/api/ai/v2-orchestration/tcc/${jobId}`, {
+            signal: abortControllerRef.current?.signal,
+          });
+
+          if (!response.ok) {
+            throw new Error(`Polling failed with status ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (!data.success || !data.tcc) {
+            cleanup();
+            reject(new Error(data.error || 'Invalid polling response'));
+            return;
+          }
+
+          const tcc: ToolConstructionContext = data.tcc;
+          const orchestrationStatus = tcc.status as string;
+          const currentStep = tcc.currentOrchestrationStep as string;
+          const stepDisplayName =
+            STEP_DISPLAY_NAMES[
+              currentStep as keyof typeof STEP_DISPLAY_NAMES
+            ] || currentStep;
+
+          let progressStatus: ToolCreationV2Progress['status'] = 'started';
+          if (orchestrationStatus === 'completed') {
+            progressStatus = 'completed';
+          } else if (['failed', 'error'].includes(orchestrationStatus)) {
+            progressStatus = 'failed';
+          }
+
+          addProgress({
+            step: currentStep,
+            status: progressStatus,
+            message: `${stepDisplayName}: ${orchestrationStatus}`,
+            timestamp: new Date().toISOString(),
+            stepDisplayName,
+          });
+
+          if (orchestrationStatus === 'completed') {
+            cleanup();
+            resolve({ success: true, jobId, tcc, progress: [] });
+          } else if (['failed', 'error'].includes(orchestrationStatus)) {
+            cleanup();
+            reject(new Error('Tool creation process failed'));
+          }
+        } catch (error: any) {
+          cleanup();
+          if (error?.name === 'AbortError') {
+            reject(new Error('Process was cancelled'));
+          } else {
+            reject(error);
+          }
+        }
+      };
+
+      pollingRef.current = setInterval(poll, POLLING_INTERVAL);
+      poll();
+    });
+  },
+  [addProgress]
+);
+
+
   const createTool = useCallback(async (request: ToolCreationV2Request): Promise<ToolCreationV2Result> => {
     try {
       setIsCreating(true);
@@ -320,7 +404,7 @@ export function useProductToolCreationV2(): UseProductToolCreationV2Return {
         stepDisplayName: 'Initializing'
       });
 
-      const result = await pollForCompletion(jobId);
+      const result = await pollForCompletionV2(jobId);
       
       setIsCreating(false);
       return {
