@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
-import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/tcc-unified';
+import { ToolConstructionContext, OrchestrationStepEnum } from '@/lib/types/tcc-unified';
 import logger from '@/lib/logger';
 
 export interface ToolCreationV2Request {
@@ -205,7 +205,13 @@ export function useProductToolCreationV2(): UseProductToolCreationV2Return {
                   estimatedCompletionTime: 5,
                   difficultyLevel: 'beginner',
                   features: [],
-                  icon: { type: 'lucide', value: 'Package' }
+                  icon: { type: 'lucide', value: 'Package' },
+                  userInstructions: 'Please follow the instructions on the tool page',
+                  developerNotes: 'This is a generated tool with a basic layout',
+                  source: 'ai',
+                  version: '1.0',
+                  dependencies: [],
+                  
                 },
                 componentSet: 'shadcn',
                 componentCode: "'use client';\nfunction V2GeneratedTool() { return React.createElement('div', { className: 'p-4' }, 'V2 Tool Successfully Created!'); }",
