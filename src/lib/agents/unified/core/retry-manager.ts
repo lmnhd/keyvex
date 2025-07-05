@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Enhanced Retry Manager (Phase 2.3) 
  * Implements sophisticated, state-aware retry strategy with progressive adaptation
  * 
@@ -115,7 +115,7 @@ export class RetryManager {
           modelUsed: currentModelId,
           hasLastError: !!retryInfo.lastError,
           promptHints: retryInfo.adaptedPromptHints.length
-        }, `🔄 RETRY MANAGER: Executing attempt ${attempt}/${strategy.maxAttempts} with strategy: ${retryInfo.strategy}`);
+        }, `?? RETRY MANAGER: Executing attempt ${attempt}/${strategy.maxAttempts} with strategy: ${retryInfo.strategy}`);
 
         // CRITICAL: Pass retry context to execution function
         // This allows agent modules to adapt their behavior
@@ -130,7 +130,7 @@ export class RetryManager {
           totalAttempts: attempt,
           finalStrategy: retryInfo.strategy,
           finalModel: currentModelId
-        }, `✅ RETRY MANAGER: Success on attempt ${attempt} with strategy: ${retryInfo.strategy}`);
+        }, `? RETRY MANAGER: Success on attempt ${attempt} with strategy: ${retryInfo.strategy}`);
 
         return {
           result,
@@ -176,7 +176,7 @@ export class RetryManager {
           error: lastError.message,
           validationScore,
           willRetry: attempt < strategy.maxAttempts
-        }, `⚠️ RETRY MANAGER: Attempt ${attempt} failed - ${lastError.message}`);
+        }, `?? RETRY MANAGER: Attempt ${attempt} failed - ${lastError.message}`);
 
         // If this isn't the final attempt, adapt strategy for next attempt
         if (attempt < strategy.maxAttempts) {
@@ -193,7 +193,7 @@ export class RetryManager {
             logger.info({
               jobId: context.jobId,
               delayMs: delay
-            }, `⏳ RETRY MANAGER: Waiting ${delay}ms before next attempt`);
+            }, `? RETRY MANAGER: Waiting ${delay}ms before next attempt`);
             await this.sleep(delay);
           }
         }
@@ -208,7 +208,7 @@ export class RetryManager {
       agentType: context.agentType,
       totalAttempts: strategy.maxAttempts,
       finalError: lastError?.message
-    }, `❌ RETRY MANAGER: All ${strategy.maxAttempts} attempts failed`);
+    }, `? RETRY MANAGER: All ${strategy.maxAttempts} attempts failed`);
 
     throw new Error(`All ${strategy.maxAttempts} retry attempts failed. Final error: ${lastError?.message}`);
   }
@@ -323,7 +323,7 @@ export class RetryManager {
       originalModel,
       fallbackModel,
       reason: 'model_switching_strategy'
-    }, `🔄 RETRY MANAGER: Switching from ${originalModel} to ${fallbackModel} for attempt ${nextAttempt}`);
+    }, `?? RETRY MANAGER: Switching from ${originalModel} to ${fallbackModel} for attempt ${nextAttempt}`);
 
     return fallbackModel;
   }

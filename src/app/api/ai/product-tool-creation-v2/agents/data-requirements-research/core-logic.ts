@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DataRequirementsResearchOutputSchema, DataRequirementsResearchOutput } from './schema';
-import { ToolConstructionContext, BrainstormData, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, BrainstormData, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/tcc-unified';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';

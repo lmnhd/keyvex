@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assembleComponent } from './core-logic';
 import logger from '@/lib/logger';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext } from '@/lib/types/tcc-unified';
 
 export async function POST(request: NextRequest) {
   logger.info('🔧 ComponentAssembler Route: Route handler started');

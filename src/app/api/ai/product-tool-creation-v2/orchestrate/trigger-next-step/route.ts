@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext, isAgentInEditMode, getActiveEditInstructions } from '@/lib/types/product-tool-creation-v2/tcc';
+import { OrchestrationStepEnum, OrchestrationStatusEnum, ToolConstructionContext, isAgentInEditMode, getActiveEditInstructions } from '@/lib/types/tcc-unified';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import logger from '@/lib/logger';
 

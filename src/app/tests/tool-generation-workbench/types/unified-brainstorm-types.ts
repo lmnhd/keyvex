@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { BrainstormDataSchema, type BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
+import { BrainstormDataSchema, type BrainstormData } from '@/lib/types/tcc-unified';
 
 // --- PHASE 1: UNIFIED BRAINSTORM TYPES ---
 // This file replaces the conflicting BrainstormData and SavedLogicResult types
 // with a single, strongly-typed structure that matches BrainstormDataSchema
 
 // Re-export the authoritative brainstorm data schema from TCC
-export { BrainstormDataSchema, type BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
+export { BrainstormDataSchema, type BrainstormData } from '@/lib/types/tcc-unified';
 
 // User input that generates a brainstorm
 export const BrainstormUserInputSchema = z.object({

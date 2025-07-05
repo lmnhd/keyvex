@@ -1,4 +1,4 @@
-import { ToolConstructionContext, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext } from '@/lib/types/tcc-unified';
 import { filterBrainstormForFunctionPlanner, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
 

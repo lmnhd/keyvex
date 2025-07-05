@@ -14,7 +14,7 @@ import {
   TailwindStylingBrainstormData,
   BrainstormFilterContext
 } from '@/lib/types/tcc-unified';
-import { BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
+import { BrainstormData } from '@/lib/types/tcc-unified';
 import logger from '@/lib/logger';
 
 /**

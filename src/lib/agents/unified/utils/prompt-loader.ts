@@ -7,7 +7,7 @@
  */
 
 import { AgentType } from '@/lib/types/tcc-unified';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext } from '@/lib/types/tcc-unified';
 import logger from '@/lib/logger';
 
 export interface PromptLoadContext {

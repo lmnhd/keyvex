@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { ToolConstructionContext, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, OrchestrationStatusEnum } from '@/lib/types/tcc-unified';
 import logger from '@/lib/logger';
 
 const PauseRequestSchema = z.object({

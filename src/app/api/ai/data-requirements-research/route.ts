@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, OrchestrationStepEnum, OrchestrationStatusEnum } from '@/lib/types/tcc-unified';
 import { requireAuthWithErrorHandling, debugLog, getDebugUserId } from '@/lib/auth/debug';
 import logger from '@/lib/logger';
 import { v4 as uuidv4 } from 'uuid';

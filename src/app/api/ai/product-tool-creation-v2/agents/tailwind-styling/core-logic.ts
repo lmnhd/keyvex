@@ -4,7 +4,7 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
   Styling as TccStyling,
-} from '@/lib/types/product-tool-creation-v2/tcc';
+} from '@/lib/types/tcc-unified';
 // TCC Store operations removed - using prop-based TCC passing
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 import { openai } from '@ai-sdk/openai';

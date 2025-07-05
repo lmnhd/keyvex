@@ -3,7 +3,7 @@
 // ✅ ENHANCED: Now handles brainstorm data and demands SPECIFIC business logic
 // ============================================================================
 
-import { ToolConstructionContext, EditModeContext, DefinedFunctionSignature } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext, DefinedFunctionSignature } from '@/lib/types/tcc-unified';
 import { filterBrainstormForStateDesign, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
 

@@ -711,7 +711,7 @@ ${COMMON_OUTPUT_FORMAT}
 // DEPRECATED: This will be removed once all consuming code uses the dynamic getter.
 export const TAILWIND_STYLING_SYSTEM_PROMPT = CREATION_PROMPT;
 
-import { ToolConstructionContext, EditModeContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext, EditModeContext } from '@/lib/types/tcc-unified';
 import { filterBrainstormForTailwindStyling, generateFilteredBrainstormContext } from '@/lib/utils/brainstorm-filter';
 import logger from '@/lib/logger';
 

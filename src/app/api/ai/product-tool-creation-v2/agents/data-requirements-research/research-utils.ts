@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { webSearch, WebSearchResult } from '@/lib/ai/web-search';
-import { BrainstormData } from '@/lib/types/product-tool-creation-v2/tcc';
+import { BrainstormData } from '@/lib/types/tcc-unified';
 import { generateObject } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';

@@ -1,4 +1,4 @@
-import { ToolConstructionContext } from "@/lib/types/product-tool-creation-v2/tcc";
+import { ToolConstructionContext } from "@/lib/types/tcc-unified";
 
 export interface MockTccScenario {
   id: string;

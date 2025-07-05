@@ -6,7 +6,7 @@ import {
   OrchestrationStepEnum,
   ToolConstructionContext,
   ToolConstructionContextSchema, // Import the authoritative schema
-} from '@/lib/types/product-tool-creation-v2/tcc';
+} from '@/lib/types/tcc-unified';
 import logger from '@/lib/logger';
 import { emitStepProgress } from '@/lib/streaming/progress-emitter.server';
 

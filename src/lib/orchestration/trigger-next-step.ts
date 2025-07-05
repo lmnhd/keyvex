@@ -1,4 +1,4 @@
-import { OrchestrationStepEnum, ToolConstructionContext } from "@/lib/types/product-tool-creation-v2/tcc";
+import { OrchestrationStepEnum, ToolConstructionContext } from "@/lib/types/tcc-unified";
 import logger from "@/lib/logger";
 import { z } from "zod";
 

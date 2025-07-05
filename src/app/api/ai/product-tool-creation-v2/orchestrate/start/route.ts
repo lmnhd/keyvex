@@ -6,7 +6,7 @@ import {
   OrchestrationStepEnum,
   OrchestrationStatusEnum,
   BrainstormDataSchema,
-} from "@/lib/types/product-tool-creation-v2/tcc";
+} from "@/lib/types/tcc-unified";
 import { emitStepProgress } from "@/lib/streaming/progress-emitter.server";
 import logger from "@/lib/logger";
 import { requireAuth } from "@/lib/auth/debug";

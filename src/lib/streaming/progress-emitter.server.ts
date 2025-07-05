@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Server-side WebSocket Progress Emitter
  * Simplified version for real-time progress updates
  */
@@ -7,7 +7,7 @@ import {
   ProgressEvent,
   OrchestrationStep,
 ToolConstructionContext,
-} from '@/lib/types/product-tool-creation-v2/tcc';
+} from '@/lib/types/tcc-unified';
 import logger from '../logger';
 
 const WEBSOCKET_API_URL = process.env.WEBSOCKET_API_URL;
@@ -27,7 +27,7 @@ function isWebSocketAvailable(): boolean {
     WEBSOCKET_API_URL: process.env.WEBSOCKET_API_URL || 'Not Set',
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ? 'Set' : 'Not Set',
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ? 'Set' : 'Not Set',
-  }, '📡 [AWS-WEBSOCKET-CHECK]');
+  }, '?? [AWS-WEBSOCKET-CHECK]');
   return urlAvailable && accessKeyAvailable && secretKeyAvailable;
 }
 
@@ -67,14 +67,14 @@ try {
     },
   }));
   
-  // 🔍 ADDED: Detailed logging for DynamoDB query response to investigate Reason #3
+  // ?? ADDED: Detailed logging for DynamoDB query response to investigate Reason #3
   logger.info({
       jobId: 'N/A',
       userId,
       resultCount: response.Items?.length || 0,
       scannedCount: response.ScannedCount,
       rawResponse: response.Items,
-  }, '🔍 [DynamoDB-QUERY-RESULT]');
+  }, '?? [DynamoDB-QUERY-RESULT]');
 
   if (!response.Items || response.Items.length === 0) {
     logger.info({ userId }, 'No active WebSocket connections found for user');
@@ -100,7 +100,7 @@ async function sendViaWebSocket(
   payload: any // Can be ProgressEvent or TCC update
 ): Promise<boolean> {
   if (!isWebSocketAvailable()) {
-    logger.warn({ jobId }, '📡 [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send message.');
+    logger.warn({ jobId }, '?? [WEBSOCKET-ERROR] AWS WebSocket is not available or not configured. Cannot send message.');
     return false;
   }
   
@@ -109,7 +109,7 @@ async function sendViaWebSocket(
     const connectionIds = await getUserConnections(userId);
     
     if (connectionIds.length === 0) {
-      logger.info({ userId, jobId }, '📡 [WEBSOCKET-INFO] No active connections found for user');
+      logger.info({ userId, jobId }, '?? [WEBSOCKET-INFO] No active connections found for user');
       return false;
     }
     
@@ -122,7 +122,7 @@ async function sendViaWebSocket(
     const stage = urlParts[1] || process.env.AWS_STAGE || 'dev';
     const callbackUrl = `https://${domainName}/${stage}`;
     
-    // 🔍 ADDED: Detailed logging for URL construction to investigate Reason #4
+    // ?? ADDED: Detailed logging for URL construction to investigate Reason #4
     logger.info({
       jobId,
       envUrl: WEBSOCKET_API_URL,
@@ -130,7 +130,7 @@ async function sendViaWebSocket(
       parsedDomain: domainName,
       parsedStage: stage,
       finalCallbackUrl: callbackUrl
-    }, '🔍 [URL-CONSTRUCTION-DETAILS]');
+    }, '?? [URL-CONSTRUCTION-DETAILS]');
 
     const apiGwClient = new ApiGatewayManagementApiClient({
       endpoint: callbackUrl,
@@ -145,7 +145,7 @@ async function sendViaWebSocket(
       callbackUrl,
       connectionCount: connectionIds.length,
       jobId
-    }, '📡 [AWS-WEBSOCKET] Preparing to send to WebSocket connections');
+    }, '?? [AWS-WEBSOCKET] Preparing to send to WebSocket connections');
     
     // Send to all connections for this user
     const sendPromises = connectionIds.map(async (connectionId) => {
@@ -154,14 +154,14 @@ async function sendViaWebSocket(
           ConnectionId: connectionId,
           Data: JSON.stringify(payload),
         }));
-        logger.info({ connectionId, jobId }, '📡 [AWS-WEBSOCKET] Message sent successfully');
+        logger.info({ connectionId, jobId }, '?? [AWS-WEBSOCKET] Message sent successfully');
         return true;
       } catch (error) {
         logger.error({
           connectionId,
           jobId,
           error: error instanceof Error ? error.message : String(error)
-        }, '📡 [WEBSOCKET-ERROR] Failed to send to connection (connection may be stale)');
+        }, '?? [WEBSOCKET-ERROR] Failed to send to connection (connection may be stale)');
         return false;
       }
     });
@@ -173,7 +173,7 @@ async function sendViaWebSocket(
       jobId,
       successCount,
       totalConnections: connectionIds.length
-    }, `📡 [AWS-WEBSOCKET] Message sending completed`);
+    }, `?? [AWS-WEBSOCKET] Message sending completed`);
     
     return successCount > 0;
     
@@ -182,7 +182,7 @@ async function sendViaWebSocket(
         jobId,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : 'No stack'
-  }, `📡 [WEBSOCKET-ERROR] WebSocket message sending failed`);
+  }, `?? [WEBSOCKET-ERROR] WebSocket message sending failed`);
   return false;
   }
 }
@@ -206,7 +206,7 @@ export async function emitStepProgress(
     timestamp: new Date().toISOString()
   };
   
-  logger.info({ jobId, stepName, status, message }, '📡 [WEBSOCKET-EMIT-START] Emitting progress event'); 
+  logger.info({ jobId, stepName, status, message }, '?? [WEBSOCKET-EMIT-START] Emitting progress event'); 
   
   let userId = details?.userId;
   if (!userId && details?.tcc?.userId) {
@@ -216,7 +216,7 @@ export async function emitStepProgress(
   if (!userId) {
     logger.warn({
       jobId,
-    }, '📡 [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
+    }, '?? [WEBSOCKET-EMIT-ABORT] No userId found in details (TCC), cannot send WebSocket message');
     return;
   }
   
@@ -234,13 +234,13 @@ export async function emitStepProgress(
     const success = await sendViaWebSocket(userId, jobId, payload);
     
     if (success) {
-      logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-SUCCESS] Successfully sent WebSocket message');
+      logger.info({ jobId, userId, stepName, status }, '?? [WEBSOCKET-EMIT-SUCCESS] Successfully sent WebSocket message');
     } else {
-      logger.info({ jobId, userId, stepName, status }, '📡 [WEBSOCKET-EMIT-FAIL] Failed to send via AWS WebSocket');
+      logger.info({ jobId, userId, stepName, status }, '?? [WEBSOCKET-EMIT-FAIL] Failed to send via AWS WebSocket');
     }
     
   } catch (error) {
-    logger.error({ jobId, stepName, status, error: error instanceof Error ? error.message : String(error) }, '📡 [WEBSOCKET-EMIT-FATAL] Unhandled exception in emitStepProgress');
+    logger.error({ jobId, stepName, status, error: error instanceof Error ? error.message : String(error) }, '?? [WEBSOCKET-EMIT-FATAL] Unhandled exception in emitStepProgress');
   }
 }
 
@@ -258,7 +258,7 @@ if (!userId) {
   logger.warn({
     jobId,
     agentType,
-  }, '📡 [TCC-EMIT-ABORT] No userId in TCC, cannot send WebSocket message');
+  }, '?? [TCC-EMIT-ABORT] No userId in TCC, cannot send WebSocket message');
   return;
 }
 
@@ -270,20 +270,20 @@ const payload = {
   timestamp: new Date().toISOString(),
 };
 
-logger.info({ jobId, agentType, userId }, '📊 Emitting TCC update event');
+logger.info({ jobId, agentType, userId }, '?? Emitting TCC update event');
 
 try {
   const success = await sendViaWebSocket(userId, jobId, payload);
   if (success) {
-    logger.info({ jobId, userId, agentType }, '📊 Successfully sent TCC update via WebSocket');
+    logger.info({ jobId, userId, agentType }, '?? Successfully sent TCC update via WebSocket');
   } else {
-    logger.warn({ jobId, userId, agentType }, '📊 Failed to send TCC update via WebSocket');
+    logger.warn({ jobId, userId, agentType }, '?? Failed to send TCC update via WebSocket');
   }
 } catch (error) {
   logger.error({
     jobId,
     agentType,
     error: error instanceof Error ? error.message : String(error),
-  }, '❌ Fatal error in emitTccUpdate');
+  }, '? Fatal error in emitTccUpdate');
 }
 }

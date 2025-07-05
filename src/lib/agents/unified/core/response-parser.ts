@@ -18,7 +18,7 @@ import {
   StateLogic,
   DefinedFunctionSignature
 } from '../../../types/tcc-unified';
-import { JsxLayout, Styling, ValidationResult } from '@/lib/types/product-tool-creation-v2/tcc';
+import { JsxLayout, Styling, ValidationResult } from '@/lib/types/tcc-unified';
 import { ProductToolDefinition } from '@/lib/types/product-tool';
 import logger from '../../../logger';
 

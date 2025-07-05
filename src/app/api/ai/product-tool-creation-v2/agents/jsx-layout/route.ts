@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { designJsxLayout } from './core-logic';
 import logger from '@/lib/logger';
-import { ToolConstructionContext } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ToolConstructionContext } from '@/lib/types/tcc-unified';
 import { z } from 'zod';
 
 // Phase 2: Edit mode schema for agents

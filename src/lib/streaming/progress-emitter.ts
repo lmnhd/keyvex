@@ -1,5 +1,5 @@
 // File Path: keyvex_app/src/lib/streaming/progress-emitter.ts
-import { ProgressEvent } from '@/lib/types/product-tool-creation-v2/tcc';
+import { ProgressEvent } from '@/lib/types/tcc-unified';
 
 // In-memory WebSocket store for development fallback ONLY.
 // This is used by the useToolGenerationStream hook if a real WebSocket connection cannot be made.
