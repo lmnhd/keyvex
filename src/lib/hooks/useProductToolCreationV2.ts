@@ -281,7 +281,7 @@ export function useProductToolCreationV2(): UseProductToolCreationV2Return {
         stepDisplayName: 'Initializing'
       });
 
-      const startResponse = await fetch('/api/ai/product-tool-creation-v2/orchestrate/start', {
+      const startResponse = await fetch('/api/ai/v2-orchestration/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

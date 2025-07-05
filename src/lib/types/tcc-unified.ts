@@ -373,6 +373,11 @@ export interface AgentRetryCapabilities {
 }
 
 // Export types for backward compatibility and module usage
+export {
+  OrchestrationStepEnum,
+  OrchestrationStatusEnum,
+} from './product-tool-creation-v2/tcc';
+
 export type {
   StateVariable,
   StateFunction,
