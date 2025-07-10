@@ -23,7 +23,8 @@ import {
   ExternalLink,
   Info
 } from 'lucide-react';
-import { BrainstormResult } from '../types/unified-brainstorm-types';
+import { BrainstormResult, BrainstormData } from '../types/unified-brainstorm-types';
+import { MockData } from '@/lib/types/tcc-unified';
 import { loadLogicResultsFromDB } from '@/app/tests/ui/db-utils';
 import { toast } from 'sonner';
 import { extractToolTitle } from '@/lib/utils/utils';
@@ -45,7 +46,7 @@ interface ResearchResults {
     priority: string;
     locationDependent: boolean;
   }>;
-  dummyData: Record<string, any>;
+  mockData: MockData;
   userInstructions: {
     summary: string;
     dataNeeded: string[];
@@ -119,11 +120,11 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       
       // Parse models from DEFAULT_MODELS
       for (const providerKey in DEFAULT_MODELS.providers) {
-        const provider = (DEFAULT_MODELS.providers as any)[providerKey];
+        const provider = (DEFAULT_MODELS.providers as Record<string, { name: string; models: Record<string, { id: string; name: string; deprecated?: boolean }> }>)[providerKey];
         if (!provider?.models) continue;
         
         for (const modelKey in provider.models) {
-          const model = (provider.models as any)[modelKey];
+          const model = (provider.models as Record<string, { id: string; name: string; deprecated?: boolean }>)[modelKey];
           if (model.deprecated) continue;
           
           parsedModels.push({ 
@@ -173,25 +174,31 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     }
   }, [selectedModel]);
 
+  // Sync component state when the selected brainstorm changes
   useEffect(() => {
-    // When brainstorm changes, check if it already has research results
-    if (selectedBrainstorm?.brainstormData?.dataRequirements) {
-      setResearchResults({
-        hasExternalDataNeeds: selectedBrainstorm.brainstormData.dataRequirements.hasExternalDataNeeds || false,
-        requiredDataTypes: selectedBrainstorm.brainstormData.dataRequirements.requiredDataTypes || [],
-        researchQueries: selectedBrainstorm.brainstormData.dataRequirements.researchQueries || [],
-        dummyData: selectedBrainstorm.brainstormData.mockData || {},
-        userInstructions: selectedBrainstorm.brainstormData.userDataInstructions || {
-          summary: 'No user instructions available',
-          dataNeeded: [],
-          format: 'Not specified'
-        }
-      });
-      setShowResults(true);
-    } else {
+    const bsData = selectedBrainstorm?.brainstormData as BrainstormData | undefined;
+    const dataReq = bsData?.dataRequirements;
+    if (!selectedBrainstorm || !dataReq) {
+      // No brainstorm selected or it lacks research – clear view
       setResearchResults(null);
       setShowResults(false);
+      return;
     }
+
+    const { mockData = {}, userDataInstructions } = bsData ?? {} as BrainstormData;
+
+    setResearchResults({
+      hasExternalDataNeeds: dataReq.hasExternalDataNeeds ?? false,
+      requiredDataTypes: dataReq.requiredDataTypes ?? [],
+      researchQueries: dataReq.researchQueries ?? [],
+      mockData: mockData,
+      userInstructions: userDataInstructions ?? {
+        summary: 'No user instructions available',
+        dataNeeded: [],
+        format: 'Not specified'
+      }
+    });
+    setShowResults(true);
   }, [selectedBrainstorm]);
 
   const loadSavedBrainstorms = useCallback(async () => {
@@ -210,8 +217,8 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
   const getResearchStatus = () => {
     if (!selectedBrainstorm) return 'no-selection';
-    if (selectedBrainstorm.brainstormData?.dataRequirements) return 'completed';
-    return 'needs-research';
+    const bsData = selectedBrainstorm.brainstormData as BrainstormData;
+    return bsData.dataRequirements ? 'completed' : 'needs-research';
   };
 
   const getStatusBadge = () => {
@@ -276,7 +283,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
         hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
         requiredDataTypes: researchData.requiredDataTypes || [],
         researchQueries: researchData.researchQueries || [],
-        dummyData: researchData.mockData || {},
+        mockData: researchData.mockData || {},
         userInstructions: researchData.userInstructions || {
           summary: 'No user instructions available',
           dataNeeded: [],
@@ -290,18 +297,20 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       // (IndexedDB is a browser-only API), so we must handle persistence client-side
         
         if (selectedBrainstorm) {
-          const updatedBrainstorm = {
-            ...selectedBrainstorm,
+          const baseBrainstorm = selectedBrainstorm as BrainstormResult;
+          const bsData = baseBrainstorm.brainstormData as BrainstormData;
+          const updatedBrainstorm: BrainstormResult = {
+            ...baseBrainstorm,
             brainstormData: {
-              ...selectedBrainstorm.brainstormData,
+              ...bsData,
               dataRequirements: {
                 hasExternalDataNeeds: researchData.hasExternalDataNeeds,
                 requiredDataTypes: researchData.requiredDataTypes,
-                researchQueries: researchData.researchQueries
+                researchQueries: researchData.researchQueries,
               },
               mockData: researchData.mockData,
-              userDataInstructions: researchData.userInstructions
-            }
+              userDataInstructions: researchData.userInstructions,
+            },
           };
           
           try {
@@ -355,16 +364,17 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             setShowResults(false);
             
             // Create a temporary brainstorm without research data to force fresh research
-            const brainstormForRerun = {
-              ...selectedBrainstorm,
+            const baseBrainstorm = selectedBrainstorm as BrainstormResult;
+            const bsData = baseBrainstorm.brainstormData as BrainstormData;
+            const brainstormForRerun: BrainstormResult = {
+              ...baseBrainstorm,
               brainstormData: {
-                ...selectedBrainstorm.brainstormData,
+                ...bsData,
                 // Remove existing research data to force fresh analysis
                 dataRequirements: undefined,
-                mockData: undefined,
-                researchData: undefined, // Keep for legacy safety
-                userDataInstructions: undefined
-              }
+                mockData: {} as MockData,
+                userDataInstructions: undefined,
+              },
             };
 
             console.log('🔵 handleRerunResearch: Sending brainstorm data for re-run (cleared):', brainstormForRerun.brainstormData);
@@ -397,7 +407,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
               hasExternalDataNeeds: researchData.hasExternalDataNeeds || false,
               requiredDataTypes: researchData.requiredDataTypes || [],
               researchQueries: researchData.researchQueries || [],
-              dummyData: researchData.mockData || {},
+              mockData: researchData.mockData || {},
               userInstructions: researchData.userInstructions || {
                 summary: 'No user instructions available',
                 dataNeeded: [],
@@ -411,19 +421,21 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
             // (IndexedDB is a browser-only API), so we must handle persistence client-side
             
             if (selectedBrainstorm) {
-              const updatedBrainstorm = {
+              const bsData = selectedBrainstorm.brainstormData as BrainstormData;
+              const updatedBrainstorm: BrainstormResult = {
                 ...selectedBrainstorm,
                 brainstormData: {
-                  ...selectedBrainstorm.brainstormData,
+                  ...bsData,
                   dataRequirements: {
                     hasExternalDataNeeds: researchData.hasExternalDataNeeds,
                     requiredDataTypes: researchData.requiredDataTypes,
-                    researchQueries: researchData.researchQueries
+                    researchQueries: researchData.researchQueries,
                   },
                   mockData: researchData.mockData,
-                  userDataInstructions: researchData.userInstructions
-                }
+                  userDataInstructions: researchData.userInstructions,
+                },
               };
+
 
               console.log('🔵 handleRerunResearch: Preparing to save updated brainstorm to IndexedDB:', updatedBrainstorm);
               
@@ -460,31 +472,31 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     });
   }, [selectedBrainstorm, selectedModel, userLocation, loadSavedBrainstorms]);
 
-  const renderDummyData = (data: Record<string, any>, parentKey: string = '') => {
-    if (Object.keys(data).length === 0) {
-      return null;
-    }
+  // const renderDummyData = (data: Record<string, unknown>, parentKey: string = ''): JSX.Element | null => {
+  //   if (Object.keys(data).length === 0) {
+  //     return null;
+  //   }
 
-    return (
-      <div className="space-y-3">
-        {Object.entries(data).map(([key, value]) => (
-          <div key={key} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
-            <div className="flex items-center justify-between mb-2">
-              <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
-                {parentKey ? `${parentKey}.${key}` : key}
-              </Badge>
-              <span className="text-xs text-slate-300">
-                {typeof value === 'object' && value ? Object.keys(value).length : 1} items
-              </span>
-            </div>
-            <pre className="text-xs bg-slate-900 text-slate-200 p-2 rounded border border-slate-600 overflow-x-auto">
-              {JSON.stringify(value, null, 2)}
-            </pre>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  //   return (
+  //     <div className="space-y-3">
+  //       {Object.entries(data).map(([key, value]) => (
+  //         <div key={key} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
+  //           <div className="flex items-center justify-between mb-2">
+  //             <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">
+  //               {parentKey ? `${parentKey}.${key}` : key}
+  //             </Badge>
+  //             <span className="text-xs text-slate-300">
+  //               {typeof value === 'object' && value ? Object.keys(value).length : 1} items
+  //             </span>
+  //           </div>
+  //           <pre className="text-xs bg-slate-900 text-slate-200 p-2 rounded border border-slate-600 overflow-x-auto">
+  //             {JSON.stringify(value, null, 2)}
+  //           </pre>
+  //         </div>
+  //       ))}
+  //     </div>
+  //   );
+  // };
 
   return (
     <div className="space-y-6">
@@ -511,13 +523,16 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                 <SelectValue placeholder="Choose a saved brainstorm to analyze..." />
               </SelectTrigger>
               <SelectContent>
-                {savedBrainstorms.map((brainstorm) => {
-                  const title = extractToolTitle(brainstorm.brainstormData.coreConcept);
-                  
+                {savedBrainstorms.map((brainstorm: BrainstormResult) => {
+                  const bsData = brainstorm.brainstormData as BrainstormData;
+                  const title = extractToolTitle(bsData.coreConcept ?? 'Untitled Tool');
+
                   let formattedDate = 'No date';
-                  if (brainstorm.timestamp) {
+                  if (typeof brainstorm.timestamp === 'number' || typeof brainstorm.timestamp === 'string') {
                     try {
-                      formattedDate = new Date(brainstorm.timestamp).toLocaleDateString();
+                      formattedDate = new Intl.DateTimeFormat('en-US', { dateStyle: 'short', timeStyle: 'short' }).format(
+                        new Date(brainstorm.timestamp)
+                      );
                     } catch (e) {
                       console.error(`Invalid timestamp for brainstorm ${brainstorm.id}:`, brainstorm.timestamp);
                       formattedDate = 'Invalid Date';
@@ -525,11 +540,11 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
                   }
 
                   return (
-                    <SelectItem key={brainstorm.id} value={brainstorm.id}>
+                    <SelectItem key={brainstorm.id as React.Key} value={String(brainstorm.id)}>
                       <div className="flex items-center justify-between w-full">
                         <span>{title}</span>
                         <div className="flex items-center gap-2 ml-2">
-                          {brainstorm.brainstormData.dataRequirements ? (
+                          {bsData.dataRequirements ? (
                             <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Researched
@@ -553,28 +568,31 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
           </div>
 
           {/* Selected Brainstorm Info */}
-          {selectedBrainstorm && (
-            <Card className="border-muted">
-              <CardContent className="pt-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">
-                      {extractToolTitle(selectedBrainstorm.brainstormData.coreConcept as string)}
-                    </h4>
-                    {getStatusBadge()}
+          {selectedBrainstorm && (() => {
+            const bsData = selectedBrainstorm.brainstormData as BrainstormData;
+            return (
+              <Card className="border-muted">
+                <CardContent className="pt-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">
+                        {extractToolTitle(bsData.coreConcept ?? 'Untitled Tool')}
+                      </h4>
+                      {getStatusBadge()}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {bsData.valueProposition?.substring(0, 150)}...
+                    </p>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span>Tool Type: {bsData.promptOptions?.toolComplexity || 'Unknown'}</span>
+                      <span>Calculations: {bsData.keyCalculations?.length || 0}</span>
+                      <span>Inputs: {bsData.suggestedInputs?.length || 0}</span>
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedBrainstorm.brainstormData.valueProposition?.substring(0, 150)}...
-                  </p>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>Tool Type: {selectedBrainstorm.brainstormData.promptOptions?.toolComplexity || 'Unknown'}</span>
-                    <span>Calculations: {selectedBrainstorm.brainstormData.keyCalculations?.length || 0}</span>
-                    <span>Inputs: {selectedBrainstorm.brainstormData.suggestedInputs?.length || 0}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* Location Context */}
           <div className="space-y-4">
@@ -812,16 +830,16 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
 
             <Separator />
 
-            {/* Generated Dummy Data */}
-            {researchResults.dummyData && Object.keys(researchResults.dummyData).length > 0 && (
+            {/* Generated Mock Data */}
+            {researchResults.mockData && Object.keys(researchResults.mockData).length > 0 && (
               <div className="space-y-3">
                 <h4 className="font-medium flex items-center gap-2">
                   <Database className="h-4 w-4" />
-                  Generated Dummy Data ({researchResults.dummyData ? Object.keys(researchResults.dummyData).length : 0} categories)
+                  Generated Mock Data ({researchResults.mockData ? Object.keys(researchResults.mockData).length : 0} categories)
                 </h4>
                 <ScrollArea className="h-40">
                   <div className="space-y-3">
-                    {Object.entries(researchResults.dummyData || {}).map(([category, data]) => (
+                    {Object.entries(researchResults.mockData || {}).map(([category, data]) => (
                       <div key={category} className="p-3 bg-slate-800 text-slate-100 rounded border border-slate-600">
                         <div className="flex items-center justify-between mb-2">
                           <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-200 border-slate-500">

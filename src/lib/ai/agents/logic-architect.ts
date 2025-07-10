@@ -30,6 +30,9 @@ const researchResultSchema = z.object({
 
 // Schema for brainstorming output with PromptOptions
 const logicBrainstormingSchema = z.object({
+  toolType: z.string(),
+  targetAudience: z.string(),
+  industry: z.string().optional(),
   coreConcept: z.string(),
   keyCalculations: z.array(z.object({
     name: z.string(),
@@ -127,12 +130,17 @@ const branchingLogicSchema = z.object({
 
 export class LogicArchitectAgent {
   private model: any;
-  private provider: 'openai' | 'anthropic';
+  private provider: 'openai' | 'anthropic'; // resolved provider after auto-detection
   private qualityChecklist: QualityChecklist;
   
-  constructor(provider: 'openai' | 'anthropic' = 'anthropic') {
-    this.provider = provider;
-    this.model = provider === 'openai' 
+  constructor(requestedProvider: 'openai' | 'anthropic' | 'auto' = 'auto') {
+    // Auto-select most reliable provider for JSON tasks: prefer OpenAI if key available
+    if (requestedProvider === 'auto') {
+      this.provider = process.env.OPENAI_API_KEY ? 'openai' : 'anthropic';
+    } else {
+      this.provider = requestedProvider;
+    }
+    this.model = this.provider === 'openai'
       ? openai('gpt-4-turbo-preview')
       : anthropic('claude-3-7-sonnet-20250219');
     this.qualityChecklist = toolQualityChecklist;
@@ -154,7 +162,7 @@ export class LogicArchitectAgent {
       console.log(`🧠 Enhanced Logic Architect brainstorming with thinking mode: ${outputFormat}`);
       
       // Step 1: Generate initial brainstorm using thinking mode
-      let currentBrainstorm = await this.generateInitialBrainstorm(
+      let currentBrainstorm = await this.generateInitialBrainstormWithRetry(
         toolType, targetAudience, industry, businessContext, availableData
       );
       
@@ -193,24 +201,72 @@ export class LogicArchitectAgent {
       if (outputFormat === 'v1') {
         return this.formatAsV1(currentBrainstorm, toolType, targetAudience, industry, businessContext);
       } else {
-        return this.formatAsV2(currentBrainstorm, toolType, targetAudience, industry, businessContext);
+        const formatted = this.formatAsV2(currentBrainstorm, toolType, targetAudience, industry, businessContext);
+        this.ensureValidBrainstorm(formatted);
+        return formatted;
       }
 
     } catch (error) {
       console.error('❌ Enhanced Logic brainstorming failed:', error);
-      const fallbackResult = this.getFallbackBrainstormingResult(toolType, targetAudience, industry);
-      
-      if (outputFormat === 'v1') {
-        return this.formatAsV1(fallbackResult, toolType, targetAudience, industry, businessContext);
-      } else {
-        return this.formatAsV2(fallbackResult, toolType, targetAudience, industry, businessContext);
-      }
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
   /**
    * Generate initial brainstorm using thinking mode with proper object generation
    */
+  private readonly maxSchemaRetries = 3;
+
+  // Generate initial brainstorm with automatic schema-validation retry loop
+  // Utility: trim overly long context to keep prompt tokens reasonable
+  private trimContext(input: string, maxLength = 1500): string {
+    if (typeof input !== 'string') return '';
+    if (input.length <= maxLength) return input;
+    const head = input.slice(0, Math.floor(maxLength / 2));
+    const tail = input.slice(-Math.floor(maxLength / 2));
+    return `${head}\n...\n${tail}`;
+  }
+
+  private async generateInitialBrainstormWithRetry(
+    toolType: string,
+    targetAudience: string,
+    industry: string,
+    businessContext: string,
+    availableData: any
+  ): Promise<any> {
+    const { BrainstormDataSchema } = require('@/app/tests/tool-generation-workbench/types/unified-brainstorm-types');
+
+    let attempt = 0;
+    let lastError: unknown;
+    while (attempt < this.maxSchemaRetries) {
+      attempt++;
+      console.log(`🌀 Brainstorm generation attempt ${attempt}/${this.maxSchemaRetries}`);
+      try {
+        const brainstorm = await this.generateInitialBrainstorm(
+          toolType,
+          targetAudience,
+          industry,
+          this.trimContext(businessContext),
+          availableData
+        );
+        // Validate against full unified schema
+        BrainstormDataSchema.parse(brainstorm);
+        console.log('✅ Brainstorm schema validation passed');
+        return brainstorm;
+      } catch (err) {
+        if (err && typeof err === 'object') {
+          console.warn('⚠️ Brainstorm validation failed – raw output logged above.', err);
+        } else {
+          console.warn('⚠️ Brainstorm validation failed –', err);
+        }
+        lastError = err;
+      }
+    }
+    // After max retries, throw last error
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  // Original single-shot generator (renamed)
   private async generateInitialBrainstorm(
     toolType: string,
     targetAudience: string,
@@ -228,28 +284,49 @@ export class LogicArchitectAgent {
 
     let providerOptions: Record<string, unknown> | undefined = undefined;
 
-    // Anthropic currently errors if both tool_choice (used internally by ai-sdk for JSON mode)
-    // and thinking mode are enabled at the same time. Therefore only enable thinking for
-    // providers other than Anthropic.
-    if (this.provider !== 'anthropic') {
+    // Enable JSON-mode / function-call forcing based on provider
+    if (this.provider === 'openai') {
       providerOptions = {
-        anthropic: {
-          thinking: { type: 'enabled', budgetTokens: 12000 },
-        } satisfies AnthropicProviderOptions,
-      };
+        openai: {
+          // Force JSON mode so the model always returns a parsable object
+          mode: 'json'
+        }
+      } as Record<string, unknown>;
+    } else {
+      providerOptions = undefined; // No extra options for Anthropic when using generateObject
     }
 
-    const { object, reasoning } = await generateObject({
+    // Provider-specific overrides inserted above
+
+    const result = await generateObject({
       model: this.model,
       schema: logicBrainstormingSchema,
       prompt,
-      providerOptions,
+      providerOptions: providerOptions as any,
+      temperature: 0.15,
+      topP: 0.85,
+      maxTokens: 12000,
     });
 
-    console.log('🤔 Thinking process length:', reasoning?.length || 0);
-    
-    // No need for postProcessBrainstormingResult since generateObject ensures proper schema compliance
-    return object;
+    // Log raw model output (trimmed to 1000 chars for readability)
+    try {
+      const rawStr = JSON.stringify(result, null, 2);
+      console.log('📄 RAW MODEL OUTPUT:', rawStr.length > 1000 ? `${rawStr.slice(0, 1000)}... [truncated]` : rawStr);
+    } catch (_) {
+      console.log('📄 RAW MODEL OUTPUT could not be stringified');
+    }
+
+    // reasoning may be present depending on provider; use optional chaining and cast to avoid TS error
+    console.log('🤔 Thinking process length:', (result as any)?.reasoning?.length ?? 0);
+
+    // Attach mandatory metadata fields to ensure unified schema compliance
+    const brainstormWithMeta = {
+      ...result.object,
+      toolType,
+      targetAudience,
+      industry,
+    };
+    return brainstormWithMeta;
   }
 
   /**
@@ -303,17 +380,19 @@ Return a JSON object with:
         const searchTerm = `${industry} ${toolType} ${topic} best practices current trends 2024`;
         console.log(`🔬 Researching: ${searchTerm}`);
         
-        const findings = await perplexity_web_search({
+        const searchResult = await perplexity_web_search({
           query: searchTerm,
           model: 'sonar-pro',
           temperature: 0.2,
           // Additional options from WebSearchOptions can be extended later
         });
+
+        const answerText: string = (searchResult as any)?.answer ?? '';
         
         researchResults.push({
           topic,
-          findings: findings || 'No research results available',
-          insights: this.extractInsights(findings || '', topic)
+          findings: answerText || 'No research results available',
+          insights: this.extractInsights(answerText, topic)
         });
       } catch (error) {
         console.error(`❌ Research failed for topic ${topic}:`, error);
@@ -381,6 +460,14 @@ Return a JSON object with:
   /**
    * Improve brainstorm with research insights
    */
+  // Strict validation helper – throws if schema mismatch
+  private ensureValidBrainstorm(brainstorm: any): void {
+    // runtime import to avoid circular dependency issues
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { BrainstormDataSchema } = require('@/app/tests/tool-generation-workbench/types/unified-brainstorm-types');
+    BrainstormDataSchema.parse(brainstorm);
+  }
+
   private async improveBrainstormWithResearch(
     brainstorm: any,
     suggestions: string[],
@@ -849,7 +936,8 @@ Include formula explanation and implementation guidance.`;
   /**
    * Format as V1 (legacy format) - UNCHANGED
    */
-  private formatAsV1(
+  // NOTE: Deprecated legacy formatter kept for backward compatibility. Prefer V2.
+private formatAsV1(
     brainstormData: any,
     toolType: string,
     targetAudience: string,
@@ -862,6 +950,9 @@ Include formula explanation and implementation guidance.`;
       ...brainstormData,
       coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
       valueProposition: brainstormData.valueProposition || 'Provides value to users',
+    toolType,
+    targetAudience,
+    industry,
       keyCalculations: brainstormData.keyCalculations || [],
       interactionFlow: brainstormData.interactionFlow || [],
       leadCaptureStrategy: brainstormData.leadCaptureStrategy || {
@@ -904,6 +995,9 @@ Include formula explanation and implementation guidance.`;
     const v2Result = {
       coreConcept: brainstormData.coreConcept || brainstormData.coreWConcept || 'Business tool',
       valueProposition: brainstormData.valueProposition || 'Provides value to users',
+    toolType,
+    targetAudience,
+    industry,
       keyCalculations: brainstormData.keyCalculations || [],
       interactionFlow: brainstormData.interactionFlow || [],
       leadCaptureStrategy: brainstormData.leadCaptureStrategy || {

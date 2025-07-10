@@ -5,7 +5,6 @@ import {
   type BrainstormResult,
   type BrainstormData,
   migrateLegacySavedLogicResult,
-  isBrainstormResult,
   validateBrainstormResult
 } from '../types/unified-brainstorm-types';
 
@@ -109,18 +108,19 @@ export async function runToolCreationProcess(
   try {
     let brainstormResult: BrainstormResult;
     
-    if (isBrainstormResult(brainstormInput)) {
-      brainstormResult = brainstormInput;
-      console.log('🔍 [TOOL-CREATION] Using new unified BrainstormResult format');
-    } else {
-      console.error('🚨 [TOOL-CREATION] BRAINSTORM INPUT IS NOT IN UNIFIED FORMAT!');
+    try {
+      // Validate input strictly – this will accept any object that matches the unified schema
+      brainstormResult = validateBrainstormResult(brainstormInput);
+      console.log('🔍 [TOOL-CREATION] Brainstorm input validated against unified schema');
+    } catch (validationError) {
+      console.error('🚨 [TOOL-CREATION] Brainstorm input failed unified validation');
       console.error('🚨 [TOOL-CREATION] Input data:', JSON.stringify(brainstormInput, null, 2));
-      console.error('🚨 [TOOL-CREATION] This indicates a problem with brainstorm generation or storage!');
-      
-      // NO FALLBACK - Let it fail to expose the real problem
-      throw new Error('BRAINSTORM DATA FORMAT ERROR: Input is not in unified BrainstormResult format. This indicates a problem with brainstorm generation or storage. Check the console for detailed input data.');
+      // Re-throw with clear message but preserve original stack for debugging
+      throw new Error(
+        'BRAINSTORM DATA FORMAT ERROR: Input failed unified BrainstormResult validation. Check console for detailed errors.'
+      );
     }
-
+    
     const { jobId: returnedJobId } = await startV2ToolCreation(
       brainstormResult, 
       selectedModelId, 

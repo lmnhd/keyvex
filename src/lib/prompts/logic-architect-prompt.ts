@@ -227,6 +227,44 @@ export const LOGIC_ARCHITECT_PROMPT = `<primary-responsibility>
     }
 </required-json-response-format>
 
+<!-- Few-shot examples to demonstrate perfectly formatted brainstorms -->
+<few-shot-examples>
+  <example>
+    <thin-prompt>"sales funnel optimizer"</thin-prompt>
+    <expected-json>
+{
+  "coreConcept": "Sales Funnel Conversion Maximizer",
+  "originalPromptAnalysis": "Original prompt lacked target audience and specific funnel stages; clarified for B2B SaaS mid-market.",
+  "businessJustification": "Helps SaaS teams identify and fix drop-offs, increasing MRR.",
+  "dataStructureRequired": "Array<FunnelStage> with metrics {visitors, leads, SQLs, demos, deals}",
+  "keyCalculations": [
+    {
+      "name": "Stage Conversion %",
+      "formula": "(nextStage / currentStage) * 100",
+      "description": "Conversion between stages",
+      "variables": ["nextStage", "currentStage"],
+      "businessRationale": "Highlights bottlenecks"
+    }
+  ],
+  "interactionFlow": [
+    {"step":1,"title":"Upload Metrics","description":"User uploads CSV of stage metrics","userAction":"Upload file","purpose":"Provide raw data"}
+  ],
+  "valueProposition": "Pinpoints biggest ROI fixes in minutes.",
+  "researchAgentRequirements": "Benchmarks for SaaS funnel conversion by ARR tier",
+  "leadCaptureStrategy": {"timing":"after_completion","method":"email_signup","incentive":"detailed_report"},
+  "practicalEnhancements": ["Auto-generate benchmark comparison chart"],
+  "suggestedInputs": [
+    {"id":"metric_file","label":"Metrics CSV","type":"file","required":true,"description":"Upload stage metrics","calculationPurpose":"Source data","researchOptions":""}
+  ],
+  "calculationLogic": [
+    {"id":"overall_conv","name":"Overall Conversion","formula":"deals / visitors","dependencies":["deals","visitors"],"outputFormat":"percentage","businessValue":"Shows overall efficiency"}
+  ],
+  "promptOptions": {"includeComprehensiveColors":true,"includeGorgeousStyling":false,"includeAdvancedLayouts":false,"styleComplexity":"basic","industryFocus":"SaaS","toolComplexity":"moderate","componentSet":"shadcn"}
+}
+    </expected-json>
+  </example>
+</few-shot-examples>
+
 <critical-expansion-requirements>
     <requirement>🚨 INTELLIGENT CONTEXT: Transform vague prompts into specific, actionable tool concepts</requirement>
     <requirement>🚨 DATA STRUCTURE FOCUS: Always define what data objects the tool operates on</requirement>
@@ -262,6 +300,8 @@ export const LOGIC_ARCHITECT_PROMPT = `<primary-responsibility>
     </enhanced-concept>
 </expansion-examples>`;
 
+import { BrainstormDataSchema } from '@/lib/types/tcc-unified';
+
 export const generateLogicBrainstorming = (
   toolType: string,
   targetAudience: string,
@@ -269,7 +309,15 @@ export const generateLogicBrainstorming = (
   businessContext: string,
   availableData: any
 ) => {
-  return `${LOGIC_ARCHITECT_PROMPT}
+  // Dynamically build strict schema snippet
+  const schemaKeys = Object.keys((BrainstormDataSchema as any).shape || {}).join(', ');
+  const exampleObj = Object.fromEntries(
+    Object.keys((BrainstormDataSchema as any).shape || {}).map((k) => [k, '<placeholder>'])
+  );
+
+  const strictSchemaSection = `\n<strict-schema>\nYou MUST return valid JSON that satisfies the BrainstormDataSchema.\nTop-level keys REQUIRED (no more, no less): [${schemaKeys}].\nExample (placeholders only):\n${JSON.stringify(exampleObj, null, 2)}\n</strict-schema>`;
+
+  return `${LOGIC_ARCHITECT_PROMPT}${strictSchemaSection}
 
 <current-expansion-task>
     <original-prompt>

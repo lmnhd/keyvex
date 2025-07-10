@@ -82,20 +82,10 @@ export async function analyzeDataRequirementsAndResearch(request: {
       analysis.userInstructions = refinement.userInstructions as { summary: string; dataNeeded: string[]; format: string; };
     }
 
-    // Update TCC with research results
+    // Update TCC with research results - store in step results to preserve brainstormData validation
     const updatedTcc: ToolConstructionContext = {
       ...tcc,
-      brainstormData: {
-        ...tcc.brainstormData,
-        // Extend brainstorm data with research results
-        dataRequirements: {
-          hasExternalDataNeeds: analysis.hasExternalDataNeeds,
-          requiredDataTypes: analysis.requiredDataTypes,
-          researchQueries: analysis.researchQueries
-        },
-        mockData: analysis.mockData,
-        userDataInstructions: analysis.userInstructions
-      },
+      brainstormData: tcc.brainstormData, // Keep original brainstorm data intact for validation
       steps: {
         ...tcc.steps,
         dataRequirementsResearch: {

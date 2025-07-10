@@ -1,5 +1,17 @@
 import { z } from 'zod';
-
+// --- MOCK DATA SCHEMA (Phase 1.4) ---
+// Flexible but strongly-typed container for generated mock data values.
+export const MockDataValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.unknown()),          // e.g. list of primitive values
+  z.record(z.unknown()),         // nested objects
+  z.null(),
+]);
+// Strictly typed mock data
+export const MockDataSchema = z.record(MockDataValueSchema);
+export type MockData = z.infer<typeof MockDataSchema>;
 // --- Brainstorm Data Schema (Phase 1: Full Brainstorm Data Integration) ---
 // This schema captures the complete brainstorm output structure for full agent integration
 export const BrainstormDataSchema = z.object({
@@ -66,10 +78,10 @@ export const BrainstormDataSchema = z.object({
     toolComplexity: z.string(),
   }),
 
-  // 🆕 NEW: Research Agent Requirements from Logic Architect
+  // NEW: Research Agent Requirements from Logic Architect
   researchAgentRequirements: z.string().optional().describe('What data/research the Research Agent needs to populate for this tool to work'),
 
-  // 🆕 NEW: Data Requirements & Research Agent fields (optional for backward compatibility)
+  // NEW: Data Requirements & Research Agent fields (optional for backward compatibility)
   dataRequirements: z.object({
     hasExternalDataNeeds: z.boolean().describe('Whether this tool requires external data'),
     requiredDataTypes: z.array(z.string()).describe('Types of external data needed'),
@@ -82,8 +94,11 @@ export const BrainstormDataSchema = z.object({
       expectedDataStructure: z.string()
     }))
   }).optional().describe('Analysis of external data requirements'),
-
-  mockData: z.record(z.any()).optional().describe('Generated mock data organized by category'),
+ 
+  // --- MOCK DATA SCHEMA (Phase 1.4) ---
+  // Flexible but strongly-typed container for generated mock data values.
+  mockData: MockDataSchema.optional().default({}).describe('Generated mock data organized by category'),
+ 
   researchData: z.record(z.any()).optional().describe('Generated research data organized by category'),
   
   userDataInstructions: z.object({
@@ -95,6 +110,8 @@ export const BrainstormDataSchema = z.object({
 }).passthrough(); // Allow additional fields for future brainstorm enhancements
 
 export type BrainstormData = z.infer<typeof BrainstormDataSchema>;
+
+
 
 // --- Phase 2: Edit Mode Infrastructure ---
 // Schema for tracking edit history of agent outputs
@@ -417,7 +434,7 @@ export const ToolConstructionContextSchema = z.object({
   
   validationResult: z.any().optional(),
   
-  // ✅ SINGLE SOURCE OF TRUTH: All component code lives here after Tool Finalizer completes
+  // SINGLE SOURCE OF TRUTH: All component code lives here after Tool Finalizer completes
   finalProduct: z.any().optional(),
 
   // Timestamps and versioning

@@ -10,6 +10,7 @@ import { z } from 'zod';
 import {
   ToolConstructionContext as BaseTCC,
   BrainstormData,
+  MockData,
   DefinedFunctionSignature,
   StateLogic,
   OrchestrationStep,
@@ -155,6 +156,9 @@ export interface CodeValidatorResult {
     performanceScore: number;
   };
 }
+
+// Re-export BrainstormDataSchema for convenience across modules
+export { BrainstormDataSchema } from './product-tool-creation-v2/tcc';
 
 export interface ToolFinalizerResult {
   finalProduct: ProductToolDefinition;
@@ -393,3 +397,5 @@ export type {
 
 // Re-export centralized types for backward compatibility
 export type { ModelConfiguration } from '../ai/model-configuration';
+
+export type { MockData } from './product-tool-creation-v2/tcc';

@@ -91,184 +91,8 @@ export function useProductToolCreationV2(): UseProductToolCreationV2Return {
     logger.info({ step: newProgress.step, status: newProgress.status }, '?? V2 Progress Update');
   }, []);
 
-  const pollForCompletion = useCallback(async (jobId: string): Promise<ToolCreationV2Result> => {
-    const startTime = Date.now();
-    
-    return new Promise((resolve, reject) => {
-      const poll = async () => {
-        try {
-          if (Date.now() - startTime > MAX_POLLING_TIME) {
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-            reject(new Error('Tool creation process timed out'));
-            return;
-          }
+  // (Legacy parallel-polling implementation removed – superseded by pollForCompletionV2.)
 
-          const response = await fetch('/api/ai/product-tool-creation-v2/orchestrate/check-parallel-completion', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobId }),
-            signal: abortControllerRef.current?.signal
-          });
-
-          if (!response.ok) {
-            throw new Error(`Check completion failed: ${response.status}`);
-          }
-
-          const data = await response.json();
-          
-          if (!data.success) {
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-            reject(new Error(data.error || 'Unknown error during polling'));
-            return;
-          }
-
-          const stepDisplayName = STEP_DISPLAY_NAMES[data.currentStep as keyof typeof STEP_DISPLAY_NAMES] || data.currentStep;
-          
-          if (data.isComplete && data.readyToTriggerNext && data.nextStep) {
-            addProgress({
-              step: data.currentStep,
-              status: 'completed',
-              message: `${stepDisplayName} completed`,
-              timestamp: new Date().toISOString(),
-              stepDisplayName
-            });
-
-            const triggerResponse = await fetch('/api/ai/product-tool-creation-v2/orchestrate/trigger-next-step', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ jobId, nextStep: data.nextStep }),
-              signal: abortControllerRef.current?.signal
-            });
-
-            if (!triggerResponse.ok) {
-              throw new Error(`Failed to trigger next step: ${triggerResponse.status}`);
-            }
-
-            const triggerData = await triggerResponse.json();
-            if (!triggerData.success) {
-              throw new Error(triggerData.error || 'Failed to trigger next step');
-            }
-
-            if (triggerData.agentTriggered) {
-              addProgress({
-                step: data.nextStep,
-                status: 'started',
-                message: `${triggerData.stepDisplayName} started`,
-                timestamp: new Date().toISOString(),
-                stepDisplayName: triggerData.stepDisplayName
-              });
-            }
-
-          } else if (data.currentStep === OrchestrationStepEnum.enum.completed) {
-            addProgress({
-              step: data.currentStep,
-              status: 'completed',
-              message: 'Tool creation completed successfully!',
-              timestamp: new Date().toISOString(),
-              stepDisplayName: 'Completed'
-            });
-
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-
-            resolve({
-              success: true,
-              jobId,
-              progress: [],
-              tool: {
-                id: `tool-v2-${Date.now()}`,
-                slug: `tool-v2-slug-${Date.now()}`,
-                version: '1.0',
-                status: 'draft',
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                createdBy: 'user',
-                metadata: {
-                  id: `meta-v2-${Date.now()}`,
-                  slug: `meta-v2-slug-${Date.now()}`,
-                  title: 'V2 Generated Tool',
-                  description: 'Tool created using V2 orchestration',
-                  shortDescription: 'V2 Tool',
-                  type: 'tool',
-                  category: 'general',
-                  targetAudience: 'general users',
-                  industry: 'various',
-                  tags: [],
-                  estimatedCompletionTime: 5,
-                  difficultyLevel: 'beginner',
-                  features: [],
-                  icon: { type: 'lucide', value: 'Package' },
-                  userInstructions: 'Please follow the instructions on the tool page',
-                  developerNotes: 'This is a generated tool with a basic layout',
-                  source: 'ai',
-                  version: '1.0',
-                  dependencies: [],
-                  
-                },
-                componentSet: 'shadcn',
-                componentCode: "'use client';\nfunction V2GeneratedTool() { return React.createElement('div', { className: 'p-4' }, 'V2 Tool Successfully Created!'); }",
-                colorScheme: {
-                  primary: '#3b82f6',
-                  secondary: '#6b7280',
-                  background: '#ffffff',
-                  surface: '#f9fafb',
-                  text: { primary: '#111827', secondary: '#6b7280', muted: '#9ca3af' },
-                  border: '#e5e7eb',
-                  success: '#10b981',
-                  warning: '#f59e0b',
-                  error: '#ef4444'
-                },
-                initialStyleMap: {},
-                currentStyleMap: {},
-                analytics: { enabled: true, completions: 0, averageTime: 0 }
-              }
-            });
-            
-          } else if (data.status === 'failed') {
-            addProgress({
-              step: data.currentStep,
-              status: 'failed',
-              message: 'Process failed',
-              timestamp: new Date().toISOString(),
-              stepDisplayName
-            });
-
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-            
-            reject(new Error('Tool creation process failed'));
-          }
-          
-        } catch (error) {
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-          }
-          
-          if (error instanceof Error && error.name === 'AbortError') {
-            reject(new Error('Process was cancelled'));
-          } else {
-            reject(error);
-          }
-        }
-      };
-
-      pollingRef.current = setInterval(poll, POLLING_INTERVAL);
-      poll();
-    });
-  }, [addProgress]);
-
-// --- V2 simplified polling (single-step orchestration) ---
 const pollForCompletionV2 = useCallback(
   async (jobId: string): Promise<ToolCreationV2Result> => {
     const startTime = Date.now();
@@ -351,13 +175,14 @@ const pollForCompletionV2 = useCallback(
   [addProgress]
 );
 
+const createTool = useCallback(async (request: ToolCreationV2Request): Promise<ToolCreationV2Result> => {
+  try {
+    setIsCreating(true);
+    setError(null);
+    setProgress([]);
+    setCurrentStep(null);
 
-  const createTool = useCallback(async (request: ToolCreationV2Request): Promise<ToolCreationV2Result> => {
-    try {
-      setIsCreating(true);
-      setError(null);
-      setProgress([]);
-      setCurrentStep(null);
+    abortControllerRef.current = new AbortController();
 
       abortControllerRef.current = new AbortController();
 
@@ -433,7 +258,7 @@ const pollForCompletionV2 = useCallback(
         progress: []
       };
     }
-  }, [currentStep, addProgress, pollForCompletion]);
+  }, [currentStep, addProgress, pollForCompletionV2]);
 
   return {
     createTool,

@@ -97,17 +97,24 @@ export async function generateBrainstorm(
             selectedModel: request.selectedModel,
       };
 
-      // Validate the brainstorm data to ensure it matches BrainstormDataSchema
-      // NO FALLBACKS - Let it fail if Logic Architect generates bad data
-      console.log('[BrainstormGeneratorCoreLogic] Validating Logic Architect output (NO FALLBACKS)');
-      const validatedBrainstormData = validateBrainstormData(finalResultData.brainstormData);
+      console.log('[BrainstormGeneratorCoreLogic] Preparing brainstorm data for unified validation');
+
+      // Inject required fields from the user request (Logic Architect often omits these)
+      const rawBrainstormData = {
+        ...finalResultData.brainstormData,
+        toolType: request.toolType,
+        targetAudience: request.targetAudience,
+      };
+
+      // Strict validation – will throw if anything is missing or of wrong type
+      const validatedBrainstormData = validateBrainstormData(rawBrainstormData);
 
       const newBrainstormResult: BrainstormResult = {
         id: uuidv4(),
         timestamp: Date.now(),
         date: new Date().toISOString(),
         userInput,
-        // Store only the validated brainstorm data
+        // Store strictly validated data that now contains all required fields
         brainstormData: validatedBrainstormData,
       };
 
@@ -120,7 +127,7 @@ export async function generateBrainstorm(
       // Save the unified BrainstormResult format directly to the database
       // This eliminates the need for conversions and migrations
       await saveLogicResultToDB(newBrainstormResult);
-      console.log('[BrainstormGeneratorCoreLogic] ✅ Unified BrainstormResult saved to DB successfully');
+      console.log('[BrainstormGeneratorCoreLogic] Unified BrainstormResult saved to DB successfully');
 
       onProgress({ type: 'complete', data: newBrainstormResult, timestamp: Date.now() });
       return newBrainstormResult;
