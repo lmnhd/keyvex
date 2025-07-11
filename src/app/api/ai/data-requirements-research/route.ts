@@ -5,18 +5,27 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔍 [STANDALONE-RESEARCH] API called');
     const body = await request.json();
+    console.log('🔍 [STANDALONE-RESEARCH] Request body received:', { 
+      hasBrainstormData: !!body.brainstormData,
+      selectedModel: body.selectedModel 
+    });
+    
     const { brainstormData, selectedModel, userLocation } = body;
 
     if (!brainstormData) {
+      console.error('❌ [STANDALONE-RESEARCH] Missing brainstormData');
       return NextResponse.json({ error: 'brainstormData is required' }, { status: 400 });
     }
 
     if (!selectedModel) {
+      console.error('❌ [STANDALONE-RESEARCH] Missing selectedModel');
       return NextResponse.json({ error: 'selectedModel is required' }, { status: 400 });
     }
 
     const jobId = uuidv4();
+    console.log('🔍 [STANDALONE-RESEARCH] Generated jobId:', jobId);
     
     // Create a minimal TCC for the V2 agent
     const mockTcc: ToolConstructionContext = {
@@ -35,20 +44,28 @@ export async function POST(request: NextRequest) {
     };
 
     // Call the V2 agent logic directly
+    console.log('🔍 [STANDALONE-RESEARCH] Calling V2 agent logic...');
     const result = await analyzeDataRequirementsAndResearch({
       jobId,
       selectedModel,
       mockTcc,
       userLocation
     });
+    
+    console.log('🔍 [STANDALONE-RESEARCH] V2 agent result:', { 
+      success: result.success, 
+      hasData: !!result.dataRequirementsResearch 
+    });
 
     if (!result.success) {
+      console.error('❌ [STANDALONE-RESEARCH] V2 agent failed:', result.error);
       return NextResponse.json({ 
         success: false, 
         error: result.error || 'Research analysis failed' 
       }, { status: 500 });
     }
 
+    console.log('✅ [STANDALONE-RESEARCH] Success, returning data');
     return NextResponse.json({
       success: true,
       jobId,
@@ -56,10 +73,10 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Data requirements research error:', error);
+    console.error('❌ [STANDALONE-RESEARCH] Unexpected error:', error);
     return NextResponse.json({ 
       success: false,
-      error: 'Internal server error' 
+      error: error instanceof Error ? error.message : 'Internal server error' 
     }, { status: 500 });
   }
 }

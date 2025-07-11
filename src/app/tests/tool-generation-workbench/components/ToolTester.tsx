@@ -101,6 +101,53 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     setWsLogs(prev => [...prev.slice(-19), logMessage]);
   }, []);
 
+  // 🔧 FALLBACK: Retrieve complete TCC when WebSocket transmission fails
+  const attemptTccFallbackRetrieval = useCallback(async (jobId: string) => {
+    try {
+      addWSLog(`🔄 Fetching complete TCC for job: ${jobId}`);
+      
+      const response = await fetch(`/api/ai/v2-orchestration/tcc/${jobId}`);
+      if (!response.ok) {
+        throw new Error(`TCC retrieval failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const result = await response.json();
+      if (!result.success || !result.tccData) {
+        throw new Error('TCC retrieval response invalid or missing data');
+      }
+      
+      const completeTcc = result.tccData;
+      const fallbackFinalProduct = completeTcc?.finalProduct;
+      
+      if (fallbackFinalProduct && fallbackFinalProduct.componentCode && fallbackFinalProduct.id) {
+        addWSLog('✅ Fallback TCC retrieval successful! Found complete finalProduct.');
+        
+        // Update state with complete TCC and final product
+        setTccData(completeTcc);
+        setFinalProduct(fallbackFinalProduct);
+        
+        setTestJob(prev => ({
+          ...(prev as ToolCreationJob),
+          status: 'success',
+          result: fallbackFinalProduct,
+          endTime: Date.now()
+        }));
+        
+        console.log('🎯 [FALLBACK SUCCESS] Complete TCC retrieved:', completeTcc);
+        console.log('🎯 [FALLBACK SUCCESS] Final product found:', fallbackFinalProduct);
+        
+      } else {
+        addWSLog('❌ Fallback TCC retrieval failed: finalProduct still incomplete');
+        console.warn('🚨 [FALLBACK FAILED] Retrieved TCC still missing finalProduct:', completeTcc);
+      }
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addWSLog(`❌ Fallback TCC retrieval error: ${errorMessage}`);
+      console.error('🚨 [FALLBACK ERROR] TCC retrieval failed:', error);
+    }
+  }, [addWSLog]);
+
   // TCC Persistence
   const {
     tccData: tccDataPersistence,
@@ -221,7 +268,8 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       const finalTcc = (progress.data?.updatedTcc ?? progress.data) as ToolConstructionContext | undefined;
       const finalProductData = finalTcc?.finalProduct;
       
-      if (finalProductData && (finalProductData.id || finalProductData.componentCode)) {
+      // 🚨 ENFORCE SINGLE SOURCE OF TRUTH - finalProduct MUST exist with componentCode
+      if (finalProductData && finalProductData.componentCode && finalProductData.id) {
         console.log("📦 Final product data found. Updating UI state.", finalProductData);
         setFinalProduct(prevFinalProduct => ({
           ...(prevFinalProduct || {}),
@@ -240,8 +288,25 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
         console.log("✅ Final TCC data set in state.", finalTcc);
 
       } else {
-        addWSLog('⚠️ Final workflow step completed but no valid product data found in TCC.');
+        // 🚨 DETAILED ERROR FOR MISSING FINAL PRODUCT - BUT TRY FALLBACK RETRIEVAL FIRST
+        addWSLog('⚠️ Incomplete TCC received via WebSocket. Attempting fallback retrieval...');
+        
+        // 🔧 FALLBACK: Try to fetch complete TCC directly from API
+        const fallbackJobId: string | null | undefined = finalTcc?.jobId || tccData?.jobId || currentJobId;
+        if (fallbackJobId) {
+          attemptTccFallbackRetrieval(fallbackJobId);
+        } else {
+          // Original error logging if no jobId available
+          if (!finalProductData) {
+            addWSLog('❌ CRITICAL: finalProduct is missing from TCC. Tool-finalizer failed or was not executed.');
+          } else if (!finalProductData.componentCode) {
+            addWSLog('❌ CRITICAL: finalProduct.componentCode is missing. Component was not properly finalized.');
+          } else if (!finalProductData.id) {
+            addWSLog('❌ CRITICAL: finalProduct.id is missing. Product definition incomplete.');
+          }
         console.warn('Final TCC data structure:', finalTcc);
+        console.warn('Final product data:', finalProductData);
+        }
       }
     } else if (progress.status === 'failed' && actualTcc) {
       addWSLog(`❌ Workflow failed at step: ${progress.stepName}. TCC state has been preserved.`);
@@ -253,7 +318,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       }));
       setTccData(actualTcc);
     }
-  }, [addWSLog, updateTccWithBackup]);
+  }, [addWSLog, updateTccWithBackup, tccData, currentJobId, attemptTccFallbackRetrieval]);
 
   // Get the hook's return values 
   const { 
@@ -1066,6 +1131,27 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
       setSelectedAgent(availableAgents[0].id);
     }
   }, [availableAgents]);
+
+  // 🔧 FALLBACK MONITORING: Check for completed workflows without final products
+  useEffect(() => {
+    // Only check if we have a current job and TCC data but no final product
+    if (currentJobId && tccData && !finalProduct) {
+      // Wait a bit to ensure WebSocket messages have had time to arrive
+      const timeoutId = setTimeout(() => {
+        // Check if we have signs of a completed workflow but missing final product
+        const hasCompletedSteps = tccData.steps && Object.keys(tccData.steps).length > 3;
+        const hasAssembledCode = !!tccData.assembledComponentCode;
+        const isMissingFinalProduct = !tccData.finalProduct;
+        
+        if (hasCompletedSteps && hasAssembledCode && isMissingFinalProduct) {
+          addWSLog('⚠️ Detected completed workflow missing finalProduct. Triggering fallback retrieval...');
+          attemptTccFallbackRetrieval(currentJobId);
+        }
+      }, 5000); // Wait 5 seconds after TCC changes
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentJobId, tccData, finalProduct, attemptTccFallbackRetrieval, addWSLog]);
 
   return (
     <ToolTesterView

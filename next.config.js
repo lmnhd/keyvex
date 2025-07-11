@@ -5,7 +5,7 @@ const nextConfig = {
     // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
-  serverExternalPackages: ['@aws-sdk', 'sonic-boom', 'pino'],
+  serverExternalPackages: ['@aws-sdk', 'sonic-boom', 'pino', 'browserslist'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Exclude Node.js-specific modules from client bundle
@@ -17,6 +17,7 @@ const nextConfig = {
         stream: false,
         util: false,
         events: false,
+        browserslist: false,
       };
     }
     return config;

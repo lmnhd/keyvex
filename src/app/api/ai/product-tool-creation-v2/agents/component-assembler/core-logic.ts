@@ -11,7 +11,7 @@ import logger from '@/lib/logger';
 const assembledComponentSchema = z.object({
   finalComponentCode: z.string()
     .min(10)
-    .describe('The complete, functional React component code using React.createElement syntax. Must be executable JavaScript without imports or exports.'),
+    .describe('The complete, functional React component code using JSX syntax. Must be executable JavaScript without imports or exports.'),
   componentName: z.string()
     .min(1)
     .describe('The name of the generated component (e.g., "BusinessHealthCalculator")'),
@@ -81,14 +81,31 @@ export async function assembleComponent(request: {
       throw new Error(`A valid TCC object was not provided for jobId: ${jobId}`);
     }
 
-    // Validate we have all required pieces
-    if (!tcc.jsxLayout || !tcc.stateLogic || !tcc.styling) {
-      const missing = [
-        !tcc.jsxLayout && 'jsxLayout',
-        !tcc.stateLogic && 'stateLogic',
-        !tcc.styling && 'styling',
-      ].filter(Boolean).join(', ');
-      throw new Error(`Prerequisites missing in TCC: ${missing}`);
+    // Validate we have all required pieces with detailed structure validation
+    const missing = [];
+    if (!tcc.jsxLayout || !tcc.jsxLayout.componentStructure) {
+      missing.push('jsxLayout.componentStructure');
+    }
+    if (!tcc.stateLogic || !tcc.stateLogic.variables) {
+      missing.push('stateLogic.variables');
+    }
+    if (!tcc.styling || !tcc.styling.styledComponentCode) {
+      missing.push('styling.styledComponentCode');
+    }
+    
+    if (missing.length > 0) {
+      throw new Error(`Prerequisites missing in TCC: ${missing.join(', ')}`);
+    }
+
+    // Additional validation for data integrity
+    if (typeof tcc.jsxLayout.componentStructure !== 'string') {
+      throw new Error('jsxLayout.componentStructure must be a string');
+    }
+    if (!Array.isArray(tcc.stateLogic.variables)) {
+      throw new Error('stateLogic.variables must be an array');
+    }
+    if (typeof tcc.styling.styledComponentCode !== 'string') {
+      throw new Error('styling.styledComponentCode must be a string');
     }
 
     await emitStepProgress(
@@ -223,7 +240,7 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
     const brainstorm = tcc.brainstormData;
     logger.info({ 
       jobId: tcc.jobId,
-      coreConcept: brainstorm.coreConcept || brainstorm.coreWConcept || 'Not specified',
+      coreConcept: brainstorm.coreConcept || 'Not specified',
       valueProposition: brainstorm.valueProposition || 'Not specified',
       suggestedInputsCount: brainstorm.suggestedInputs?.length || 0,
       keyCalculationsCount: brainstorm.keyCalculations?.length || 0,
@@ -278,74 +295,77 @@ async function generateAssembledComponent(tcc: ToolConstructionContext, jobId: s
   logger.info({ provider, modelId }, '🔧 ComponentAssembler: Using model');
   const modelInstance = createModelInstance(provider, modelId);
 
-  const systemPrompt = `You are a React component assembler. Convert JSX to React.createElement syntax and integrate state logic.
+  const systemPrompt = `You are a React component assembler. Create a complete JSX component that works with the DynamicComponentRenderer.
 
 🚨 CRITICAL OUTPUT REQUIREMENTS:
 - Return a JSON object with: finalComponentCode, componentName, hooks, functions, estimatedLines
-- finalComponentCode: Complete JavaScript React component using React.createElement() ONLY
+- finalComponentCode: Complete JSX React component (NOT React.createElement)
 - componentName: Valid JavaScript identifier (e.g., "BusinessCalculator")
 - hooks: Array of hook names used (e.g., ["useState", "useEffect"]) or empty array
 - functions: Array of function names defined or empty array  
 - estimatedLines: Number estimate of code lines
 
-🚨 VARIABLE NAMING RULES - CRITICAL:
-- NEVER use the same name for local variables as React state variables
-- State variables: revenue, netIncome, currentAssets, etc.
-- Local variables: rev, income, assets, etc. (use abbreviated forms)
-- Example: const rev = Number(revenue); NOT const revenue = Number(revenue);
-
-🚨 REACT KEY PROPS - MANDATORY:
-- EVERY React.createElement() call that creates an array of children MUST include unique 'key' props
-- Use descriptive keys: 'input-current-assets', 'result-liquidity-ratio', 'tooltip-revenue', etc.
-- FAILURE TO ADD KEYS TO ARRAY ELEMENTS WILL CAUSE REACT ERRORS
-- Example: React.createElement('div', { key: 'container' }, [
-    React.createElement(Input, { key: 'input-revenue' }),
-    React.createElement(Input, { key: 'input-income' })
-  ])
-
-❌ FORBIDDEN:
-- NO import statements
-- NO export statements  
-- NO JSX syntax (<div>, <Button>)
-- NO TypeScript (interface, React.FC, type annotations)
-- NO variable name collisions (shadowing state variables)
-- NO React.createElement calls without keys when children are arrays
-
 ✅ REQUIRED FORMAT:
 \`\`\`javascript
 'use client';
 
-const ComponentName = () => {
+function ComponentName() {
   const [state, setState] = useState(initialValue);
   
   const handleFunction = () => {
-    // Use abbreviated names: const val = Number(state);
-    // NOT: const state = Number(state);
+    // logic here
   };
   
-  return React.createElement('div', { 
-    className: 'styles',
-    'data-style-id': 'element-id',
-    key: 'unique-key'
-  }, [
-    React.createElement(Card, { key: 'card-main' }, 'content'),
-    React.createElement(Input, { key: 'input-primary' })
-  ]);
-};
+  return (
+    <div className="w-full">
+      <Card className="styles" data-style-id="main-card">
+        <CardHeader data-style-id="header">
+          <CardTitle data-style-id="title">Title</CardTitle>
+        </CardHeader>
+        <CardContent data-style-id="content">
+          {/* JSX content */}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 \`\`\`
 
-AVAILABLE COMPONENTS (use directly):
-React, useState, useEffect, useCallback, useMemo, Card, CardHeader, CardContent, CardTitle, Button, Input, Label, Select, Textarea, AlertCircle, Info, Loader2
+🚨 CRITICAL JSX RULE:
+- The return statement MUST have exactly ONE root element
+- If you need multiple elements, wrap them in a single div or React Fragment
+- NEVER return adjacent JSX elements without a wrapper
+
+🚨 CRITICAL REQUIREMENTS:
+- Add data-style-id attribute to EVERY JSX element for dynamic styling
+- Use descriptive IDs like "main-card", "input-revenue", "button-calculate"
+- Avoid variable name collisions in calculations (use abbreviated names: rev, income, etc.)
+
+❌ FORBIDDEN:
+- NO import statements (dependencies auto-injected)
+- NO export statements  
+- NO React.createElement syntax
+- NO TypeScript (interface, React.FC, type annotations)
+- NO undefined component usage
+
+✅ AVAILABLE COMPONENTS (use directly without imports):
+React, useState, useEffect, useCallback, useMemo, 
+Button, Input, Label, Textarea,
+Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent,
+Select, SelectGroup, SelectValue, SelectTrigger, SelectContent, SelectItem, SelectLabel, SelectSeparator,
+RadioGroup, RadioGroupItem, Checkbox, Slider, Switch,
+Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+Dialog, DialogPortal, DialogOverlay, DialogClose, DialogTrigger, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
+Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, Progress,
+AlertCircle, Loader2, Info,
+BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, XAxis, YAxis, CartesianGrid, RechartsTooltip, Legend, ResponsiveContainer, RadialBarChart, RadialBar, ComposedChart, Scatter, ScatterChart
 
 RULES:
 1. Start with 'use client';
-2. Use React.createElement() for ALL elements
-3. Add 'data-style-id' and 'key' props to EVERY element
-4. Apply className from provided styling
-5. Integrate all state logic provided
-6. Use abbreviated variable names in calculations (rev, income, assets, etc.)
-7. When React.createElement has array children, EVERY child needs a unique key
-8. End with just the function - NO exports`;
+2. Use standard JSX syntax
+3. Use function declarations (not arrow functions)
+4. No import/export statements
+5. End with just the function definition`;
 
   // Generate component name with debugging
   const suggestedComponentName = generateComponentName(tcc.userInput.description);
@@ -353,31 +373,67 @@ RULES:
     tccJobId: tcc.jobId,
     originalDescription: tcc.userInput.description,
     suggestedComponentName,
-    hasStyledCode: !!(tcc as any).styling?.styledComponentCode,
+    hasStyledCode: !!tcc.styling?.styledComponentCode,
     hasJsxLayout: !!tcc.jsxLayout?.componentStructure,
-    hasStateLogic: !!tcc.stateLogic
+    hasStateLogic: !!tcc.stateLogic,
+    stateVariablesCount: tcc.stateLogic?.variables?.length || 0,
+    stateFunctionsCount: tcc.stateLogic?.functions?.length || 0
   }, '🔧 ComponentAssembler: 🔍 Input data analysis');
 
-  const userPrompt = `Please assemble the React component using the following parts.
+  const userPrompt = `Create a complete working React component using the following specifications.
 
-Component Name Suggestion: ${suggestedComponentName}
+Component Name: ${suggestedComponentName}
 
-STYLED JSX CODE (complete JSX with Tailwind classes already applied):
-\`\`\`jsx
-${(tcc as any).styling?.styledComponentCode || tcc.jsxLayout?.componentStructure || 'No styled code available'}
-\`\`\`
-
-STATE LOGIC (the brains and functionality):
+STATE LOGIC (implement these variables and functions):
 \`\`\`json
 ${JSON.stringify(tcc.stateLogic, null, 2)}
 \`\`\`
 
-STYLE MAP (for reference - element IDs to classes):
-\`\`\`json
-${JSON.stringify((tcc as any).styling?.styleMap, null, 2)}
+STYLED JSX STRUCTURE (complete JSX with Tailwind classes applied):
+\`\`\`jsx
+${tcc.styling.styledComponentCode}
 \`\`\`
 
-Convert the styled JSX above to React.createElement() syntax and integrate with the state logic. Generate the complete JSON object containing the final component code WITHOUT imports and using the available components from the execution context.`;
+ELEMENT MAPPING (for data-style-id attributes):
+\`\`\`json
+${JSON.stringify(tcc.styling.styleMap || {}, null, 2)}
+\`\`\`
+
+REQUIRED OUTPUT: Generate a complete, working React component that:
+1. Starts with 'use client';
+2. Uses function declaration: function ${suggestedComponentName}() {
+3. Implements ALL state variables from STATE LOGIC using useState
+4. Implements ALL functions from STATE LOGIC with proper logic
+5. Uses the STYLED JSX STRUCTURE as the return JSX (modify as needed)
+6. Applies data-style-id attributes from ELEMENT MAPPING
+7. Define ALL referenced arrays/variables (businessSizes, etc.) with realistic data
+8. Uses only AVAILABLE COMPONENTS listed above
+9. Has proper event handlers connecting to state functions
+10. No imports or exports - everything self-contained
+
+CRITICAL REQUIREMENTS:
+- The return statement MUST have exactly ONE root element (wrap in <div> if needed)
+- Every state variable in STATE LOGIC must have corresponding useState hook
+- Every function in STATE LOGIC must be implemented as a proper function
+- All referenced data arrays must be defined with realistic values
+- Use the STYLED JSX STRUCTURE but ensure single root element
+- Apply data-style-id attributes for dynamic styling
+- NEVER return adjacent JSX elements - always wrap in container
+
+EXAMPLE OF CORRECT JSX WRAPPING:
+If your styled JSX has multiple cards like:
+<Card>...</Card>
+<Card>...</Card>
+
+You MUST wrap them:
+return (
+  <div className="space-y-6">
+    <Card>...</Card>
+    <Card>...</Card>
+  </div>
+);
+
+The component should be fully functional and ready to run in the DynamicComponentRenderer.`;
 
   // Log prompts with proper formatting for debugging
   logger.info({
@@ -579,27 +635,21 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
           const varName = match[1];
           const safeVarName = varMap[varName] || `${varName}Val`;
           
-          // Replace the collision declaration and subsequent usage in the same function
-          const functionPattern = new RegExp(
-            `(const\\s+${varName}\\s*=\\s*Number\\(${varName}\\);[\\s\\S]*?)(\\b${varName}\\b)(?![a-zA-Z])([\\s\\S]*?)(?=\\n\\s*\\}|$)`,
-            'g'
-          );
-          
+          // Replace the collision declaration
           fixedCode = fixedCode.replace(
             new RegExp(`const\\s+${varName}\\s*=\\s*Number\\(${varName}\\)`, 'g'),
             `const ${safeVarName} = Number(${varName})`
           );
           
-          // Replace usage within the calculation logic (but not in Number() calls)
+          // Replace variable usage in calculations (within the same function block)
+          // Look for arithmetic operations where the variable is used
           fixedCode = fixedCode.replace(
-            new RegExp(`(const\\s+${safeVarName}\\s*=\\s*Number\\([^)]+\\);[\\s\\S]*?)(\\b${varName}\\b)(?!\\s*[),])`, 'g'),
-            (match, prefix, varUsage) => {
-              // Replace variable usage in calculations but preserve state variable references
-              if (match.includes('/ ' + varName) || match.includes('* ' + varName) || match.includes('- ' + varName) || match.includes('+ ' + varName)) {
-                return match.replace(varUsage, safeVarName);
-              }
-              return match;
-            }
+            new RegExp(`(\\b${varName}\\b)(?=\\s*[+\\-*/])`, 'g'),
+            safeVarName
+          );
+          fixedCode = fixedCode.replace(
+            new RegExp(`([+\\-*/]\\s*)(\\b${varName}\\b)`, 'g'),
+            `$1${safeVarName}`
           );
         }
       });
@@ -617,12 +667,38 @@ Convert the styled JSX above to React.createElement() syntax and integrate with 
       object.finalComponentCode = finalCode;
     }
 
+    // Post-process to add missing data-style-id attributes for dynamic styling
+    const missingDataStyleIds = !finalCode.includes('data-style-id');
+    
+    if (missingDataStyleIds) {
+      logger.warn({
+        tccJobId: tcc.jobId,
+        provider,
+        modelId
+      }, '🔧 ComponentAssembler: ⚠️ AI generated JSX without data-style-id attributes! These are needed for dynamic styling.');
+      
+      // This is a warning only - the styling system should handle missing IDs gracefully
+      // We don't auto-fix this as it would require complex JSX parsing
+    }
+
+    // Extract actual hooks and functions from the generated code for accuracy
+    const actualHooks = extractHooks(finalCode);
+    const actualFunctions = extractFunctions(finalCode);
+    
+    // Update the object with extracted data for accuracy
+    object.hooks = actualHooks;
+    object.functions = actualFunctions;
+    object.estimatedLines = finalCode.split('\n').length;
+
     // Log final code length and imports check for debugging
     logger.info({
       jobId: tcc.jobId,
       assembledCodeLength: finalCode.length,
       hasImportsInFinalCode: finalCode.includes('import '),
       hasExportsInFinalCode: finalCode.includes('export '),
+      extractedHooks: actualHooks,
+      extractedFunctions: actualFunctions,
+      actualLines: object.estimatedLines
     }, '🔧 ComponentAssembler: 🔍 TCC Update Debug - storing assembled component code');
 
     return object;
@@ -810,86 +886,37 @@ function generateFallbackComponent(tcc: ToolConstructionContext): AssembledCompo
   return {
     finalComponentCode: `'use client';
 
-const ${componentName} = () => {
-  return React.createElement('div', { 
-    className: 'p-8 max-w-2xl mx-auto',
-    'data-style-id': 'error-container'
-  }, [
-    React.createElement(Card, { 
-      className: 'border-red-500 bg-red-50',
-      'data-style-id': 'error-card',
-      key: 'error-card'
-    }, [
-      React.createElement(CardHeader, { 
-        className: 'bg-red-100 border-b border-red-200',
-        'data-style-id': 'error-header',
-        key: 'header'
-      }, [
-        React.createElement('div', { 
-          className: 'flex items-center space-x-2',
-          key: 'header-content'
-        }, [
-          React.createElement(AlertCircle, { 
-            className: 'h-6 w-6 text-red-600',
-            key: 'icon'
-          }),
-          React.createElement(CardTitle, { 
-            className: 'text-red-800',
-            key: 'title'
-          }, '🚨 COMPONENT GENERATION FAILED')
-        ])
-      ]),
-      React.createElement(CardContent, { 
-        className: 'p-6 space-y-4',
-        'data-style-id': 'error-content',
-        key: 'content'
-      }, [
-        React.createElement('div', { 
-          className: 'bg-red-100 border border-red-300 rounded-lg p-4',
-          key: 'error-details'
-        }, [
-          React.createElement('h3', { 
-            className: 'font-semibold text-red-800 mb-2',
-            key: 'error-title'
-          }, 'ERROR: AI Component Assembly Failed'),
-          React.createElement('p', { 
-            className: 'text-red-700 text-sm mb-2',
-            key: 'error-description'
-          }, 'The AI model failed to generate the component code. This is a fallback error component.'),
-          React.createElement('p', { 
-            className: 'text-red-600 text-xs',
-            key: 'timestamp'
-          }, 'Timestamp: ${timestamp}')
-        ]),
-        React.createElement('div', { 
-          className: 'space-y-2',
-          key: 'tool-info'
-        }, [
-          React.createElement('h4', { 
-            className: 'font-medium text-red-800',
-            key: 'tool-title'
-          }, 'Requested Tool:'),
-          React.createElement('p', { 
-            className: 'text-sm text-red-700',
-            key: 'tool-description'
-          }, '${tcc.userInput.description}')
-        ]),
-        React.createElement('div', { 
-          className: 'mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded',
-          key: 'warning'
-        }, [
-          React.createElement('p', { 
-            className: 'text-yellow-800 text-xs font-medium',
-            key: 'warning-text'
-          }, '⚠️ This is a system-generated fallback component indicating an error in the AI generation process.')
-        ])
-      ])
-    ])
-  ];
-};`,
+function ${componentName}() {
+  return (
+    <div className="p-8 max-w-2xl mx-auto">
+      <Card className="border-red-500 bg-red-50">
+        <CardHeader className="bg-red-100 border-b border-red-200">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+            <CardTitle className="text-red-800">🚨 COMPONENT GENERATION FAILED</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+            <h3 className="font-semibold text-red-800 mb-2">ERROR: AI Component Assembly Failed</h3>
+            <p className="text-red-700 text-sm mb-2">The AI model failed to generate the component code. This is a fallback error component.</p>
+            <p className="text-red-600 text-xs">Timestamp: ${timestamp}</p>
+          </div>
+          <div className="space-y-2">
+            <h4 className="font-medium text-red-800">Requested Tool:</h4>
+            <p className="text-sm text-red-700">${tcc.userInput.description}</p>
+          </div>
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+            <p className="text-yellow-800 text-xs font-medium">⚠️ This is a system-generated fallback component indicating an error in the AI generation process.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}`,
     componentName: `${componentName}_ERROR_FALLBACK`,
-    hooks: [],
-    functions: [],
-    estimatedLines: 45
+    hooks: [], // Fallback component doesn't use hooks
+    functions: [componentName], // The main component function
+    estimatedLines: 25
   };
 } 

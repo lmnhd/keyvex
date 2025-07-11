@@ -268,7 +268,78 @@ export class ComponentAssemblerModule extends BaseAgentModule {
       }
     }
     
-    return processed;
+    // 🚨 CRITICAL FIX: Ensure JSX content has single root element
+    return this.ensureSingleRootElement(processed);
+  }
+
+  /**
+   * Ensure JSX content has exactly one root element to prevent adjacent JSX element errors
+   */
+  private ensureSingleRootElement(jsxCode: string): string {
+    // Remove leading/trailing whitespace and normalize
+    const trimmed = jsxCode.trim();
+    
+    if (!trimmed) {
+      return '<div>No content</div>';
+    }
+    
+    // Check if already has single root element by counting top-level elements
+    const topLevelElements = this.countTopLevelElements(trimmed);
+    
+    if (topLevelElements === 1) {
+      return trimmed; // Already has single root
+    }
+    
+    // Multiple top-level elements - wrap in div with proper indentation
+    const lines = trimmed.split('\n');
+    const indentedLines = lines.map(line => line.trim() ? `    ${line}` : '');
+    
+    return `<div className="w-full">\n${indentedLines.join('\n')}\n  </div>`;
+  }
+  
+  /**
+   * Count top-level JSX elements to detect adjacent element issues
+   */
+  private countTopLevelElements(jsxCode: string): number {
+    let elementCount = 0;
+    let depth = 0;
+    let inTag = false;
+    let tagStart = false;
+    
+    for (let i = 0; i < jsxCode.length; i++) {
+      const char = jsxCode[i];
+      const nextChar = jsxCode[i + 1];
+      
+      if (char === '<') {
+        if (nextChar === '/') {
+          // Closing tag
+          inTag = true;
+          depth--;
+        } else if (nextChar !== '!' && nextChar !== '?') {
+          // Opening tag (not comment or processing instruction)
+          inTag = true;
+          tagStart = true;
+          if (depth === 0) {
+            elementCount++;
+          }
+          // Check if it's a self-closing tag
+          let j = i;
+          while (j < jsxCode.length && jsxCode[j] !== '>') {
+            j++;
+          }
+          if (j > 0 && jsxCode[j - 1] === '/') {
+            // Self-closing tag, don't increment depth
+          } else {
+            depth++;
+          }
+        }
+      } else if (char === '>' && inTag) {
+        inTag = false;
+        tagStart = false;
+      }
+    }
+    
+    return elementCount;
   }
 
   /**

@@ -346,13 +346,18 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
     if (!selectedBrainstorm) return;
 
     console.log('🔵 handleRerunResearch: Initiating re-run for brainstorm:', selectedBrainstorm.id);
+    console.log('🔵 handleRerunResearch: About to show confirmation toast...');
 
     toast('Re-run Research?', {
       description: 'This will run a new Perplexity search and may cost money. Are you sure?',
       action: {
         label: 'Confirm',
         onClick: async () => {
-          if (!selectedBrainstorm) return; // Re-check in case state changed
+          console.log('🔵 handleRerunResearch: CONFIRM BUTTON CLICKED!');
+          if (!selectedBrainstorm) {
+            console.log('🔵 handleRerunResearch: No selected brainstorm, aborting');
+            return;
+          }
 
           console.log('🔵 handleRerunResearch: Confirmed re-run for brainstorm:', selectedBrainstorm.id);
 
@@ -465,6 +470,7 @@ const DataRequirementsResearch: React.FC<DataRequirementsResearchProps> = ({
       cancel: {
         label: 'Cancel',
         onClick: () => {
+          console.log('🔵 handleRerunResearch: CANCEL BUTTON CLICKED!');
           console.log('🔵 handleRerunResearch: Re-run cancelled by user.');
           toast.info('Re-run cancelled.');
         }

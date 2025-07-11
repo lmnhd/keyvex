@@ -155,12 +155,23 @@ MOCK DATA GENERATION:
 - Base data on tool's calculation needs
 - Make data location-specific if needed
 
-OUTPUT REQUIREMENTS:
-- hasExternalDataNeeds: boolean (true if tool needs external data)
-- requiredDataTypes: array of data type categories needed
-- researchQueries: specific queries with domain classification
-- mockData: organized mock data by category with realistic values
-- userInstructions: clear summary for user`;
+REQUIRED OUTPUT STRUCTURE - YOU MUST INCLUDE ALL FIELDS:
+1. hasExternalDataNeeds: boolean (true if tool needs external data)
+2. requiredDataTypes: array of string data type categories needed
+3. researchQueries: array of objects, each with ALL these required fields:
+   - query: string (the search query)
+   - domain: string (domain category like "solar", "finance")
+   - dataType: string (must be one of: "regulatory", "market_pricing", "geographic", "industry_standards", "tax_rates", "statistical", "other")
+   - priority: string (must be one of: "high", "medium", "low")
+   - locationDependent: boolean (whether results vary by location)
+   - expectedDataStructure: string (expected structure description)
+4. mockData: object with category keys and realistic data values
+5. userInstructions: object with exactly these fields:
+   - summary: string (summary of data requirements)
+   - dataNeeded: array of strings (list of data user needs to provide)
+   - format: string (expected format for user data)
+
+CRITICAL: Every researchQueries object MUST have ALL 6 fields. Every userInstructions object MUST have exactly 3 fields with correct types.`;
 
   const locationContext = userLocation ? `
 USER LOCATION CONTEXT:
@@ -194,14 +205,23 @@ EXAMPLES OF EXTERNAL DATA NEEDS:
 
 Perform comprehensive analysis and generate realistic mock data that will enable this tool to work properly during development and testing.`;
 
-  const { object } = await generateObject({
-    model: modelInstance,
-    schema: DataRequirementsResearchOutputSchema,
-    system: systemPrompt,
-    prompt: userPrompt,
-    temperature: 0.4,
-    maxTokens: 4000
-  });
+  try {
+    const result = await generateObject({
+      model: modelInstance,
+      schema: DataRequirementsResearchOutputSchema,
+      system: systemPrompt,
+      prompt: userPrompt,
+      temperature: 0.2,
+      maxTokens: 16384
+    });
 
-  return object;
+
+    return result.object;
+  } catch (error) {
+    logger.error({ 
+      error: error instanceof Error ? error.message : String(error),
+      errorType: error?.constructor?.name || 'Unknown'
+    }, '🔍 Schema validation error details');
+    throw error;
+  }
 }

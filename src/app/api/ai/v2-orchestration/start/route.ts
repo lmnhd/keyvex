@@ -344,14 +344,15 @@ async function processAgentsInBackground(
       }
     }
 
-    // 🎉 EMIT WORKFLOW COMPLETION
+    // 🚨 CRITICAL FIX: ALWAYS SEND COMPLETE TCC WITH FINAL PRODUCT
     await emitStepProgress(
       jobId,
       'completed',
       'completed',
       'V2 Orchestration workflow completed successfully',
       {
-        userId: userId, // <-- CRITICAL FIX: Add userId here
+        userId: userId,
+        updatedTcc: currentTcc, // 🎯 SEND THE COMPLETE TCC
         totalAgents: agentSequence.length,
         finalTccKeys: Object.keys(currentTcc),
         completedAt: new Date().toISOString(),
