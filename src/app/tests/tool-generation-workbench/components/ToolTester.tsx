@@ -1061,7 +1061,7 @@ const ToolTester: React.FC<{ isDarkMode: boolean, newBrainstormFlag?: number }> 
     if (testJob?.jobId) {
       setIsRefreshingTCC(true);
       try {
-        const response = await fetch(`/api/ai/product-tool-creation-v2/orchestrate/tcc/${testJob.jobId}`);
+        const response = await fetch(`/api/ai/v2-orchestration/tcc/${testJob.jobId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.tcc) {

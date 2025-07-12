@@ -1509,9 +1509,18 @@ export default function ToolTesterView({
                 <CardContent>
                   {(() => {
                     // 🚨 SINGLE SOURCE OF TRUTH FOR COMPONENT CODE
-                    // Only use assembledComponentCode from TCC - this is the complete React component
-                    const componentCode = tccData?.assembledComponentCode || '';
-                    const codeSource = componentCode ? 'TCC assembledComponentCode (Complete React Component)' : 'No component code available';
+                    // Prefer the assembledCode prop (latest client state), then fall back to TCC and job result.
+                    const componentCode = assembledCode
+                      || tccData?.assembledComponentCode
+                      || tccData?.finalProduct?.componentCode
+                      || ((): string | undefined => {
+                        if (testJob?.result && typeof testJob.result === 'object') {
+                          const r: any = testJob.result;
+                          return r.componentCode ?? r.finalProduct?.componentCode;
+                        }
+                        return undefined;
+                      })() || '';
+                    const codeSource = componentCode ? 'Component Code (Unified Source)' : 'No component code available';
 
                     if (componentCode) {
                       const formatDetection = detectComponentCodeFormat(componentCode);
