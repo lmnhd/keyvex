@@ -7,7 +7,7 @@ import { CheckCircle, Loader2, XCircle, Clock, Wand2 } from 'lucide-react';
 import { StepProgress } from '../hooks/useToolGenerationStream';
 
 interface ProgressLogProps {
-  progressUpdates: StepProgress[];
+  progressUpdates?: StepProgress[];
   isDarkMode: boolean;
 }
 
@@ -25,7 +25,7 @@ const getStatusIcon = (status: StepProgress['status']) => {
   }
 };
 
-const ProgressLog: React.FC<ProgressLogProps> = ({ progressUpdates, isDarkMode }) => {
+const ProgressLog: React.FC<ProgressLogProps> = ({ progressUpdates = [], isDarkMode }) => {
   return (
     <Card className={`transition-all duration-300 ${isDarkMode ? 'dark' : ''}`}>
       <CardHeader>

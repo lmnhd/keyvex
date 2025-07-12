@@ -344,7 +344,9 @@ async function processAgentsInBackground(
       }
     }
 
-    // 🚨 CRITICAL FIX: ALWAYS SEND COMPLETE TCC WITH FINAL PRODUCT
+    // 🚨 CRITICAL FIX: SEND COMPLETE TCC WITH EXTRACTED FINAL PRODUCT
+    const extractedFinalProduct = currentTcc.finalProduct;
+    
     await emitStepProgress(
       jobId,
       'completed',
@@ -352,11 +354,14 @@ async function processAgentsInBackground(
       'V2 Orchestration workflow completed successfully',
       {
         userId: userId,
-        updatedTcc: currentTcc, // 🎯 SEND THE COMPLETE TCC
+        updatedTcc: currentTcc, // Complete TCC for backup
+        finalProduct: extractedFinalProduct, // 🎯 DIRECT ACCESS TO FINAL PRODUCT
         totalAgents: agentSequence.length,
         finalTccKeys: Object.keys(currentTcc),
         completedAt: new Date().toISOString(),
-        hasFinalProduct: !!currentTcc.finalProduct
+        hasFinalProduct: !!extractedFinalProduct,
+        finalProductId: extractedFinalProduct?.id,
+        hasComponentCode: !!extractedFinalProduct?.componentCode
       }
     );
 

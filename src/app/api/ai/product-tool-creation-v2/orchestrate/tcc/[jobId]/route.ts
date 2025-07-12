@@ -1,27 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getTccByJobId } from '@/lib/data/tcc';
-import logger from '@/lib/logger';
+import { fetchTccByJobId } from '../core-logic';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ jobId: string }> }
-) {
-  const { jobId } = await params;
-
-  if (!jobId) {
-    return NextResponse.json({ success: false, error: 'Job ID is required' }, { status: 400 });
-  }
-
-  try {
-    const tcc = await getTccByJobId(jobId);
-
-    if (!tcc) {
-      return NextResponse.json({ success: false, error: 'TCC not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, tcc });
-  } catch (error) {
-    logger.error({ error, jobId }, 'Failed to fetch TCC by job ID');
-    return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
-  }
+export async function GET(_request: Request, { params }: { params: { jobId: string } }) {
+  const result = await fetchTccByJobId(params.jobId);
+  return NextResponse.json(result, { status: result.status });
 }
